@@ -1,0 +1,55 @@
+@page {
+    size: 148mm 210mm;
+    margin-top: 22mm;
+    margin-bottom: 22mm;
+    margin-left: 20mm;
+    margin-right: 20mm;
+}
+
+.folio-content {
+    margin-top: 22mm;
+    margin-bottom: 22mm;
+    margin-left: 20mm;
+    margin-right: 20mm;
+}
+
+.folio-content p {
+    text-align: justify;
+}
+
+.pagedjs_pages {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;      /* ou wrap si tu veux que ça retombe sur une nouvelle ligne */
+    align-items: flex-start;
+}
+
+.pagedjs_page {
+    text-align: justify;
+    position: relative;
+    transform-origin: top left;
+    flex: 0 0 auto;          /* empêche le shrink — la largeur vient du @page CSS, pas du flex */
+    margin-right: 20px;      /* gap visuel entre pages */
+}
+
+/* typographie-livre.css — non scopé, partagé */
+.pagedjs_page_content article {
+    font-family: Georgia, serif;
+}
+
+.pagedjs_page_content article h3,
+.folio h3 {
+    margin: 0 0 1.2em 0;
+    padding: 0;
+}
+
+.pagedjs_page_content article p,
+.folio p {
+    margin: 0 0 0.8em 0;
+    padding: 0;
+}
+
+
+.ql-editor {
+    text-align: justify;
+}

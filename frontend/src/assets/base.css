@@ -1,0 +1,157 @@
+/* ── Reset ───────────────────────────────────────────── */
+*, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+/* ── Theme LIGHT ONLY ─────────────────────────────────── */
+:root {
+    --c-bg: #faf8f4;
+    --c-surface: rgba(255, 255, 255, 0.8);
+    --c-surface2: #f2ede6;
+    --c-surface3: rgba(255, 255, 255, 0.6);
+    --c-surface4: rgba(255, 255, 255, 0.2);
+
+    --c-backdrop-filter-blur: blur(3px);
+
+    --c-ink: #1a1612;
+    --c-ink2: #5a5047;
+    --c-accent: #7c4f2a;
+    --c-accent2: #c8a96e;
+    --c-border: #e0d8cc;
+    --c-muted: #8a7f72;
+    --c-green: #28a745;
+    --c-yellow: #ffc107;
+    --c-orange: #fd7e14;
+    --c-gray: #adb5bd;
+}
+
+/* ── Body background ─────────────────────────────────── */
+body {
+    font-family: system-ui, sans-serif;
+    background-color: var(--c-bg);
+    background-image: url("/sand.png");
+    background-repeat: repeat;
+    color: var(--c-ink);
+}
+
+/* ── Layout root ─────────────────────────────────────── */
+.app {
+    min-height: 100vh;
+}
+
+/* ── View ────────────────────────────────────────────── */
+.view {
+    padding: 2rem;
+    font-family: Georgia, serif;
+}
+
+
+.axe-title {
+    font-size: 1rem;
+    color: var(--c-accent);
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.25rem;
+}
+
+/* ── Blocs ────────────────────────────────────────────── */
+.blocs {
+    width: 200px;
+    display: grid;
+    /* grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); */
+    gap: 0.75rem;
+}
+
+.ql-toolbar.ql-snow {
+    padding: 0.rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.33);
+}
+
+.ql-toolbar.ql-snow, .bloc {
+    background: var(--c-surface);
+    backdrop-filter: var(--c-backdrop-filter-blur);
+    border-radius: 6px;
+}
+
+
+.bloc {
+    cursor: pointer;
+    padding: 0.5rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+.bloc-title {
+    font-size: 0.85rem;
+    margin-bottom: 0.5rem;
+}
+
+.dots {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+    margin-bottom: 0.4rem;
+}
+
+.dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    background: var(--c-accent2);
+}
+
+/* ── Modal ───────────────────────────────────────────── */
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.4);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.modal {
+    background: var(--c-surface);
+    backdrop-filter: var(--c-backdrop-filter-blur);
+    padding: 1.5rem;
+    border-radius: 8px;
+    width: min(600px, 90vw);
+    max-height: 80vh;
+    overflow: auto;
+}
+
+.close {
+    position: absolute;
+    right: 1rem;
+    top: 1rem;
+    border: none;
+    background: var(--c-surface2);
+    border-radius: 50%;
+    width: 28px;
+    height: 28px;
+    cursor: pointer;
+}
+
+
+
+
+
+
+
+
+.spread {
+    display: flex;
+    align-items: flex-start; /* éviter le stretch vertical par défaut */
+    flex-wrap: nowrap;
+}
+
+.folio {
+    flex: 0 0 auto; /* flex-grow:0, flex-shrink:0, flex-basis:auto */
+    /* la width: 150mm inline-style est alors respectée à la lettre */
+}
+
+
+
+.quill-block :deep(.ql-toolbar.ql-snow) {
+    display: none;
+}

@@ -1,0 +1,242 @@
+<template>
+  <div class="quill-block" @click="requestActivate">
+    <div v-if="!active" class="preview">
+      <p v-for="(p, i) in modelValue" :key="i">{{ p }}</p>
+      <p v-if="!modelValue || !modelValue.length" class="empty">—</p>
+    </div>
+
+    <!-- v-if (et non v-show) : le wrapper est entièrement recréé/détruit à
+         chaque activation/désactivation. Nécessaire car Quill insère sa
+         toolbar comme sibling de editorHost — il faut que tout le sous-arbre
+         disparaisse proprement avec le wrapper, sinon les toolbars s'accumulent
+         dans le DOM à chaque clic. -->
+    <div v-else ref="wrapper" class="editor-wrapper">
+      <div ref="editorHost" class="editor-host"></div>
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { ref, watch, nextTick, onBeforeUnmount } from 'vue'
+
+const props = defineProps({
+  modelValue: { type: String, default: "" },
+  active: { type: Boolean, default: false }, // contrôlé par le parent — un seul actif à la fois
+  initialIndex: { type: Number, default: null },
+  initialLength: { type: Number, default: 0 },
+  // Un paragraphe peut être réparti sur plusieurs fragments de pagination :
+  // ces deux flags indiquent si CE fragment est le premier/dernier du bloc,
+  // c.-à-d. si on est sur un vrai bord de paragraphe (et pas une coupure de
+  // page interne où fusionner avec le voisin serait une erreur).
+  isFirstFragment: { type: Boolean, default: true },
+  isLastFragment: { type: Boolean, default: true },
+})
+const emit = defineEmits([
+    'update:modelValue',
+    'request-activate',
+    'state-change',
+    'maj',
+    'merge-next',
+    'merge-prev',
+    'toolbar-ready',
+])
+
+const editorHost = ref(null)
+let quill = null
+
+function requestActivate() {
+  if (!props.active) emit('request-activate')
+}
+
+async function mountQuill() {
+  const { default: Quill } = await import('quill')
+  await import('../assets/scribe.css')
+
+  quill = new Quill(editorHost.value, {
+    theme: 'snow',
+    modules: {
+      toolbar: [['bold', 'italic']],
+    },
+  })
+
+  const toolbarEl = quill.container.previousElementSibling
+  emit('toolbar-ready', toolbarEl)
+
+  quill.clipboard.dangerouslyPasteHTML(props.modelValue || '')
+  quill.focus()
+
+  quill.on('text-change', () => {
+    emit('update:modelValue', quill.root.innerHTML)
+    emitState()
+  })
+
+  quill.on('selection-change', emitState)
+
+  quill.on('text-change', (delta, oldDelta, source) => {
+    if (source !== 'user') return
+    for (const op of delta.ops || []) {
+      if ( typeof op.insert === 'string' && op.insert.includes('\n')) {
+        emit('maj')
+        return
+      }
+    }
+  })
+
+  quill.root.addEventListener('keydown', (e) => {
+
+    switch (e.key) {
+
+      case 'Delete':
+        handleMergeNext(e)
+        break
+
+      case 'Backspace':
+        handleMergePrev(e)
+        break
+
+    }
+  })
+
+  // Curseur Quill positionné exactement où l'utilisateur a cliqué
+  const length = quill.getLength()
+  const startIndex = props.initialIndex != null
+      ? Math.min(Math.max(props.initialIndex, 0), Math.max(length - 1, 0))
+      : 0
+  const selLength = Math.min(props.initialLength || 0, Math.max(length - 1 - startIndex, 0))
+
+  quill.focus()
+  quill.setSelection(startIndex, selLength)
+
+  // On force l'émission : pas d'attente d'un changement de sélection
+  // utilisateur pour que le faux-curseur apparaisse dans le Folia
+  emitState()
+
+}
+
+function handleMergeNext(e) {
+  // Pas le dernier fragment du bloc : on n'est qu'à une coupure de page
+  // interne au paragraphe, pas à sa vraie fin — ne rien fusionner.
+  if (!props.isLastFragment) return
+
+  const range = quill.getSelection()
+  if (!range || range.length !== 0) return
+
+  const text = quill.getText()
+
+  const cleanLength = text.replace(/\n$/, '').length
+
+  const isAtEnd = range.index >= cleanLength - 1
+
+  if (!isAtEnd) return
+
+  emit('merge-next')
+
+  e.preventDefault()
+}
+
+function handleMergePrev(e) {
+  // Pas le premier fragment du bloc : coupure de page interne, pas le
+  // vrai début du paragraphe — ne rien fusionner.
+  if (!props.isFirstFragment) return
+
+  const range = quill.getSelection()
+  if (!range || range.length !== 0) return
+
+  // début logique du contenu (sans \n final)
+  const text = quill.getText()
+  const cleanLength = text.replace(/\n$/, '').length
+
+  const isAtStart = range.index === 0
+
+  if (!isAtStart) return
+
+  emit('merge-prev')
+  e.preventDefault()
+}
+
+
+function emitState() {
+  const range = quill.getSelection()
+  emit('state-change', {
+    html: quill.root.innerHTML,
+    index: range ? range.index : null,
+  })
+}
+
+function restoreFocus(index, length = 0) {
+  if (!quill) return
+  quill.focus()
+  quill.setSelection(index, length, 'silent') // 'silent' : pas de text-change/selection-change parasite
+  emitState() // on réutilise le même mécanisme que sur le mount pour forcer la synchro du curseur Folia
+}
+
+//defineExpose({ restoreFocus })
+
+defineExpose({
+  restoreFocus,
+  getQuill: () => quill,
+  getEditorEl: () => editorHost.value?.querySelector('.ql-editor'),
+})
+
+watch(
+    () => props.active,
+    async (isActive) => {
+      if (isActive) {
+        await nextTick()
+        await mountQuill()
+      } else {
+        quill = null
+      }
+    },
+    { immediate: true }   // <-- ajouté
+)
+
+onBeforeUnmount(() => {
+  quill = null
+})
+</script>
+
+<style scoped>
+.quill-block {
+  cursor: text;
+}
+
+/* La preview ET l'éditeur doivent être visuellement indissociables :
+   même police, même taille, même interligne, mêmes marges de paragraphe. */
+.preview,
+.quill-block :deep(.ql-editor) {
+  font-family: var(--editor-font-family, Georgia, 'Times New Roman', serif);
+  /*font-size: var(--editor-font-size, 1rem);
+  line-height: var(--editor-line-height, 1.185);
+  color: var(--editor-color, inherit);
+  padding: 0;
+  text-align: var(--editor-text-align, justify);*/
+}
+
+.preview p,
+.quill-block :deep(.ql-editor p) {
+  margin: 0 0 0.75em;
+}
+
+.preview .empty {
+  color: #999;
+  font-style: italic;
+}
+
+/* Neutralise le cadre par défaut de Quill pour qu'il ne "saute pas aux yeux"
+   au moment de l'activation — seule la toolbar signale le mode édition. */
+.quill-block :deep(.ql-container.ql-snow) {
+  border: none;
+}
+.quill-block :deep(.ql-toolbar.ql-snow) {
+  border: none;
+  border-bottom: 1px solid #ddd;
+  padding: 4px 0 8px;
+  margin-bottom: 0.5em;
+}
+
+
+/*.quill-block :deep(.ql-toolbar.ql-snow) {
+  display: none;
+}*/
+</style>
