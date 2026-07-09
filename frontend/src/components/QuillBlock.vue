@@ -160,6 +160,7 @@ function emitState() {
   emit('state-change', {
     html: quill.root.innerHTML,
     index: range ? range.index : null,
+    length: range ? range.length : 0,
   })
 }
 

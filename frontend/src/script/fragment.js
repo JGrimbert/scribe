@@ -113,7 +113,26 @@ export function createFragmentApi(blockRegistry, fragmentMap, blockFragments) {
         return { ordinal: entry.ordinal, total: order.length }
     }
 
-    return { getFragment, getBlockId, setFragment, locateIndex, getFragmentPosition }
+    // Inverse de locateIndex : convertit une position locale à l'intérieur
+    // d'un fragment de pagination (fragId + index de caractère local) en
+    // position globale dans le paragraphe complet (blockId + index, coupures
+    // de page recollées). Nécessaire pour résoudre une sélection dont les
+    // deux bords tombent dans des fragments différents (même page-cassure
+    // interne à un paragraphe, ou véritable frontière entre deux paragraphes).
+    function globalIndex(fragId, localIndex) {
+        const entry = fragmentMap.get(fragId)
+        if (!entry) return null
+
+        const order = blockFragments.get(entry.blockId) ?? [fragId]
+        let offset = 0
+        for (const id of order) {
+            if (id === fragId) return { blockId: entry.blockId, index: offset + localIndex }
+            offset += textLengthOf(fragmentMap.get(id)?.html)
+        }
+        return null
+    }
+
+    return { getFragment, getBlockId, setFragment, locateIndex, getFragmentPosition, globalIndex }
 }
 
 function textLengthOf(html) {

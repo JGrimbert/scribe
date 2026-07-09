@@ -121,6 +121,39 @@ describe('createFragmentApi locateIndex', () => {
     })
 })
 
+describe('createFragmentApi globalIndex', () => {
+    function makeFragment(blockId, ordinal, html) {
+        return { fragId: `${blockId}::${ordinal}`, blockId, ordinal, html }
+    }
+
+    // Inverse de locateIndex : nécessaire pour résoudre une sélection dont un
+    // bord tombe dans un fragment de pagination qui n'est pas le premier du bloc.
+    it("convertit un index local du second fragment en index global du paragraphe", () => {
+        const blockId = 'art__texte__0'
+        const frag0 = makeFragment(blockId, 0, '<p>Début du paragra</p>')
+        const frag1 = makeFragment(blockId, 1, '<p>phe, suite après saut de page.</p>')
+
+        const fragmentMap = new Map([
+            [frag0.fragId, frag0],
+            [frag1.fragId, frag1],
+        ])
+        const blockFragments = new Map([[blockId, [frag0.fragId, frag1.fragId]]])
+
+        const api = createFragmentApi(new Map(), fragmentMap, blockFragments)
+
+        expect(api.globalIndex(frag0.fragId, 5)).toEqual({ blockId, index: 5 })
+        expect(api.globalIndex(frag1.fragId, 10)).toEqual({
+            blockId,
+            index: 'Début du paragra'.length + 10,
+        })
+    })
+
+    it('renvoie null pour un fragId inconnu', () => {
+        const api = createFragmentApi(new Map(), new Map(), new Map())
+        expect(api.globalIndex('inconnu::0', 0)).toBeNull()
+    })
+})
+
 describe('createFragmentApi getFragmentPosition', () => {
     function makeFragment(blockId, ordinal, html) {
         return { fragId: `${blockId}::${ordinal}`, blockId, ordinal, html }

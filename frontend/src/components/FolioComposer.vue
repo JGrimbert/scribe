@@ -6,6 +6,7 @@
         <Folio v-for="(html, i) in pages" :key="i" :page-number="i + 1">
           <div class="column" :data-column-index="i"
                @click="onColumnClick"
+               @mousedown="onColumnMouseDown"
                @mouseup="onColumnMouseUp"
           >
             <div v-html="html"></div>
@@ -160,6 +161,10 @@ function findFragEl(fragId) {
   return composerRoot.value?.querySelector(`[data-frag-id="${fragId}"]`)
 }
 
+function listFragEls() {
+  return Array.from(composerRoot.value?.querySelectorAll('[data-frag-id]') ?? [])
+}
+
 const caret = useFakeCaret(findFragEl)
 const toolbar = useFloatingToolbar()
 
@@ -173,12 +178,13 @@ const {
   isFirstFragment,
   isLastFragment,
   onColumnClick,
+  onColumnMouseDown,
   onColumnMouseUp,
   onFragmentStateChange,
   commitEdit,
   mergeNextFragment,
   mergePrevFragment,
-} = useFragmentEditor({ findFragEl, registry, fragments, refresh, scalePercent, caret, toolbar })
+} = useFragmentEditor({ findFragEl, listFragEls, registry, fragments, refresh, scalePercent, caret, toolbar })
 
 const { cursorRect, selectionRects } = caret
 const { registerToolbar } = toolbar

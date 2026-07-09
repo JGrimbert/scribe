@@ -104,6 +104,75 @@ describe('registry setHtml (kind texte)', () => {
     })
 })
 
+describe('registry deleteRange', () => {
+    it('supprime une sélection à l\'intérieur d\'un seul paragraphe', () => {
+        const article = makeArticle(['Bonjour le monde.'])
+        const blocks = makeBlocks(article)
+        const registry = createRegistry(article, blocks, null)
+
+        // "Bonjour [le monde]." -> sélection = "le monde"
+        const result = registry.get('art__texte__0').deleteRange(8, 0, 16)
+
+        expect(article.texte).toEqual(['Bonjour .'])
+        expect(result).toEqual({ index: 0, cursor: 8 })
+    })
+
+    it('insère le caractère tapé au point de jonction (remplacement atomique)', () => {
+        const article = makeArticle(['Bonjour le monde.'])
+        const blocks = makeBlocks(article)
+        const registry = createRegistry(article, blocks, null)
+
+        const result = registry.get('art__texte__0').deleteRange(8, 0, 16, { insertText: 'X' })
+
+        expect(article.texte).toEqual(['Bonjour X.'])
+        expect(result).toEqual({ index: 0, cursor: 9 })
+    })
+
+    it('fusionne les restes de deux paragraphes adjacents', () => {
+        const article = makeArticle(['Premier paragraphe.', 'Deuxième paragraphe.'])
+        const blocks = makeBlocks(article)
+        const registry = createRegistry(article, blocks, null)
+
+        // sélection depuis "Premier " jusqu'à "paragraphe." (fin du 2e)
+        const result = registry.get('art__texte__0').deleteRange('Premier '.length, 1, 'Deuxième '.length)
+
+        expect(article.texte).toEqual(['Premier paragraphe.'])
+        expect(result).toEqual({ index: 0, cursor: 'Premier '.length })
+    })
+
+    it('fusionne à travers 3 paragraphes : ceux du milieu disparaissent intégralement', () => {
+        const article = makeArticle(['Un.', 'Deux.', 'Trois.', 'Quatre.'])
+        const blocks = makeBlocks(article)
+        const registry = createRegistry(article, blocks, null)
+
+        // sélection depuis juste après "Un" (le "." est inclus dans la sélection) jusqu'à après "Q"
+        const result = registry.get('art__texte__0').deleteRange('Un'.length, 3, 'Q'.length)
+
+        expect(article.texte).toEqual(['Unuatre.'])
+        expect(result).toEqual({ index: 0, cursor: 'Un'.length })
+    })
+
+    it('conserve deux paragraphes distincts quand keepSplit est vrai (touche Entrée)', () => {
+        const article = makeArticle(['Premier paragraphe.', 'Deuxième paragraphe.'])
+        const blocks = makeBlocks(article)
+        const registry = createRegistry(article, blocks, null)
+
+        const result = registry.get('art__texte__0').deleteRange('Premier '.length, 1, 'Deuxième '.length, { keepSplit: true })
+
+        expect(article.texte).toEqual(['Premier ', 'paragraphe.'])
+        expect(result).toEqual({ index: 1, cursor: 0 })
+    })
+
+    it('ignore les blocs qui ne sont pas de type texte (ex: titre)', () => {
+        const article = { texte: ['Un paragraphe.'], titre: 'Titre' }
+        const blocks = [makeTitreBlock(), ...makeBlocks(article)]
+        const registry = createRegistry(article, blocks, null)
+
+        expect(registry.get('art__titre').deleteRange(0, 0, 1)).toBeFalsy()
+        expect(article.texte).toEqual(['Un paragraphe.'])
+    })
+})
+
 describe("régression : scinder un paragraphe (Entrée) puis le refusionner (Backspace) restaure l'état initial", () => {
     it('round-trip split puis merge-prev', () => {
         const article = makeArticle(['Bonjour le monde.'])

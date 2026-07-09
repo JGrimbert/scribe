@@ -49,6 +49,55 @@ export function getCaretRect(root, charIndex) {
     return null
 }
 
+// Rects (un par ligne visuelle) pour la portion de texte [startCharIdx,
+// endCharIdx) à l'intérieur d'un seul élément. Contrairement à une Range
+// native construite sur la sélection du navigateur (qui peut enjamber
+// plusieurs éléments de fragments différents et produire un rendu peu
+// fiable), cette Range est toujours scopée à UN SEUL élément — à appliquer
+// fragment par fragment pour composer l'overlay d'une sélection cross-fragment.
+export function getRangeRects(el, startCharIdx, endCharIdx) {
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT)
+    let count = 0
+    let startNode = null, startOffset = 0
+    let endNode = null, endOffset = 0
+    let node, lastNode = null
+
+    while ((node = walker.nextNode())) {
+        lastNode = node
+        const len = node.textContent.length
+
+        if (startNode === null && count + len >= startCharIdx) {
+            startNode = node
+            startOffset = Math.max(0, startCharIdx - count)
+        }
+        if (count + len >= endCharIdx) {
+            endNode = node
+            endOffset = Math.max(0, endCharIdx - count)
+            break
+        }
+        count += len
+    }
+
+    if (!startNode) return []
+    if (!endNode) {
+        // endCharIdx dépasse le texte disponible (ex: Infinity pour "jusqu'à
+        // la fin du fragment") : on borne à la fin du dernier nœud texte.
+        endNode = lastNode
+        endOffset = lastNode ? lastNode.textContent.length : 0
+    }
+
+    const range = document.createRange()
+    range.setStart(startNode, Math.min(startOffset, startNode.textContent.length))
+    range.setEnd(endNode, Math.min(endOffset, endNode.textContent.length))
+
+    return Array.from(range.getClientRects()).map(r => ({
+        top: r.top,
+        left: r.left,
+        width: r.width,
+        height: r.height
+    }))
+}
+
 function rectAtOffset(node, offset) {
     const range = document.createRange()
     const safeOffset = Math.min(offset, node.textContent.length)

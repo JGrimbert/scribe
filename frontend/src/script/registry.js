@@ -14,6 +14,9 @@ export function createRegistry(article, blocks, flow) {
             mergeNext: () => mergeNext(article, block),
 
             mergePrev: () => mergePrev(article, block),
+
+            deleteRange: (startOffset, endIndex, endOffset, opts) =>
+                deleteRange(article, block, startOffset, endIndex, endOffset, opts),
         })
     })
     return map
@@ -52,6 +55,37 @@ function mergePrev(article, block) {
     article.texte.splice(i, 1)
 
     return { index: i - 1, cursor: merged.length }
+}
+
+// Supprime une sélection allant du paragraphe `block.path.index` (à partir de
+// `startOffset`) jusqu'au paragraphe `endIndex` (jusqu'à `endOffset`) — les
+// paragraphes strictement entre les deux disparaissent intégralement.
+// `keepSplit: true` (touche Entrée) garde les deux restes comme deux
+// paragraphes distincts au lieu de les recoller en un seul ; `insertText`
+// (frappe normale) est inséré au point de jonction en même temps que la
+// suppression, pour un remplacement atomique de la sélection.
+// Même limitation que mergeNext/mergePrev : les offsets sont des longueurs
+// de chaîne HTML brute, pas des comptes de caractères visibles.
+function deleteRange(article, block, startOffset, endIndex, endOffset, { keepSplit = false, insertText = '' } = {}) {
+
+    if (block.path.kind !== 'texte') return null
+
+    const startIndex = block.path.index
+
+    const startText = article.texte[startIndex] ?? ''
+    const endText = article.texte[endIndex] ?? ''
+
+    const before = startText.slice(0, startOffset)
+    const after = endText.slice(endOffset)
+
+    if (keepSplit) {
+        article.texte.splice(startIndex, endIndex - startIndex + 1, before, after)
+        return { index: startIndex + 1, cursor: 0 }
+    }
+
+    const merged = before + insertText + after
+    article.texte.splice(startIndex, endIndex - startIndex + 1, merged)
+    return { index: startIndex, cursor: before.length + insertText.length }
 }
 
 function applyEdit(article, block, html) {
