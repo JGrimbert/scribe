@@ -18,7 +18,7 @@
 
 <script setup>
 import { ref, watch, nextTick, onBeforeUnmount } from 'vue'
-import { isOnFirstLine, isOnLastLine, resolveIndexForX } from '../script/quillCaret.js'
+import { isOnFirstLine, isOnLastLine } from '../script/quillCaret.js'
 
 const props = defineProps({
   modelValue: { type: String, default: "" },
@@ -31,12 +31,6 @@ const props = defineProps({
   // page interne où fusionner avec le voisin serait une erreur).
   isFirstFragment: { type: Boolean, default: true },
   isLastFragment: { type: Boolean, default: true },
-  // Position horizontale à restaurer en arrivant depuis un ArrowUp/ArrowDown
-  // émis par le fragment voisin (cf. handleArrowDown/handleArrowUp) — prime
-  // sur initialIndex quand renseigné. `caretEdge` indique sur quelle ligne
-  // visuelle du fragment (première/dernière) la résoudre.
-  caretX: { type: Number, default: null },
-  caretEdge: { type: String, default: null }, // 'first' | 'last'
 })
 const emit = defineEmits([
     'update:modelValue',
@@ -114,20 +108,14 @@ async function mountQuill() {
     }
   })
 
-  // Curseur Quill positionné exactement où l'utilisateur a cliqué, ou résolu
-  // depuis caretX/caretEdge si on arrive d'un ArrowUp/ArrowDown du voisin.
+  // Curseur Quill positionné exactement où l'utilisateur a cliqué (ou, pour un
+  // ArrowUp/ArrowDown venant du fragment voisin, où useFragmentEditor l'a déjà
+  // résolu sur le DOM Folio AVANT ce montage — cf. navigateFragment).
   const length = quill.getLength()
-  let startIndex
-  let selLength = 0
-
-  if (props.caretX != null && props.caretEdge) {
-    startIndex = resolveIndexForX(quill, props.caretX, props.caretEdge)
-  } else {
-    startIndex = props.initialIndex != null
-        ? Math.min(Math.max(props.initialIndex, 0), Math.max(length - 1, 0))
-        : 0
-    selLength = Math.min(props.initialLength || 0, Math.max(length - 1 - startIndex, 0))
-  }
+  const startIndex = props.initialIndex != null
+      ? Math.min(Math.max(props.initialIndex, 0), Math.max(length - 1, 0))
+      : 0
+  const selLength = Math.min(props.initialLength || 0, Math.max(length - 1 - startIndex, 0))
 
   quill.focus()
   quill.setSelection(startIndex, selLength)
@@ -183,9 +171,10 @@ function handleMergePrev(e) {
 // le curseur est sur la dernière/première ligne VISUELLE (et pas juste le
 // dernier/premier caractère — une ligne peut se terminer avant la fin du
 // texte), la flèche sort du fragment plutôt que de laisser Quill caler le
-// caret en bout de ligne faute de ligne suivante. `left` est capturé en
-// coordonnées locales à CET éditeur : le parent le retransmet tel quel au
-// fragment voisin, qui le résout via resolveIndexForX (cf. quillCaret.js).
+// caret en bout de ligne faute de ligne suivante. La position horizontale à
+// restaurer dans le fragment voisin est résolue côté useFragmentEditor,
+// depuis le DOM Folio déjà rendu (cf. navigateFragment) — pas depuis Quill,
+// qui n'est pas encore monté sur ce voisin.
 function handleArrowDown(e) {
   if (e.shiftKey) return // laisser Quill étendre la sélection normalement
 
@@ -193,8 +182,7 @@ function handleArrowDown(e) {
   if (!range || range.length !== 0) return
   if (!isOnLastLine(quill, range.index)) return
 
-  const { left } = quill.getBounds(range.index)
-  emit('arrow-down', left)
+  emit('arrow-down')
   e.preventDefault()
 }
 
@@ -205,8 +193,7 @@ function handleArrowUp(e) {
   if (!range || range.length !== 0) return
   if (!isOnFirstLine(quill, range.index)) return
 
-  const { left } = quill.getBounds(range.index)
-  emit('arrow-up', left)
+  emit('arrow-up')
   e.preventDefault()
 }
 

@@ -27,11 +27,6 @@ export function useFragmentEditor({ findFragEl, listFragEls, registry, fragments
     const liveHtml = ref('')      // lecture courante, pour commit/merge
     const pendingIndex = ref(null)
     const pendingLength = ref(0)
-    // Position horizontale à restaurer quand l'activation vient d'un
-    // ArrowUp/ArrowDown émis par le fragment voisin (cf. navigateFragment) —
-    // null pour toute activation "normale" (clic, split/merge, ouverture).
-    const pendingCaretX = ref(null)
-    const pendingCaretEdge = ref(null)
     const switchingFragment = ref(false)
 
     // Sélection "virtuelle" à cheval sur plusieurs fragments : aucun Quill ne
@@ -57,10 +52,8 @@ export function useFragmentEditor({ findFragEl, listFragEls, registry, fragments
         return pos ? pos.ordinal === pos.total - 1 : true
     })
 
-    function activateFragment(fragId, fragIdx, { index, length = 0, caretX = null, caretEdge = null }) {
+    function activateFragment(fragId, fragIdx, { index, length = 0 }) {
         switchingFragment.value = true
-        pendingCaretX.value = caretX
-        pendingCaretEdge.value = caretEdge
 
         if (!fragments.value) return
 
@@ -180,14 +173,27 @@ export function useFragmentEditor({ findFragEl, listFragEls, registry, fragments
     const mergeNextFragment = () => mergeFragment('mergeNext')
     const mergePrevFragment = () => mergeFragment('mergePrev')
 
+    // Résout, DANS LE DOM FOLIO déjà rendu du fragment cible (avant même que
+    // Quill n'y soit monté), l'index de caractère de la première/dernière
+    // ligne visuelle le plus proche horizontalement de clientX — élimine tout
+    // flash "caret en tout début de fragment" le temps que Quill démarre :
+    // contrairement à un clic, on n'a pas de point de départ naturel, donc on
+    // vise juste sous le haut (ligne d'entrée si on descend) ou juste au-dessus
+    // du bas (ligne d'entrée si on remonte) du fragment.
+    function resolveEntryIndex(targetEl, clientX, direction) {
+        const rect = targetEl.getBoundingClientRect()
+        const y = direction === 'down' ? rect.top + 4 : rect.bottom - 4
+        return getCharIndexAtPoint(targetEl, clientX, y) ?? 0
+    }
+
     // ArrowDown/ArrowUp en bord de ligne visuelle (cf. QuillBlock.vue) : bascule
     // vers le fragment voisin en DOM (listFragEls, ordre de lecture), qu'il
     // s'agisse d'une coupure de pagination interne au même paragraphe ou d'une
     // vraie frontière entre deux paragraphes — contrairement à merge, la
-    // navigation n'est pas limitée aux bords de paragraphe. `x` (coordonnées
-    // locales à l'éditeur source) est retransmis tel quel : le fragment cible
-    // le résout sur sa première/dernière ligne visuelle (resolveIndexForX).
-    function navigateFragment(direction, x) {
+    // navigation n'est pas limitée aux bords de paragraphe. La position
+    // horizontale à préserver est lue sur caret.cursorRect (le faux curseur,
+    // déjà en coordonnées viewport et synchronisé avec le DOM Folio).
+    function navigateFragment(direction) {
         const allFrags = listFragEls()
         const currentEl = findFragEl(editingId.value)
         const pos = currentEl ? allFrags.indexOf(currentEl) : -1
@@ -198,17 +204,14 @@ export function useFragmentEditor({ findFragEl, listFragEls, registry, fragments
 
         const fragId = targetEl.dataset.fragId
         const fragIdx = parseBlockId(targetEl.dataset.blockId)
+        const clientX = caret.cursorRect.value?.left
+        const index = clientX != null ? resolveEntryIndex(targetEl, clientX, direction) : 0
 
-        activateFragment(fragId, fragIdx, {
-            index: 0,
-            length: 0,
-            caretX: x,
-            caretEdge: direction === 'down' ? 'first' : 'last',
-        })
+        activateFragment(fragId, fragIdx, { index, length: 0 })
     }
 
-    const navigateDown = (x) => navigateFragment('down', x)
-    const navigateUp = (x) => navigateFragment('up', x)
+    const navigateDown = () => navigateFragment('down')
+    const navigateUp = () => navigateFragment('up')
 
     function onFragmentStateChange({ html, index, length = 0 }) {
         liveHtml.value = html
@@ -271,6 +274,14 @@ export function useFragmentEditor({ findFragEl, listFragEls, registry, fragments
                 height: r.height
             })))
 
+            // Toute lecture utile de la sélection native est faite : on la vide
+            // avant d'activer le fragment, qui va muter le DOM (applyMirrorHtml
+            // sur l'ancien fragment). La laisser vivante pendant une mutation DOM
+            // fait parfois "reheal" le navigateur en étendant la sélection à tout
+            // l'élément parent le temps d'un repaint — d'où le clignotement/la
+            // couleur de sélection native visible en concurrence avec l'overlay.
+            sel.removeAllRanges()
+
             suppressNextClick = true
             activateFragment(fragId, fragIdx, { index, length })
             return
@@ -305,6 +316,11 @@ export function useFragmentEditor({ findFragEl, listFragEls, registry, fragments
 
         const startLocal = charIndexFromNodeOffset(startEl, startNode, startNodeOffset)
         const endLocal = charIndexFromNodeOffset(endEl, endNode, endNodeOffset)
+
+        // Dernière lecture utile de `sel` : on la vide avant toute mutation DOM
+        // (closeEditor()/applyMirrorHtml plus bas) — même raison que dans
+        // onColumnMouseUp, cf. son commentaire.
+        sel.removeAllRanges()
 
         const startResolved = fragments.value?.globalIndex(startEl.dataset.fragId, startLocal)
         const endResolved = fragments.value?.globalIndex(endEl.dataset.fragId, endLocal)
@@ -418,8 +434,6 @@ export function useFragmentEditor({ findFragEl, listFragEls, registry, fragments
         initialHtml,
         pendingIndex,
         pendingLength,
-        pendingCaretX,
-        pendingCaretEdge,
         isFirstFragment,
         isLastFragment,
         onColumnClick,

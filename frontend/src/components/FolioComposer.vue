@@ -26,8 +26,6 @@
             :model-value="initialHtml"
             :initial-index="pendingIndex"
             :initial-length="pendingLength"
-            :caret-x="pendingCaretX"
-            :caret-edge="pendingCaretEdge"
             :is-first-fragment="isFirstFragment"
             :is-last-fragment="isLastFragment"
             active
@@ -179,8 +177,6 @@ const {
   initialHtml,
   pendingIndex,
   pendingLength,
-  pendingCaretX,
-  pendingCaretEdge,
   isFirstFragment,
   isLastFragment,
   onColumnClick,

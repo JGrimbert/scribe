@@ -117,6 +117,7 @@ const folioStyle = computed(() => {
   justify-content: center;
 
   pointer-events: none;
+  user-select: none;
 }
 
 .folio-header-text {
@@ -145,6 +146,9 @@ const folioStyle = computed(() => {
 
   display: flex;
   align-items: center;
+
+  pointer-events: none;
+  user-select: none;
 }
 
 .folio.recto .folio-footer {

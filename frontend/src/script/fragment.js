@@ -59,9 +59,14 @@ export function createFragmentApi(blockRegistry, fragmentMap, blockFragments) {
         // La frontière entre deux fragments d'un même bloc est une
         // coupure de PAGINATION, pas une coupure de PARAGRAPHE : on
         // recolle donc le dernier morceau accumulé avec le premier
-        // morceau du fragment suivant, sans séparateur. Seules les
-        // coupures introduites par l'édition elle-même (Quill produit
-        // plusieurs <p>) créent de nouveaux paragraphes.
+        // morceau du fragment suivant. Seules les coupures introduites
+        // par l'édition elle-même (Quill produit plusieurs <p>) créent
+        // de nouveaux paragraphes.
+        // Paged.js peut couper en plein milieu d'un espace inter-mots sans le
+        // reporter d'un côté ni de l'autre du saut de page : recoller tel quel
+        // fusionnerait alors les deux mots (cf. bug justification qui saute).
+        // On ne réinjecte un espace que si aucun des deux morceaux n'en a déjà
+        // un à la jointure, pour ne jamais en doubler.
         const glued = []
         order.forEach((id, i) => {
             const pieces = piecesOf(id)
@@ -70,7 +75,8 @@ export function createFragmentApi(blockRegistry, fragmentMap, blockFragments) {
                 return
             }
             const [first, ...rest] = pieces
-            glued[glued.length - 1] += first
+            const sep = joinNeedsSpace(glued[glued.length - 1], first) ? ' ' : ''
+            glued[glued.length - 1] += sep + first
             glued.push(...rest)
         })
 
@@ -135,11 +141,24 @@ export function createFragmentApi(blockRegistry, fragmentMap, blockFragments) {
     return { getFragment, getBlockId, setFragment, locateIndex, getFragmentPosition, globalIndex }
 }
 
-function textLengthOf(html) {
-    if (!html) return 0
+function textOf(html) {
+    if (!html) return ''
     const tmp = document.createElement('div')
     tmp.innerHTML = html
-    return (tmp.textContent || '').length
+    return tmp.textContent || ''
+}
+
+function textLengthOf(html) {
+    return textOf(html).length
+}
+
+// Faut-il un espace à la jointure de deux morceaux de pagination ? Seulement
+// si aucun des deux ne se termine/commence déjà par un blanc — sinon on
+// doublerait un espace que Paged.js a en fait bien conservé d'un côté.
+function joinNeedsSpace(prevHtml, nextHtml) {
+    const prevText = textOf(prevHtml)
+    const nextText = textOf(nextHtml)
+    return prevText !== '' && nextText !== '' && !/\s$/.test(prevText) && !/^\s/.test(nextText)
 }
 
 export function extractParagraphs(html) {

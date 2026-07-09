@@ -16,10 +16,10 @@ describe('createFragmentApi setFragment', () => {
         return { fragId: `${blockId}::${ordinal}`, blockId, ordinal, html }
     }
 
-    it('recolle sans séparateur les fragments issus de la pagination (même bloc, plusieurs pages)', () => {
+    it('recolle sans doublon les fragments issus de la pagination quand un espace est déjà présent (même bloc, plusieurs pages)', () => {
         const blockId = 'art__texte__0'
-        const frag0 = makeFragment(blockId, 0, '<p>Début du paragra</p>')
-        const frag1 = makeFragment(blockId, 1, '<p>phe, suite après saut de page.</p>')
+        const frag0 = makeFragment(blockId, 0, '<p>Début du paragraphe,</p>')
+        const frag1 = makeFragment(blockId, 1, '<p> suite après saut de page.</p>')
 
         const fragmentMap = new Map([
             [frag0.fragId, frag0],
@@ -33,7 +33,34 @@ describe('createFragmentApi setFragment', () => {
         const api = createFragmentApi(blockRegistry, fragmentMap, blockFragments)
 
         // On édite le second fragment (celui qui vit après le saut de page).
-        api.setFragment(frag1.fragId, '<p>phe, suite après saut de page, modifiée.</p>')
+        api.setFragment(frag1.fragId, '<p> suite après saut de page, modifiée.</p>')
+
+        expect(savedHtml).toBe(
+            '<p>Début du paragraphe, suite après saut de page, modifiée.</p>'
+        )
+    })
+
+    // Régression : Paged.js coupe parfois une page exactement sur l'espace
+    // inter-mots SANS le reporter d'un côté ni de l'autre du saut de page —
+    // recoller tel quel fusionnait alors les deux mots (bug réel : mots
+    // collés + justification qui "saute" à l'ouverture du 2e fragment).
+    it("réinsère l'espace perdu à une coupure de page tombant entre deux mots", () => {
+        const blockId = 'art__texte__0'
+        const frag0 = makeFragment(blockId, 0, '<p>Début du paragraphe,</p>')
+        const frag1 = makeFragment(blockId, 1, '<p>suite après saut de page.</p>')
+
+        const fragmentMap = new Map([
+            [frag0.fragId, frag0],
+            [frag1.fragId, frag1],
+        ])
+        const blockFragments = new Map([[blockId, [frag0.fragId, frag1.fragId]]])
+
+        let savedHtml = null
+        const blockRegistry = new Map([[blockId, { setHtml: (html) => { savedHtml = html } }]])
+
+        const api = createFragmentApi(blockRegistry, fragmentMap, blockFragments)
+
+        api.setFragment(frag1.fragId, '<p>suite après saut de page, modifiée.</p>')
 
         expect(savedHtml).toBe(
             '<p>Début du paragraphe, suite après saut de page, modifiée.</p>'
