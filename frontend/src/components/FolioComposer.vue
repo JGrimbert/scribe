@@ -1,7 +1,7 @@
 <template>
   <div class="folio-composer" ref="composerRoot">
     <!-- LAYOUT / LIVRE -->
-    <Folia :page-width-mm="pageWidthMm" :page-height-mm="pageHeightMm" :gap-px="gapPx" :pages="pages.length">
+    <Folia :page-width-mm="pageWidthMm" :page-height-mm="pageHeightMm" :gap-px="gapPx" :page-count="pages.length">
       <template #default="{ scalePercent }">
         <Folio v-for="(html, i) in pages" :key="i" :page-number="i + 1">
           <div class="column" :data-column-index="i"
@@ -187,7 +187,8 @@ const { registerToolbar } = toolbar
 <style scoped>
 .folio-composer {
   width: 100%;
-  height: 80vh;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .measure-engine {

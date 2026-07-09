@@ -85,7 +85,9 @@ function onContenuUpdate() {
 @import "../public/paged.css";
 
 .app {
-
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
 }
 
 h1 {
@@ -93,13 +95,23 @@ h1 {
 }
 
 .scroll-folio {
+  width: 100%; /* explicite : une marge auto désactiverait le stretch flex et ferait dépendre
+                  la largeur du contenu mis à l'échelle par le JS — boucle de rétroaction avec Folia */
+  flex: 1 1 auto;
+  min-height: 0; /* sinon un enfant flex refuse de rétrécir sous sa taille de contenu */
+  display: flex;
+  flex-direction: column;
   padding-top: 1.5em;
+  padding-bottom: 1.5em;
   padding-left: 1.5em;
-  margin: 0 auto;
+
+  overflow-x: scroll;
 }
 
 .menu {
+  flex: 0 0 auto;
   position: sticky;
+  top: 0;
   color: #FFF;
   font-weight: bold;
   padding: 0.4em;

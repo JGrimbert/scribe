@@ -41,9 +41,18 @@ const props = defineProps({
     default: 210,
   },
 
-  pages: {
+  // Nombre RÉEL de folios dans la rangée (dimensionne la zone défilable).
+  pageCount: {
     type: Number,
     default: 2,
+  },
+
+  // Cible de zoom : combien de pages doivent tenir dans la largeur visible,
+  // INDÉPENDAMMENT du nombre réel de folios (pageCount). Au-delà, les folios
+  // supplémentaires défilent horizontalement plutôt que de réduire le zoom.
+  visiblePages: {
+    type: Number,
+    default: 2.5,
   },
 
   gapPx: {
@@ -60,11 +69,21 @@ const props = defineProps({
 const containerRef = ref(null)
 const scale = ref(1)
 
-const spreadWidthPx = computed(() => {
-  const pageCount = Math.max(props.pages, 1)
-  return props.pageWidthMm * MM_TO_PX * pageCount +
-      props.gapPx * (pageCount - 1)
-})
+function widthForPageCount(count) {
+  return props.pageWidthMm * MM_TO_PX * count +
+      props.gapPx * (count - 1)
+}
+
+// Largeur réelle de la rangée (tous les folios) : détermine la place à
+// réserver pour le défilement, ne joue AUCUN rôle dans le calcul du zoom.
+const actualSpreadWidthPx = computed(() =>
+    widthForPageCount(Math.max(props.pageCount, 1))
+)
+
+// Largeur de référence (visiblePages) : seule base du calcul du zoom.
+const targetWidthPx = computed(() =>
+    widthForPageCount(props.visiblePages)
+)
 
 const spreadHeightPx = computed(() =>
     props.pageHeightMm * MM_TO_PX
@@ -85,10 +104,10 @@ function updateScale() {
 
   const scaleX =
       availableWidth /
-      spreadWidthPx.value
+      targetWidthPx.value
 
   const scaleY =
-      availableHeight /
+      (availableHeight * 0.92) /
       spreadHeightPx.value
 
   let nextScale =
@@ -102,12 +121,12 @@ function updateScale() {
 }
 
 const wrapperStyle = computed(() => ({
-  width: `${spreadWidthPx.value * scale.value}px`,
+  width: `${actualSpreadWidthPx.value * scale.value}px`,
   height: `${spreadHeightPx.value * scale.value}px`,
 }))
 
 const spreadStyle = computed(() => ({
-  width: `${spreadWidthPx.value}px`,
+  width: `${actualSpreadWidthPx.value}px`,
   height: `${spreadHeightPx.value}px`,
   transform: `scale(${scale.value})`,
   transformOrigin: 'top left',
@@ -144,11 +163,13 @@ onBeforeUnmount(() => {
 <style scoped>
 .spread-scaler {
   width: 100%;
-  height: 100vh;
+  height: 100%;
   display: flex;
   align-items: center;
-  transform: scale(0.80);
-  transform-origin: top left;
+}
+
+.spread-wrapper {
+  flex-shrink: 0; /* sinon le flex du parent .spread-scaler compresse le wrapper au lieu de laisser déborder/scroller */
 }
 
 .spread {
