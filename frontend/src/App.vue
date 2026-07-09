@@ -12,7 +12,7 @@
     />
 
     <div class="scroll-folio">
-      <PageComposer
+      <FolioComposer
           :trame="trame"
           :data="data"
       />
@@ -36,7 +36,7 @@ import { ref, onMounted } from 'vue'
 import StructureView from './components/StructureView.vue'
 import BlocModal from './components/BlocModal.vue'
 import Scroll from "./components/Scroll.vue";
-import PageComposer from "./components/PageComposer.vue";
+import FolioComposer from "./components/FolioComposer.vue";
 
 const structure = ref(null)
 const trame = ref(null)

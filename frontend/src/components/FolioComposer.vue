@@ -1,5 +1,5 @@
 <template>
-  <div class="page-composer" ref="composerRoot">
+  <div class="folio-composer" ref="composerRoot">
     <!-- LAYOUT / LIVRE -->
     <Folia :page-width-mm="pageWidthMm" :page-height-mm="pageHeightMm" :gap-px="gapPx">
       <template #default="{ scalePercent }">
@@ -185,7 +185,7 @@ const { registerToolbar } = toolbar
 </script>
 
 <style scoped>
-.page-composer {
+.folio-composer {
   width: 100%;
   height: 80vh;
 }

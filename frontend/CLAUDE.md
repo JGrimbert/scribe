@@ -12,6 +12,26 @@ voir `../CLAUDE.md`). Le backend NestJS (`../backend`) est en tout début de
 chantier — ne pas supposer qu'il expose déjà la persistance/BDD avant de
 vérifier.
 
+## Vocabulaire — Quill vs Folio
+
+Deux couches, deux mots, à ne jamais mélanger :
+
+- **Quill** : l'éditeur WYSIWYG flottant (`QuillBlock.vue`). Invisible en
+  propre — il n'édite qu'UN fragment à la fois et se superpose visuellement
+  au rendu paginé pendant l'édition (voir `syncQuill.js`). Ce n'est jamais
+  ce que l'utilisateur regarde en lecture.
+- **Folio** : la couche de rendu paginé (implémentée avec Paged.js), celle
+  qu'on regarde. "Paged"/"Paged.js" désigne la librairie sous-jacente ;
+  **"Folio" est le mot à utiliser en code et en discussion** pour tout ce qui
+  concerne cette couche. Composants : `FolioComposer.vue` (orchestrateur),
+  `Folia.vue` (l'ensemble scalé, plusieurs pages), `Folio.vue` (une page
+  physique unique, recto/verso).
+
+Un changement touche Quill (comportement d'édition, clavier, contenu du
+fragment) XOR Folio (mise en page, pagination, rendu visuel des pages) —
+identifier laquelle des deux est en cause avant de chercher le bug évite de
+fouiller le mauvais fichier.
+
 ## Glossaire — à lire avant de toucher à l'édition
 
 Trois notions distinctes, systématiquement confondues si on ne les note pas :
@@ -37,12 +57,12 @@ qui distinguent "bord du paragraphe" de "coupure de page interne".
 
 ## Architecture
 
-Flux : `PageComposer.vue` pagine (`paginate.js` → Paged.js) → construit un
+Flux : `FolioComposer.vue` pagine (`paginate.js` → Paged.js) → construit un
 `registry` (modèle de données par bloc) et une `fragments` API (registre de
 fragments) → délègue l'édition interactive à `useFragmentEditor`.
 
 Fichiers clés :
-- `src/components/PageComposer.vue` — orchestrateur : cycle de pagination
+- `src/components/FolioComposer.vue` — orchestrateur : cycle de pagination
   (`refresh`/`scheduleReflow`), instancie les composables, câble le template.
 - `src/components/QuillBlock.vue` — Quill flottant, un fragment à la fois ;
   gère Entrée (split), Backspace/Delete (merge), gated par
@@ -97,7 +117,7 @@ Fichiers clés :
 - Pas encore de tests d'intégration DOM/Quill (Vue Test Utils) ni e2e
   (Playwright) — **prévu à terme, pas encore en place**. Tant que ça
   n'existe pas, toute interaction clavier/souris dans `QuillBlock.vue`/
-  `PageComposer.vue` doit être vérifiée manuellement en navigateur avant
+  `FolioComposer.vue` doit être vérifiée manuellement en navigateur avant
   d'être considérée comme corrigée (cf. section précédente).
 
 ## Commandes

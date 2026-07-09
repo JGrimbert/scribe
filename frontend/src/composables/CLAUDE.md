@@ -1,9 +1,9 @@
 # Composables
 
 Logique Vue à état (refs, computed, composition d'autres composables) qui ne
-mérite pas d'être un composant. Introduits pour sortir `PageComposer.vue` de
+mérite pas d'être un composant. Introduits pour sortir `FolioComposer.vue` de
 ~460 lignes de script à ~115 : toute la mécanique d'édition/fusion vit ici,
-`PageComposer.vue` ne fait plus qu'orchestrer.
+`FolioComposer.vue` ne fait plus qu'orchestrer.
 
 ## Composables existants
 
@@ -27,7 +27,7 @@ mérite pas d'être un composant. Introduits pour sortir `PageComposer.vue` de
 - **Découplage par injection, pas par import croisé.** `useFragmentEditor`
   reçoit `caret`/`toolbar` (les objets retournés par `useFakeCaret`/
   `useFloatingToolbar`) en paramètre plutôt que de les importer et les
-  instancier lui-même. Le composant consommateur (`PageComposer.vue`)
+  instancier lui-même. Le composant consommateur (`FolioComposer.vue`)
   instancie les trois et fait le câblage. Ça garde chaque composable testable
   indépendamment et évite les dépendances circulaires implicites.
 - **Ne pas envelopper le retour dans `reactive()`.** Retourner un objet plat
@@ -38,7 +38,7 @@ mérite pas d'être un composant. Introduits pour sortir `PageComposer.vue` de
   template) ne bénéficie pas de cet auto-unwrap.
 - **`findFragEl` est injecté, pas recréé dans chaque composable.** Il dépend
   de `composerRoot` (ref DOM), lui-même propriété du composant racine —
-  défini une seule fois dans `PageComposer.vue` et passé en paramètre.
+  défini une seule fois dans `FolioComposer.vue` et passé en paramètre.
 
 ## Piège à ne pas réintroduire
 
