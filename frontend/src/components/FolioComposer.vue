@@ -26,6 +26,8 @@
             :model-value="initialHtml"
             :initial-index="pendingIndex"
             :initial-length="pendingLength"
+            :caret-x="pendingCaretX"
+            :caret-edge="pendingCaretEdge"
             :is-first-fragment="isFirstFragment"
             :is-last-fragment="isLastFragment"
             active
@@ -33,6 +35,8 @@
             @maj="commitEdit"
             @merge-next="mergeNextFragment"
             @merge-prev="mergePrevFragment"
+            @arrow-down="navigateDown"
+            @arrow-up="navigateUp"
             @toolbar-ready="registerToolbar"
         />
       </div>
@@ -175,6 +179,8 @@ const {
   initialHtml,
   pendingIndex,
   pendingLength,
+  pendingCaretX,
+  pendingCaretEdge,
   isFirstFragment,
   isLastFragment,
   onColumnClick,
@@ -184,6 +190,8 @@ const {
   commitEdit,
   mergeNextFragment,
   mergePrevFragment,
+  navigateDown,
+  navigateUp,
 } = useFragmentEditor({ findFragEl, listFragEls, registry, fragments, refresh, scalePercent, caret, toolbar })
 
 const { cursorRect, selectionRects } = caret

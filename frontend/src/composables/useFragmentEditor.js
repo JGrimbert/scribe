@@ -27,6 +27,11 @@ export function useFragmentEditor({ findFragEl, listFragEls, registry, fragments
     const liveHtml = ref('')      // lecture courante, pour commit/merge
     const pendingIndex = ref(null)
     const pendingLength = ref(0)
+    // Position horizontale à restaurer quand l'activation vient d'un
+    // ArrowUp/ArrowDown émis par le fragment voisin (cf. navigateFragment) —
+    // null pour toute activation "normale" (clic, split/merge, ouverture).
+    const pendingCaretX = ref(null)
+    const pendingCaretEdge = ref(null)
     const switchingFragment = ref(false)
 
     // Sélection "virtuelle" à cheval sur plusieurs fragments : aucun Quill ne
@@ -52,8 +57,10 @@ export function useFragmentEditor({ findFragEl, listFragEls, registry, fragments
         return pos ? pos.ordinal === pos.total - 1 : true
     })
 
-    function activateFragment(fragId, fragIdx, { index, length = 0 }) {
+    function activateFragment(fragId, fragIdx, { index, length = 0, caretX = null, caretEdge = null }) {
         switchingFragment.value = true
+        pendingCaretX.value = caretX
+        pendingCaretEdge.value = caretEdge
 
         if (!fragments.value) return
 
@@ -172,6 +179,36 @@ export function useFragmentEditor({ findFragEl, listFragEls, registry, fragments
 
     const mergeNextFragment = () => mergeFragment('mergeNext')
     const mergePrevFragment = () => mergeFragment('mergePrev')
+
+    // ArrowDown/ArrowUp en bord de ligne visuelle (cf. QuillBlock.vue) : bascule
+    // vers le fragment voisin en DOM (listFragEls, ordre de lecture), qu'il
+    // s'agisse d'une coupure de pagination interne au même paragraphe ou d'une
+    // vraie frontière entre deux paragraphes — contrairement à merge, la
+    // navigation n'est pas limitée aux bords de paragraphe. `x` (coordonnées
+    // locales à l'éditeur source) est retransmis tel quel : le fragment cible
+    // le résout sur sa première/dernière ligne visuelle (resolveIndexForX).
+    function navigateFragment(direction, x) {
+        const allFrags = listFragEls()
+        const currentEl = findFragEl(editingId.value)
+        const pos = currentEl ? allFrags.indexOf(currentEl) : -1
+        if (pos === -1) return
+
+        const targetEl = allFrags[direction === 'down' ? pos + 1 : pos - 1]
+        if (!targetEl) return // déjà au tout premier/dernier fragment du document
+
+        const fragId = targetEl.dataset.fragId
+        const fragIdx = parseBlockId(targetEl.dataset.blockId)
+
+        activateFragment(fragId, fragIdx, {
+            index: 0,
+            length: 0,
+            caretX: x,
+            caretEdge: direction === 'down' ? 'first' : 'last',
+        })
+    }
+
+    const navigateDown = (x) => navigateFragment('down', x)
+    const navigateUp = (x) => navigateFragment('up', x)
 
     function onFragmentStateChange({ html, index, length = 0 }) {
         liveHtml.value = html
@@ -381,6 +418,8 @@ export function useFragmentEditor({ findFragEl, listFragEls, registry, fragments
         initialHtml,
         pendingIndex,
         pendingLength,
+        pendingCaretX,
+        pendingCaretEdge,
         isFirstFragment,
         isLastFragment,
         onColumnClick,
@@ -390,6 +429,8 @@ export function useFragmentEditor({ findFragEl, listFragEls, registry, fragments
         commitEdit,
         mergeNextFragment,
         mergePrevFragment,
+        navigateDown,
+        navigateUp,
         closeEditor,
     }
 }
