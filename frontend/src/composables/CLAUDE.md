@@ -13,8 +13,11 @@ mérite pas d'être un composant. Introduits pour sortir `FolioComposer.vue` de
 - **`useFloatingToolbar.js`** — positionne la toolbar Quill (teleportée dans
   `<body>` par `QuillBlock`) au-dessus de la sélection courante.
 - **`useFragmentEditor.js`** — le plus gros : cycle de vie complet de
-  l'édition par fragment (activer/fermer/commit/merge). Dépend de
-  `useFakeCaret`/`useFloatingToolbar` via injection (pas d'import direct),
+  l'édition par fragment (activer/fermer/commit/merge) ainsi que la
+  sélection cross-fragment (`crossSelection` — sélection à cheval sur
+  plusieurs fragments, gérée directement sur le modèle puisqu'aucun Quill
+  ne peut la représenter, voir "Pièges connus" du `CLAUDE.md` racine). Dépend
+  de `useFakeCaret`/`useFloatingToolbar` via injection (pas d'import direct),
   voir "Découplage" ci-dessous.
 
 ## Règles

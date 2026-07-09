@@ -68,7 +68,8 @@ Fichiers clés :
   gère Entrée (split), Backspace/Delete (merge), gated par
   `isFirstFragment`/`isLastFragment`.
 - `src/composables/useFragmentEditor.js` — cycle de vie de l'édition par
-  fragment (activer/fermer/commit/merge). Voir `src/composables/CLAUDE.md`.
+  fragment (activer/fermer/commit/merge) et sélection cross-fragment
+  (`crossSelection`, voir "Pièges connus"). Voir `src/composables/CLAUDE.md`.
 - `src/composables/useFakeCaret.js`, `useFloatingToolbar.js` — le DOM paginé
   (`v-html`) n'est pas éditable ; un faux curseur/sélection et une toolbar
   flottante sont positionnés par-dessus et mirroirés depuis Quill.
@@ -76,12 +77,19 @@ Fichiers clés :
   `article.texte`.
 - `src/script/registry.js` — logique pure sur le modèle de données :
   `applyEdit` (HTML → paragraphes), `mergeNext`/`mergePrev` (retournent
-  `{ index, cursor }`, le point de jonction pour repositionner le curseur).
+  `{ index, cursor }`, le point de jonction pour repositionner le curseur),
+  `deleteRange` (supprime/remplace une sélection à cheval sur un ou
+  plusieurs paragraphes, `keepSplit` distingue Entrée du reste).
 - `src/script/fragment.js` — registre de fragments : `getFragment`/
   `getBlockId`/`setFragment` (glue), `locateIndex` (index global → bon
-  fragment), `getFragmentPosition` (ordinal/total, vrai bord vs coupure interne).
+  fragment), `getFragmentPosition` (ordinal/total, vrai bord vs coupure interne),
+  `globalIndex` (inverse de `locateIndex` : fragId + index local → index
+  global dans le paragraphe complet).
 - `src/script/liveEdit.js` — maths caret/sélection sur DOM (index de
   caractère ↔ rect pixel), via `TreeWalker` sur les nœuds texte.
+  `getRangeRects` calcule les rects d'une plage de texte scopée à UN seul
+  élément (utilisé fragment par fragment pour l'overlay d'une sélection
+  cross-fragment, plutôt qu'une Range native enjambant plusieurs éléments).
 - `src/script/syncQuill.js` — positionne/scale le Quill flottant pour qu'il
   coïncide visuellement avec le fragment DOM sous-jacent.
 
@@ -100,11 +108,21 @@ Fichiers clés :
   texte simple, pas garanti si un paragraphe contient du formatage inline
   (`<strong>`, `<em>`...). Pas encore de bug connu là-dessus, mais à garder
   en tête si un paragraphe fusionné se retrouve mal positionné.
-- On ne peut pas (encore) Backspace/Delete à travers une coupure de page
-  interne à un même paragraphe : c'est un no-op sûr plutôt qu'une fusion
-  incorrecte. Limitation assumée, pas un bug — la corriger proprement
-  demanderait de charger un paragraphe entier (tous ses fragments) dans une
-  seule session Quill, un chantier plus large.
+- Backspace/Delete avec un curseur **collapsé** en bord de fragment ne
+  fusionne toujours qu'aux vrais bords de paragraphe (`isFirstFragment`/
+  `isLastFragment` dans `QuillBlock.vue`) : à une coupure de page interne,
+  c'est un no-op sûr. Cette limitation-là reste — un seul Quill est monté à
+  la fois, il ne "voit" que son propre fragment.
+- En revanche, une **sélection** (drag) qui enjambe plusieurs fragments —
+  coupure de page interne à un paragraphe OU vraie frontière entre deux
+  paragraphes — est gérée depuis peu par `useFragmentEditor.js`
+  (`crossSelection` / `activateCrossSelection` / `handleCrossSelectionKeydown`) :
+  aucun Quill ne représente cette sélection, la suppression/fusion/split
+  (Entrée) se fait directement sur `article.texte` via `registry.deleteRange`,
+  puis l'éditeur se rouvre normalement au point de jonction. L'overlay
+  (`getRangeRects`, `liveEdit.js`) et l'interaction clavier n'ont pu être
+  vérifiés qu'au niveau logique/tests — pas de vérification navigateur
+  possible ici, à confirmer manuellement avant de considérer le sujet clos.
 
 ## Tests
 
