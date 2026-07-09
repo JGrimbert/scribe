@@ -9,10 +9,7 @@
         {{ headerText }}
       </span>
     </header>
-    <div
-        ref="contentRef"
-        class="folio-content"
-    >
+    <div class="folio-content">
       <slot />
     </div>
 
@@ -25,7 +22,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { computed } from 'vue'
 
 const FORMATS = {
   A4: {
@@ -65,35 +62,11 @@ const props = defineProps({
     default: 'LIVRE',
   },
 
-  margeInterieure: {
-    type: Number,
-    default: 20,
-  },
-
-  margeExterieure: {
-    type: Number,
-    default: 15,
-  },
-
-  margeHaut: {
-    type: Number,
-    default: 18,
-  },
-
-  margeBas: {
-    type: Number,
-    default: 20,
-  },
-
   debug: {
     type: Boolean,
     default: false,
   },
 })
-
-const emit = defineEmits(['ready'])
-
-const contentRef = ref(null)
 
 const isRecto = computed(
     () => props.pageNumber % 2 === 1
@@ -119,47 +92,13 @@ const folioStyle = computed(() => {
   }
 })
 
-const contentStyle = computed(() => {
-  const left =
-      isRecto.value
-          ? props.margeInterieure
-          : props.margeExterieure
-
-  const right =
-      isRecto.value
-          ? props.margeExterieure
-          : props.margeInterieure
-
-  return {
-    left: `${left}mm`,
-    right: `${right}mm`,
-    top: `${props.margeHaut}mm`,
-    bottom: `${props.margeBas}mm`,
-  }
-})
-
-onMounted(() => {
-  if (!contentRef.value) return
-
-  const rect =
-      contentRef.value.getBoundingClientRect()
-
-  emit('ready', {
-    pageNumber: props.pageNumber,
-    contentHeightPx: rect.height,
-    contentWidthPx: rect.width,
-  })
-})
-
-defineExpose({
-  contentRef,
-})
 </script>
 
 <style scoped>
 .folio {
   position: relative;
   box-sizing: border-box;
+  flex: 0 0 auto; /* flex-grow:0, flex-shrink:0, flex-basis:auto — la width: 150mm inline-style est alors respectée à la lettre */
   background: white;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
   font-family: Georgia, 'Times New Roman', serif;
@@ -171,7 +110,7 @@ defineExpose({
   right: 0;
   top: 0;
 
-  height: var(--folio-top-margin, 18mm);
+  height: 18mm;
 
   display: flex;
   align-items: center;
@@ -202,7 +141,7 @@ defineExpose({
   right: 0;
   bottom: 0;
 
-  height: var(--folio-bottom-margin, 20mm);
+  height: 20mm;
 
   display: flex;
   align-items: center;

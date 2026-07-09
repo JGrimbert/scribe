@@ -1,7 +1,7 @@
 <template>
   <div class="folio-composer" ref="composerRoot">
     <!-- LAYOUT / LIVRE -->
-    <Folia :page-width-mm="pageWidthMm" :page-height-mm="pageHeightMm" :gap-px="gapPx">
+    <Folia :page-width-mm="pageWidthMm" :page-height-mm="pageHeightMm" :gap-px="gapPx" :pages="pages.length">
       <template #default="{ scalePercent }">
         <Folio v-for="(html, i) in pages" :key="i" :page-number="i + 1">
           <div class="column" :data-column-index="i"

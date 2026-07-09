@@ -139,19 +139,3 @@ body {
 
 
 
-.spread {
-    display: flex;
-    align-items: flex-start; /* éviter le stretch vertical par défaut */
-    flex-wrap: nowrap;
-}
-
-.folio {
-    flex: 0 0 auto; /* flex-grow:0, flex-shrink:0, flex-basis:auto */
-    /* la width: 150mm inline-style est alors respectée à la lettre */
-}
-
-
-
-.quill-block :deep(.ql-toolbar.ql-snow) {
-    display: none;
-}

@@ -50,7 +50,7 @@ function requestActivate() {
 
 async function mountQuill() {
   const { default: Quill } = await import('quill')
-  await import('../assets/scribe.css')
+  await import('quill/dist/quill.snow.css')
 
   quill = new Quill(editorHost.value, {
     theme: 'snow',
@@ -234,9 +234,4 @@ onBeforeUnmount(() => {
   padding: 4px 0 8px;
   margin-bottom: 0.5em;
 }
-
-
-/*.quill-block :deep(.ql-toolbar.ql-snow) {
-  display: none;
-}*/
 </style>

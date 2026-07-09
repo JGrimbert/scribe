@@ -60,10 +60,11 @@ const props = defineProps({
 const containerRef = ref(null)
 const scale = ref(1)
 
-const spreadWidthPx = computed(() =>
-    props.pageWidthMm * MM_TO_PX * props.pages +
-    props.gapPx * (props.pages - 1)
-)
+const spreadWidthPx = computed(() => {
+  const pageCount = Math.max(props.pages, 1)
+  return props.pageWidthMm * MM_TO_PX * pageCount +
+      props.gapPx * (pageCount - 1)
+})
 
 const spreadHeightPx = computed(() =>
     props.pageHeightMm * MM_TO_PX
@@ -151,6 +152,9 @@ onBeforeUnmount(() => {
 }
 
 .spread {
+  display: flex;
+  align-items: flex-start; /* éviter le stretch vertical par défaut */
+  flex-wrap: nowrap;
   gap: v-bind('`${props.gapPx}px`');
 }
 </style>
