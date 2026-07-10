@@ -18,7 +18,11 @@
     </Folia>
 
     <Teleport to="body">
-      <div v-if="editorVisible" class="fragment-editor">
+      <div
+          v-if="editorVisible"
+          class="fragment-editor"
+          :class="{ 'fragment-editor--hidden': !props.quillVisible }"
+      >
 
         <QuillBlock
             ref="quillBlockRef"
@@ -89,6 +93,7 @@ const props = defineProps({
   pageHeightMm: { type: Number, default: 210 },
   gapPx: { type: Number, default: 32 },
   scalePercent: Number,
+  quillVisible: { type: Boolean, default: false }, // debug : la fenêtre Quill flottante est invisible par défaut (cf. glossaire Quill/Folio)
 
 })
 
@@ -260,6 +265,14 @@ const { registerToolbar } = toolbar
   z-index: 1000;
   display: flex;
   flex-direction: column;
+}
+
+/* Masquage purement visuel (pas v-if) : Quill reste monté et focusable, la
+   frappe clavier continue de fonctionner pendant que le panneau est invisible
+   — seule la mirror du Folio + faux curseur restent visibles à l'utilisateur. */
+.fragment-editor--hidden {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .fragment-editor__header {

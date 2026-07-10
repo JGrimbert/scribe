@@ -2,7 +2,18 @@
   <div class="app">
     <div class="menu">
       <h1>SCRIBE</h1>
-      <div><i class="pi pi-cog"></i></div>
+      <div class="menu-actions">
+        <button
+            type="button"
+            class="menu-toggle"
+            :class="{ 'menu-toggle--active': quillVisible }"
+            :title="quillVisible ? 'Masquer la fenêtre Quill' : 'Afficher la fenêtre Quill'"
+            @click="quillVisible = !quillVisible"
+        >
+          <i class="pi pi-eye"></i>
+        </button>
+        <i class="pi pi-cog"></i>
+      </div>
     </div>
     <StructureView
         :axeCurrent="axeCurrent"
@@ -15,6 +26,7 @@
       <FolioComposer
           :trame="trame"
           :data="data"
+          :quill-visible="quillVisible"
       />
       <Scroll
           v-if="false === true"
@@ -42,6 +54,7 @@ const structure = ref(null)
 const trame = ref(null)
 const data = ref(null)
 const openedBloc = ref(null)
+const quillVisible = ref(false)
 
 const axeCurrent = ref(2)
 
@@ -116,7 +129,33 @@ h1 {
   font-weight: bold;
   padding: 0.4em;
   display: flex;
+  align-items: center;
   z-index: 1;
+}
+
+.menu-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+}
+
+.menu-toggle {
+  background: transparent;
+  border: none;
+  color: inherit;
+  opacity: 0.6;
+  cursor: pointer;
+  padding: 0.2em;
+  line-height: 1;
+}
+
+.menu-toggle:hover {
+  opacity: 0.85;
+}
+
+.menu-toggle--active {
+  opacity: 1;
 }
 
 .menu::before {
