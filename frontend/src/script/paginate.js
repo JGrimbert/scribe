@@ -55,7 +55,7 @@ function measure({ measureEl, blocks }) {
     const source = document.createElement("div");
     source.innerHTML = doc.body.innerHTML;
 
-    const flow = previewer.preview(source, ['paged.css'], measureEl).then((flow) => {
+    const flow = previewer.preview(source, ['/paged.css'], measureEl).then((flow) => {
         return flow
     })
 

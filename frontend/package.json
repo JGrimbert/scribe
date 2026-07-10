@@ -8,15 +8,18 @@
     "preview": "vite preview",
     "sand": "node src/script/sand.js",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "pagedjs": "^0.4.3",
     "primeicons": "^7.0.0",
     "quill": "^2.0.3",
-    "vue": "^3.4.0"
+    "vue": "^3.4.0",
+    "vue-router": "^4.6.4"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "@vitejs/plugin-vue": "^5.0.0",
     "jsdom": "^29.1.1",
     "vite": "^5.0.0",

@@ -6,19 +6,19 @@
         <button
             type="button"
             class="menu-toggle"
-            :class="{ 'menu-toggle--active': currentView === 'registry' }"
+            :class="{ 'menu-toggle--active': route.name === 'registry' }"
             title="Registre des documents"
-            @click="currentView = 'registry'"
+            @click="router.push('/')"
         >
           <i class="pi pi-book"></i>
         </button>
         <button
-            v-if="documentId"
+            v-if="lastDocumentPath"
             type="button"
             class="menu-toggle"
-            :class="{ 'menu-toggle--active': currentView === 'editor' }"
+            :class="{ 'menu-toggle--active': isDocumentRoute }"
             title="Éditeur"
-            @click="currentView = 'editor'"
+            @click="router.push(lastDocumentPath)"
         >
           <i class="pi pi-file-edit"></i>
         </button>
@@ -35,75 +35,28 @@
       </div>
     </div>
 
-    <RegistryView
-        v-if="currentView === 'registry'"
-        @select="onSelectDocument"
-    />
-
-    <template v-else>
-      <StructureView
-          :axeCurrent="axeCurrent"
-          :structure="structure"
-          @openBloc="openedBloc = $event"
-      />
-
-      <div class="scroll-folio">
-        <FolioComposer
-            :trame="trame"
-            :data="data"
-            :quill-visible="quillVisible"
-        />
-        <Scroll
-            v-if="false === true"
-            :trame="trame"
-            :data="data"
-            @update="onContenuUpdate"
-        />
-      </div>
-      <BlocModal
-          v-if="openedBloc"
-          :openedBloc="openedBloc"
-          @close="openedBloc = null"
-      />
-    </template>
+    <router-view />
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
-import StructureView from './components/StructureView.vue'
-import BlocModal from './components/BlocModal.vue'
-import Scroll from "./components/Scroll.vue";
-import FolioComposer from "./components/FolioComposer.vue";
-import RegistryView from "./components/RegistryView.vue";
+import { ref, computed, provide } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 
-const structure = ref(null)
-const trame = ref(null)
-const data = ref(null)
-const openedBloc = ref(null)
+const route = useRoute()
+const router = useRouter()
+
 const quillVisible = ref(false)
+provide('quillVisible', quillVisible)
 
-const axeCurrent = ref(2)
+const isDocumentRoute = computed(() => route.matched.some(r => r.name === 'document-layout'))
 
-const currentView = ref('registry')
-const documentId = ref(null)
-
-async function onSelectDocument(id) {
-  const res = await fetch(`/api/documents/${id}`)
-  if (!res.ok) {
-    alert(`Impossible de charger le document (HTTP ${res.status})`)
-    return
-  }
-  const content = await res.json()
-  trame.value = content.trame
-  data.value = content.data
-  documentId.value = id
-  currentView.value = 'editor'
-}
-
-function onContenuUpdate() {
-  console.log("update")
-}
+// Mémorise la dernière route document visitée pour le bouton "Éditeur"
+// (équivalent de l'ancien `documentId` : montrer/retrouver le document en cours).
+const lastDocumentPath = ref(null)
+router.afterEach((to) => {
+  if (to.params.id) lastDocumentPath.value = to.fullPath
+})
 </script>
 
 <style>

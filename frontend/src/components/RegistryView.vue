@@ -27,7 +27,7 @@
             v-for="doc in documents"
             :key="doc.id"
             class="registry-row"
-            @click="$emit('select', doc.id)"
+            @click="router.push(`/documents/${doc.id}`)"
         >
           <td>{{ doc.title }}</td>
           <td>{{ doc.totalAxes }}</td>
@@ -46,8 +46,9 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 
-const emit = defineEmits(['select'])
+const router = useRouter()
 
 const documents = ref([])
 const loading = ref(false)
