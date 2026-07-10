@@ -5,12 +5,26 @@ Vue 3 (`<script setup>`) + Vite, Quill 2 (édition), Paged.js / `pagedjs` (pagin
 à la manière d'un livre imprimé), PrimeIcons.
 
 Fait partie du monorepo `scribe` (voir `../CLAUDE.md` pour les règles générales
-et l'organisation frontend/backend). Les données (`structure.json`, `data.json`,
-`trame.json`) sont pour l'instant servies en statique via un middleware Vite
-custom (`vite.config.js`), lu depuis le dossier parent `Marvarid` (hors repo,
-voir `../CLAUDE.md`). Le backend NestJS (`../backend`) est en tout début de
-chantier — ne pas supposer qu'il expose déjà la persistance/BDD avant de
-vérifier.
+et l'organisation frontend/backend). Le backend NestJS (`../backend`) expose
+désormais un registre de documents (Postgres/Prisma) — voir `../CLAUDE.md`
+pour les deux chemins de données qui coexistent (registre backend vs fichiers
+statiques `Marvarid/` historiques).
+
+## Vues — `App.vue`
+
+`App.vue` bascule entre deux vues via `currentView` (`'registry' | 'editor'`) :
+- **`registry`** (défaut) — `RegistryView.vue` : tableau des documents
+  importés (`GET /api/documents`), upload d'un `.odt`
+  (`POST /api/documents/upload`), sélection d'une ligne → émet `select`.
+- **`editor`** — `StructureView` (actuellement invisible, `visibility:hidden`
+  en CSS, ne reçoit plus de `structure` peuplée) + `FolioComposer`/`Scroll`
+  (Scroll toujours désactivé, `v-if="false === true"`).
+
+`onSelectDocument(id)` (`App.vue`) appelle `GET /api/documents/:id`, peuple
+`trame`/`data`, puis bascule sur `editor`. `/api` est proxifié vers le backend
+Nest par `vite.config.js` (`server.proxy`) — dev uniquement, rien de prévu
+encore pour la prod (le frontend buildé n'a pas de backend à contacter en
+statique).
 
 ## Vocabulaire — Quill vs Folio
 

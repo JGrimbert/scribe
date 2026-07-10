@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: scribe
+      POSTGRES_USER: scribe
+      POSTGRES_PASSWORD: scribe
+    ports:
+      - "5432:5432"
+    volumes:
+      - scribe-postgres-data:/var/lib/postgresql/data
+
+volumes:
+  scribe-postgres-data:

@@ -1,0 +1,68 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum NodeType {
+  AXE
+  BLOC
+  ARTICLE
+}
+
+model Document {
+  id              String   @id @default(uuid())
+  title           String
+  sourceFilename  String
+  importedAt      DateTime @default(now())
+
+  totalAxes       Int
+  totalBlocs      Int
+  totalArticles   Int
+  totalMots       Int
+  totalCaracteres Int
+
+  nodes           Node[]
+
+  @@map("documents")
+}
+
+model Node {
+  id          String   @id @default(uuid())
+  documentId  String
+  document    Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  type        NodeType
+  parentId    String?
+  parent      Node?    @relation("NodeChildren", fields: [parentId], references: [id], onDelete: Cascade)
+  children    Node[]   @relation("NodeChildren")
+
+  position    Int
+  titre       String
+  slug        String
+  indexGlobal Int?
+  connexe     Json?
+  mots        Int?
+  caracteres  Int?
+
+  paragraphs  Paragraph[]
+
+  @@index([documentId])
+  @@index([parentId])
+  @@map("nodes")
+}
+
+model Paragraph {
+  id       String @id @default(uuid())
+  nodeId   String
+  node     Node   @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+
+  position Int
+  content  String
+
+  @@index([nodeId])
+  @@map("paragraphs")
+}

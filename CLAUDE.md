@@ -4,16 +4,26 @@ Monorepo npm workspaces réunissant :
 - `frontend/` — éditeur Vue print/WYSIWYG (Vue 3 + Vite, Quill 2, Paged.js).
   Voir `frontend/CLAUDE.md` pour le détail (glossaire fragment/bloc/paragraphe,
   architecture, pièges Quill/Paged.js, tests).
-- `backend/` — API NestJS, tout début de chantier (scaffold minimal, pas
-  encore de persistance réelle branchée). Voir `backend/CLAUDE.md`.
+- `backend/` — API NestJS + PostgreSQL (Prisma) : registre de documents,
+  import `.odt`. Voir `backend/CLAUDE.md`.
 
-Le dossier parent `Marvarid` (hors de ce repo, non versionné) contient
-l'outillage de parsing `.odt` → JSON (`structure.json`, `data.json`,
-`trame.json`) que `frontend/vite.config.js` lit encore en statique via un
-chemin relatif (`../../*.json`, remontant hors du repo scribe). C'est une
-dépendance connue et assumée pour l'instant : cloner `scribe` seul ne donne
-pas de données tant que le backend ne sert pas cette persistance. Ne pas
-"corriger" ça sans en parler — c'est un choix délibéré, pas un oubli.
+Deux chemins de données coexistent actuellement, volontairement :
+- **Registre backend** (nouveau) — `RegistryView.vue` liste les documents
+  importés (`GET /documents`), upload d'un `.odt` (`POST /documents/upload`),
+  sélection → charge `{ trame, data }` (`GET /documents/:id`) dans
+  `FolioComposer`. C'est le chemin normal pour tout nouveau document.
+- **Fichiers statiques `Marvarid/`** (historique) — le dossier parent
+  `Marvarid` (hors de ce repo, non versionné) contient l'outillage de parsing
+  `.odt` → JSON (`structure.json`, `data.json`, `trame.json`) que
+  `frontend/vite.config.js` sert encore en statique via un chemin relatif
+  (`../../*.json`, remontant hors du repo scribe). Ne pas retirer ce
+  middleware sans en parler — c'est un choix délibéré, pas un oubli ; il
+  reste inoffensif (mort) tant qu'`App.vue` ne l'appelle plus au montage.
+
+Le parseur `.odt` original (`Marvarid/parser/parse.js` + `harmonize.js`) a
+été **porté** dans `backend/src/import/odt-parser.ts` (voir
+`backend/CLAUDE.md`) — les deux copies coexistent, pas de dépendance de code
+entre elles.
 
 ## Comment travailler sur ce projet
 
@@ -38,10 +48,12 @@ pas de données tant que le backend ne sert pas cette persistance. Ne pas
 ## Commandes (racine)
 
 ```
-npm install           # installe les deux workspaces d'un coup
-npm run dev            # lance frontend (Vite) + backend (Nest, watch) en parallèle
-npm run build           # build frontend puis backend
-npm test                 # vitest run (frontend uniquement pour l'instant)
+npm install                                # installe les deux workspaces d'un coup
+docker compose up -d                        # démarre PostgreSQL (une fois, avant le backend)
+npm run prisma:migrate --workspace backend   # crée/applique les migrations (première fois ou après modif du schéma)
+npm run dev                                   # lance frontend (Vite) + backend (Nest, watch) en parallèle
+npm run build                                  # build frontend puis backend
+npm test                                        # vitest run (frontend uniquement pour l'instant)
 ```
 
 Pour cibler un seul workspace : `npm run <script> --workspace frontend` ou
