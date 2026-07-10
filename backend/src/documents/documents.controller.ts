@@ -1,7 +1,7 @@
-import { BadRequestException, Controller, Get, Param, Post, UploadedFile, UseInterceptors } from '@nestjs/common'
+import { BadRequestException, Body, Controller, Get, Param, Post, UploadedFile, UseInterceptors } from '@nestjs/common'
 import { FileInterceptor } from '@nestjs/platform-express'
 import { DocumentsService } from './documents.service'
-import { DocumentContent, DocumentSummary } from './dto'
+import { CommitImportRequest, DocumentContent, DocumentSummary, PreviewResponse } from './dto'
 
 @Controller('documents')
 export class DocumentsController {
@@ -17,11 +17,16 @@ export class DocumentsController {
     return this.documentsService.getContent(id)
   }
 
-  @Post('upload')
+  @Post('preview')
   @UseInterceptors(FileInterceptor('file'))
-  upload(@UploadedFile() file: Express.Multer.File): Promise<DocumentSummary> {
+  preview(@UploadedFile() file: Express.Multer.File): Promise<PreviewResponse> {
     if (!file) throw new BadRequestException('Fichier manquant (champ "file")')
     if (!/\.odt$/i.test(file.originalname)) throw new BadRequestException('Seuls les fichiers .odt sont acceptés')
-    return this.documentsService.uploadOdt(file.buffer, file.originalname)
+    return this.documentsService.previewUpload(file.buffer, file.originalname)
+  }
+
+  @Post('preview/:previewId/commit')
+  commit(@Param('previewId') previewId: string, @Body() corrections: CommitImportRequest): Promise<DocumentSummary> {
+    return this.documentsService.commitImport(previewId, corrections)
   }
 }

@@ -1,52 +1,65 @@
 <template>
   <div class="registry-view">
-    <div class="registry-header">
-      <h2>Registre des documents</h2>
-      <label class="upload" :class="{ 'upload--busy': uploading }">
-        {{ uploading ? 'Import en cours…' : 'Importer un .odt' }}
-        <input type="file" accept=".odt" hidden :disabled="uploading" @change="onFileChange" />
-      </label>
-    </div>
+    <template v-if="pendingPreview">
+      <ImportCalibration
+          :preview-id="pendingPreview.previewId"
+          :outline="pendingPreview.outline"
+          :suggested-structure-start-index="pendingPreview.suggestedStructureStartIndex"
+          @committed="onImportCommitted"
+          @cancel="pendingPreview = null"
+      />
+    </template>
 
-    <p v-if="error" class="error">{{ error }}</p>
+    <template v-else>
+      <div class="registry-header">
+        <h2>Registre des documents</h2>
+        <label class="upload" :class="{ 'upload--busy': uploading }">
+          {{ uploading ? 'Import en cours…' : 'Importer un .odt' }}
+          <input type="file" accept=".odt" hidden :disabled="uploading" @change="onFileChange" />
+        </label>
+      </div>
 
-    <table v-if="documents.length" class="registry-table">
-      <thead>
-        <tr>
-          <th>Titre</th>
-          <th>Axes</th>
-          <th>Blocs</th>
-          <th>Articles</th>
-          <th>Mots</th>
-          <th>Caractères</th>
-          <th>Importé le</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr
-            v-for="doc in documents"
-            :key="doc.id"
-            class="registry-row"
-            @click="router.push(`/documents/${doc.id}`)"
-        >
-          <td>{{ doc.title }}</td>
-          <td>{{ doc.totalAxes }}</td>
-          <td>{{ doc.totalBlocs }}</td>
-          <td>{{ doc.totalArticles }}</td>
-          <td>{{ doc.totalMots.toLocaleString('fr') }}</td>
-          <td>{{ doc.totalCaracteres.toLocaleString('fr') }}</td>
-          <td>{{ formatDate(doc.importedAt) }}</td>
-        </tr>
-      </tbody>
-    </table>
+      <p v-if="error" class="error">{{ error }}</p>
 
-    <p v-else-if="!loading" class="empty">Aucun document importé pour l'instant.</p>
+      <table v-if="documents.length" class="registry-table">
+        <thead>
+          <tr>
+            <th>Titre</th>
+            <th>Axes</th>
+            <th>Blocs</th>
+            <th>Articles</th>
+            <th>Mots</th>
+            <th>Caractères</th>
+            <th>Importé le</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr
+              v-for="doc in documents"
+              :key="doc.id"
+              class="registry-row"
+              @click="router.push(`/documents/${doc.id}`)"
+          >
+            <td>{{ doc.title }}</td>
+            <td>{{ doc.totalAxes }}</td>
+            <td>{{ doc.totalBlocs }}</td>
+            <td>{{ doc.totalArticles }}</td>
+            <td>{{ doc.totalMots.toLocaleString('fr') }}</td>
+            <td>{{ doc.totalCaracteres.toLocaleString('fr') }}</td>
+            <td>{{ formatDate(doc.importedAt) }}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p v-else-if="!loading" class="empty">Aucun document importé pour l'instant.</p>
+    </template>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import ImportCalibration from './ImportCalibration.vue'
 
 const router = useRouter()
 
@@ -54,6 +67,7 @@ const documents = ref([])
 const loading = ref(false)
 const uploading = ref(false)
 const error = ref(null)
+const pendingPreview = ref(null)
 
 async function fetchDocuments() {
   loading.value = true
@@ -79,17 +93,22 @@ async function onFileChange(e) {
   try {
     const formData = new FormData()
     formData.append('file', file)
-    const res = await fetch('/api/documents/upload', { method: 'POST', body: formData })
+    const res = await fetch('/api/documents/preview', { method: 'POST', body: formData })
     if (!res.ok) {
       const body = await res.json().catch(() => null)
       throw new Error(body?.message || `HTTP ${res.status}`)
     }
-    await fetchDocuments()
+    pendingPreview.value = await res.json()
   } catch (e) {
     error.value = `Échec de l'import : ${e.message}`
   } finally {
     uploading.value = false
   }
+}
+
+async function onImportCommitted() {
+  pendingPreview.value = null
+  await fetchDocuments()
 }
 
 function formatDate(iso) {

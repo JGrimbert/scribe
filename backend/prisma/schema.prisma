@@ -7,12 +7,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum NodeType {
-  AXE
-  BLOC
-  ARTICLE
-}
-
 model Document {
   id              String   @id @default(uuid())
   title           String
@@ -35,7 +29,7 @@ model Node {
   documentId  String
   document    Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
 
-  type        NodeType
+  level       Int
   parentId    String?
   parent      Node?    @relation("NodeChildren", fields: [parentId], references: [id], onDelete: Cascade)
   children    Node[]   @relation("NodeChildren")

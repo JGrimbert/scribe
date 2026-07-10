@@ -1,17 +1,18 @@
 <template>
   <template v-if="trame && data">
     <StructureView
-        :axeCurrent="axeCurrent"
-        :structure="structure"
-        @openBloc="openedBloc = $event"
+        :trame="trame"
+        :data="data"
+        :axe-id="route.params.axeId"
+        @openNode="openedNode = $event"
     />
 
     <router-view />
 
     <BlocModal
-        v-if="openedBloc"
-        :openedBloc="openedBloc"
-        @close="openedBloc = null"
+        v-if="openedNode"
+        :node="openedNode"
+        @close="openedNode = null"
     />
   </template>
 
@@ -26,15 +27,9 @@ import BlocModal from './BlocModal.vue'
 
 const route = useRoute()
 
-// StructureView attend encore l'ancien format `structure` (jamais peuplé
-// depuis le registre backend, cf. frontend/CLAUDE.md) — reste cassé/masqué
-// tant que le menu latéral n'est pas réanimé sur trame/data.
-const structure = ref(null)
-const axeCurrent = ref(null)
-
 const trame = ref(null)
 const data = ref(null)
-const openedBloc = ref(null)
+const openedNode = ref(null)
 
 provide('documentTrame', trame)
 provide('documentData', data)

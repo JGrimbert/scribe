@@ -88,6 +88,7 @@ import {useFragmentEditor} from "../composables/useFragmentEditor.js";
 const props = defineProps({
   trame: Object,
   data: Object,
+  axeId: String,
 
   pageWidthMm: { type: Number, default: 150 },
   pageHeightMm: { type: Number, default: 210 },
@@ -110,24 +111,21 @@ const scalePercent = computed(() => props.scalePercent)
 /* ------------------ DERIVED ------------------ */
 
 const sections = computed(() => {
-  if (!props.trame || !props.data) return []
+  if (!props.trame || !props.data || !props.axeId) return []
+  const axe = props.trame.axes.find((a) => a.id === props.axeId)
+  if (!axe) return []
   const out = []
-  for (const axe of props.trame.axes) {
-    push(out, axe.id, 0)
-    for (const bloc of axe.blocs) {
-      push(out, bloc.id, 1)
-      for (const id of bloc.articles) {
-        push(out, id, 2)
-      }
-    }
-  }
+  walk(out, axe, 0)
   return out
 })
 
-function push(out, id, depth) {
-  const item = props.data[id]
+function walk(out, node, depth) {
+  const item = props.data[node.id]
   if (!item) return
   out.push({ ...item, depth })
+  for (const child of node.children) {
+    walk(out, child, depth + 1)
+  }
 }
 
 /* ------------------ PAGINATION ------------------ */

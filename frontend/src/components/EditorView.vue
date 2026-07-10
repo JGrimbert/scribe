@@ -3,6 +3,7 @@
     <FolioComposer
         :trame="trame"
         :data="data"
+        :axe-id="route.params.axeId"
         :quill-visible="quillVisible"
     />
     <Scroll
@@ -16,9 +17,11 @@
 
 <script setup>
 import { inject } from 'vue'
+import { useRoute } from 'vue-router'
 import FolioComposer from './FolioComposer.vue'
 import Scroll from './Scroll.vue'
 
+const route = useRoute()
 const trame = inject('documentTrame')
 const data = inject('documentData')
 const quillVisible = inject('quillVisible')

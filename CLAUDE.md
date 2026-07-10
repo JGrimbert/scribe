@@ -9,9 +9,13 @@ Monorepo npm workspaces réunissant :
 
 Deux chemins de données coexistent actuellement, volontairement :
 - **Registre backend** (nouveau) — `RegistryView.vue` liste les documents
-  importés (`GET /documents`), upload d'un `.odt` (`POST /documents/upload`),
-  sélection → charge `{ trame, data }` (`GET /documents/:id`) dans
-  `FolioComposer`. C'est le chemin normal pour tout nouveau document.
+  importés (`GET /documents`), upload d'un `.odt` en deux temps : `POST
+  /documents/preview` (parse + calibration manuelle du niveau des titres et
+  du point de départ du liminaire, voir `backend/CLAUDE.md` et
+  `frontend/CLAUDE.md`) puis `POST /documents/preview/:previewId/commit`
+  (écriture en base). Sélection → charge `{ trame, data }` (`GET
+  /documents/:id`) dans `FolioComposer`. C'est le chemin normal pour tout
+  nouveau document.
 - **Fichiers statiques `Marvarid/`** (historique) — le dossier parent
   `Marvarid` (hors de ce repo, non versionné) contient l'outillage de parsing
   `.odt` → JSON (`structure.json`, `data.json`, `trame.json`) que

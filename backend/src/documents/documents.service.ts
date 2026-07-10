@@ -1,16 +1,46 @@
 import { Injectable, NotFoundException } from '@nestjs/common'
-import { NodeType } from '@prisma/client'
+import { randomUUID } from 'crypto'
 import { PrismaService } from '../prisma/prisma.service'
-import { parseOdtBuffer, DataMap, HarmonizedItem } from '../import/odt-parser'
-import { DocumentContent, DocumentSummary } from './dto'
+import {
+  parseOdtBuffer,
+  parseOdtBufferForPreview,
+  DataMap,
+  HarmonizedItem,
+  ImportCorrections,
+  ParsedResult,
+  Trame,
+  TrameNode,
+} from '../import/odt-parser'
+import { CommitImportRequest, DocumentContent, DocumentSummary, PreviewResponse } from './dto'
 
 @Injectable()
 export class DocumentsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async uploadOdt(buffer: Buffer, originalFilename: string): Promise<DocumentSummary> {
-    const { result, data, trame } = await parseOdtBuffer(buffer)
+  // Aperçu en attente de calibration, gardé en mémoire (process backend
+  // mono-instance, usage local) le temps que l'utilisateur valide/corrige
+  // la structure détectée. Perdu si le serveur redémarre entre-temps —
+  // acceptable pour cet usage, pas de file d'attente multi-utilisateurs.
+  private readonly pendingImports = new Map<string, { buffer: Buffer; originalFilename: string }>()
 
+  async previewUpload(buffer: Buffer, originalFilename: string): Promise<PreviewResponse> {
+    const { outline, suggestedStructureStartIndex } = await parseOdtBufferForPreview(buffer)
+    const previewId = randomUUID()
+    this.pendingImports.set(previewId, { buffer, originalFilename })
+
+    return { previewId, outline, suggestedStructureStartIndex }
+  }
+
+  async commitImport(previewId: string, corrections: CommitImportRequest): Promise<DocumentSummary> {
+    const pending = this.pendingImports.get(previewId)
+    if (!pending) throw new NotFoundException(`Aperçu ${previewId} introuvable ou expiré`)
+    this.pendingImports.delete(previewId)
+
+    const { result, data, trame } = await parseOdtBuffer(pending.buffer, corrections as ImportCorrections)
+    return this.persist(result, data, trame, pending.originalFilename)
+  }
+
+  private async persist(result: ParsedResult, data: DataMap, trame: Trame, originalFilename: string): Promise<DocumentSummary> {
     const title = result.meta.titreLivre || originalFilename.replace(/\.odt$/i, '')
     const totalMots = result.axes.reduce((s, a) => s + (a.stats?.mots || 0), 0)
     const totalCaracteres = result.axes.reduce((s, a) => s + (a.stats?.caracteres || 0), 0)
@@ -28,12 +58,12 @@ export class DocumentsService {
         },
       })
 
-      const createNode = (id: string, type: NodeType, item: HarmonizedItem, parentId: string | null, position: number) =>
+      const createNode = (item: HarmonizedItem, parentId: string | null, position: number) =>
         tx.node.create({
           data: {
-            id,
+            id: item.id,
             documentId: doc.id,
-            type,
+            level: item.level,
             parentId,
             position,
             titre: item.titre,
@@ -48,19 +78,15 @@ export class DocumentsService {
           },
         })
 
-      for (let axeIndex = 0; axeIndex < trame.axes.length; axeIndex++) {
-        const axeRef = trame.axes[axeIndex]
-        await createNode(axeRef.id, NodeType.AXE, data[axeRef.id], null, axeIndex)
-
-        for (let blocIndex = 0; blocIndex < axeRef.blocs.length; blocIndex++) {
-          const blocRef = axeRef.blocs[blocIndex]
-          await createNode(blocRef.id, NodeType.BLOC, data[blocRef.id], axeRef.id, blocIndex)
-
-          for (let articleIndex = 0; articleIndex < blocRef.articles.length; articleIndex++) {
-            const articleId = blocRef.articles[articleIndex]
-            await createNode(articleId, NodeType.ARTICLE, data[articleId], blocRef.id, articleIndex)
-          }
+      async function createTree(node: TrameNode, parentId: string | null, position: number) {
+        await createNode(data[node.id], parentId, position)
+        for (let i = 0; i < node.children.length; i++) {
+          await createTree(node.children[i], node.id, i)
         }
+      }
+
+      for (let axeIndex = 0; axeIndex < trame.axes.length; axeIndex++) {
+        await createTree(trame.axes[axeIndex], null, axeIndex)
       }
 
       return doc
@@ -90,7 +116,7 @@ export class DocumentsService {
     for (const node of nodes) {
       data[node.id] = {
         id: node.id,
-        type: node.type.toLowerCase() as HarmonizedItem['type'],
+        level: node.level,
         titre: node.titre,
         slug: node.slug,
         texte: node.paragraphs.map((p) => p.content),
@@ -104,13 +130,12 @@ export class DocumentsService {
       childrenByParent.set(node.parentId, siblings)
     }
 
-    const axes = (childrenByParent.get(null) ?? []).map((axe) => ({
-      id: axe.id,
-      blocs: (childrenByParent.get(axe.id) ?? []).map((bloc) => ({
-        id: bloc.id,
-        articles: (childrenByParent.get(bloc.id) ?? []).map((article) => article.id),
-      })),
-    }))
+    const buildTree = (nodeId: string): TrameNode => ({
+      id: nodeId,
+      children: (childrenByParent.get(nodeId) ?? []).map((child) => buildTree(child.id)),
+    })
+
+    const axes = (childrenByParent.get(null) ?? []).map((axe) => buildTree(axe.id))
 
     return { trame: { axes }, data }
   }

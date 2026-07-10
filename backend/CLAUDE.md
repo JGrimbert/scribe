@@ -10,32 +10,83 @@ l'instant, ne pas retirer le middleware Vite sans en parler.
 
 - `src/prisma/` — `PrismaModule`/`PrismaService`, client Prisma exposé en
   global provider.
-- `src/import/odt-parser.ts` — port fidèle de `Marvarid/parser/parse.js` +
-  `harmonize.js` : lecture d'un `.odt` (ZIP + XML OpenDocument) depuis un
-  `Buffer` en mémoire (upload multipart), aucune écriture disque. Vérifié par
-  diff bit-à-bit contre le parseur JS original sur un manuscrit réel — même
-  algorithme, mêmes règles de détection de titres/styles. Le fichier original
-  (`Marvarid/parser/`, hors repo) reste la référence : toute évolution du
-  parseur doit être reportée ici manuellement, il n'y a pas de dépendance de
-  code entre les deux.
-- `src/documents/` — `DocumentsModule` : le registre.
-  - `POST /documents/upload` — upload multipart d'un `.odt` (champ `file`),
-    parse + persiste (`Document` + `Node`s + `Paragraph`s) en une transaction.
-  - `GET /documents` — liste des documents avec stats agrégées (axes/blocs/
-    articles/mots/caractères), pour le tableau du registre côté frontend.
-  - `GET /documents/:id` — reconstruit `{ trame, data }` depuis la DB, à la
-    forme historique de `trame.json`/`data.json` (uniquement le sous-ensemble
-    réellement consommé par `FolioComposer` — `meta`/`preambule` ne sont pas
-    reconstruits, cf. `documents/dto.ts`).
+- `src/import/odt-parser.ts` — port de `Marvarid/parser/parse.js` +
+  `harmonize.js`, avec deux différences assumées : lecture depuis un
+  `Buffer` en mémoire (upload multipart) plutôt qu'un fichier disque ; et
+  une hiérarchie de titres à **profondeur arbitraire** (`ParsedNode`
+  récursif, `children: ParsedNode[]`) plutôt que les 3 niveaux figés
+  axe/bloc/article de la version d'origine — un ODT n'a nativement que des
+  `text:outline-level` 1..10, la notion axe/bloc/article est propre à
+  Marvarid, pas au format. Deux passes séparées :
+  - `buildFlatNodes` (privée) : lit le XML une fois, produit une liste
+    plate `FlatNode[]` (titre détecté / paragraphe / tableau, dans l'ordre
+    du document) sans construire de hiérarchie. Extrait aussi les styles
+    `fo:break-before` (saut de page forcé — indice utile en calibration,
+    cf. plus bas) et le texte de la table des matières (`extractTocTexts`,
+    si présente) pour suggérer où la vraie structure commence.
+  - `buildParsedResult(flatNodes, meta, sectionsRencontrees, corrections?)` :
+    construit la hiérarchie via une pile (`stack`), en tenant compte des
+    corrections utilisateur (`ImportCorrections` — voir calibration
+    ci-dessous). `level` (1-indexé) ne pilote que "combien d'ancêtres
+    fermer" ; la profondeur réelle d'un nœud est sa position dans la pile,
+    pas une correspondance stricte au numéro — un saut de niveau (Titre 1
+    suivi direct d'un Titre 3) imbrique simplement sans nœud fantôme.
+  - `parseOdtXml`/`parseOdtBuffer` enchaînent les deux passes pour l'usage
+    normal (sans correction = comportement par défaut).
+  - **Aucun test automatisé** (`*.spec.ts`) sur ce fichier à ce jour —
+    vérifié manuellement contre un manuscrit réel lors du développement,
+    pas de garde-fou contre une régression future.
+- `src/documents/` — `DocumentsModule` : le registre + le flux d'import en
+  deux temps (calibration avant écriture en base, cf. juste en dessous).
+  - `GET /documents` — liste des documents avec stats agrégées, pour le
+    tableau du registre côté frontend.
+  - `GET /documents/:id` — reconstruit `{ trame, data }` depuis la DB
+    (parcours récursif générique via `parentId`, pas 3 boucles figées).
+  - `POST /documents/preview` — upload multipart d'un `.odt`, parse **sans
+    écrire en base**, renvoie `{ previewId, outline, suggestedStructureStartIndex }`.
+    Le buffer + nom de fichier sont gardés en mémoire (`Map` sur l'instance
+    du service, pas de file d'attente multi-utilisateurs) le temps que
+    l'utilisateur calibre — perdu si le serveur redémarre entre-temps.
+  - `POST /documents/preview/:previewId/commit` — reprend le buffer en
+    attente, réapplique le parse avec les corrections (`ImportCorrections`
+    : `structureStartIndex` + `levelOverrides` par titre), persiste en
+    transaction (`Document` + `Node`s + `Paragraph`s).
+
+### Calibration d'import
+
+Le parseur détecte le niveau d'un titre via son style ODT (nom de style ou
+`text:outline-level`) — fiable seulement si l'auteur a appliqué les styles
+de façon cohérente. Sur un manuscrit réel, on a trouvé un cas où 7 titres
+qui auraient dû être des axes distincts portaient un style personnalisé
+hérité de "Heading 2" (donc niveau bloc) — bug de mise en forme dans le
+`.odt`, pas un bug du parseur, indétectable de façon fiable sans revue
+humaine. D'où l'écran de calibration côté frontend (`ImportCalibration.vue`,
+voir `../frontend/CLAUDE.md`) : preview avant tout écriture, ajustement
+manuel du point de départ (liminaire vs structure) et du niveau par titre.
+Pistes explorées et **abandonnées** faute de signal fiable :
+- Recoupement avec la table des matières pour corriger les niveaux : elle
+  est générée à partir des mêmes niveaux que le corps, donc reflète
+  fidèlement une éventuelle erreur au lieu de la révéler.
+- Pondération par motif de récurrence structurel : un axe mal classé en
+  bloc peut être structurellement identique à un vrai bloc (même nombre de
+  sous-titres) — seul le contenu sémantique les distingue.
+La table des matières reste utile pour une chose différente : suggérer où
+la vraie structure commence (`suggestStructureStartIndex` — le premier
+titre du corps qui apparaît aussi dans la table des matières signale la fin
+du liminaire, qui lui n'y figure jamais).
 
 ## Modèle de données (`prisma/schema.prisma`)
 
 - `Document` — un livre importé ; stats agrégées mises en cache à l'import
   (`totalMots`, `totalCaracteres`, etc.) plutôt que recalculées à la volée.
-- `Node` — axe / bloc / article (`type` enum). `parentId` + `position`
-  explicites (colonnes, pas un index de tableau JSON) : réordonner un
-  chapitre est un `UPDATE`, pas une réécriture de blob. `id` réutilise l'UUID
-  généré par `harmonize()` au moment du parse.
+  `totalAxes`/`totalBlocs`/`totalArticles` restent 3 champs figés (compat
+  registre) mais leur sens est généralisé : profondeur 0 / profondeur 1 /
+  profondeur ≥ 2, peu importe la profondeur réelle de l'arbre.
+- `Node` — un titre à profondeur arbitraire (`level: Int`, pas un enum figé
+  à 3 valeurs). `parentId` + `position` explicites (colonnes, pas un index
+  de tableau JSON) : réordonner un chapitre est un `UPDATE`, pas une
+  réécriture de blob. `id` réutilise l'UUID généré par `harmonize()` au
+  moment du parse.
 - `Paragraph` — un paragraphe de texte, rattaché à un `Node`, `position`
   explicite (même logique que ci-dessus).
 

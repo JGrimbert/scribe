@@ -1,4 +1,12 @@
-import { DataMap, Trame } from '../import/odt-parser'
+import { DataMap, ImportCorrections, OutlineEntry, Trame } from '../import/odt-parser'
+
+export interface PreviewResponse {
+  previewId: string
+  outline: OutlineEntry[]
+  suggestedStructureStartIndex: number
+}
+
+export type CommitImportRequest = ImportCorrections
 
 export interface DocumentSummary {
   id: string

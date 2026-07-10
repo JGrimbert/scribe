@@ -10,21 +10,65 @@ désormais un registre de documents (Postgres/Prisma) — voir `../CLAUDE.md`
 pour les deux chemins de données qui coexistent (registre backend vs fichiers
 statiques `Marvarid/` historiques).
 
-## Vues — `App.vue`
+## Vues — routing (`vue-router`)
 
-`App.vue` bascule entre deux vues via `currentView` (`'registry' | 'editor'`) :
-- **`registry`** (défaut) — `RegistryView.vue` : tableau des documents
-  importés (`GET /api/documents`), upload d'un `.odt`
-  (`POST /api/documents/upload`), sélection d'une ligne → émet `select`.
-- **`editor`** — `StructureView` (actuellement invisible, `visibility:hidden`
-  en CSS, ne reçoit plus de `structure` peuplée) + `FolioComposer`/`Scroll`
+`App.vue` est un shell (menu + `<router-view>`), plus de toggle manuel entre
+vues. Routes (`src/router/index.js`) :
+- `/` — `RegistryView.vue` : tableau des documents importés (`GET
+  /api/documents`), upload d'un `.odt`. L'upload ne va plus directement en
+  base : il déclenche `POST /api/documents/preview` (parse sans écrire) et
+  affiche `ImportCalibration.vue` **à la place** du tableau (pas de modale)
+  tant que l'import n'est pas validé — voir "Calibration d'import" ci-dessous.
+- `/documents/:id` — `DocumentLayout.vue` (fetch unique de `GET
+  /api/documents/:id`, fournit `trame`/`data` via `provide`/`inject` aux
+  routes enfants, affiche `StructureView` en sidebar + `BlocModal`) →
+  `DocumentIndex.vue` : écran "Chapitrage", liste les axes (titre, nb de
+  sous-titres, mots), clic → navigue vers l'axe.
+- `/documents/:id/axe/:axeId` — `EditorView.vue` → `FolioComposer`/`Scroll`
   (Scroll toujours désactivé, `v-if="false === true"`).
 
-`onSelectDocument(id)` (`App.vue`) appelle `GET /api/documents/:id`, peuple
-`trame`/`data`, puis bascule sur `editor`. `/api` est proxifié vers le backend
-Nest par `vite.config.js` (`server.proxy`) — dev uniquement, rien de prévu
-encore pour la prod (le frontend buildé n'a pas de backend à contacter en
-statique).
+`/api` est proxifié vers le backend Nest par `vite.config.js`
+(`server.proxy`) — dev uniquement, rien de prévu encore pour la prod (le
+frontend buildé n'a pas de backend à contacter en statique).
+
+### Hiérarchie à profondeur arbitraire
+
+Le backend n'impose plus 3 niveaux fixes axe/bloc/article (voir
+`../backend/CLAUDE.md`) — `trame.axes[]` est un arbre récursif
+(`{ id, children: [...] }` à n'importe quelle profondeur). Composants qui en
+dépendent :
+- `FolioComposer.vue` (`sections` computed) — parcours récursif de l'axe
+  sélectionné (`walk()`), chaque section porte son `depth` réel (pas figé à
+  0/1/2). `paginate.js` (`buildBlocks`) choisit le tag de titre (`h1`..`h6`)
+  selon cette profondeur.
+- `DocumentIndex.vue` — compte les descendants récursivement
+  (`countDescendants`), n'affiche plus de colonnes "blocs"/"articles"
+  séparées (profondeur variable = distinction non généralisable).
+- `StructureView.vue` (sidebar, réanimée sur `trame`/`data` réels) + son
+  sous-composant récursif `StructureNode.vue` — un axe à la fois développé
+  (celui de la route courante), ses descendants rendus en arbre indenté,
+  clic sur un nœud → `BlocModal.vue` (générique : `node.titre` +
+  `node.children`, ne suppose plus axe/bloc/article).
+
+### Calibration d'import
+
+`ImportCalibration.vue` (déclenchée par `RegistryView.vue` après `POST
+/api/documents/preview`) : liste tous les titres détectés dans l'ordre du
+document, en accordéon (`CalibrationNode.vue`, récursif, replié par défaut,
+liseret de couleur par niveau). Deux corrections manuelles avant validation
+(`POST /api/documents/preview/:previewId/commit`) :
+- **Point de départ** : une ligne de démarcation cliquable entre chaque
+  titre sépare le liminaire (page de titre, auteur...) de la vraie
+  structure — pré-positionnée sur une suggestion du backend
+  (`suggestedStructureStartIndex`, basée sur la table des matières si
+  présente), ajustable.
+- **Niveau par titre** : boutons `−`/`+` (pas de liste déroulante — la
+  sémantique axe/bloc/article est propre à Marvarid, pas à l'ODT, cf.
+  `../backend/CLAUDE.md`). L'arbre de l'accordéon se recalcule en direct
+  quand un niveau change. Un repère "⤓" signale un saut de page forcé
+  (`hasPageBreak`) — indice manuel, pas une correction automatique : voir
+  `../backend/CLAUDE.md` pour les pistes de déduction automatique
+  explorées et abandonnées (table des matières, motif de récurrence).
 
 ## Vocabulaire — Quill vs Folio
 

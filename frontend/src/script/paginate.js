@@ -8,8 +8,8 @@ export async function paginate(data) {
 
     if (data.sections?.value.length) {
 
-        const article = data.sections.value[2]
-        const blocks = buildBlock(article)
+        const sections = data.sections.value
+        const blocks = buildBlocks(sections)
 
         const flow = await measure({
             blocks,
@@ -17,7 +17,8 @@ export async function paginate(data) {
             config: data.config,
         })
 
-        const blockRegistry = createRegistry(article, blocks, flow)
+        const owners = new Map(sections.map((section) => [section.id, section]))
+        const blockRegistry = createRegistry(owners, blocks, flow)
 
         // Doit s'exécuter AVANT la lecture de page.area.innerHTML ci-dessous :
         // c'est lui qui stamp data-frag-id sur les nœuds réels.
@@ -68,32 +69,41 @@ function measure({ measureEl, blocks }) {
 let _uid = 0
 const uid = () => `blk_${Date.now()}_${_uid++}`
 
-function buildBlock(section) {
+const TITLE_TAG_BY_DEPTH = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']
+
+function buildBlocks(sections) {
     const blocks = []
 
-    blocks.push({
-        id: `${section.id}__titre`,
-        type: 'title',
-        path: { kind: 'titre' },
-        html: `<h3>${section.titre}</h3>`
-    })
+    for (const section of sections) {
+        const titleTag = TITLE_TAG_BY_DEPTH[section.depth] ?? 'h6'
 
-    ;(section.texte || []).forEach((p, index) => {
         blocks.push({
-            id: `${section.id}__texte__${index}`,
-            type: 'paragraph',
-            path: { kind: 'texte', index },
-            html: `<p>${p}</p>`
+            id: `${section.id}__titre`,
+            type: 'title',
+            path: { kind: 'titre' },
+            ownerId: section.id,
+            html: `<${titleTag}>${section.titre}</${titleTag}>`
         })
-    })
 
-    if (section.connexe?.pistes?.length) {
-        blocks.push({
-            id: `${section.id}__pistes`,
-            type: 'pistes',
-            path: { kind: 'pistes' },
-            html: `<div class="pistes">${section.connexe.pistes.map(p => `<p>${p}</p>`).join('')}</div>`
+        ;(section.texte || []).forEach((p, index) => {
+            blocks.push({
+                id: `${section.id}__texte__${index}`,
+                type: 'paragraph',
+                path: { kind: 'texte', index },
+                ownerId: section.id,
+                html: `<p>${p}</p>`
+            })
         })
+
+        if (section.connexe?.pistes?.length) {
+            blocks.push({
+                id: `${section.id}__pistes`,
+                type: 'pistes',
+                path: { kind: 'pistes' },
+                ownerId: section.id,
+                html: `<div class="pistes">${section.connexe.pistes.map(p => `<p>${p}</p>`).join('')}</div>`
+            })
+        }
     }
 
     return blocks

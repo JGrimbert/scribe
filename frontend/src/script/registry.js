@@ -1,58 +1,59 @@
 import {extractParagraphs} from "./fragment.js";
 
-export function createRegistry(article, blocks, flow) {
+export function createRegistry(owners, blocks, flow) {
     const map = new Map()
     blocks.forEach(block => {
+        const owner = owners.get(block.ownerId)
         map.set(block.id, {
 
             type: block.type,
 
             getHtml: (ref) => block.html,
 
-            setHtml: (html) => applyEdit(article, block, html),
+            setHtml: (html) => applyEdit(owner, block, html),
 
-            mergeNext: () => mergeNext(article, block),
+            mergeNext: () => mergeNext(owner, block),
 
-            mergePrev: () => mergePrev(article, block),
+            mergePrev: () => mergePrev(owner, block),
 
             deleteRange: (startOffset, endIndex, endOffset, opts) =>
-                deleteRange(article, block, startOffset, endIndex, endOffset, opts),
+                deleteRange(owner, block, startOffset, endIndex, endOffset, opts),
         })
     })
     return map
 }
 
-function mergeNext(article, block) {
+function mergeNext(owner, block) {
 
     if (block.path.kind !== 'texte') return null
 
     const index = block.path.index
 
-    const next = article.texte[index + 1]
+    const next = owner.texte[index + 1]
 
     if (next == null) return null
 
-    const merged = article.texte[index].trimEnd()
+    const merged = owner.texte[index].trimEnd()
 
-    article.texte[index] = merged + ' ' + next.trimStart()
+    owner.texte[index] = merged + ' ' + next.trimStart()
 
-    article.texte.splice(index + 1, 1)
+    owner.texte.splice(index + 1, 1)
 
     return { index, cursor: merged.length }
 }
 
-function mergePrev(article, block) {
+function mergePrev(owner, block) {
 
     if (block.path.kind !== 'texte') return null
 
     const i = block.path.index
     if (i <= 0) return null
 
-    const merged = article.texte[i - 1].trimEnd()
+    const merged = owner.texte[i - 1].trimEnd()
 
-    article.texte[i - 1] = merged + ' ' + article.texte[i].trimStart()
+    owner.texte[i - 1] = merged + ' ' + owner.texte[i].trimStart()
 
-    article.texte.splice(i, 1)
+    owner.texte.splice(i, 1)
 
     return { index: i - 1, cursor: merged.length }
 }
@@ -66,41 +67,41 @@ function mergePrev(article, block) {
 // suppression, pour un remplacement atomique de la sélection.
 // Même limitation que mergeNext/mergePrev : les offsets sont des longueurs
 // de chaîne HTML brute, pas des comptes de caractères visibles.
-function deleteRange(article, block, startOffset, endIndex, endOffset, { keepSplit = false, insertText = '' } = {}) {
+function deleteRange(owner, block, startOffset, endIndex, endOffset, { keepSplit = false, insertText = '' } = {}) {
 
     if (block.path.kind !== 'texte') return null
 
     const startIndex = block.path.index
 
-    const startText = article.texte[startIndex] ?? ''
-    const endText = article.texte[endIndex] ?? ''
+    const startText = owner.texte[startIndex] ?? ''
+    const endText = owner.texte[endIndex] ?? ''
 
     const before = startText.slice(0, startOffset)
     const after = endText.slice(endOffset)
 
     if (keepSplit) {
-        article.texte.splice(startIndex, endIndex - startIndex + 1, before, after)
+        owner.texte.splice(startIndex, endIndex - startIndex + 1, before, after)
         return { index: startIndex + 1, cursor: 0 }
     }
 
     const merged = before + insertText + after
-    article.texte.splice(startIndex, endIndex - startIndex + 1, merged)
+    owner.texte.splice(startIndex, endIndex - startIndex + 1, merged)
     return { index: startIndex, cursor: before.length + insertText.length }
 }
 
-function applyEdit(article, block, html) {
+function applyEdit(owner, block, html) {
 
     switch (block.path.kind) {
 
         case 'titre':
-            article.titre = stripTag(html, 'h3')
+            owner.titre = stripTag(html, 'h3')
             break
 
         case 'texte': {
 
             const paragraphs = extractParagraphs(html)
 
-            article.texte.splice(
+            owner.texte.splice(
                 block.path.index,
                 1,
                 ...paragraphs
@@ -110,7 +111,7 @@ function applyEdit(article, block, html) {
         }
 
         case 'pistes':
-            article.connexe.pistes = extractParagraphs(html)
+            owner.connexe.pistes = extractParagraphs(html)
             break
     }
 }

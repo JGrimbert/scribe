@@ -5,26 +5,31 @@ function makeArticle(paragraphs) {
     return { texte: [...paragraphs] }
 }
 
-// Reproduit la forme des blocs telle que construite par buildBlock() dans
+// Reproduit la forme des blocs telle que construite par buildBlocks() dans
 // paginate.js, sans dépendre de Paged.js.
 function makeBlocks(article) {
     return article.texte.map((p, index) => ({
         id: `art__texte__${index}`,
         type: 'paragraph',
         path: { kind: 'texte', index },
+        ownerId: 'art',
         html: `<p>${p}</p>`,
     }))
 }
 
 function makeTitreBlock() {
-    return { id: 'art__titre', type: 'title', path: { kind: 'titre' }, html: '<h3>Titre</h3>' }
+    return { id: 'art__titre', type: 'title', path: { kind: 'titre' }, ownerId: 'art', html: '<h3>Titre</h3>' }
+}
+
+function registryFor(article, blocks) {
+    return createRegistry(new Map([['art', article]]), blocks, null)
 }
 
 describe('registry mergeNext / mergePrev', () => {
     it('fusionne le paragraphe courant avec le suivant et renvoie la position du curseur', () => {
         const article = makeArticle(['Premier paragraphe.', 'Deuxième paragraphe.', 'Troisième paragraphe.'])
         const blocks = makeBlocks(article)
-        const registry = createRegistry(article, blocks, null)
+        const registry = registryFor(article, blocks)
 
         const result = registry.get('art__texte__0').mergeNext()
 
@@ -38,7 +43,7 @@ describe('registry mergeNext / mergePrev', () => {
     it('fusionne le paragraphe courant avec le précédent et renvoie la position du curseur', () => {
         const article = makeArticle(['Premier paragraphe.', 'Deuxième paragraphe.', 'Troisième paragraphe.'])
         const blocks = makeBlocks(article)
-        const registry = createRegistry(article, blocks, null)
+        const registry = registryFor(article, blocks)
 
         const result = registry.get('art__texte__2').mergePrev()
 
@@ -52,7 +57,7 @@ describe('registry mergeNext / mergePrev', () => {
     it('ne fait rien quand on merge-next depuis le dernier paragraphe', () => {
         const article = makeArticle(['Seul paragraphe.'])
         const blocks = makeBlocks(article)
-        const registry = createRegistry(article, blocks, null)
+        const registry = registryFor(article, blocks)
 
         const result = registry.get('art__texte__0').mergeNext()
 
@@ -63,7 +68,7 @@ describe('registry mergeNext / mergePrev', () => {
     it('ne fait rien quand on merge-prev depuis le premier paragraphe', () => {
         const article = makeArticle(['Seul paragraphe.'])
         const blocks = makeBlocks(article)
-        const registry = createRegistry(article, blocks, null)
+        const registry = registryFor(article, blocks)
 
         const result = registry.get('art__texte__0').mergePrev()
 
@@ -74,7 +79,7 @@ describe('registry mergeNext / mergePrev', () => {
     it('ignore les blocs qui ne sont pas de type texte (ex: titre)', () => {
         const article = { texte: ['Un paragraphe.'], titre: 'Titre' }
         const blocks = [makeTitreBlock(), ...makeBlocks(article)]
-        const registry = createRegistry(article, blocks, null)
+        const registry = registryFor(article, blocks)
 
         expect(registry.get('art__titre').mergeNext()).toBeFalsy()
         expect(registry.get('art__titre').mergePrev()).toBeFalsy()
@@ -84,7 +89,7 @@ describe('registry mergeNext / mergePrev', () => {
     it('nettoie les espaces superflus à la jonction', () => {
         const article = makeArticle(['Premier.   ', '   Deuxième.'])
         const blocks = makeBlocks(article)
-        const registry = createRegistry(article, blocks, null)
+        const registry = registryFor(article, blocks)
 
         registry.get('art__texte__0').mergeNext()
 
@@ -96,7 +101,7 @@ describe('registry setHtml (kind texte)', () => {
     it('fractionne un paragraphe en plusieurs entrées quand le HTML contient plusieurs <p>', () => {
         const article = makeArticle(['Bonjour le monde.'])
         const blocks = makeBlocks(article)
-        const registry = createRegistry(article, blocks, null)
+        const registry = registryFor(article, blocks)
 
         registry.get('art__texte__0').setHtml('<p>Bonjour</p><p> le monde.</p>')
 
@@ -108,7 +113,7 @@ describe('registry deleteRange', () => {
     it('supprime une sélection à l\'intérieur d\'un seul paragraphe', () => {
         const article = makeArticle(['Bonjour le monde.'])
         const blocks = makeBlocks(article)
-        const registry = createRegistry(article, blocks, null)
+        const registry = registryFor(article, blocks)
 
         // "Bonjour [le monde]." -> sélection = "le monde"
         const result = registry.get('art__texte__0').deleteRange(8, 0, 16)
@@ -120,7 +125,7 @@ describe('registry deleteRange', () => {
     it('insère le caractère tapé au point de jonction (remplacement atomique)', () => {
         const article = makeArticle(['Bonjour le monde.'])
         const blocks = makeBlocks(article)
-        const registry = createRegistry(article, blocks, null)
+        const registry = registryFor(article, blocks)
 
         const result = registry.get('art__texte__0').deleteRange(8, 0, 16, { insertText: 'X' })
 
@@ -131,7 +136,7 @@ describe('registry deleteRange', () => {
     it('fusionne les restes de deux paragraphes adjacents', () => {
         const article = makeArticle(['Premier paragraphe.', 'Deuxième paragraphe.'])
         const blocks = makeBlocks(article)
-        const registry = createRegistry(article, blocks, null)
+        const registry = registryFor(article, blocks)
 
         // sélection depuis "Premier " jusqu'à "paragraphe." (fin du 2e)
         const result = registry.get('art__texte__0').deleteRange('Premier '.length, 1, 'Deuxième '.length)
@@ -143,7 +148,7 @@ describe('registry deleteRange', () => {
     it('fusionne à travers 3 paragraphes : ceux du milieu disparaissent intégralement', () => {
         const article = makeArticle(['Un.', 'Deux.', 'Trois.', 'Quatre.'])
         const blocks = makeBlocks(article)
-        const registry = createRegistry(article, blocks, null)
+        const registry = registryFor(article, blocks)
 
         // sélection depuis juste après "Un" (le "." est inclus dans la sélection) jusqu'à après "Q"
         const result = registry.get('art__texte__0').deleteRange('Un'.length, 3, 'Q'.length)
@@ -155,7 +160,7 @@ describe('registry deleteRange', () => {
     it('conserve deux paragraphes distincts quand keepSplit est vrai (touche Entrée)', () => {
         const article = makeArticle(['Premier paragraphe.', 'Deuxième paragraphe.'])
         const blocks = makeBlocks(article)
-        const registry = createRegistry(article, blocks, null)
+        const registry = registryFor(article, blocks)
 
         const result = registry.get('art__texte__0').deleteRange('Premier '.length, 1, 'Deuxième '.length, { keepSplit: true })
 
@@ -166,7 +171,7 @@ describe('registry deleteRange', () => {
     it('ignore les blocs qui ne sont pas de type texte (ex: titre)', () => {
         const article = { texte: ['Un paragraphe.'], titre: 'Titre' }
         const blocks = [makeTitreBlock(), ...makeBlocks(article)]
-        const registry = createRegistry(article, blocks, null)
+        const registry = registryFor(article, blocks)
 
         expect(registry.get('art__titre').deleteRange(0, 0, 1)).toBeFalsy()
         expect(article.texte).toEqual(['Un paragraphe.'])
@@ -180,14 +185,14 @@ describe("régression : scinder un paragraphe (Entrée) puis le refusionner (Bac
         // 1) Entrée au milieu du paragraphe : Quill produit deux <p>,
         //    ce qui se traduit par un split de article.texte (cf. applyEdit).
         let blocks = makeBlocks(article)
-        let registry = createRegistry(article, blocks, null)
+        let registry = registryFor(article, blocks)
         registry.get('art__texte__0').setHtml('<p>Bonjour</p><p> le monde.</p>')
 
         expect(article.texte).toEqual(['Bonjour', ' le monde.'])
 
         // 2) refresh() reconstruirait les blocs à partir du nouvel état :
         blocks = makeBlocks(article)
-        registry = createRegistry(article, blocks, null)
+        registry = registryFor(article, blocks)
 
         // 3) Backspace en tout début du nouveau (second) paragraphe.
         const result = registry.get('art__texte__1').mergePrev()
