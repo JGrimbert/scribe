@@ -13,6 +13,16 @@
           <i class="pi pi-book"></i>
         </button>
         <button
+            v-if="lastDocumentId"
+            type="button"
+            class="menu-toggle"
+            :class="{ 'menu-toggle--active': route.name === 'document' }"
+            title="Chapitrage"
+            @click="router.push(`/documents/${lastDocumentId}`)"
+        >
+          <i class="pi pi-list"></i>
+        </button>
+        <button
             v-if="lastDocumentPath"
             type="button"
             class="menu-toggle"
@@ -54,8 +64,12 @@ const isDocumentRoute = computed(() => route.matched.some(r => r.name === 'docum
 // Mémorise la dernière route document visitée pour le bouton "Éditeur"
 // (équivalent de l'ancien `documentId` : montrer/retrouver le document en cours).
 const lastDocumentPath = ref(null)
+const lastDocumentId = ref(null)
 router.afterEach((to) => {
-  if (to.params.id) lastDocumentPath.value = to.fullPath
+  if (to.params.id) {
+    lastDocumentPath.value = to.fullPath
+    lastDocumentId.value = to.params.id
+  }
 })
 </script>
 
