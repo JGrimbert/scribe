@@ -8,13 +8,21 @@ export function stripHtmlTags(text: string): string {
   return text.replace(HTML_TAG_RE, ' ')
 }
 
-// Texte brut d'un nœud pour l'analyse : paragraphes séparés par une ligne
-// vide (frontière de phrase fiable pour spaCy), items de liste par un retour.
-export function plainNodeText(entries: HarmonizedItem['texte']): string {
+// Texte brut de chaque paragraphe d'un nœud (une entrée = un paragraphe,
+// items de liste joints par un retour) — les entrées vides sont écartées.
+// C'est l'unité d'embedding : sentence-camembert tronque au-delà de
+// ~128 tokens, un article entier serait amputé.
+export function plainParagraphTexts(entries: HarmonizedItem['texte']): string[] {
   return entries
     .map((entry) =>
       entry.type === 'list' ? entry.items.map((item) => item.text).join('\n') : entry.text,
     )
-    .map(stripHtmlTags)
-    .join('\n\n')
+    .map((text) => stripHtmlTags(text).trim())
+    .filter((text) => text.length > 0)
+}
+
+// Texte brut d'un nœud entier : paragraphes séparés par une ligne vide
+// (frontière de phrase fiable pour spaCy).
+export function plainNodeText(entries: HarmonizedItem['texte']): string {
+  return plainParagraphTexts(entries).join('\n\n')
 }

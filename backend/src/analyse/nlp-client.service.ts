@@ -44,6 +44,18 @@ export interface NlpLexicalResponse {
   entities: NlpEntity[]
 }
 
+export interface NlpEmbeddingsResponse {
+  model: string
+  dimensions: number
+  vectors: number[][]
+}
+
+export interface NlpHealthResponse {
+  status: string
+  spacy: { version: string; model: string }
+  embeddings: { model: string }
+}
+
 // Client HTTP du service Python nlp-service/ (FastAPI). Le service est
 // sans état : il reçoit du texte brut, rend du JSON — toute persistance
 // reste côté Nest (AnalyseService).
@@ -57,6 +69,24 @@ export class NlpClientService {
 
   lexical(units: NlpUnitIn[]): Promise<NlpLexicalResponse> {
     return this.post<NlpLexicalResponse>('/v1/lexical', { units })
+  }
+
+  // Lots de ≤512 textes (borne pydantic côté service) — l'appelant découpe.
+  embeddings(texts: string[]): Promise<NlpEmbeddingsResponse> {
+    return this.post<NlpEmbeddingsResponse>('/v1/embeddings', { texts })
+  }
+
+  async health(): Promise<NlpHealthResponse> {
+    let res: Response
+    try {
+      res = await fetch(`${this.baseUrl}/health`)
+    } catch {
+      throw new ServiceUnavailableException(
+        `Service NLP injoignable (${this.baseUrl}) — le lancer avec \`npm run dev:nlp\``,
+      )
+    }
+    if (!res.ok) throw new BadGatewayException(`Service NLP : HTTP ${res.status} sur /health`)
+    return res.json() as Promise<NlpHealthResponse>
   }
 
   private async post<T>(path: string, body: unknown): Promise<T> {

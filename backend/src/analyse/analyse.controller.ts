@@ -21,4 +21,11 @@ export class AnalyseController {
   recomputeLexical(@Param('id') id: string): Promise<DocumentAnalysisResponse> {
     return this.analyseService.recomputeLexical(id)
   }
+
+  // Nécessite le service Python. Long au premier calcul (embeddings de tous
+  // les paragraphes) ; les suivants repartent du cache par hash de contenu.
+  @Post(':id/analyse/semantic')
+  recomputeSemantic(@Param('id') id: string): Promise<DocumentAnalysisResponse> {
+    return this.analyseService.recomputeSemantic(id)
+  }
 }

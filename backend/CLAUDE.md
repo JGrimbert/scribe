@@ -63,6 +63,15 @@ l'instant, ne pas retirer le middleware Vite sans en parler.
     (voir `../CLAUDE.md`), joint par `NlpClientService`
     (`NLP_SERVICE_URL`, 503 explicite si éteint). Les ids d'unités renvoyés
     par Python sont enrichis des titres de nœuds avant persistance.
+  - **semantic** (`POST /documents/:id/analyse/semantic`) — proximité
+    sémantique entre nœuds : embeddings sentence-camembert **par
+    paragraphe** (le modèle tronque à ~128 tokens, un article entier serait
+    amputé), vecteur d'un nœud = moyenne renormalisée de ses paragraphes,
+    persisté en top-K voisins par nœud (jamais la matrice complète). Cache
+    `EmbeddingCache` adressé par (modèle, sha256 du texte) — pas de FK vers
+    `Paragraph`, volontairement : survit aux réimports, dédoublonne, et une
+    réanalyse ne vectorise que les textes jamais vus. Premier calcul long
+    (minutes), les suivants quasi instantanés.
   - `GET /documents/:id/analyse` renvoie toujours 200 avec les volets à
     `null` tant qu'ils ne sont pas calculés (pas de 404).
   - Piège : les colonnes `Json` sont du `jsonb` Postgres, qui **ne préserve

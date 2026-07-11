@@ -87,5 +87,27 @@ model DocumentAnalysis {
   lexical           Json?
   lexicalComputedAt DateTime?
 
+  // semantic : proximité sémantique entre nœuds (voisins top-K par nœud),
+  // calculée à partir des embeddings sentence-camembert (cf. EmbeddingCache).
+  semantic           Json?
+  semanticComputedAt DateTime?
+
   @@map("document_analyses")
+}
+
+// Cache d'embeddings adressé par contenu (sha256 du texte brut d'un
+// paragraphe) et non par paragraphId : les entrées survivent aux réimports/
+// suppressions de documents (pas de FK, pas de cascade) et les paragraphes
+// identiques partagent une entrée. Une réanalyse ne recalcule que les
+// paragraphes dont le texte a changé. Pas de purge automatique — à prévoir
+// si la table devient encombrante.
+model EmbeddingCache {
+  id          String   @id @default(uuid())
+  model       String
+  contentHash String
+  vector      Json
+  createdAt   DateTime @default(now())
+
+  @@unique([model, contentHash])
+  @@map("embedding_cache")
 }

@@ -35,9 +35,33 @@ export interface LexicalAnalysis {
   entities: LexicalEntity[]
 }
 
+export interface SemanticNeighbor {
+  nodeId: string
+  score: number
+}
+
+export interface SemanticUnit {
+  nodeId: string
+  titre: string
+  paragraphs: number
+  neighbors: SemanticNeighbor[]
+}
+
+// Proximité sémantique entre nœuds : top-K voisins par nœud (matrice
+// complète jamais persistée — 650² scores n'apporteraient rien de plus au
+// frontend). Les voisins référencent les nodeId, les titres se résolvent
+// via units.
+export interface SemanticAnalysis {
+  computedAt: string
+  model: string
+  dimensions: number
+  units: SemanticUnit[]
+}
+
 // Chaque volet est null tant qu'il n'a pas été calculé (plus de 404 : les
-// deux analyses sont indépendantes, l'une peut exister sans l'autre).
+// analyses sont indépendantes, l'une peut exister sans les autres).
 export interface DocumentAnalysisResponse {
   wordFrequency: { computedAt: string; entries: WordFrequencyEntry[] } | null
   lexical: LexicalAnalysis | null
+  semantic: SemanticAnalysis | null
 }
