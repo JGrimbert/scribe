@@ -21,9 +21,13 @@ vues. Routes (`src/router/index.js`) :
   tant que l'import n'est pas validé — voir "Calibration d'import" ci-dessous.
 - `/documents/:id` — `DocumentLayout.vue` (fetch unique de `GET
   /api/documents/:id`, fournit `trame`/`data` via `provide`/`inject` aux
-  routes enfants, affiche `StructureView` en sidebar + `BlocModal`) →
-  `DocumentIndex.vue` : écran "Chapitrage", liste les axes (titre, nb de
-  sous-titres, mots), clic → navigue vers l'axe.
+  routes enfants, affiche `StructureView` en sidebar sur toutes les routes
+  document) → `AnalyseView.vue` : dashboard d'analyse en grille de cards
+  (`src/components/analyse/*Card.vue`, état partagé via
+  `src/composables/useAnalyse.js` — `provideAnalyse()` dans la vue,
+  `useAnalyse()` dans les cards). L'ancien écran "Chapitrage"
+  (`DocumentIndex.vue`) a été supprimé — ses stats (sous-titres, mots)
+  vivent dans le mode étendu de `StructureView`.
 - `/documents/:id/axe/:axeId` — `EditorView.vue` → `FolioComposer`/`Scroll`
   (Scroll toujours désactivé, `v-if="false === true"`).
 
@@ -41,14 +45,12 @@ dépendent :
   sélectionné (`walk()`), chaque section porte son `depth` réel (pas figé à
   0/1/2). `paginate.js` (`buildBlocks`) choisit le tag de titre (`h1`..`h6`)
   selon cette profondeur.
-- `DocumentIndex.vue` — compte les descendants récursivement
-  (`countDescendants`), n'affiche plus de colonnes "blocs"/"articles"
-  séparées (profondeur variable = distinction non généralisable).
-- `StructureView.vue` (sidebar, réanimée sur `trame`/`data` réels) + son
-  sous-composant récursif `StructureNode.vue` — un axe à la fois développé
-  (celui de la route courante), ses descendants rendus en arbre indenté,
-  clic sur un nœud → `BlocModal.vue` (générique : `node.titre` +
-  `node.children`, ne suppose plus axe/bloc/article).
+- `StructureView.vue` (sidebar, montée sur toutes les routes document) + son
+  sous-composant récursif `StructureNode.vue` — accordéon à 3 modes persistés
+  en localStorage (`rail` : colonne d'icônes ; `liste` : arbre repliable,
+  stats en infobulle ; `etendu` : arbre + colonnes sous-titres/mots). Le
+  chemin vers le nœud courant s'auto-déplie ; compte les descendants
+  récursivement (les `stats.mots` du backend sont déjà agrégées).
 
 ### Calibration d'import
 

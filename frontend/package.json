@@ -12,6 +12,7 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
+    "d3-cloud": "^1.2.9",
     "pagedjs": "^0.4.3",
     "primeicons": "^7.0.0",
     "quill": "^2.0.3",

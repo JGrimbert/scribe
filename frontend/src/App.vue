@@ -17,10 +17,10 @@
             type="button"
             class="menu-toggle"
             :class="{ 'menu-toggle--active': route.name === 'document' }"
-            title="Chapitrage"
+            title="Analyse"
             @click="router.push(`/documents/${lastDocumentId}`)"
         >
-          <i class="pi pi-list"></i>
+          <i class="pi pi-chart-bar"></i>
         </button>
         <button
             v-if="lastDocumentPath"

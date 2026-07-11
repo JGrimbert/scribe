@@ -2,7 +2,6 @@
   <template v-if="trame && data">
     <div class="document-layout">
       <StructureView
-          v-if="route.params.nodeId"
           :trame="trame"
           :data="data"
           :node-id="route.params.nodeId"

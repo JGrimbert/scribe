@@ -1,7 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import RegistryView from '../components/RegistryView.vue'
 import DocumentLayout from '../components/DocumentLayout.vue'
-import DocumentIndex from '../components/DocumentIndex.vue'
+import AnalyseView from '../components/AnalyseView.vue'
 import EditorView from '../components/EditorView.vue'
 
 const routes = [
@@ -11,7 +11,7 @@ const routes = [
     name: 'document-layout',
     component: DocumentLayout,
     children: [
-      { path: '', name: 'document', component: DocumentIndex },
+      { path: '', name: 'document', component: AnalyseView },
       { path: 'noeud/:nodeId', name: 'editor', component: EditorView },
     ],
   },

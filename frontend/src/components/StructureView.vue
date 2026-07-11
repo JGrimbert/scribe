@@ -1,37 +1,45 @@
 <template>
-  <aside class="structure-panel" :class="{ 'structure-panel--collapsed': collapsed }">
-    <button
-        type="button"
-        class="collapse-toggle"
-        :title="collapsed ? 'Déplier la structure' : 'Replier la structure'"
-        @click="collapsed = !collapsed"
-    >
-      <i class="pi" :class="collapsed ? 'pi-angle-right' : 'pi-angle-left'"></i>
-    </button>
+  <aside class="structure-panel" :class="`structure-panel--${mode}`">
+    <div class="panel-toolbar">
+      <button
+          v-if="mode !== 'rail'"
+          type="button"
+          class="mode-toggle"
+          :title="mode === 'etendu' ? 'Revenir à la liste' : 'Replier la structure'"
+          @click="narrow"
+      >
+        <i class="pi pi-angle-left"></i>
+      </button>
+      <button
+          v-if="mode !== 'etendu'"
+          type="button"
+          class="mode-toggle"
+          :title="mode === 'rail' ? 'Déplier la structure' : 'Étendre avec les statistiques'"
+          @click="widen"
+      >
+        <i class="pi pi-angle-right"></i>
+      </button>
+    </div>
 
-    <div v-if="!collapsed" class="panel-content">
-      <div v-if="axes.length">
-        <div v-for="axe in axes" :key="axe.id" class="axe">
-          <h2
-              class="axe-title"
-              :class="{ 'axe-title--current': axe.id === nodeId }"
-              @click="selectNode(axe.id)"
-          >
-            {{ axe.titre }}
-          </h2>
-
-          <div v-if="isAncestorOfCurrent(axe)" class="children">
-            <StructureNode
-                v-for="child in axe.children"
-                :key="child.id"
-                :node="child"
-                :depth="0"
-                :current-node-id="nodeId"
-                @open="selectNode"
-            />
-          </div>
-        </div>
+    <div v-if="mode !== 'rail'" class="panel-content">
+      <div v-if="mode === 'etendu' && axes.length" class="stats-header">
+        <span class="stats-header-label">sous-titres</span>
+        <span class="stats-header-label">mots</span>
       </div>
+
+      <template v-if="axes.length">
+        <StructureNode
+            v-for="axe in axes"
+            :key="axe.id"
+            :node="axe"
+            :depth="0"
+            :mode="mode"
+            :current-node-id="nodeId"
+            :expanded-ids="expandedIds"
+            @open="selectNode"
+            @toggle="toggleNode"
+        />
+      </template>
 
       <p v-else class="empty">Chargement ou absence de structure…</p>
     </div>
@@ -39,7 +47,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import StructureNode from './StructureNode.vue'
 
@@ -51,13 +59,34 @@ const props = defineProps({
 
 const route = useRoute()
 const router = useRouter()
-const collapsed = ref(false)
 
+// ── Mode (rail / liste / etendu), persisté entre sessions ──
+const MODES = ['rail', 'liste', 'etendu']
+const STORAGE_KEY = 'scribe.structure.mode'
+
+const stored = localStorage.getItem(STORAGE_KEY)
+const mode = ref(MODES.includes(stored) ? stored : 'liste')
+
+watch(mode, (m) => localStorage.setItem(STORAGE_KEY, m))
+
+function narrow() {
+  mode.value = MODES[MODES.indexOf(mode.value) - 1]
+}
+
+function widen() {
+  mode.value = MODES[MODES.indexOf(mode.value) + 1]
+}
+
+// ── Arbre résolu (titres + stats) ──
 function resolve(node) {
+  const children = node.children.map(resolve)
   return {
     id: node.id,
     titre: props.data[node.id]?.titre || '(sans titre)',
-    children: node.children.map(resolve),
+    // stats.mots du backend est déjà agrégé (fullText récursif dans odt-parser)
+    mots: props.data[node.id]?.stats?.mots ?? 0,
+    descendants: children.reduce((sum, child) => sum + 1 + child.descendants, 0),
+    children,
   }
 }
 
@@ -66,14 +95,39 @@ const axes = computed(() => {
   return props.trame.axes.map(resolve)
 })
 
-function containsNode(node, id) {
-  if (node.id === id) return true
-  return node.children.some((child) => containsNode(child, id))
+// ── État plié/déplié de l'accordéon ──
+const expandedIds = reactive(new Set())
+
+function toggleNode(id) {
+  if (expandedIds.has(id)) expandedIds.delete(id)
+  else expandedIds.add(id)
 }
 
-function isAncestorOfCurrent(axe) {
-  return !!props.nodeId && containsNode(axe, props.nodeId)
+// Chemin (ids des ancêtres + le nœud lui-même) vers un id donné.
+function pathTo(node, id) {
+  if (node.id === id) return [node.id]
+  for (const child of node.children) {
+    const sub = pathTo(child, id)
+    if (sub) return [node.id, ...sub]
+  }
+  return null
 }
+
+// Le chemin vers le nœud courant s'auto-déplie (sans replier le reste).
+watch(
+  () => [props.nodeId, axes.value],
+  () => {
+    if (!props.nodeId) return
+    for (const axe of axes.value) {
+      const path = pathTo(axe, props.nodeId)
+      if (path) {
+        path.forEach((id) => expandedIds.add(id))
+        break
+      }
+    }
+  },
+  { immediate: true },
+)
 
 function selectNode(nodeId) {
   router.push(`/documents/${route.params.id}/noeud/${nodeId}`)
@@ -82,60 +136,79 @@ function selectNode(nodeId) {
 
 <style scoped>
 .structure-panel {
-  flex: 0 0 240px;
-  width: 240px;
+  flex: 0 0 auto;
   background: var(--c-surface4);
   backdrop-filter: var(--c-backdrop-filter-blur);
   max-height: calc(100vh - 2em);
-  overflow-y: auto;
-  transition: flex-basis 0.15s ease, width 0.15s ease;
+  display: flex;
+  flex-direction: column;
+  /* pas de transition de largeur : elle re-layoute tout le contenu à droite
+     à chaque frame — c'est le "saccadé" perçu, un switch instantané est plus net */
 }
 
-.structure-panel--collapsed {
+.structure-panel--rail {
+  width: 2.6em;
+}
+
+.structure-panel--liste {
+  width: 260px;
+}
+
+.structure-panel--etendu {
+  width: 420px;
+}
+
+.panel-toolbar {
   flex: 0 0 auto;
-  width: auto;
-  overflow: visible;
+  display: flex;
+  justify-content: flex-end;
+  padding: 0.35em 0.4em;
 }
 
-.collapse-toggle {
-  position: sticky;
-  top: 0;
-  display: block;
-  width: 100%;
+.structure-panel--rail .panel-toolbar {
+  justify-content: center;
+}
+
+.mode-toggle {
   background: transparent;
   border: none;
   color: inherit;
   opacity: 0.6;
   cursor: pointer;
-  padding: 0.6em;
-  text-align: right;
+  padding: 0.25em;
+  line-height: 1;
 }
 
-.structure-panel--collapsed .collapse-toggle {
-  text-align: center;
-}
-
-.collapse-toggle:hover {
+.mode-toggle:hover {
   opacity: 1;
 }
 
 .panel-content {
-  padding: 0 1em 1em 1em;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 0.6em 1em;
 }
 
-.axe {
-  margin-bottom: 0.2rem;
+.stats-header {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.8em;
+  padding: 0 0.5em 0.3em 0;
+  border-bottom: 1px solid var(--c-border, #e0d8cc);
+  margin-bottom: 0.4em;
 }
 
-.axe-title {
-  cursor: pointer;
+.stats-header-label {
+  font-size: 0.7em;
+  opacity: 0.55;
+  width: 5.2em;
+  text-align: right;
 }
 
-.axe-title--current {
-  font-weight: 700;
-}
-
-.children {
-  margin-top: 0.3em;
+.empty {
+  padding: 0.5em;
+  opacity: 0.6;
+  font-size: 0.9em;
 }
 </style>
