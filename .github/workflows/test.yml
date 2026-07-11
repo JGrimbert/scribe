@@ -1,0 +1,36 @@
+name: test
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # npm ci à la racine installe les deux workspaces (frontend + backend).
+      # nlp-service n'est pas un workspace npm (Python) — hors périmètre CI ici.
+      - name: Install
+        run: npm ci
+
+      # Le build backend (nest build) importe les types du client Prisma généré.
+      # generate lit juste le schéma, aucune base requise.
+      - name: Générer le client Prisma
+        run: npm run prisma:generate --workspace backend
+
+      - name: Tests frontend (Vitest)
+        run: npm test --workspace frontend
+
+      - name: Tests backend (Vitest)
+        run: npm test --workspace backend
+
+      - name: Build (frontend + backend)
+        run: npm run build

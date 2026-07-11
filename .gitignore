@@ -1,5 +1,4 @@
 node_modules
-package-lock.json
 dist
 storybook-static/
 .env
@@ -12,6 +11,7 @@ docs/
 
 #IDE
 .idea
+.claude
 
 # nlp-service (Python)
 .venv/
