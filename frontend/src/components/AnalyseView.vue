@@ -252,6 +252,44 @@
             </tbody>
           </table>
         </template>
+
+        <h3>Comparer deux passages</h3>
+        <p class="hint">
+          Collez deux passages quelconques (du manuscrit ou d'ailleurs) — mêmes embeddings que la
+          carte, indépendant du document. Le score se lit relativement : plus il est haut, plus
+          les passages sont sémantiquement proches.
+        </p>
+        <div class="compare-grid">
+          <textarea v-model="compareA" rows="5" placeholder="Premier passage…"></textarea>
+          <textarea v-model="compareB" rows="5" placeholder="Second passage…"></textarea>
+        </div>
+        <div class="compare-actions">
+          <button
+              type="button"
+              class="relancer"
+              :disabled="comparing || !compareA.trim() || !compareB.trim()"
+              @click="comparer"
+          >
+            <i v-if="comparing" class="pi pi-spin pi-spinner"></i>
+            Comparer
+          </button>
+          <span v-if="compareScore !== null" class="compare-result">
+            proximité : <strong>{{ formatPercent(compareScore) }}</strong>
+            <span class="score-bar-track">
+              <span class="score-bar" :style="{ width: Math.max(0, compareScore * 100) + '%' }"></span>
+            </span>
+          </span>
+        </div>
+        <p v-if="compareError" class="state state--error">{{ compareError }}</p>
+
+        <p class="cache-line">
+          Cache d'embeddings : {{ cacheEntries === null ? '…' : `${formatInt(cacheEntries)} vecteurs` }}
+          <button type="button" class="open-node" :disabled="pruning" @click="purgerCache">
+            <i v-if="pruning" class="pi pi-spin pi-spinner"></i>
+            Purger les orphelins
+          </button>
+          <span v-if="pruneMessage" class="prune-message">{{ pruneMessage }}</span>
+        </p>
       </section>
 
       <!-- ── Volet thèmes (BERTopic via nlp-service, job asynchrone) ── -->
@@ -424,6 +462,16 @@ const topicsError = ref(null)
 const topicsProgress = ref(null)
 const selectedTopicId = ref(null)
 
+const compareA = ref('')
+const compareB = ref('')
+const comparing = ref(false)
+const compareScore = ref(null)
+const compareError = ref(null)
+
+const cacheEntries = ref(null)
+const pruning = ref(false)
+const pruneMessage = ref(null)
+
 const wordFrequency = computed(() => analysis.value?.wordFrequency ?? null)
 const lexical = computed(() => analysis.value?.lexical ?? null)
 const semantic = computed(() => analysis.value?.semantic ?? null)
@@ -531,7 +579,50 @@ async function relancerTopics() {
   }
 }
 
+async function comparer() {
+  comparing.value = true
+  compareError.value = null
+  compareScore.value = null
+  try {
+    const res = await fetch('/api/analyse/compare', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ texts: [compareA.value, compareB.value] }),
+    })
+    compareScore.value = (await readJsonOrThrow(res)).score
+  } catch (e) {
+    compareError.value = `Échec de la comparaison : ${e.message}`
+  } finally {
+    comparing.value = false
+  }
+}
+
+async function fetchCacheStats() {
+  try {
+    const res = await fetch('/api/analyse/embedding-cache')
+    cacheEntries.value = (await readJsonOrThrow(res)).entries
+  } catch {
+    cacheEntries.value = null
+  }
+}
+
+async function purgerCache() {
+  pruning.value = true
+  pruneMessage.value = null
+  try {
+    const res = await fetch('/api/analyse/embedding-cache/orphans', { method: 'DELETE' })
+    const { removed, kept } = await readJsonOrThrow(res)
+    cacheEntries.value = kept
+    pruneMessage.value = `${removed.toLocaleString('fr')} supprimé${removed > 1 ? 's' : ''}, ${kept.toLocaleString('fr')} conservé${kept > 1 ? 's' : ''}`
+  } catch (e) {
+    pruneMessage.value = `Échec : ${e.message}`
+  } finally {
+    pruning.value = false
+  }
+}
+
 onMounted(fetchAnalysis)
+onMounted(fetchCacheStats)
 watch(() => route.params.id, fetchAnalysis)
 
 // Recale le focus quand l'analyse (re)charge ou que l'article visé disparaît.
@@ -1087,6 +1178,50 @@ h3 {
 
 .topic-axes-table {
   max-width: 44em;
+}
+
+.compare-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75em;
+  max-width: 46em;
+  margin-bottom: 0.75em;
+}
+
+.compare-grid textarea {
+  padding: 0.6em;
+  border: 1px solid var(--c-border, #e0d8cc);
+  border-radius: 6px;
+  background: var(--c-surface, rgba(255, 255, 255, 0.8));
+  color: inherit;
+  font: inherit;
+  font-size: 0.9em;
+  resize: vertical;
+}
+
+.compare-actions {
+  display: flex;
+  align-items: center;
+  gap: 1em;
+}
+
+.compare-result {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6em;
+}
+
+.cache-line {
+  display: flex;
+  align-items: center;
+  gap: 0.75em;
+  margin-top: 2em;
+  font-size: 0.85em;
+  opacity: 0.75;
+}
+
+.prune-message {
+  opacity: 0.8;
 }
 
 .viz {

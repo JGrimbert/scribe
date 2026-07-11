@@ -18,6 +18,7 @@ from hdbscan import HDBSCAN
 from sentence_transformers import SentenceTransformer
 from sklearn.feature_extraction.text import CountVectorizer
 from spacy.lang.fr.stop_words import STOP_WORDS
+from spacy.language import Language
 from umap import UMAP
 
 from app.core.jobs import SetProgress
@@ -39,7 +40,34 @@ def _default_min_topic_size(n_segments: int) -> int:
     return max(8, n_segments // 50)
 
 
+# Le c-TF-IDF travaille sur les lemmes, pas les formes fléchies — sinon
+# « arbre »/« arbres » ou « cheval »/« chevaux » comptent comme des termes
+# distincts et se diluent mutuellement dans la représentation des thèmes.
+# Le clustering, lui, reste sur les embeddings du texte BRUT (les formes
+# fléchies portent du sens pour CamemBERT).
+#
+# Filtrage POS indispensable en plus de la lemmatisation : sans lui, les
+# verbes génériques (pouvoir, faire, aller...), dilués entre leurs dizaines
+# de formes conjuguées avant lemmatisation, se concentrent sur un seul lemme
+# et dominent tous les thèmes (constaté sur manuscrit réel). ADJ conservé :
+# il porte les intitulés distinctifs (« cinétique hypostase »).
+LEMMA_POS = {"NOUN", "PROPN", "ADJ"}
+
+
+def _lemmatize(nlp: Language, texts: list[str], set_progress: SetProgress) -> list[str]:
+    lemmatized = []
+    n = len(texts)
+    for i, doc in enumerate(nlp.pipe(texts, batch_size=32, disable=["parser", "ner"])):
+        lemmatized.append(
+            " ".join(t.lemma_.lower() for t in doc if t.is_alpha and t.pos_ in LEMMA_POS)
+        )
+        if i % 50 == 0:
+            set_progress(50 + 12 * (i + 1) / n, "lemmatisation des segments")
+    return lemmatized
+
+
 def run_topics(
+    nlp: Language,
     embedder: SentenceTransformer,
     model_id: str,
     segments: list[SegmentIn],
@@ -65,10 +93,12 @@ def run_topics(
                 show_progress_bar=False,
             )
         )
-        set_progress(60 * min(1.0, (start + EMBED_CHUNK) / n), "vectorisation des segments")
+        set_progress(50 * min(1.0, (start + EMBED_CHUNK) / n), "vectorisation des segments")
     embeddings = np.vstack(vectors)
 
-    set_progress(62, "réduction de dimension et clustering")
+    lemmatized_texts = _lemmatize(nlp, texts, set_progress)
+
+    set_progress(64, "réduction de dimension et clustering")
     umap_model = UMAP(
         n_neighbors=15, n_components=5, min_dist=0.0, metric="cosine", random_state=42
     )
@@ -103,7 +133,9 @@ def run_topics(
         calculate_probabilities=False,
         verbose=False,
     )
-    assigned = topic_model.fit_transform(texts, embeddings)[0]
+    # Les documents passés à fit_transform ne servent qu'au c-TF-IDF (le
+    # clustering utilise les embeddings fournis) → on lui donne les lemmes.
+    assigned = topic_model.fit_transform(lemmatized_texts, embeddings)[0]
 
     # Deuxième UMAP dédié à la visualisation (2D, min_dist plus lâche pour
     # étaler les points) — celui du clustering (5D, min_dist=0) est optimisé
@@ -150,6 +182,7 @@ def run_topics(
             "umap": {"nNeighbors": 15, "nComponents": 5, "minDist": 0.0, "randomState": 42},
             "hdbscan": {"clusterSelectionMethod": "leaf", "minSamples": 5},
             "ngramRange": [1, 2],
+            "cTfIdf": {"lemmatized": True, "pos": sorted(LEMMA_POS)},
             "segments": n,
         },
         topics=topics,

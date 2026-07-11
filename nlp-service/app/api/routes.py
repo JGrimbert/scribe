@@ -59,12 +59,13 @@ def similarity(request: SimilarityRequest) -> SimilarityResponse:
 
 @router.post("/v1/jobs/topics", response_model=JobCreated)
 def start_topics_job(request: TopicsJobRequest) -> JobCreated:
+    nlp = models.get_nlp()
     embedder = models.get_embedder()
     model_id = models.embedding_model_id()
     job_id = jobs.submit(
         "topics",
         lambda set_progress: run_topics(
-            embedder, model_id, request.segments, request.min_topic_size, set_progress
+            nlp, embedder, model_id, request.segments, request.min_topic_size, set_progress
         ),
     )
     return JobCreated(jobId=job_id)

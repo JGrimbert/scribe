@@ -291,6 +291,41 @@ export class AnalyseService {
     return this.get(documentId)
   }
 
+  // Comparaison ad hoc de deux passages — indépendante de tout document,
+  // aucun résultat persisté.
+  async compare(texts: string[]): Promise<{ model: string; score: number }> {
+    if (texts.length !== 2 || texts.some((t) => typeof t !== 'string' || !t.trim())) {
+      throw new BadRequestException('Fournir exactement deux passages non vides')
+    }
+    const res = await this.nlpClient.similarity(texts.map((t) => t.trim()))
+    return { model: res.model, score: res.matrix[0][1] }
+  }
+
+  async embeddingCacheStats(): Promise<{ entries: number }> {
+    return { entries: await this.prisma.embeddingCache.count() }
+  }
+
+  // Supprime les vecteurs qui ne correspondent plus à aucun paragraphe
+  // d'aucun document (textes modifiés, documents supprimés). Les hashes
+  // valides sont recalculés par le même chemin que resolveEmbeddings —
+  // garantie que la purge ne jette jamais un vecteur encore utile.
+  async pruneEmbeddingCache(): Promise<{ removed: number; kept: number }> {
+    const documents = await this.prisma.document.findMany({ select: { id: true } })
+    const valid: string[] = []
+    for (const document of documents) {
+      const { data } = await this.documentsService.getContent(document.id)
+      for (const item of Object.values(data)) {
+        for (const text of plainParagraphTexts(item.texte)) {
+          valid.push(createHash('sha256').update(text).digest('hex'))
+        }
+      }
+    }
+    const { count: removed } = await this.prisma.embeddingCache.deleteMany({
+      where: { contentHash: { notIn: valid } },
+    })
+    return { removed, kept: await this.prisma.embeddingCache.count() }
+  }
+
   async get(documentId: string): Promise<DocumentAnalysisResponse> {
     const found = await this.prisma.documentAnalysis.findUnique({ where: { documentId } })
     return {

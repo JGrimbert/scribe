@@ -6,6 +6,7 @@ embeddings → UMAP → HDBSCAN → c-TF-IDF tient debout avec nos paramètres.
 """
 
 import pytest
+import spacy
 from sentence_transformers import SentenceTransformer
 
 from app import config
@@ -37,7 +38,12 @@ def embedder():
     return SentenceTransformer(config.EMBEDDING_MODEL)
 
 
-def test_trois_themes_evidents(embedder):
+@pytest.fixture(scope="session")
+def nlp():
+    return spacy.load(config.SPACY_MODEL)
+
+
+def test_trois_themes_evidents(nlp, embedder):
     segments = [
         SegmentIn(id=f"{theme}::{i}", text=text)
         for theme, corpus in (("mer", MER), ("cuisine", CUISINE), ("guerre", GUERRE))
@@ -47,6 +53,7 @@ def test_trois_themes_evidents(embedder):
 
     progress_steps = []
     result = run_topics(
+        nlp,
         embedder,
         "test-model",
         segments,

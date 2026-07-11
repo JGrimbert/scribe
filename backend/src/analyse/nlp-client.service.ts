@@ -113,6 +113,10 @@ export class NlpClientService {
     return this.post<NlpEmbeddingsResponse>('/v1/embeddings', { texts })
   }
 
+  similarity(texts: string[]): Promise<{ model: string; matrix: number[][] }> {
+    return this.post<{ model: string; matrix: number[][] }>('/v1/similarity', { texts })
+  }
+
   startTopicsJob(segments: { id: string; text: string }[]): Promise<{ jobId: string }> {
     return this.post<{ jobId: string }>('/v1/jobs/topics', { segments })
   }

@@ -91,6 +91,18 @@ l'instant, ne pas retirer le middleware Vite sans en parler.
     persistés : absents des analyses calculées avant la phase 4.
   - `GET /documents/:id/analyse` renvoie toujours 200 avec les volets à
     `null` tant qu'ils ne sont pas calculés (pas de 404).
+  - Outils transverses sous `/analyse` (`analyse-tools.controller.ts`, non
+    rattachés à un document) : `POST /analyse/compare` (similarité entre
+    deux passages arbitraires, rien de persisté), `GET
+    /analyse/embedding-cache` (taille) et `DELETE
+    /analyse/embedding-cache/orphans` (purge des vecteurs ne correspondant
+    plus à aucun paragraphe — hashes recalculés par le même chemin que le
+    calcul, garantie de ne rien jeter d'utile).
+  - Piège lemmatisation c-TF-IDF : le job topics lemmatise les segments
+    pour la représentation (pas pour le clustering), mais UNIQUEMENT les
+    lemmes NOUN/PROPN/ADJ — sans filtrage POS, les verbes génériques
+    (pouvoir, faire, aller), dilués entre leurs formes conjuguées avant
+    lemmatisation, se concentrent et dominent tous les thèmes.
   - Piège : les colonnes `Json` sont du `jsonb` Postgres, qui **ne préserve
     pas l'ordre des clés d'objet** (les tableaux, si) — tout ordre
     significatif d'un objet (ex: `posCounts`) doit être retrié côté client.
