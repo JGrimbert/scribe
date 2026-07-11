@@ -6,6 +6,12 @@ dist
 test-results/
 playwright-report/
 
+# documentation produit
+docs/
+
+#IDE
+.idea
+
 # nlp-service (Python)
 .venv/
 __pycache__/
