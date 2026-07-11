@@ -55,17 +55,19 @@ l'instant, ne pas retirer le middleware Vite sans en parler.
 - `src/analyse/` — `AnalyseModule` : analyses par document, persistées dans
   `DocumentAnalysis` (une ligne par document, volets indépendants et
   nullables, chacun remplacé à son recalcul) :
-  - **wordFrequency** (`POST /documents/:id/analyse`) — fréquence lexicale
-    en pur TS (`word-frequency.ts` + `stopwords-fr.ts`), synchrone, sans
-    dépendance externe.
   - **lexical** (`POST /documents/:id/analyse/lexical`) — stats
     linguistiques + entités nommées + réseau lexical (co-occurrences de
     noms à l'échelle de la phrase, arêtes pondérées NPMI — le comptage brut
-    mettrait les lemmes les plus fréquents en tête de toutes les arêtes)
-    via le service Python `nlp-service/` (voir `../CLAUDE.md`), joint par
-    `NlpClientService` (`NLP_SERVICE_URL`, 503 explicite si éteint). Les
-    ids d'unités renvoyés par Python sont enrichis des titres de nœuds
-    avant persistance.
+    mettrait les lemmes les plus fréquents en tête de toutes les arêtes) +
+    **nuage de lemmes** (`lemmas` : lemmes porteurs de sens filtrés par POS,
+    casse préservée pour les noms propres, mots vides écartés au niveau du
+    lemme — cf. `nlp-service/`) via le service Python `nlp-service/` (voir
+    `../CLAUDE.md`), joint par `NlpClientService` (`NLP_SERVICE_URL`, 503
+    explicite si éteint). Les ids d'unités renvoyés par Python sont enrichis
+    des titres de nœuds avant persistance. Le nuage de mots du frontend
+    (`VocabulaireCard`) est une facette de ce volet — l'ancienne fréquence
+    lexicale en TS pur (`word-frequency.ts`, insensible aux accents, sans
+    lemmatisation) a été retirée.
   - **semantic** (`POST /documents/:id/analyse/semantic`) — proximité
     sémantique entre nœuds : embeddings sentence-camembert **par
     paragraphe** (le modèle tronque à ~128 tokens, un article entier serait

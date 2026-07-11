@@ -11,11 +11,6 @@ export class AnalyseController {
     return this.analyseService.get(id)
   }
 
-  @Post(':id/analyse')
-  recompute(@Param('id') id: string): Promise<DocumentAnalysisResponse> {
-    return this.analyseService.recompute(id)
-  }
-
   // Nécessite le service Python (nlp-service/) — 503 explicite sinon.
   @Post(':id/analyse/lexical')
   recomputeLexical(@Param('id') id: string): Promise<DocumentAnalysisResponse> {

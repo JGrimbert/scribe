@@ -1,5 +1,5 @@
 <template>
-  <section class="ui-card" :class="{ 'ui-card--wide': wide }">
+  <section class="ui-card" :class="{ 'ui-card--wide': wide, 'ui-card--bare': bare }">
     <header class="ui-card__header">
       <h2>{{ title }}</h2>
       <i v-if="busy" class="pi pi-spin pi-spinner ui-card__busy"></i>
@@ -15,6 +15,8 @@
 defineProps({
   title: { type: String, required: true },
   wide: { type: Boolean, default: false },
+  // sans fond/bordure/flou : la card se fond dans la grille (ex : nuage de mots)
+  bare: { type: Boolean, default: false },
   busy: { type: Boolean, default: false },
 })
 </script>
@@ -29,6 +31,13 @@ defineProps({
 
 .ui-card--wide {
   grid-column: 1 / -1;
+}
+
+.ui-card--bare {
+  background: none;
+  border: none;
+  backdrop-filter: none;
+  border-radius: 0;
 }
 
 .ui-card__header {

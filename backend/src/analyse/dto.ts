@@ -1,4 +1,3 @@
-import { WordFrequencyEntry } from './word-frequency'
 import { NlpGlobalStats, NlpLexicalGraph } from './nlp-client.service'
 
 export interface NodeRef {
@@ -24,6 +23,15 @@ export interface LexicalEntity {
   nodes: NodeRef[]
 }
 
+// Nuage de mots : lemmes porteurs de sens (spaCy), avec nature grammaticale
+// dominante (`pos`) pour le filtrage côté frontend et répartition par nœud.
+export interface LexicalLemma {
+  lemma: string
+  pos: string
+  count: number
+  nodes: NodeRef[]
+}
+
 // Résultat de l'analyse spaCy, tel que persisté (colonne Json `lexical`)
 // et renvoyé au frontend — les ids d'unités du service Python sont enrichis
 // des titres de nœuds au moment de la persistance. `graph` absent des
@@ -35,6 +43,9 @@ export interface LexicalAnalysis {
   units: LexicalUnitStats[]
   entities: LexicalEntity[]
   graph?: NlpLexicalGraph
+  // Absent des analyses calculées avant l'introduction du nuage lemmatisé —
+  // relancer l'analyse lexicale pour l'obtenir.
+  lemmas?: LexicalLemma[]
 }
 
 export interface SemanticNeighbor {
@@ -114,7 +125,6 @@ export interface TopicsJobStatusResponse {
 // Chaque volet est null tant qu'il n'a pas été calculé (plus de 404 : les
 // analyses sont indépendantes, l'une peut exister sans les autres).
 export interface DocumentAnalysisResponse {
-  wordFrequency: { computedAt: string; entries: WordFrequencyEntry[] } | null
   lexical: LexicalAnalysis | null
   semantic: SemanticAnalysis | null
   topics: TopicsAnalysis | null

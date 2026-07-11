@@ -44,12 +44,20 @@ export interface NlpLexicalGraph {
   edges: { source: string; target: string; count: number; npmi: number }[]
 }
 
+export interface NlpLemma {
+  lemma: string
+  pos: string
+  count: number
+  nodes: { id: string; count: number }[]
+}
+
 export interface NlpLexicalResponse {
   model: string
   global: NlpGlobalStats
   units: NlpUnitStats[]
   entities: NlpEntity[]
   graph: NlpLexicalGraph
+  lemmas: NlpLemma[]
 }
 
 export interface NlpEmbeddingsResponse {

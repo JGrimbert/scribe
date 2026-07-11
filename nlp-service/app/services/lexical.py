@@ -7,7 +7,7 @@ plusieurs fois plus rapide qu'une boucle d'appels nlp(texte).
 
 import math
 import re
-from collections import Counter
+from collections import Counter, defaultdict
 from itertools import combinations
 
 from spacy.language import Language
@@ -18,6 +18,8 @@ from app.schemas.lexical import (
     EntityOut,
     EntityUnitCount,
     GlobalStats,
+    LemmaNodeCount,
+    LemmaOut,
     LexicalGraph,
     LexicalGraphEdge,
     LexicalGraphNode,
@@ -36,6 +38,13 @@ GRAPH_POS = {"NOUN", "PROPN"}
 GRAPH_MAX_NODES = 50
 GRAPH_MAX_EDGES = 120
 GRAPH_MIN_EDGE_COUNT = 3
+
+# Nuage de mots : lemmes porteurs de sens, filtrés par nature grammaticale
+# (le frontend bascule ensuite chaque nature). Un lemme est rangé sous sa
+# nature dominante — pas d'entrée dupliquée pour un homographe NOUN/ADJ.
+LEMMA_POS = {"NOUN", "PROPN", "ADJ", "VERB", "ADV"}
+LEMMA_MIN_LEN = 3
+LEMMA_MAX = 300
 
 _WS_RE = re.compile(r"\s+")
 
@@ -123,6 +132,13 @@ def _build_graph(
     return LexicalGraph(sentences=total_sentences, nodes=nodes, edges=edges)
 
 
+# Casse préservée pour les noms propres (« Paris », « Jean »), minusculée
+# pour le reste — spaCy rend déjà des lemmes minuscules pour les mots communs,
+# on force pour absorber les variantes de début de phrase (« Premier »/« premier »).
+def _cloud_lemma(token) -> str:
+    return token.lemma_ if token.pos_ == "PROPN" else token.lemma_.lower()
+
+
 def analyze_units(nlp: Language, units: list[LexicalUnitIn]) -> dict:
     unit_stats: list[UnitStats] = []
     all_lemmas: set[str] = set()
@@ -130,6 +146,9 @@ def analyze_units(nlp: Language, units: list[LexicalUnitIn]) -> dict:
     entity_counts: dict[tuple[str, str], dict] = {}
     graph_lemma_sentences: Counter = Counter()
     graph_pair_sentences: Counter = Counter()
+    lemma_totals: Counter = Counter()
+    lemma_pos: dict[str, Counter] = defaultdict(Counter)
+    lemma_nodes: dict[str, Counter] = defaultdict(Counter)
 
     total_tokens = 0
     total_words = 0
@@ -148,6 +167,24 @@ def analyze_units(nlp: Language, units: list[LexicalUnitIn]) -> dict:
         total_words += stats.words
         total_sentences += sentences
         total_content_words += content_words
+
+        for token in doc:
+            if (
+                token.pos_ not in LEMMA_POS
+                or not token.is_alpha
+                or len(token.lemma_) < LEMMA_MIN_LEN
+            ):
+                continue
+            lemma = _cloud_lemma(token)
+            # Filtrage au niveau du lemme, pas du token (token.is_stop) : spaCy
+            # marque « premier »/« première » (singuliers) comme stopwords mais
+            # pas leurs pluriels — un filtre par token laisserait passer une
+            # fusion incohérente. Même convention que le graphe lexical.
+            if lemma.lower() in STOP_WORDS:
+                continue
+            lemma_totals[lemma] += 1
+            lemma_pos[lemma][token.pos_] += 1
+            lemma_nodes[lemma][unit_id] += 1
 
         for sentence_lemmas in _sentence_graph_lemmas(doc):
             graph_lemma_sentences.update(sentence_lemmas)
@@ -190,4 +227,20 @@ def analyze_units(nlp: Language, units: list[LexicalUnitIn]) -> dict:
 
     graph = _build_graph(graph_lemma_sentences, graph_pair_sentences, max(total_sentences, 1))
 
-    return {"global": global_stats, "units": unit_stats, "entities": entities, "graph": graph}
+    lemmas = [
+        LemmaOut(
+            lemma=lemma,
+            pos=lemma_pos[lemma].most_common(1)[0][0],
+            count=total,
+            nodes=[LemmaNodeCount(id=uid, count=c) for uid, c in lemma_nodes[lemma].most_common()],
+        )
+        for lemma, total in lemma_totals.most_common(LEMMA_MAX)
+    ]
+
+    return {
+        "global": global_stats,
+        "units": unit_stats,
+        "entities": entities,
+        "graph": graph,
+        "lemmas": lemmas,
+    }

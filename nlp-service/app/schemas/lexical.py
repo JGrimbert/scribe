@@ -71,6 +71,21 @@ class LexicalGraph(BaseModel):
     edges: list[LexicalGraphEdge]
 
 
+class LemmaNodeCount(BaseModel):
+    id: str
+    count: int
+
+
+class LemmaOut(BaseModel):
+    """Un lemme du nuage de mots : forme lemmatisée, nature grammaticale
+    dominante (pour le filtrage POS côté frontend) et répartition par nœud."""
+
+    lemma: str
+    pos: str
+    count: int
+    nodes: list[LemmaNodeCount]
+
+
 class LexicalResponse(BaseModel):
     # "global" est un mot réservé Python → alias de sérialisation uniquement
     # (FastAPI sérialise by_alias par défaut).
@@ -81,3 +96,4 @@ class LexicalResponse(BaseModel):
     units: list[UnitStats]
     entities: list[EntityOut]
     graph: LexicalGraph
+    lemmas: list[LemmaOut]

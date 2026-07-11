@@ -48,7 +48,6 @@ import SemantiqueCard from './analyse/SemantiqueCard.vue'
 import ThemesCard from './analyse/ThemesCard.vue'
 
 const STEP_LABELS = {
-  vocabulaire: 'vocabulaire',
   lexical: 'analyse linguistique',
   semantic: 'proximité sémantique',
   topics: 'thèmes',
@@ -62,7 +61,7 @@ watch(() => route.params.id, (id) => { if (id) fetchAnalysis() })
 
 const hasAny = computed(() => {
   const a = analysis.value
-  return !!(a?.wordFrequency || a?.lexical || a?.semantic || a?.topics)
+  return !!(a?.lexical || a?.semantic || a?.topics)
 })
 
 const statItems = computed(() => {

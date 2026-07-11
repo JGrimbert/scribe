@@ -4,7 +4,6 @@ import { Prisma } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 import { DocumentsService } from '../documents/documents.service'
 import { TrameNode } from '../import/odt-parser'
-import { computeWordFrequency, WordFrequencyEntry } from './word-frequency'
 import { plainNodeText, plainParagraphTexts } from './plain-text'
 import { buildSegments } from './segmentation'
 import { NlpClientService, NlpTopicsResult } from './nlp-client.service'
@@ -45,19 +44,6 @@ export class AnalyseService {
     private readonly nlpClient: NlpClientService,
   ) {}
 
-  async recompute(documentId: string): Promise<DocumentAnalysisResponse> {
-    const { data } = await this.documentsService.getContent(documentId)
-    const wordFrequency = computeWordFrequency(data) as unknown as Prisma.InputJsonValue
-
-    await this.prisma.documentAnalysis.upsert({
-      where: { documentId },
-      create: { documentId, wordFrequency },
-      update: { wordFrequency, computedAt: new Date() },
-    })
-
-    return this.get(documentId)
-  }
-
   async recomputeLexical(documentId: string): Promise<DocumentAnalysisResponse> {
     const { data } = await this.documentsService.getContent(documentId)
     const items = Object.values(data)
@@ -81,6 +67,10 @@ export class AnalyseService {
         nodes: entityUnits.map((u) => ({ nodeId: u.id, titre: titre(u.id), count: u.count })),
       })),
       graph: raw.graph,
+      lemmas: raw.lemmas.map(({ nodes, ...lemma }) => ({
+        ...lemma,
+        nodes: nodes.map((n) => ({ nodeId: n.id, titre: titre(n.id), count: n.count })),
+      })),
     }
 
     const lexicalJson = lexical as unknown as Prisma.InputJsonValue
@@ -329,12 +319,6 @@ export class AnalyseService {
   async get(documentId: string): Promise<DocumentAnalysisResponse> {
     const found = await this.prisma.documentAnalysis.findUnique({ where: { documentId } })
     return {
-      wordFrequency: found?.wordFrequency
-        ? {
-            computedAt: found.computedAt.toISOString(),
-            entries: found.wordFrequency as unknown as WordFrequencyEntry[],
-          }
-        : null,
       lexical: (found?.lexical as unknown as LexicalAnalysis | null) ?? null,
       semantic: (found?.semantic as unknown as SemanticAnalysis | null) ?? null,
       topics: (found?.topics as unknown as TopicsAnalysis | null) ?? null,

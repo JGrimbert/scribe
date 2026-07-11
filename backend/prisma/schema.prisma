@@ -72,16 +72,15 @@ model Paragraph {
 // Analyses d'un document — une ligne par document, chaque volet remplacé à
 // son recalcul (pas d'historique conservé). Volets indépendants, chacun
 // nullable tant qu'il n'a pas été calculé :
-// - wordFrequency (+ computedAt) : fréquence lexicale TS, synchrone, locale.
 // - lexical (+ lexicalComputedAt) : analyse spaCy via nlp-service/ (stats,
-//   entités nommées, modèle inclus dans le Json).
+//   entités nommées, nuage de lemmes, modèle inclus dans le Json). Le nuage
+//   de mots (lemmes filtrables par POS) est une facette de ce volet.
 model DocumentAnalysis {
   id            String   @id @default(uuid())
   documentId    String   @unique
   document      Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
 
   computedAt    DateTime @default(now())
-  wordFrequency Json?
   registres     Json?
 
   lexical           Json?

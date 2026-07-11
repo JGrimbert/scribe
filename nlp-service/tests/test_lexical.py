@@ -57,6 +57,43 @@ def test_entites_agregees_entre_unites(result):
     assert {u.id for u in paris.units} == {"n1", "n2"}
 
 
+def test_lemmes_nuage(result):
+    by_lemma = {l.lemma: l for l in result["lemmas"]}
+    # verbe conjugué ramené à l'infinitif
+    assert "penser" in by_lemma
+    assert by_lemma["penser"].pos == "VERB"
+    # accents préservés (pas de normalisation NFD comme l'ancien word-frequency.ts)
+    assert "lumière" in by_lemma
+    # nom propre : casse d'origine conservée, agrégé entre les deux unités
+    paris = by_lemma.get("Paris")
+    assert paris is not None, f"lemmes détectés : {list(by_lemma)}"
+    assert paris.pos == "PROPN"
+    assert paris.count == 2
+    assert {n.id for n in paris.nodes} == {"n1", "n2"}
+    # mots vides (filtrés au niveau du lemme) et natures hors périmètre absents
+    assert "jusque" not in by_lemma
+    assert all(l.pos in {"NOUN", "PROPN", "ADJ", "VERB", "ADV"} for l in result["lemmas"])
+
+
+def test_lemmes_fusionnent_genre_et_nombre(nlp):
+    result = analyze_units(
+        nlp,
+        [
+            LexicalUnitIn(
+                id="n1",
+                text="Un mur vert, une porte verte, des murs verts, des grilles vertes.",
+            )
+        ],
+    )
+    by_lemma = {l.lemma: l for l in result["lemmas"]}
+    # masculin/féminin/singulier/pluriel repliés sur un seul lemme
+    assert "vert" in by_lemma
+    assert by_lemma["vert"].pos == "ADJ"
+    assert by_lemma["vert"].count == 4
+    assert "verte" not in by_lemma
+    assert "verts" not in by_lemma
+
+
 def test_unite_vide(nlp):
     result = analyze_units(nlp, [LexicalUnitIn(id="vide", text="")])
     unit = result["units"][0]
@@ -64,6 +101,7 @@ def test_unite_vide(nlp):
     assert unit.ttr == 0.0
     assert result["global"].words == 0
     assert result["graph"].edges == []
+    assert result["lemmas"] == []
 
 
 def test_graphe_cooccurrences(nlp):

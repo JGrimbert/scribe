@@ -13,10 +13,12 @@ export async function readJsonOrThrow(res) {
 }
 
 // Ordre de la relance globale ; les clés servent aussi d'identifiants de
-// spinner par card (`running`) et d'erreurs par étape (`stepErrors`).
-export const ANALYSE_STEPS = ['vocabulaire', 'lexical', 'semantic', 'topics']
+// spinner par card (`running`) et d'erreurs par étape (`stepErrors`). Le
+// nuage de mots (VocabulaireCard) est désormais une facette du volet lexical
+// (lemmes spaCy filtrés par POS), il n'a plus d'étape propre.
+export const ANALYSE_STEPS = ['lexical', 'semantic', 'topics']
 
-const STEP_SUBPATHS = { vocabulaire: '', lexical: '/lexical', semantic: '/semantic' }
+const STEP_SUBPATHS = { lexical: '/lexical', semantic: '/semantic' }
 
 const POLL_INTERVAL_MS = 2500
 

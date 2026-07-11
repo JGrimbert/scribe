@@ -1,15 +1,34 @@
 <template>
-  <UiCard title="Vocabulaire" :busy="running === 'vocabulaire'">
-    <UiNote v-if="stepErrors.vocabulaire" variant="error">{{ stepErrors.vocabulaire }}</UiNote>
-    <UiNote v-if="!wordFrequency">Analyse pas encore calculée pour ce document.</UiNote>
-    <UiNote v-else-if="!displayedWords.length">Pas assez de texte pour une analyse lexicale.</UiNote>
+  <UiCard title="Vocabulaire" bare :busy="running === 'lexical'">
+    <UiNote v-if="stepErrors.lexical" variant="error">{{ stepErrors.lexical }}</UiNote>
+    <UiNote v-if="!lexical">Analyse linguistique pas encore calculée pour ce document.</UiNote>
+    <UiNote v-else-if="!lemmas">
+      Nuage indisponible sur cette analyse — relancer l'analyse linguistique pour l'obtenir.
+    </UiNote>
 
     <template v-else>
+      <ChipGroup title="Nature grammaticale" :meta="`${filteredWords.length} mots affichés`">
+        <BaseChip
+            v-for="filter in POS_FILTERS"
+            :key="filter.key"
+            :active="active[filter.key]"
+            :count="countByKey[filter.key]"
+            @click="active[filter.key] = !active[filter.key]"
+        >
+          {{ filter.label }}
+        </BaseChip>
+      </ChipGroup>
+
+      <UiNote v-if="!filteredWords.length" variant="hint">
+        Aucun mot pour cette sélection de natures grammaticales.
+      </UiNote>
+
       <svg
+          v-else
           class="viz"
           :viewBox="`0 0 ${CLOUD_W} ${CLOUD_H}`"
           role="img"
-          aria-label="Nuage des mots les plus fréquents"
+          aria-label="Nuage des lemmes les plus fréquents"
       >
         <g :transform="`translate(${CLOUD_W / 2}, ${CLOUD_H / 2})`">
           <text
@@ -28,7 +47,7 @@
       </svg>
 
       <div v-if="selectedEntry" class="word-detail">
-        <h3>« {{ selectedEntry.word }} » — {{ selectedEntry.count }} occurrence{{ selectedEntry.count > 1 ? 's' : '' }}</h3>
+        <h3>« {{ selectedEntry.lemma }} » — {{ selectedEntry.count }} occurrence{{ selectedEntry.count > 1 ? 's' : '' }}</h3>
         <NodesTable :nodes="selectedEntry.nodes" @open="goToNode" />
       </div>
     </template>
@@ -36,25 +55,55 @@
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import cloud from 'd3-cloud'
 import UiCard from '../ui/UiCard.vue'
 import UiNote from '../ui/UiNote.vue'
+import ChipGroup from '../ui/ChipGroup.vue'
+import BaseChip from '../ui/BaseChip.vue'
 import NodesTable from './NodesTable.vue'
 import { useAnalyse } from '../../composables/useAnalyse'
 
 const { analysis, running, stepErrors, goToNode } = useAnalyse()
 
-const MAX_DISPLAYED_WORDS = 150
-const CLOUD_W = 640
-const CLOUD_H = 400
+const MAX_WORDS = 90
+const CLOUD_W = 620
+const CLOUD_H = 440
 
+// Regroupe les POS spaCy en catégories UI. Noms communs et noms propres sont
+// fusionnés sous « Noms » (l'utilisateur ne distingue pas les deux à l'œil).
+const POS_FILTERS = [
+  { key: 'nom', label: 'Noms', pos: ['NOUN', 'PROPN'] },
+  { key: 'adj', label: 'Adjectifs', pos: ['ADJ'] },
+  { key: 'verbe', label: 'Verbes', pos: ['VERB'] },
+  { key: 'adverbe', label: 'Adverbes', pos: ['ADV'] },
+]
+const POS_TO_KEY = Object.fromEntries(POS_FILTERS.flatMap((f) => f.pos.map((p) => [p, f.key])))
+
+// Adverbes décochés par défaut : souvent peu porteurs de sens.
+const active = reactive({ nom: true, adj: true, verbe: true, adverbe: false })
 const selected = ref(null)
 
-const wordFrequency = computed(() => analysis.value?.wordFrequency ?? null)
-const displayedWords = computed(() => wordFrequency.value?.entries.slice(0, MAX_DISPLAYED_WORDS) ?? [])
+const lexical = computed(() => analysis.value?.lexical ?? null)
+const lemmas = computed(() => lexical.value?.lemmas ?? null)
+
+const countByKey = computed(() => {
+  const counts = { nom: 0, adj: 0, verbe: 0, adverbe: 0 }
+  for (const lemma of lemmas.value ?? []) {
+    const key = POS_TO_KEY[lemma.pos]
+    if (key) counts[key]++
+  }
+  return counts
+})
+
+// Lemmes déjà triés par fréquence décroissante côté backend (most_common) :
+// on filtre par POS puis on garde le haut du panier.
+const filteredWords = computed(() =>
+  (lemmas.value ?? []).filter((lemma) => active[POS_TO_KEY[lemma.pos]]).slice(0, MAX_WORDS),
+)
+
 const selectedEntry = computed(
-  () => wordFrequency.value?.entries.find((e) => e.word === selected.value) ?? null,
+  () => lemmas.value?.find((lemma) => lemma.lemma === selected.value) ?? null,
 )
 
 // ── Layout du nuage (d3-cloud) ──
@@ -76,11 +125,13 @@ function mulberry32(seed) {
 const placedWords = ref([])
 
 // Échelle en racine carrée : les fréquences sont très déséquilibrées, une
-// échelle linéaire écraserait tous les mots sauf le premier. d3-cloud écarte
-// silencieusement les mots qui ne tiennent plus dans le cadre — acceptable,
+// échelle linéaire écraserait tous les mots sauf le premier. Spirale
+// archimédienne + nombre de mots plafonné : le nuage se remplit du centre
+// vers l'extérieur en blob elliptique plutôt qu'en pavage rectangulaire.
+// d3-cloud écarte silencieusement les mots qui ne tiennent plus — acceptable,
 // ce sont les moins fréquents.
 watch(
-  displayedWords,
+  filteredWords,
   (words) => {
     if (!words.length) {
       placedWords.value = []
@@ -90,13 +141,14 @@ watch(
     cloud()
       .size([CLOUD_W, CLOUD_H])
       .words(words.map((w, i) => ({
-        text: w.word,
+        text: w.lemma,
         count: w.count,
-        size: Math.round(11 + (Math.sqrt(w.count) / maxSqrt) * 33),
+        size: Math.round(12 + (Math.sqrt(w.count) / maxSqrt) * 36),
         alt: i % 3 === 1, // deux encres alternées, purement décoratif
       })))
-      .padding(2)
-      .rotate((_, i) => (i > 4 && i % 7 === 0 ? 90 : 0))
+      .spiral('archimedean')
+      .padding(3)
+      .rotate(() => 0)
       .font('Georgia')
       .fontSize((d) => d.size)
       .random(mulberry32(1234))
@@ -108,6 +160,12 @@ watch(
 </script>
 
 <style scoped>
+.viz {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
 .cloud-word {
   font-family: var(--font-serif);
   text-anchor: middle;
