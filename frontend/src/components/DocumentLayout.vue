@@ -1,13 +1,18 @@
 <template>
   <template v-if="trame && data">
-    <StructureView
-        :trame="trame"
-        :data="data"
-        :axe-id="route.params.axeId"
-        @openNode="openedNode = $event"
-    />
+    <div class="document-layout">
+      <StructureView
+          v-if="route.params.axeId"
+          :trame="trame"
+          :data="data"
+          :axe-id="route.params.axeId"
+          @openNode="openedNode = $event"
+      />
 
-    <router-view />
+      <div class="document-layout__content">
+        <router-view />
+      </div>
+    </div>
 
     <BlocModal
         v-if="openedNode"
@@ -58,5 +63,19 @@ watch(
 .loading {
   padding: 1.5em;
   opacity: 0.6;
+}
+
+.document-layout {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.document-layout__content {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
 }
 </style>

@@ -1,33 +1,44 @@
 <template>
-  <main v-if="axes.length" class="main-view">
-    <div v-for="axe in axes" :key="axe.id" class="axe">
-      <h2
-          class="axe-title"
-          :class="{ 'axe-title--current': axe.id === axeId }"
-          @click="selectAxe(axe.id)"
-      >
-        {{ axe.titre }}
-      </h2>
+  <aside class="structure-panel" :class="{ 'structure-panel--collapsed': collapsed }">
+    <button
+        type="button"
+        class="collapse-toggle"
+        :title="collapsed ? 'Déplier la structure' : 'Replier la structure'"
+        @click="collapsed = !collapsed"
+    >
+      <i class="pi" :class="collapsed ? 'pi-angle-right' : 'pi-angle-left'"></i>
+    </button>
 
-      <div v-if="axe.id === axeId" class="children">
-        <StructureNode
-            v-for="child in axe.children"
-            :key="child.id"
-            :node="child"
-            :depth="0"
-            @open="$emit('openNode', $event)"
-        />
+    <div v-if="!collapsed" class="panel-content">
+      <div v-if="axes.length">
+        <div v-for="axe in axes" :key="axe.id" class="axe">
+          <h2
+              class="axe-title"
+              :class="{ 'axe-title--current': axe.id === axeId }"
+              @click="selectAxe(axe.id)"
+          >
+            {{ axe.titre }}
+          </h2>
+
+          <div v-if="axe.id === axeId" class="children">
+            <StructureNode
+                v-for="child in axe.children"
+                :key="child.id"
+                :node="child"
+                :depth="0"
+                @open="$emit('openNode', $event)"
+            />
+          </div>
+        </div>
       </div>
-    </div>
-  </main>
 
-  <div v-else class="empty">
-    <p>Chargement ou absence de structure…</p>
-  </div>
+      <p v-else class="empty">Chargement ou absence de structure…</p>
+    </div>
+  </aside>
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import StructureNode from './StructureNode.vue'
 
@@ -41,6 +52,7 @@ defineEmits(['openNode'])
 
 const route = useRoute()
 const router = useRouter()
+const collapsed = ref(false)
 
 function resolve(node) {
   return {
@@ -61,17 +73,46 @@ function selectAxe(axeId) {
 </script>
 
 <style scoped>
-.main-view {
+.structure-panel {
+  flex: 0 0 240px;
   width: 240px;
-  margin: 1em;
-  border-radius: 1em;
-  padding: 1em;
-  position: fixed;
-  z-index: 1;
   background: var(--c-surface4);
   backdrop-filter: var(--c-backdrop-filter-blur);
   max-height: calc(100vh - 2em);
   overflow-y: auto;
+  transition: flex-basis 0.15s ease, width 0.15s ease;
+}
+
+.structure-panel--collapsed {
+  flex: 0 0 auto;
+  width: auto;
+  overflow: visible;
+}
+
+.collapse-toggle {
+  position: sticky;
+  top: 0;
+  display: block;
+  width: 100%;
+  background: transparent;
+  border: none;
+  color: inherit;
+  opacity: 0.6;
+  cursor: pointer;
+  padding: 0.6em;
+  text-align: right;
+}
+
+.structure-panel--collapsed .collapse-toggle {
+  text-align: center;
+}
+
+.collapse-toggle:hover {
+  opacity: 1;
+}
+
+.panel-content {
+  padding: 0 1em 1em 1em;
 }
 
 .axe {
