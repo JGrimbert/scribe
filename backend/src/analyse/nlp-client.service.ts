@@ -38,11 +38,18 @@ export interface NlpEntity {
   units: { id: string; count: number }[]
 }
 
+export interface NlpLexicalGraph {
+  sentences: number
+  nodes: { lemma: string; count: number }[]
+  edges: { source: string; target: string; count: number; npmi: number }[]
+}
+
 export interface NlpLexicalResponse {
   model: string
   global: NlpGlobalStats
   units: NlpUnitStats[]
   entities: NlpEntity[]
+  graph: NlpLexicalGraph
 }
 
 export interface NlpEmbeddingsResponse {
@@ -73,6 +80,7 @@ export interface NlpTopicsResult {
   params: Record<string, unknown>
   topics: NlpTopic[]
   assignments: { id: string; topic: number }[]
+  projection: { id: string; x: number; y: number }[]
 }
 
 export interface NlpJobStatus {

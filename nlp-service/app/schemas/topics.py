@@ -41,11 +41,20 @@ class SegmentAssignment(BaseModel):
     topic: int
 
 
+class ProjectionPoint(BaseModel):
+    """Position d'un segment dans la projection UMAP 2D, normalisée 0..1."""
+
+    id: str
+    x: float
+    y: float
+
+
 class TopicsResult(BaseModel):
     model: str
     params: dict
     topics: list[TopicOut]
     assignments: list[SegmentAssignment]
+    projection: list[ProjectionPoint]
 
 
 class JobStatusResponse(BaseModel):

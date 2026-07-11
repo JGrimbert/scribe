@@ -50,6 +50,27 @@ class GlobalStats(BaseModel):
     posCounts: dict[str, int]
 
 
+class LexicalGraphNode(BaseModel):
+    lemma: str
+    count: int
+
+
+class LexicalGraphEdge(BaseModel):
+    source: str
+    target: str
+    count: int
+    npmi: float
+
+
+class LexicalGraph(BaseModel):
+    """Réseau de co-occurrences de lemmes (noms/noms propres) à l'échelle de
+    la phrase — nœuds = lemmes les plus fréquents, arêtes pondérées par NPMI."""
+
+    sentences: int
+    nodes: list[LexicalGraphNode]
+    edges: list[LexicalGraphEdge]
+
+
 class LexicalResponse(BaseModel):
     # "global" est un mot réservé Python → alias de sérialisation uniquement
     # (FastAPI sérialise by_alias par défaut).
@@ -59,3 +80,4 @@ class LexicalResponse(BaseModel):
     global_: GlobalStats = Field(serialization_alias="global", alias="global")
     units: list[UnitStats]
     entities: list[EntityOut]
+    graph: LexicalGraph

@@ -59,10 +59,13 @@ l'instant, ne pas retirer le middleware Vite sans en parler.
     en pur TS (`word-frequency.ts` + `stopwords-fr.ts`), synchrone, sans
     dépendance externe.
   - **lexical** (`POST /documents/:id/analyse/lexical`) — stats
-    linguistiques + entités nommées via le service Python `nlp-service/`
-    (voir `../CLAUDE.md`), joint par `NlpClientService`
-    (`NLP_SERVICE_URL`, 503 explicite si éteint). Les ids d'unités renvoyés
-    par Python sont enrichis des titres de nœuds avant persistance.
+    linguistiques + entités nommées + réseau lexical (co-occurrences de
+    noms à l'échelle de la phrase, arêtes pondérées NPMI — le comptage brut
+    mettrait les lemmes les plus fréquents en tête de toutes les arêtes)
+    via le service Python `nlp-service/` (voir `../CLAUDE.md`), joint par
+    `NlpClientService` (`NLP_SERVICE_URL`, 503 explicite si éteint). Les
+    ids d'unités renvoyés par Python sont enrichis des titres de nœuds
+    avant persistance.
   - **semantic** (`POST /documents/:id/analyse/semantic`) — proximité
     sémantique entre nœuds : embeddings sentence-camembert **par
     paragraphe** (le modèle tronque à ~128 tokens, un article entier serait
@@ -78,10 +81,14 @@ l'instant, ne pas retirer le middleware Vite sans en parler.
     (`segmentation.ts`, jamais à cheval sur deux nœuds, nodeId encodé dans
     l'id du segment), le service Python fait embeddings + UMAP + HDBSCAN en
     job asynchrone, et Nest persiste à la fin du polling le résumé par thème
-    + la répartition par axe. Piège c-TF-IDF : ne PAS mettre `min_df` sur le
-    CountVectorizer — BERTopic l'ajuste sur les documents concaténés par
-    thème, `min_df=2` élague les termes propres à un seul thème (ceux qu'on
-    veut).
+    + la répartition par axe + une projection UMAP 2D des segments (carte
+    sémantique, coordonnées normalisées 0..1 ; UMAP séparé du clustering :
+    2D/min_dist 0.1 pour l'œil vs 5D/min_dist 0 pour HDBSCAN). Piège
+    c-TF-IDF : ne PAS mettre `min_df` sur le CountVectorizer — BERTopic
+    l'ajuste sur les documents concaténés par thème, `min_df=2` élague les
+    termes propres à un seul thème (ceux qu'on veut). Les volets `graph`
+    (lexical) et `projection` (topics) sont optionnels dans les Json
+    persistés : absents des analyses calculées avant la phase 4.
   - `GET /documents/:id/analyse` renvoie toujours 200 avec les volets à
     `null` tant qu'ils ne sont pas calculés (pas de 404).
   - Piège : les colonnes `Json` sont du `jsonb` Postgres, qui **ne préserve

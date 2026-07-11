@@ -1,5 +1,5 @@
 import { WordFrequencyEntry } from './word-frequency'
-import { NlpGlobalStats } from './nlp-client.service'
+import { NlpGlobalStats, NlpLexicalGraph } from './nlp-client.service'
 
 export interface NodeRef {
   nodeId: string
@@ -26,13 +26,15 @@ export interface LexicalEntity {
 
 // Résultat de l'analyse spaCy, tel que persisté (colonne Json `lexical`)
 // et renvoyé au frontend — les ids d'unités du service Python sont enrichis
-// des titres de nœuds au moment de la persistance.
+// des titres de nœuds au moment de la persistance. `graph` absent des
+// analyses calculées avant la phase 4 — relancer l'analyse pour l'obtenir.
 export interface LexicalAnalysis {
   computedAt: string
   model: string
   global: NlpGlobalStats
   units: LexicalUnitStats[]
   entities: LexicalEntity[]
+  graph?: NlpLexicalGraph
 }
 
 export interface SemanticNeighbor {
@@ -78,9 +80,18 @@ export interface TopicAxeDistribution {
   distribution: { topicId: number; count: number }[]
 }
 
+// Position d'un segment dans la carte 2D (UMAP), coordonnées 0..1.
+export interface TopicProjectionPoint {
+  x: number
+  y: number
+  topicId: number // -1 = hors thème
+  nodeId: string
+}
+
 // Thèmes BERTopic : résumé par thème + répartition par axe (l'évolution des
 // thèmes au fil du manuscrit). Les segments hors thème (outliers HDBSCAN)
-// sont comptés à part, pas mélangés aux thèmes.
+// sont comptés à part, pas mélangés aux thèmes. `projection` absente des
+// analyses antérieures à la phase 4.
 export interface TopicsAnalysis {
   computedAt: string
   model: string
@@ -89,6 +100,7 @@ export interface TopicsAnalysis {
   outliers: { count: number; share: number }
   topics: TopicSummary[]
   axes: TopicAxeDistribution[]
+  projection?: TopicProjectionPoint[]
 }
 
 export interface TopicsJobStatusResponse {

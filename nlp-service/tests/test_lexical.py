@@ -63,3 +63,37 @@ def test_unite_vide(nlp):
     assert unit.words == 0
     assert unit.ttr == 0.0
     assert result["global"].words == 0
+    assert result["graph"].edges == []
+
+
+def test_graphe_cooccurrences(nlp):
+    # La co-présence chat/jardin revient dans 4 phrases → arête attendue
+    # (seuil GRAPH_MIN_EDGE_COUNT = 3). Les phrases mer/bateau, sans lien
+    # avec le jardin, sont indispensables : si « jardin » apparaissait dans
+    # toutes les phrases, sa NPMI avec « chat » serait exactement 0
+    # (indépendance statistique) et l'arête serait filtrée.
+    texte = (
+        "Le chat traversait le jardin en silence. "
+        "Un chat dormait au fond du jardin. "
+        "Le chat guettait les oiseaux du jardin. "
+        "Ce chat connaissait chaque recoin du jardin. "
+        "La pluie tombait sur le jardin désert. "
+        "Le bateau quittait la mer au crépuscule. "
+        "La mer portait le bateau vers le large. "
+        "Un bateau dérivait sur la mer étale."
+    )
+    result = analyze_units(nlp, [LexicalUnitIn(id="n1", text=texte)])
+    graph = result["graph"]
+
+    lemmas = {node.lemma for node in graph.nodes}
+    assert {"chat", "jardin"} <= lemmas
+
+    edge_keys = {tuple(sorted((e.source, e.target))) for e in graph.edges}
+    assert ("chat", "jardin") in edge_keys
+    assert ("chat", "pluie") not in edge_keys
+
+    chat_jardin = next(
+        e for e in graph.edges if tuple(sorted((e.source, e.target))) == ("chat", "jardin")
+    )
+    assert chat_jardin.count == 4
+    assert -1 <= chat_jardin.npmi <= 1

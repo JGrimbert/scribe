@@ -34,6 +34,7 @@ def lexical(request: LexicalRequest) -> LexicalResponse:
         global_=result["global"],
         units=result["units"],
         entities=result["entities"],
+        graph=result["graph"],
     )
 
 

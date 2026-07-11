@@ -80,6 +80,7 @@ export class AnalyseService {
         ...entity,
         nodes: entityUnits.map((u) => ({ nodeId: u.id, titre: titre(u.id), count: u.count })),
       })),
+      graph: raw.graph,
     }
 
     const lexicalJson = lexical as unknown as Prisma.InputJsonValue
@@ -243,6 +244,14 @@ export class AnalyseService {
     const share = (count: number) =>
       segmentsTotal ? Math.round((count / segmentsTotal) * 1000) / 1000 : 0
 
+    const topicBySegment = new Map(result.assignments.map((a) => [a.id, a.topic]))
+    const projection = result.projection.map((point) => ({
+      x: point.x,
+      y: point.y,
+      topicId: topicBySegment.get(point.id) ?? -1,
+      nodeId: point.id.split('::')[0],
+    }))
+
     const topics: TopicsAnalysis = {
       computedAt: new Date().toISOString(),
       model: result.model,
@@ -269,6 +278,7 @@ export class AnalyseService {
             .sort((a, b) => b.count - a.count),
         }))
         .filter((axe) => axe.segments > 0),
+      projection,
     }
 
     const topicsJson = topics as unknown as Prisma.InputJsonValue

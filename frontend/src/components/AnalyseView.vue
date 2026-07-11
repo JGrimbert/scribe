@@ -80,6 +80,32 @@
             </tbody>
           </table>
 
+          <template v-if="lexical.graph && lexicalGraphLayout">
+            <h3>Réseau lexical</h3>
+            <p class="hint">
+              Noms co-présents dans une même phrase — la taille suit la fréquence, l'épaisseur du
+              lien la force d'association (NPMI). Survoler un mot pour son compte exact.
+            </p>
+            <svg class="viz" viewBox="0 0 640 440" role="img" aria-label="Réseau lexical de co-occurrences">
+              <line
+                  v-for="edge in lexicalGraphLayout.edges"
+                  :key="edge.source + '|' + edge.target"
+                  :x1="edge.x1" :y1="edge.y1" :x2="edge.x2" :y2="edge.y2"
+                  class="graph-edge"
+                  :stroke-width="1 + edge.npmi * 2.5"
+                  :stroke-opacity="0.25 + edge.npmi * 0.45"
+              />
+              <g v-for="node in lexicalGraphLayout.nodes" :key="node.lemma" class="graph-node">
+                <circle :cx="node.x" :cy="node.y" :r="node.r" />
+                <text v-if="node.labelled" :x="node.x + node.r + 3" :y="node.y + 3">{{ node.lemma }}</text>
+                <title>{{ node.lemma }} — présent dans {{ node.count }} phrases</title>
+              </g>
+            </svg>
+          </template>
+          <p v-else-if="!lexical.graph" class="hint">
+            Réseau lexical indisponible sur cette analyse — relancer l'analyse pour l'obtenir.
+          </p>
+
           <h3>Entités nommées</h3>
           <p v-if="!lexical.entities.length" class="state">Aucune entité détectée.</p>
           <div v-for="group in entityGroups" :key="group.label" class="entity-group">
@@ -270,9 +296,40 @@
                 :class="{ 'entity-chip--active': selectedTopicId === topic.topicId }"
                 @click="selectedTopicId = selectedTopicId === topic.topicId ? null : topic.topicId"
             >
+              <span class="topic-dot" :style="{ background: topicColor(topic.topicId) }"></span>
               {{ topic.label }} <span class="entity-count">{{ topic.count }}</span>
             </button>
           </div>
+
+          <template v-if="topics.projection?.length">
+            <h3>Carte des segments</h3>
+            <p class="hint">
+              Chaque point est un segment de ~250 mots, placé par proximité sémantique (UMAP) —
+              deux points voisins parlent de choses proches, quel que soit leur chapitre.
+              Cliquer un thème ci-dessus le met en évidence ; cliquer un point ouvre son article.
+            </p>
+            <svg class="viz" viewBox="0 0 640 420" role="img" aria-label="Carte sémantique des segments">
+              <circle
+                  v-for="(point, i) in projectionPoints"
+                  :key="i"
+                  :cx="point.cx" :cy="point.cy" r="4"
+                  class="map-point"
+                  :fill="point.color"
+                  :fill-opacity="selectedTopicId === null || point.topicId === selectedTopicId ? 0.85 : 0.15"
+                  @click="goToNode(point.nodeId)"
+              >
+                <title>{{ point.titre }} — {{ point.topicLabel }}</title>
+              </circle>
+            </svg>
+            <div class="map-legend">
+              <span v-for="item in mapLegend" :key="item.label" class="map-legend-item">
+                <span class="topic-dot" :style="{ background: item.color }"></span>{{ item.label }}
+              </span>
+            </div>
+          </template>
+          <p v-else class="hint">
+            Carte des segments indisponible sur cette analyse — relancer l'analyse pour l'obtenir.
+          </p>
 
           <div v-if="selectedTopic" class="word-detail">
             <h3>Thème « {{ selectedTopic.label }} » — {{ selectedTopic.count }} segments ({{ formatPercent(selectedTopic.share) }})</h3>
@@ -310,11 +367,15 @@
 </template>
 
 <script setup>
-import { computed, h, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, h, inject, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 const route = useRoute()
 const router = useRouter()
+
+// data du document (fourni par DocumentLayout) — résolution des titres pour
+// les infobulles de la carte, sans dupliquer 762 titres dans l'analyse.
+const documentData = inject('documentData', ref(null))
 
 const MAX_DISPLAYED_WORDS = 150
 const MAX_ENTITIES_PER_GROUP = 40
@@ -614,10 +675,144 @@ const topPairs = computed(
   () => allPairs.value.filter((p) => p.score < DUPLICATE_THRESHOLD).slice(0, 15),
 )
 
+// ── Réseau lexical ──
+const GRAPH_W = 640
+const GRAPH_H = 440
+
+// Layout force maison, déterministe (positions initiales en cercle, pas
+// d'aléatoire) : ~50 nœuds, pas de quoi embarquer d3-force.
+function layoutGraph(graph) {
+  const nodes = graph.nodes.map((n, i) => {
+    const angle = (2 * Math.PI * i) / graph.nodes.length
+    return {
+      ...n,
+      x: GRAPH_W / 2 + Math.cos(angle) * GRAPH_W * 0.35,
+      y: GRAPH_H / 2 + Math.sin(angle) * GRAPH_H * 0.35,
+    }
+  })
+  const indexOf = new Map(nodes.map((n, i) => [n.lemma, i]))
+  const edges = graph.edges
+    .map((e) => ({ ...e, a: indexOf.get(e.source), b: indexOf.get(e.target) }))
+    .filter((e) => e.a !== undefined && e.b !== undefined)
+
+  const ITERATIONS = 260
+  const REPULSION = 5200
+  const SPRING = 0.025
+  const SPRING_LENGTH = 80
+  for (let it = 0; it < ITERATIONS; it++) {
+    const cool = 1 - it / ITERATIONS
+    const fx = new Array(nodes.length).fill(0)
+    const fy = new Array(nodes.length).fill(0)
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i + 1; j < nodes.length; j++) {
+        const dx = nodes[i].x - nodes[j].x
+        const dy = nodes[i].y - nodes[j].y
+        const d2 = Math.max(dx * dx + dy * dy, 40)
+        const f = REPULSION / d2
+        const d = Math.sqrt(d2)
+        fx[i] += (dx / d) * f; fy[i] += (dy / d) * f
+        fx[j] -= (dx / d) * f; fy[j] -= (dy / d) * f
+      }
+    }
+    for (const e of edges) {
+      const dx = nodes[e.b].x - nodes[e.a].x
+      const dy = nodes[e.b].y - nodes[e.a].y
+      const d = Math.max(Math.sqrt(dx * dx + dy * dy), 1)
+      const f = SPRING * (d - SPRING_LENGTH) * (0.5 + e.npmi)
+      fx[e.a] += (dx / d) * f; fy[e.a] += (dy / d) * f
+      fx[e.b] -= (dx / d) * f; fy[e.b] -= (dy / d) * f
+    }
+    for (let i = 0; i < nodes.length; i++) {
+      fx[i] += (GRAPH_W / 2 - nodes[i].x) * 0.012
+      fy[i] += (GRAPH_H / 2 - nodes[i].y) * 0.012
+      nodes[i].x = Math.min(GRAPH_W - 60, Math.max(14, nodes[i].x + fx[i] * cool))
+      nodes[i].y = Math.min(GRAPH_H - 14, Math.max(14, nodes[i].y + fy[i] * cool))
+    }
+  }
+
+  const maxCount = Math.max(...nodes.map((n) => n.count), 1)
+  const labelThreshold = [...nodes.map((n) => n.count)].sort((a, b) => b - a)[29] ?? 0
+  for (const node of nodes) {
+    node.r = 3.5 + Math.sqrt(node.count / maxCount) * 9
+    node.x = Math.round(node.x * 10) / 10
+    node.y = Math.round(node.y * 10) / 10
+    node.labelled = node.count >= labelThreshold
+  }
+  return {
+    nodes,
+    edges: edges.map((e) => ({
+      ...e,
+      x1: nodes[e.a].x, y1: nodes[e.a].y, x2: nodes[e.b].x, y2: nodes[e.b].y,
+    })),
+  }
+}
+
+const lexicalGraphLayout = computed(() =>
+  lexical.value?.graph?.nodes?.length ? layoutGraph(lexical.value.graph) : null,
+)
+
 // ── Thèmes ──
 const selectedTopic = computed(
   () => topics.value?.topics.find((t) => t.topicId === selectedTopicId.value) ?? null,
 )
+
+// Palette catégorielle validée (scripts/validate_palette.js du guide dataviz,
+// surface #faf8f4 : ΔE CVD 24,2, tous les checks passent). Ordre FIXE — les
+// 7 premiers thèmes (déjà triés par taille) prennent les 7 teintes, le reste
+// bascule en gris : au-delà, plus personne ne distingue les couleurs.
+const TOPIC_PALETTE = ['#2a78d6', '#1baf7a', '#eda100', '#008300', '#4a3aa7', '#e34948', '#e87ba4']
+const COLOR_OTHER = '#8a7f72'
+const COLOR_OUTLIER = '#cfc5b6'
+
+const topicColorById = computed(() => {
+  const map = new Map()
+  topics.value?.topics.forEach((topic, i) => {
+    map.set(topic.topicId, i < TOPIC_PALETTE.length ? TOPIC_PALETTE[i] : COLOR_OTHER)
+  })
+  return map
+})
+
+function topicColor(topicId) {
+  return topicColorById.value.get(topicId) ?? COLOR_OUTLIER
+}
+
+const topicLabelById = computed(
+  () => new Map((topics.value?.topics ?? []).map((t) => [t.topicId, t.label])),
+)
+
+const MAP_W = 640
+const MAP_H = 420
+const MAP_PAD = 12
+
+const projectionPoints = computed(() =>
+  (topics.value?.projection ?? []).map((point) => ({
+    cx: Math.round((MAP_PAD + point.x * (MAP_W - 2 * MAP_PAD)) * 10) / 10,
+    cy: Math.round((MAP_PAD + (1 - point.y) * (MAP_H - 2 * MAP_PAD)) * 10) / 10,
+    topicId: point.topicId,
+    nodeId: point.nodeId,
+    color: topicColor(point.topicId),
+    titre: documentData?.value?.[point.nodeId]?.titre ?? '(sans titre)',
+    topicLabel:
+      point.topicId === -1 ? 'hors thème' : topicLabelById.value.get(point.topicId) ?? 'thème',
+  })),
+)
+
+const mapLegend = computed(() => {
+  const colored = (topics.value?.topics ?? [])
+    .slice(0, TOPIC_PALETTE.length)
+    .map((topic, i) => ({
+      color: TOPIC_PALETTE[i],
+      label: topic.label.split(' · ').slice(0, 2).join(' · '),
+    }))
+  const extras = []
+  if ((topics.value?.topics.length ?? 0) > TOPIC_PALETTE.length) {
+    extras.push({ color: COLOR_OTHER, label: 'autres thèmes' })
+  }
+  if (topics.value?.outliers.count) {
+    extras.push({ color: COLOR_OUTLIER, label: 'hors thème' })
+  }
+  return [...colored, ...extras]
+})
 
 // Présence du thème sélectionné dans chaque axe, en % des segments de l'axe
 // (pas du total : les axes n'ont pas tous la même longueur).
@@ -892,6 +1087,64 @@ h3 {
 
 .topic-axes-table {
   max-width: 44em;
+}
+
+.viz {
+  display: block;
+  width: 100%;
+  max-width: 46em;
+  height: auto;
+  margin: 0.5em 0;
+  border: 1px solid var(--c-border, #e0d8cc);
+  border-radius: 8px;
+  background: var(--c-surface, rgba(255, 255, 255, 0.8));
+}
+
+.graph-edge {
+  stroke: #a8946f;
+}
+
+.graph-node circle {
+  fill: var(--c-accent);
+  fill-opacity: 0.85;
+}
+
+.graph-node text {
+  font-size: 10px;
+  fill: var(--c-ink2, #5a5047);
+  font-family: system-ui, sans-serif;
+  paint-order: stroke;
+  stroke: rgba(255, 255, 255, 0.75);
+  stroke-width: 2.5px;
+}
+
+.map-point {
+  stroke: rgba(26, 22, 18, 0.3);
+  stroke-width: 0.75;
+  cursor: pointer;
+}
+
+.map-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35em 1.1em;
+  font-size: 0.8em;
+  opacity: 0.85;
+  margin-bottom: 1em;
+}
+
+.map-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+}
+
+.topic-dot {
+  display: inline-block;
+  width: 0.7em;
+  height: 0.7em;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 
 .semantic-picker {

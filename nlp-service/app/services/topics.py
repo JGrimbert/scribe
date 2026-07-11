@@ -22,6 +22,7 @@ from umap import UMAP
 
 from app.core.jobs import SetProgress
 from app.schemas.topics import (
+    ProjectionPoint,
     SegmentAssignment,
     SegmentIn,
     TopicOut,
@@ -104,6 +105,30 @@ def run_topics(
     )
     assigned = topic_model.fit_transform(texts, embeddings)[0]
 
+    # Deuxième UMAP dédié à la visualisation (2D, min_dist plus lâche pour
+    # étaler les points) — celui du clustering (5D, min_dist=0) est optimisé
+    # pour HDBSCAN, pas pour l'œil. Coordonnées normalisées 0..1, le frontend
+    # choisit son échelle.
+    set_progress(80, "projection 2D")
+    # n_neighbors plus large et min_dist plus lâche que l'UMAP de clustering :
+    # privilégie la structure globale et évite d'expulser les petits clusters
+    # à l'infini (ce qui viderait le centre de la carte).
+    coords = UMAP(
+        n_neighbors=30, n_components=2, min_dist=0.25, metric="cosine", random_state=42
+    ).fit_transform(embeddings)
+    # Normalisation sur les percentiles 1-99 + écrêtage, pas min-max : UMAP
+    # envoie parfois un petit cluster très à l'écart, et une min-max stricte
+    # écraserait toute la structure principale en un amas minuscule (constaté
+    # sur manuscrit réel). Les points écrêtés se posent au bord de la carte.
+    mins = np.percentile(coords, 1, axis=0)
+    spans = np.percentile(coords, 99, axis=0) - mins
+    spans[spans == 0] = 1.0
+    normalized = np.clip((coords - mins) / spans, 0.0, 1.0)
+    projection = [
+        ProjectionPoint(id=segment.id, x=round(float(x), 3), y=round(float(y), 3))
+        for segment, (x, y) in zip(segments, normalized)
+    ]
+
     set_progress(92, "représentation des thèmes")
     counts = Counter(assigned)
     topics = [
@@ -132,4 +157,5 @@ def run_topics(
             SegmentAssignment(id=segment.id, topic=int(topic))
             for segment, topic in zip(segments, assigned)
         ],
+        projection=projection,
     )

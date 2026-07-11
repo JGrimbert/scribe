@@ -5,16 +5,22 @@ bénéficier du batching interne de spaCy — sur un manuscrit complet, c'est
 plusieurs fois plus rapide qu'une boucle d'appels nlp(texte).
 """
 
+import math
 import re
 from collections import Counter
+from itertools import combinations
 
 from spacy.language import Language
+from spacy.lang.fr.stop_words import STOP_WORDS
 from spacy.tokens import Doc
 
 from app.schemas.lexical import (
     EntityOut,
     EntityUnitCount,
     GlobalStats,
+    LexicalGraph,
+    LexicalGraphEdge,
+    LexicalGraphNode,
     LexicalUnitIn,
     UnitStats,
 )
@@ -23,6 +29,13 @@ from app.schemas.lexical import (
 # noms propres) — par opposition aux mots grammaticaux (déterminants,
 # prépositions, pronoms, auxiliaires...).
 CONTENT_POS = {"NOUN", "PROPN", "VERB", "ADJ", "ADV"}
+
+# Réseau lexical : noms et noms propres seulement — inclure verbes/adjectifs
+# noie le graphe sous des liens génériques (faire, grand, petit...).
+GRAPH_POS = {"NOUN", "PROPN"}
+GRAPH_MAX_NODES = 50
+GRAPH_MAX_EDGES = 120
+GRAPH_MIN_EDGE_COUNT = 3
 
 _WS_RE = re.compile(r"\s+")
 
@@ -61,11 +74,62 @@ def _unit_stats(unit_id: str, doc: Doc) -> tuple[UnitStats, set[str], Counter, i
     return stats, lemmas, pos_counts, content_words, sentences
 
 
+def _sentence_graph_lemmas(doc: Doc) -> list[set[str]]:
+    per_sentence: list[set[str]] = []
+    for sent in doc.sents:
+        lemmas = {
+            token.lemma_.lower()
+            for token in sent
+            if token.pos_ in GRAPH_POS
+            and token.is_alpha
+            and len(token.lemma_) >= 3
+            and token.lemma_.lower() not in STOP_WORDS
+        }
+        if len(lemmas) >= 2:
+            per_sentence.append(lemmas)
+    return per_sentence
+
+
+# NPMI (PMI normalisée, -1..1) sur la co-présence à l'échelle de la phrase :
+# départage les paires vraiment associées des paires simplement fréquentes —
+# un comptage brut mettrait les deux lemmes les plus courants en tête de
+# toutes les arêtes.
+def _build_graph(
+    lemma_sentences: Counter, pair_sentences: Counter, total_sentences: int
+) -> LexicalGraph:
+    top = [lemma for lemma, _ in lemma_sentences.most_common(GRAPH_MAX_NODES)]
+    kept = set(top)
+
+    edges: list[LexicalGraphEdge] = []
+    for (a, b), count in pair_sentences.items():
+        if count < GRAPH_MIN_EDGE_COUNT or a not in kept or b not in kept:
+            continue
+        p_ab = count / total_sentences
+        p_a = lemma_sentences[a] / total_sentences
+        p_b = lemma_sentences[b] / total_sentences
+        npmi = math.log(p_ab / (p_a * p_b)) / -math.log(p_ab)
+        if npmi <= 0:
+            continue
+        edges.append(LexicalGraphEdge(source=a, target=b, count=count, npmi=round(npmi, 3)))
+    edges.sort(key=lambda e: (e.npmi, e.count), reverse=True)
+    edges = edges[:GRAPH_MAX_EDGES]
+
+    connected = {e.source for e in edges} | {e.target for e in edges}
+    nodes = [
+        LexicalGraphNode(lemma=lemma, count=lemma_sentences[lemma])
+        for lemma in top
+        if lemma in connected
+    ]
+    return LexicalGraph(sentences=total_sentences, nodes=nodes, edges=edges)
+
+
 def analyze_units(nlp: Language, units: list[LexicalUnitIn]) -> dict:
     unit_stats: list[UnitStats] = []
     all_lemmas: set[str] = set()
     pos_counts: Counter = Counter()
     entity_counts: dict[tuple[str, str], dict] = {}
+    graph_lemma_sentences: Counter = Counter()
+    graph_pair_sentences: Counter = Counter()
 
     total_tokens = 0
     total_words = 0
@@ -84,6 +148,12 @@ def analyze_units(nlp: Language, units: list[LexicalUnitIn]) -> dict:
         total_words += stats.words
         total_sentences += sentences
         total_content_words += content_words
+
+        for sentence_lemmas in _sentence_graph_lemmas(doc):
+            graph_lemma_sentences.update(sentence_lemmas)
+            graph_pair_sentences.update(
+                tuple(sorted(pair)) for pair in combinations(sentence_lemmas, 2)
+            )
 
         for ent in doc.ents:
             key = _entity_key(ent.text, ent.label_)
@@ -118,4 +188,6 @@ def analyze_units(nlp: Language, units: list[LexicalUnitIn]) -> dict:
         posCounts=dict(pos_counts.most_common()),
     )
 
-    return {"global": global_stats, "units": unit_stats, "entities": entities}
+    graph = _build_graph(graph_lemma_sentences, graph_pair_sentences, max(total_sentences, 1))
+
+    return {"global": global_stats, "units": unit_stats, "entities": entities, "graph": graph}

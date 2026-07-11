@@ -55,6 +55,8 @@ def test_trois_themes_evidents(embedder):
     )
 
     assert len(result.assignments) == len(segments)
+    assert len(result.projection) == len(segments)
+    assert all(0 <= p.x <= 1 and 0 <= p.y <= 1 for p in result.projection)
     real_topics = [t for t in result.topics if t.topic != -1]
     assert len(real_topics) >= 2
     assert all(len(t.words) > 0 for t in real_topics)
