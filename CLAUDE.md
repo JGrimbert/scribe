@@ -5,7 +5,16 @@ Monorepo npm workspaces réunissant :
   Voir `frontend/CLAUDE.md` pour le détail (glossaire fragment/bloc/paragraphe,
   architecture, pièges Quill/Paged.js, tests).
 - `backend/` — API NestJS + PostgreSQL (Prisma) : registre de documents,
-  import `.odt`. Voir `backend/CLAUDE.md`.
+  import `.odt`, analyses (module `analyse`). Voir `backend/CLAUDE.md`.
+- `nlp-service/` — service Python FastAPI (pas un workspace npm) : pipeline
+  NLP français (spaCy `fr_core_news_lg` en phase 1 ; sentence-camembert puis
+  BERTopic prévus en phases 2/3). **Sans état** : reçoit du texte brut,
+  rend du JSON — toute persistance reste côté Nest (`AnalyseService`).
+  Nest le joint via `NLP_SERVICE_URL` (défaut `http://localhost:8001`) et
+  renvoie un 503 explicite s'il est éteint. Venv local `.venv/` (gitignoré),
+  Python 3.12 : `py -3.12 -m venv .venv` puis
+  `.venv\Scripts\pip install -r requirements.txt` (≈600 Mo, modèle inclus).
+  Tests : `.venv\Scripts\python -m pytest` (chargent le vrai modèle, ~10 s).
 
 Deux chemins de données coexistent actuellement, volontairement :
 - **Registre backend** (nouveau) — `RegistryView.vue` liste les documents

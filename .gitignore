@@ -5,3 +5,8 @@ dist
 *.log
 test-results/
 playwright-report/
+
+# nlp-service (Python)
+.venv/
+__pycache__/
+.pytest_cache/

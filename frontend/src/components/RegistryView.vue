@@ -119,9 +119,13 @@ async function onFileChange(e) {
   }
 }
 
-async function onImportCommitted() {
+async function onImportCommitted(summary) {
   pendingPreview.value = null
   await fetchDocuments()
+  // Tâche de fond : ne bloque pas l'affichage du registre. Erreur avalée —
+  // l'utilisateur peut toujours (re)lancer le calcul manuellement depuis
+  // l'onglet Analyse (cf. plan "Analyse sémantique").
+  fetch(`/api/documents/${summary.id}/analyse`, { method: 'POST' }).catch(() => {})
 }
 
 async function onDelete(doc) {

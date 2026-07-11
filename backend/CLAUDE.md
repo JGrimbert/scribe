@@ -52,6 +52,23 @@ l'instant, ne pas retirer le middleware Vite sans en parler.
     : `structureStartIndex` + `levelOverrides` par titre), persiste en
     transaction (`Document` + `Node`s + `Paragraph`s).
 
+- `src/analyse/` — `AnalyseModule` : analyses par document, persistées dans
+  `DocumentAnalysis` (une ligne par document, volets indépendants et
+  nullables, chacun remplacé à son recalcul) :
+  - **wordFrequency** (`POST /documents/:id/analyse`) — fréquence lexicale
+    en pur TS (`word-frequency.ts` + `stopwords-fr.ts`), synchrone, sans
+    dépendance externe.
+  - **lexical** (`POST /documents/:id/analyse/lexical`) — stats
+    linguistiques + entités nommées via le service Python `nlp-service/`
+    (voir `../CLAUDE.md`), joint par `NlpClientService`
+    (`NLP_SERVICE_URL`, 503 explicite si éteint). Les ids d'unités renvoyés
+    par Python sont enrichis des titres de nœuds avant persistance.
+  - `GET /documents/:id/analyse` renvoie toujours 200 avec les volets à
+    `null` tant qu'ils ne sont pas calculés (pas de 404).
+  - Piège : les colonnes `Json` sont du `jsonb` Postgres, qui **ne préserve
+    pas l'ordre des clés d'objet** (les tableaux, si) — tout ordre
+    significatif d'un objet (ex: `posCounts`) doit être retrié côté client.
+
 ### Calibration d'import
 
 Le parseur détecte le niveau d'un titre via son style ODT (nom de style ou

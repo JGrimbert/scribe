@@ -1,16 +1,540 @@
 <template>
   <div class="analyse-view">
-    <p>
-      Analyse sémantique/lexicale — chantier à cadrer (nuage de mots,
-      registres de langue). Pas encore implémenté.
-    </p>
+    <p v-if="loading" class="state">Chargement…</p>
+    <p v-else-if="error" class="state state--error">{{ error }}</p>
+
+    <template v-else>
+      <!-- ── Volet vocabulaire (fréquence lexicale, calcul local backend) ── -->
+      <section class="volet">
+        <div class="analyse-toolbar">
+          <h2>Vocabulaire</h2>
+          <button type="button" class="relancer" :disabled="computing" @click="relancer">
+            <i v-if="computing" class="pi pi-spin pi-spinner"></i>
+            {{ computing ? 'Calcul en cours…' : wordFrequency ? "Relancer l'analyse" : "Lancer l'analyse" }}
+          </button>
+          <span v-if="wordFrequency" class="computed-at">Calculée le {{ formatDate(wordFrequency.computedAt) }}</span>
+        </div>
+
+        <p v-if="wfError" class="state state--error">{{ wfError }}</p>
+        <p v-if="!wordFrequency" class="state">Analyse pas encore calculée pour ce document.</p>
+        <p v-else-if="!displayedWords.length" class="state">Pas assez de texte pour une analyse lexicale.</p>
+
+        <template v-else>
+          <div class="word-cloud">
+            <button
+                v-for="entry in displayedWords"
+                :key="entry.word"
+                type="button"
+                class="word-chip"
+                :class="{ 'word-chip--active': selected === entry.word }"
+                :style="{ fontSize: sizeFor(entry.count) + 'rem' }"
+                :title="`${entry.word} — ${entry.count} occurrence${entry.count > 1 ? 's' : ''}`"
+                @click="selected = selected === entry.word ? null : entry.word"
+            >
+              {{ entry.word }}
+            </button>
+          </div>
+
+          <div v-if="selectedEntry" class="word-detail">
+            <h3>« {{ selectedEntry.word }} » — {{ selectedEntry.count }} occurrence{{ selectedEntry.count > 1 ? 's' : '' }}</h3>
+            <NodesTable :nodes="selectedEntry.nodes" @open="goToNode" />
+          </div>
+        </template>
+      </section>
+
+      <!-- ── Volet analyse linguistique (spaCy via nlp-service) ── -->
+      <section class="volet">
+        <div class="analyse-toolbar">
+          <h2>Analyse linguistique</h2>
+          <button type="button" class="relancer" :disabled="computingLexical" @click="relancerLexical">
+            <i v-if="computingLexical" class="pi pi-spin pi-spinner"></i>
+            {{ computingLexical ? 'Analyse en cours…' : lexical ? "Relancer l'analyse" : "Lancer l'analyse" }}
+          </button>
+          <span v-if="lexical" class="computed-at">
+            Calculée le {{ formatDate(lexical.computedAt) }} — modèle {{ lexical.model }}
+          </span>
+        </div>
+
+        <p v-if="lexicalError" class="state state--error">{{ lexicalError }}</p>
+        <p v-if="!lexical" class="state">
+          Analyse pas encore calculée. Nécessite le service NLP local (<code>npm run dev:nlp</code>) —
+          le calcul peut prendre quelques minutes sur un manuscrit complet.
+        </p>
+
+        <template v-else>
+          <div class="stats-grid">
+            <div v-for="tile in statTiles" :key="tile.label" class="stat-tile">
+              <span class="stat-value">{{ tile.value }}</span>
+              <span class="stat-label">{{ tile.label }}</span>
+            </div>
+          </div>
+
+          <h3>Catégories grammaticales</h3>
+          <table class="data-table pos-table">
+            <tbody>
+              <tr v-for="pos in posRows" :key="pos.tag">
+                <td>{{ pos.label }}</td>
+                <td class="num">{{ formatInt(pos.count) }}</td>
+                <td class="num">{{ pos.percent }} %</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <h3>Entités nommées</h3>
+          <p v-if="!lexical.entities.length" class="state">Aucune entité détectée.</p>
+          <div v-for="group in entityGroups" :key="group.label" class="entity-group">
+            <h4>{{ group.title }} <span class="entity-group-count">({{ group.entities.length }})</span></h4>
+            <div class="entity-chips">
+              <button
+                  v-for="entity in group.entities"
+                  :key="entity.text"
+                  type="button"
+                  class="entity-chip"
+                  :class="{ 'entity-chip--active': isSelectedEntity(entity) }"
+                  @click="toggleEntity(entity)"
+              >
+                {{ entity.text }} <span class="entity-count">{{ entity.count }}</span>
+              </button>
+            </div>
+          </div>
+
+          <div v-if="selectedNamedEntity" class="word-detail">
+            <h3>
+              « {{ selectedNamedEntity.text }} » ({{ entityLabelFr(selectedNamedEntity.label) }})
+              — {{ selectedNamedEntity.count }} occurrence{{ selectedNamedEntity.count > 1 ? 's' : '' }}
+            </h3>
+            <NodesTable :nodes="selectedNamedEntity.nodes" @open="goToNode" />
+          </div>
+
+          <h3>Par article</h3>
+          <table class="data-table units-table">
+            <thead>
+              <tr>
+                <th>Article</th>
+                <th class="num">Phrases</th>
+                <th class="num">Mots</th>
+                <th class="num">Mots / phrase</th>
+                <th class="num">Diversité (TTR)</th>
+                <th class="num">Densité lexicale</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="unit in lexical.units" :key="unit.nodeId" class="word-node-row" @click="goToNode(unit.nodeId)">
+                <td>{{ unit.titre }}</td>
+                <td class="num">{{ formatInt(unit.sentences) }}</td>
+                <td class="num">{{ formatInt(unit.words) }}</td>
+                <td class="num">{{ unit.avgSentenceLength.toLocaleString('fr') }}</td>
+                <td class="num">{{ formatPercent(unit.ttr) }}</td>
+                <td class="num">{{ formatPercent(unit.lexicalDensity) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </template>
+      </section>
+    </template>
   </div>
 </template>
 
+<script setup>
+import { computed, h, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+
+const route = useRoute()
+const router = useRouter()
+
+const MAX_DISPLAYED_WORDS = 150
+const MAX_ENTITIES_PER_GROUP = 40
+
+const POS_FR = {
+  NOUN: 'Noms', VERB: 'Verbes', ADJ: 'Adjectifs', ADV: 'Adverbes',
+  PROPN: 'Noms propres', PRON: 'Pronoms', DET: 'Déterminants',
+  ADP: 'Prépositions', AUX: 'Auxiliaires', CCONJ: 'Conjonctions (coord.)',
+  SCONJ: 'Conjonctions (subord.)', NUM: 'Numéraux', INTJ: 'Interjections',
+  PART: 'Particules', SYM: 'Symboles', X: 'Autres',
+}
+const ENTITY_LABELS_FR = { PER: 'Personnes', LOC: 'Lieux', ORG: 'Organisations', MISC: 'Divers' }
+
+// Table nœud/occurrences partagée par le détail d'un mot et celui d'une entité.
+const NodesTable = (props, { emit }) =>
+  h('table', { class: 'word-nodes-table' }, [
+    h('thead', [h('tr', [h('th', 'Article'), h('th', 'Occurrences')])]),
+    h('tbody', props.nodes.map((n) =>
+      h('tr', { key: n.nodeId, class: 'word-node-row', onClick: () => emit('open', n.nodeId) }, [
+        h('td', n.titre),
+        h('td', String(n.count)),
+      ]),
+    )),
+  ])
+NodesTable.props = { nodes: { type: Array, required: true } }
+NodesTable.emits = ['open']
+
+const loading = ref(true)
+const error = ref(null)
+const analysis = ref(null)
+
+const computing = ref(false)
+const wfError = ref(null)
+const selected = ref(null)
+
+const computingLexical = ref(false)
+const lexicalError = ref(null)
+const selectedEntityKey = ref(null)
+
+const wordFrequency = computed(() => analysis.value?.wordFrequency ?? null)
+const lexical = computed(() => analysis.value?.lexical ?? null)
+
+async function readJsonOrThrow(res) {
+  if (!res.ok) {
+    const body = await res.json().catch(() => null)
+    const message = Array.isArray(body?.message) ? body.message.join(', ') : body?.message
+    throw new Error(message ?? `HTTP ${res.status}`)
+  }
+  return res.json()
+}
+
+async function fetchAnalysis() {
+  loading.value = true
+  error.value = null
+  selected.value = null
+  selectedEntityKey.value = null
+  try {
+    const res = await fetch(`/api/documents/${route.params.id}/analyse`)
+    analysis.value = await readJsonOrThrow(res)
+  } catch (e) {
+    error.value = `Impossible de charger l'analyse : ${e.message}`
+  } finally {
+    loading.value = false
+  }
+}
+
+async function relancer() {
+  computing.value = true
+  wfError.value = null
+  try {
+    const res = await fetch(`/api/documents/${route.params.id}/analyse`, { method: 'POST' })
+    analysis.value = await readJsonOrThrow(res)
+    selected.value = null
+  } catch (e) {
+    wfError.value = `Échec du calcul : ${e.message}`
+  } finally {
+    computing.value = false
+  }
+}
+
+async function relancerLexical() {
+  computingLexical.value = true
+  lexicalError.value = null
+  try {
+    const res = await fetch(`/api/documents/${route.params.id}/analyse/lexical`, { method: 'POST' })
+    analysis.value = await readJsonOrThrow(res)
+    selectedEntityKey.value = null
+  } catch (e) {
+    lexicalError.value = `Échec de l'analyse : ${e.message}`
+  } finally {
+    computingLexical.value = false
+  }
+}
+
+onMounted(fetchAnalysis)
+watch(() => route.params.id, fetchAnalysis)
+
+// ── Vocabulaire ──
+const displayedWords = computed(() => wordFrequency.value?.entries.slice(0, MAX_DISPLAYED_WORDS) ?? [])
+const maxCount = computed(() => displayedWords.value[0]?.count ?? 1)
+
+// Taille = canal principal du nuage de mots (échelle en racine carrée : les
+// écarts de fréquence sont souvent très déséquilibrés, une échelle linéaire
+// écraserait tous les mots sauf le premier). Couleur volontairement fixe
+// (var(--c-accent), même teinte que le reste de l'UI) : faire varier
+// l'opacité du texte pour coder la fréquence ferait tomber sous le seuil de
+// contraste lisible (4.5:1) pour les mots les moins fréquents — le nombre
+// exact reste de toute façon accessible via le titre (survol) et le clic.
+function sizeFor(count) {
+  const ratio = Math.sqrt(count) / Math.sqrt(maxCount.value)
+  return (0.85 + ratio * 1.65).toFixed(2)
+}
+
+const selectedEntry = computed(
+  () => wordFrequency.value?.entries.find((e) => e.word === selected.value) ?? null,
+)
+
+// ── Analyse linguistique ──
+const statTiles = computed(() => {
+  const g = lexical.value?.global
+  if (!g) return []
+  return [
+    { label: 'mots', value: formatInt(g.words) },
+    { label: 'phrases', value: formatInt(g.sentences) },
+    { label: 'lemmes uniques', value: formatInt(g.uniqueLemmas) },
+    { label: 'mots / phrase', value: g.avgSentenceLength.toLocaleString('fr') },
+    { label: 'diversité lexicale (TTR)', value: formatPercent(g.ttr) },
+    { label: 'densité lexicale', value: formatPercent(g.lexicalDensity) },
+  ]
+})
+
+// Tri côté client : le Json persiste en jsonb, qui ne préserve pas l'ordre
+// des clés renvoyé par le service Python.
+const posRows = computed(() => {
+  const counts = lexical.value?.global.posCounts ?? {}
+  const total = Object.values(counts).reduce((sum, c) => sum + c, 0) || 1
+  return Object.entries(counts)
+    .sort(([, a], [, b]) => b - a)
+    .map(([tag, count]) => ({
+      tag,
+      label: POS_FR[tag] ?? tag,
+      count,
+      percent: ((count / total) * 100).toFixed(1).replace('.', ','),
+    }))
+})
+
+const entityGroups = computed(() => {
+  const byLabel = new Map()
+  for (const entity of lexical.value?.entities ?? []) {
+    if (!byLabel.has(entity.label)) byLabel.set(entity.label, [])
+    byLabel.get(entity.label).push(entity)
+  }
+  return Array.from(byLabel.entries()).map(([label, entities]) => ({
+    label,
+    title: entityLabelFr(label),
+    entities: entities.slice(0, MAX_ENTITIES_PER_GROUP),
+  }))
+})
+
+function entityLabelFr(label) {
+  return ENTITY_LABELS_FR[label] ?? label
+}
+
+function entityKey(entity) {
+  return `${entity.label}::${entity.text}`
+}
+
+function isSelectedEntity(entity) {
+  return selectedEntityKey.value === entityKey(entity)
+}
+
+function toggleEntity(entity) {
+  selectedEntityKey.value = isSelectedEntity(entity) ? null : entityKey(entity)
+}
+
+const selectedNamedEntity = computed(
+  () => lexical.value?.entities.find((e) => entityKey(e) === selectedEntityKey.value) ?? null,
+)
+
+// ── Utilitaires ──
+function goToNode(nodeId) {
+  router.push(`/documents/${route.params.id}/noeud/${nodeId}`)
+}
+
+function formatDate(iso) {
+  return new Date(iso).toLocaleString('fr')
+}
+
+function formatInt(n) {
+  return n.toLocaleString('fr')
+}
+
+function formatPercent(ratio) {
+  return `${(ratio * 100).toFixed(1).replace('.', ',')} %`
+}
+</script>
+
 <style scoped>
-.analyse-view {
-  padding: 1.5em 0;
+.volet + .volet {
+  margin-top: 2.5em;
+  padding-top: 1.5em;
+  border-top: 2px solid var(--c-border, #e0d8cc);
+}
+
+.analyse-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 1em;
+  margin-bottom: 1.5em;
+}
+
+.analyse-toolbar h2 {
+  margin: 0;
+  font-size: 1.15em;
+}
+
+.relancer {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  padding: 0.5em 1em;
+  border: 1px solid var(--c-accent);
+  background: var(--c-surface, transparent);
+  color: var(--c-accent);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9em;
+}
+
+.relancer:disabled {
   opacity: 0.6;
-  font-style: italic;
+  cursor: not-allowed;
+}
+
+.computed-at {
+  font-size: 0.85em;
+  opacity: 0.6;
+}
+
+.state {
+  padding: 1em 0;
+  opacity: 0.6;
+}
+
+.state--error {
+  color: #b3261e;
+  opacity: 1;
+}
+
+.word-cloud {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.2em 0.7em;
+  padding: 0.5em 0 1em;
+}
+
+.word-chip {
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--c-accent);
+  font-family: Georgia, serif;
+  line-height: 1.2;
+  padding: 0.1em 0.25em;
+  border-radius: 4px;
+}
+
+.word-chip:hover,
+.word-chip--active {
+  background: var(--c-surface4, rgba(0, 0, 0, 0.06));
+  text-decoration: underline;
+}
+
+.word-detail {
+  margin-top: 1em;
+  padding-top: 1em;
+  border-top: 1px solid var(--c-border, #e0d8cc);
+}
+
+.word-detail :deep(.word-nodes-table),
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9em;
+  margin-top: 0.5em;
+}
+
+.word-detail :deep(.word-nodes-table th),
+.word-detail :deep(.word-nodes-table td),
+.data-table th,
+.data-table td {
+  text-align: left;
+  padding: 0.4em 0.6em;
+  border-bottom: 1px solid var(--c-border, #e0d8cc);
+}
+
+.data-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.pos-table {
+  max-width: 28em;
+}
+
+.word-detail :deep(.word-node-row),
+.word-node-row {
+  cursor: pointer;
+}
+
+.word-detail :deep(.word-node-row:hover),
+.word-node-row:hover {
+  background: var(--c-surface4, rgba(0, 0, 0, 0.04));
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9em, 1fr));
+  gap: 0.75em;
+  margin-bottom: 1.5em;
+}
+
+.stat-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2em;
+  padding: 0.75em 0.9em;
+  border: 1px solid var(--c-border, #e0d8cc);
+  border-radius: 8px;
+}
+
+.stat-value {
+  font-size: 1.3em;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-label {
+  font-size: 0.8em;
+  opacity: 0.65;
+}
+
+h3 {
+  margin: 1.5em 0 0.25em;
+  font-size: 1em;
+}
+
+.entity-group {
+  margin-top: 0.75em;
+}
+
+.entity-group h4 {
+  margin: 0 0 0.4em;
+  font-size: 0.9em;
+  opacity: 0.75;
+}
+
+.entity-group-count {
+  font-weight: normal;
+  opacity: 0.6;
+}
+
+.entity-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4em;
+}
+
+.entity-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  padding: 0.25em 0.6em;
+  border: 1px solid var(--c-border, #e0d8cc);
+  border-radius: 999px;
+  background: var(--c-surface, transparent);
+  color: inherit;
+  cursor: pointer;
+  font-size: 0.85em;
+}
+
+.entity-chip:hover,
+.entity-chip--active {
+  border-color: var(--c-accent);
+  color: var(--c-accent);
+}
+
+.entity-count {
+  font-size: 0.85em;
+  opacity: 0.6;
+  font-variant-numeric: tabular-nums;
+}
+
+.units-table {
+  margin-bottom: 1em;
 }
 </style>
