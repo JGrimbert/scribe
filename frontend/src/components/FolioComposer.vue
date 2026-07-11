@@ -5,7 +5,7 @@
       <template #default="{ scalePercent }">
         <Folio v-for="(html, i) in pages" :key="i" :page-number="i + 1">
           <div class="column" :data-column-index="i"
-               @click="onColumnClick"
+               @click="onFolioClick"
                @mousedown="onColumnMouseDown"
                @mouseup="onColumnMouseUp"
           >
@@ -40,8 +40,19 @@
             @arrow-down="navigateDown"
             @arrow-up="navigateUp"
             @toolbar-ready="registerToolbar"
+            @request-internal-link="onRequestInternalLink"
         />
       </div>
+    </Teleport>
+
+    <Teleport to="body">
+      <ArticlePickerModal
+          v-if="pendingLinkRange"
+          :trame="props.trame"
+          :data="props.data"
+          @select="onSelectLinkTarget"
+          @close="pendingLinkRange = null"
+      />
     </Teleport>
 
     <Teleport to="body">
@@ -75,9 +86,11 @@
 
 <script setup>
 import {computed, nextTick, ref, watch} from 'vue'
+import {useRoute, useRouter} from 'vue-router'
 import Folio from './Folio.vue'
 import Folia from './Folia.vue'
 import QuillBlock from "./QuillBlock.vue";
+import ArticlePickerModal from './ArticlePickerModal.vue'
 import {paginate} from "../script/paginate.js";
 import {useFakeCaret} from "../composables/useFakeCaret.js";
 import {useFloatingToolbar} from "../composables/useFloatingToolbar.js";
@@ -186,6 +199,41 @@ const {
 
 const { cursorRect, selectionRects } = caret
 const { registerToolbar } = toolbar
+
+/* ------------------ LIENS INTERNES ------------------ */
+
+const route = useRoute()
+const router = useRouter()
+
+// Un lien interne (import ODT ou créé depuis la toolbar Quill, cf. plan
+// "liens internes") navigue vers le nœud cible plutôt que d'activer
+// l'édition du fragment cliqué.
+function onFolioClick(event) {
+  const link = event.target.closest?.('a.lien-interne')
+  if (link) {
+    event.preventDefault()
+    event.stopPropagation()
+    const href = link.getAttribute('href') || ''
+    if (href.startsWith('internal:')) {
+      router.push(`/documents/${route.params.id}/noeud/${href.slice('internal:'.length)}`)
+    }
+    return
+  }
+  onColumnClick(event)
+}
+
+/* ------------------ CRÉATION D'UN LIEN INTERNE DEPUIS QUILL ------------------ */
+
+const pendingLinkRange = ref(null)
+
+function onRequestInternalLink(range) {
+  pendingLinkRange.value = range
+}
+
+function onSelectLinkTarget(targetId) {
+  quillBlockRef.value?.applyInternalLink(pendingLinkRange.value, targetId)
+  pendingLinkRange.value = null
+}
 </script>
 
 <style scoped>

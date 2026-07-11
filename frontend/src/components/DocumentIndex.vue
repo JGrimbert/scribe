@@ -11,7 +11,11 @@
         >
           Chapitrage
         </button>
-        <button class="tab tab--disabled" disabled title="À venir">
+        <button
+            class="tab"
+            :class="{ 'tab--active': tab === 'analyse' }"
+            @click="tab = 'analyse'"
+        >
           Analyse
         </button>
       </div>
@@ -39,6 +43,8 @@
       </table>
 
       <p v-else-if="tab === 'chapitrage'" class="empty">Aucun axe dans ce document.</p>
+
+      <AnalyseView v-else-if="tab === 'analyse'" />
     </template>
   </div>
 </template>
@@ -46,6 +52,7 @@
 <script setup>
 import { computed, inject, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import AnalyseView from './AnalyseView.vue'
 
 const trame = inject('documentTrame')
 const data = inject('documentData')
@@ -106,11 +113,6 @@ const axes = computed(() => {
   opacity: 1;
   font-weight: 600;
   border-bottom: 2px solid var(--c-accent);
-}
-
-.tab--disabled {
-  cursor: not-allowed;
-  opacity: 0.35;
 }
 
 .axes-table {

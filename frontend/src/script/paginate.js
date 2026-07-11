@@ -107,6 +107,19 @@ function buildBlocks(sections) {
                 html: `<div class="pistes">${section.connexe.pistes.map(p => `<p>${p}</p>`).join('')}</div>`
             })
         }
+
+        if (section.connexe?.tableau?.length) {
+            const rows = section.connexe.tableau
+                .map(row => `<tr>${row.map(cell => `<td>${cell}</td>`).join('')}</tr>`)
+                .join('')
+            blocks.push({
+                id: `${section.id}__tableau`,
+                type: 'tableau',
+                path: { kind: 'tableau' },
+                ownerId: section.id,
+                html: `<table class="tableau-connexe">${rows}</table>`
+            })
+        }
     }
 
     return blocks

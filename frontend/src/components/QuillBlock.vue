@@ -19,6 +19,7 @@
 <script setup>
 import { ref, watch, nextTick, onBeforeUnmount } from 'vue'
 import { isOnFirstLine, isOnLastLine } from '../script/quillCaret.js'
+import { registerInternalLinkBlot } from '../script/internalLinkBlot.js'
 
 const props = defineProps({
   modelValue: { type: String, default: "" },
@@ -42,6 +43,7 @@ const emit = defineEmits([
     'arrow-down',
     'arrow-up',
     'toolbar-ready',
+    'request-internal-link',
 ])
 
 const editorHost = ref(null)
@@ -55,14 +57,27 @@ async function mountQuill() {
   const { default: Quill } = await import('quill')
   await import('quill/dist/quill.snow.css')
 
+  registerInternalLinkBlot(Quill)
+
   quill = new Quill(editorHost.value, {
     theme: 'snow',
     modules: {
-      toolbar: [['bold', 'italic'], [{ list: 'ordered' }, { list: 'bullet' }]],
+      toolbar: {
+        container: [['bold', 'italic'], [{ list: 'ordered' }, { list: 'bullet' }], ['internalLink']],
+        handlers: {
+          internalLink() {
+            const range = quill.getSelection()
+            if (!range || range.length === 0) return
+            emit('request-internal-link', range)
+          },
+        },
+      },
     },
   })
 
   const toolbarEl = quill.container.previousElementSibling
+  const linkButton = toolbarEl.querySelector('.ql-internalLink')
+  if (linkButton) linkButton.innerHTML = '<i class="pi pi-link"></i>'
   emit('toolbar-ready', toolbarEl)
 
   quill.clipboard.dangerouslyPasteHTML(props.modelValue || '')
@@ -214,10 +229,16 @@ function restoreFocus(index, length = 0) {
   emitState() // on réutilise le même mécanisme que sur le mount pour forcer la synchro du curseur Folia
 }
 
+function applyInternalLink(range, targetId) {
+  if (!quill || !range || range.length === 0) return
+  quill.formatText(range.index, range.length, 'internalLink', { id: targetId }, 'user')
+}
+
 //defineExpose({ restoreFocus })
 
 defineExpose({
   restoreFocus,
+  applyInternalLink,
   getQuill: () => quill,
   getEditorEl: () => editorHost.value?.querySelector('.ql-editor'),
 })
@@ -277,5 +298,12 @@ onBeforeUnmount(() => {
   border-bottom: 1px solid #ddd;
   padding: 4px 0 8px;
   margin-bottom: 0.5em;
+}
+
+.quill-block :deep(a.lien-interne) {
+  background: #ffe58f;
+  text-decoration: none;
+  padding: 0 0.15em;
+  border-radius: 2px;
 }
 </style>

@@ -135,6 +135,7 @@ export interface FlatNode {
   tableData?: string[][]
   listItems?: ListItemEntry[] // pertinent si kind === 'list'
   listOrdered?: boolean // pertinent si kind === 'list'
+  bookmarkNames?: string[] // signets ODT rattachés à ce titre ; pertinent si kind === 'heading'
 }
 
 export interface OutlineEntry {
@@ -186,6 +187,47 @@ function nodeText(node: any): string {
       continue
     }
     text += nodeText(child)
+  }
+  return text
+}
+
+// Variante de nodeText qui préserve les liens hypertexte internes
+// (<text:a xlink:href="#signet">) en les entourant d'un marqueur
+// `<a data-bookmark="signet">…</a>` — résolu en id de nœud réel dans une
+// passe finale (cf. harmonize()), une fois les ids assignés. Les liens
+// externes (href ne commençant pas par '#') sont hors périmètre : le texte
+// est conservé mais le lien n'est pas matérialisé, comme avant.
+function nodeTextWithLinks(node: any): string {
+  if (!node) return ''
+  if (node.nodeType === 3) return node.nodeValue || ''
+  let text = ''
+  const children = node.childNodes
+  for (let i = 0; i < children.length; i++) {
+    const child = children[i]
+    if (child.localName === 'line-break') {
+      text += '\n'
+      continue
+    }
+    if (child.localName === 'tab') {
+      text += '\t'
+      continue
+    }
+    if (child.localName === 's') {
+      const c = parseInt(child.getAttribute('text:c') || '1', 10)
+      text += ' '.repeat(c)
+      continue
+    }
+    if (child.localName === 'a') {
+      const href = child.getAttribute('xlink:href') || ''
+      const inner = nodeTextWithLinks(child)
+      if (href.startsWith('#')) {
+        text += `<a data-bookmark="${href.slice(1)}">${inner}</a>`
+      } else {
+        text += inner
+      }
+      continue
+    }
+    text += nodeTextWithLinks(child)
   }
   return text
 }
@@ -259,7 +301,7 @@ function extractListItems(listNode: any, depth: number, items: ListItemEntry[]) 
       const child = children[i]
       if (child.nodeType !== 1) continue
       if (child.localName === 'p' || child.localName === 'h') {
-        const t = nodeText(child).trim()
+        const t = nodeTextWithLinks(child).trim()
         if (t) textParts.push(t)
       }
     }
@@ -290,7 +332,7 @@ function extractTable(tableNode: any): string[][] {
     const cells = select('table:table-cell', row) as any[]
     return cells.map((cell) => {
       const paras = select('text:p', cell) as any[]
-      return paras.map(nodeText).join('\n').trim()
+      return paras.map(nodeTextWithLinks).join('\n').trim()
     })
   })
 }
@@ -420,13 +462,27 @@ function buildFlatNodes(xmlContent: string): {
       }
 
       const level = headingLevel(node)
-      const text = nodeText(node).trim()
       const hasPageBreak = pageBreakStyles.has(styleName)
 
       if (level >= 1) {
-        flatNodes.push({ index: flatNodes.length, kind: 'heading', level, text, styleName, hasPageBreak })
-      } else if (text) {
-        flatNodes.push({ index: flatNodes.length, kind: 'paragraph', level: 0, text, styleName, hasPageBreak })
+        // Texte du titre gardé brut (pas de lien) : un lien partiel dans un
+        // titre casserait le slug/l'affichage — cf. plan "liens internes".
+        const text = nodeText(node).trim()
+        const bookmarkNames = (select('.//text:bookmark-start', node) as any[])
+          .map((b: any) => b.getAttribute('text:name'))
+          .filter(Boolean)
+        flatNodes.push({
+          index: flatNodes.length,
+          kind: 'heading',
+          level,
+          text,
+          styleName,
+          hasPageBreak,
+          ...(bookmarkNames.length ? { bookmarkNames } : {}),
+        })
+      } else {
+        const text = nodeTextWithLinks(node).trim()
+        if (text) flatNodes.push({ index: flatNodes.length, kind: 'paragraph', level: 0, text, styleName, hasPageBreak })
       }
       continue
     }
@@ -480,7 +536,7 @@ function buildParsedResult(
   meta: { auteur?: string; titreLivre?: string },
   sectionsRencontrees: number,
   corrections?: ImportCorrections,
-): ParsedResult {
+): { result: ParsedResult; bookmarks: Map<string, ParsedNode> } {
   const structureStartIndex = corrections?.structureStartIndex ?? 0
   const levelOverrides = corrections?.levelOverrides ?? {}
 
@@ -503,6 +559,7 @@ function buildParsedResult(
 
   const stack: ParsedNode[] = []
   const slugsByParent = new Map<ParsedNode | null, Set<string>>()
+  const bookmarkToParsedNode = new Map<string, ParsedNode>()
   let titresVides = 0
   let paragraphesPreambule = 0
 
@@ -568,7 +625,7 @@ function buildParsedResult(
       if (!text) titresVides++
       const parent = stack[stack.length - 1] ?? null
       const slug = makeUniqueSlug(text, slugsFor(parent), `titre-${(parent?.children.length ?? result.axes.length) + 1}`)
-      stack.push({
+      const newNode: ParsedNode = {
         titre: text,
         slug,
         numeroRomain: extractRomain(text),
@@ -579,7 +636,11 @@ function buildParsedResult(
         children: [],
         stats: null,
         indexGlobal: null,
-      })
+      }
+      for (const name of node.bookmarkNames ?? []) {
+        bookmarkToParsedNode.set(name, newNode)
+      }
+      stack.push(newNode)
       continue
     }
 
@@ -634,13 +695,13 @@ function buildParsedResult(
   result.meta.sectionsRencontrees = sectionsRencontrees
   result.meta.titresVides = titresVides
 
-  return result
+  return { result, bookmarks: bookmarkToParsedNode }
 }
 
 // ─── Parser principal ─────────────────────────────────────────────────────
 export function parseOdtXml(xmlContent: string, corrections?: ImportCorrections): ParsedResult {
   const { flatNodes, meta, sectionsRencontrees } = buildFlatNodes(xmlContent)
-  return buildParsedResult(flatNodes, meta, sectionsRencontrees, corrections)
+  return buildParsedResult(flatNodes, meta, sectionsRencontrees, corrections).result
 }
 
 // ─── Aperçu (calibration) : parse sans construire la structure finale ─────
@@ -666,11 +727,53 @@ function cleanStats(stats: Stats | null): HarmonizedItem['stats'] {
   return rest
 }
 
-export function harmonize(result: ParsedResult): { data: DataMap; trame: Trame } {
+// Signets non résolus (référençant un titre qui n'existe pas encore, ou plus)
+// : attendu sur un document en construction, pas une erreur — le lien est
+// laissé en texte brut plutôt que de faire échouer l'import.
+const BOOKMARK_LINK_RE = /<a data-bookmark="([^"]+)">([\s\S]*?)<\/a>/g
+
+function resolveLinksInText(text: string, bookmarkNameToId: Map<string, string>): string {
+  return text.replace(BOOKMARK_LINK_RE, (_match, name: string, inner: string) => {
+    const targetId = bookmarkNameToId.get(name)
+    if (!targetId) {
+      console.warn(`[odt-parser] signet interne introuvable : "${name}" (lien laissé en texte brut)`)
+      return inner
+    }
+    return `<a href="internal:${targetId}" class="lien-interne">${inner}</a>`
+  })
+}
+
+function resolveInternalLinks(data: DataMap, bookmarkNameToId: Map<string, string>) {
+  for (const item of Object.values(data)) {
+    item.texte = item.texte.map((entry) =>
+      entry.type === 'list'
+        ? { ...entry, items: entry.items.map((it) => ({ ...it, text: resolveLinksInText(it.text, bookmarkNameToId) })) }
+        : { ...entry, text: resolveLinksInText(entry.text, bookmarkNameToId) },
+    )
+    if (item.connexe?.tableau) {
+      item.connexe.tableau = item.connexe.tableau.map((row) => row.map((cell) => resolveLinksInText(cell, bookmarkNameToId)))
+    }
+  }
+}
+
+export function harmonize(result: ParsedResult, bookmarks?: Map<string, ParsedNode>): { data: DataMap; trame: Trame } {
   const data: DataMap = {}
+
+  // Inversion une fois : ParsedNode -> noms de signets qui lui sont rattachés
+  // (un même titre peut porter plusieurs signets).
+  const bookmarkNamesByNode = new Map<ParsedNode, string[]>()
+  for (const [name, node] of bookmarks ?? []) {
+    const names = bookmarkNamesByNode.get(node)
+    if (names) names.push(name)
+    else bookmarkNamesByNode.set(node, [name])
+  }
+  const bookmarkNameToId = new Map<string, string>()
 
   function addNode(node: ParsedNode, level: number): TrameNode {
     const id = randomUUID()
+    for (const name of bookmarkNamesByNode.get(node) ?? []) {
+      bookmarkNameToId.set(name, id)
+    }
     data[id] = {
       id,
       level,
@@ -690,13 +793,16 @@ export function harmonize(result: ParsedResult): { data: DataMap; trame: Trame }
     axes: result.axes.map((a) => addNode(a, 0)),
   }
 
+  resolveInternalLinks(data, bookmarkNameToId)
+
   return { data, trame }
 }
 
 export async function parseOdtBuffer(buffer: Buffer, corrections?: ImportCorrections): Promise<OdtParseOutput> {
   const xmlContent = await readOdtContentXml(buffer)
-  const result = parseOdtXml(xmlContent, corrections)
-  const { data, trame } = harmonize(result)
+  const { flatNodes, meta, sectionsRencontrees } = buildFlatNodes(xmlContent)
+  const { result, bookmarks } = buildParsedResult(flatNodes, meta, sectionsRencontrees, corrections)
+  const { data, trame } = harmonize(result, bookmarks)
   return { result, data, trame }
 }
 
