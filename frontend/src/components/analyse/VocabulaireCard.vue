@@ -1,8 +1,8 @@
 <template>
-  <AnalyseCard title="Vocabulaire" :busy="running === 'vocabulaire'">
-    <p v-if="stepErrors.vocabulaire" class="state state--error">{{ stepErrors.vocabulaire }}</p>
-    <p v-if="!wordFrequency" class="state">Analyse pas encore calculée pour ce document.</p>
-    <p v-else-if="!displayedWords.length" class="state">Pas assez de texte pour une analyse lexicale.</p>
+  <UiCard title="Vocabulaire" :busy="running === 'vocabulaire'">
+    <UiNote v-if="stepErrors.vocabulaire" variant="error">{{ stepErrors.vocabulaire }}</UiNote>
+    <UiNote v-if="!wordFrequency">Analyse pas encore calculée pour ce document.</UiNote>
+    <UiNote v-else-if="!displayedWords.length">Pas assez de texte pour une analyse lexicale.</UiNote>
 
     <template v-else>
       <svg
@@ -32,13 +32,14 @@
         <NodesTable :nodes="selectedEntry.nodes" @open="goToNode" />
       </div>
     </template>
-  </AnalyseCard>
+  </UiCard>
 </template>
 
 <script setup>
 import { computed, ref, watch } from 'vue'
 import cloud from 'd3-cloud'
-import AnalyseCard from './AnalyseCard.vue'
+import UiCard from '../ui/UiCard.vue'
+import UiNote from '../ui/UiNote.vue'
 import NodesTable from './NodesTable.vue'
 import { useAnalyse } from '../../composables/useAnalyse'
 
@@ -108,14 +109,14 @@ watch(
 
 <style scoped>
 .cloud-word {
-  font-family: Georgia, serif;
+  font-family: var(--font-serif);
   text-anchor: middle;
   fill: var(--c-accent);
   cursor: pointer;
 }
 
 .cloud-word--alt {
-  fill: var(--c-ink2, #5a5047);
+  fill: var(--c-ink2);
 }
 
 .cloud-word:hover,

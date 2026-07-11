@@ -1,24 +1,26 @@
 <template>
   <div class="analyse-view">
-    <p v-if="loading" class="state">Chargement…</p>
-    <p v-else-if="error" class="state state--error">{{ error }}</p>
+    <UiNote v-if="loading">Chargement…</UiNote>
+    <UiNote v-else-if="error" variant="error">{{ error }}</UiNote>
 
     <template v-else>
       <!-- Bandeau global : stats du manuscrit + relance séquentielle de toutes
            les analyses (chaque card affiche son spinner quand vient son tour). -->
       <div class="stats-banner">
-        <div v-for="item in statItems" :key="item.label" class="stat">
-          <span class="stat-value">{{ item.value }}</span>
-          <span class="stat-label">{{ item.label }}</span>
-        </div>
-        <p v-if="!statItems.length" class="stats-empty">
+        <StatItem v-for="item in statItems" :key="item.label" :value="item.value" :label="item.label" />
+        <UiNote v-if="!statItems.length" variant="hint">
           Statistiques globales indisponibles — lancer les analyses.
-        </p>
+        </UiNote>
 
-        <button type="button" class="run-all" :disabled="!!running" @click="runAll">
-          <i class="pi" :class="running ? 'pi-spin pi-spinner' : 'pi-play'"></i>
+        <BaseButton
+            variant="accent"
+            class="run-all"
+            :icon="running ? null : 'pi-play'"
+            :busy="!!running"
+            @click="runAll"
+        >
           {{ running ? `Analyse : ${STEP_LABELS[running]}…` : hasAny ? 'Relancer les analyses' : 'Lancer les analyses' }}
-        </button>
+        </BaseButton>
       </div>
 
       <div class="dashboard-grid">
@@ -36,6 +38,9 @@ import { computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { provideAnalyse } from '../composables/useAnalyse'
 import { formatInt, formatPercent } from '../script/format'
+import BaseButton from './ui/BaseButton.vue'
+import StatItem from './ui/StatItem.vue'
+import UiNote from './ui/UiNote.vue'
 import VocabulaireCard from './analyse/VocabulaireCard.vue'
 import LexicalCard from './analyse/LexicalCard.vue'
 import SemantiqueCard from './analyse/SemantiqueCard.vue'
@@ -82,16 +87,6 @@ const statItems = computed(() => {
   padding: 1.25em;
 }
 
-.state {
-  padding: 1em 0;
-  opacity: 0.6;
-}
-
-.state--error {
-  color: #b3261e;
-  opacity: 1;
-}
-
 .stats-banner {
   display: flex;
   align-items: baseline;
@@ -100,46 +95,9 @@ const statItems = computed(() => {
   padding: 0.4em 0.2em 1.1em;
 }
 
-.stat {
-  display: flex;
-  align-items: baseline;
-  gap: 0.45em;
-}
-
-.stat-value {
-  font-size: 1.3em;
-  font-variant-numeric: tabular-nums;
-}
-
-.stat-label {
-  font-size: 0.8em;
-  opacity: 0.6;
-}
-
-.stats-empty {
-  margin: 0;
-  opacity: 0.6;
-  font-size: 0.9em;
-}
-
 .run-all {
   margin-left: auto;
   align-self: center;
-  display: flex;
-  align-items: center;
-  gap: 0.5em;
-  padding: 0.45em 1em;
-  border: 1px solid var(--c-accent);
-  background: none;
-  color: var(--c-accent);
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.85em;
-}
-
-.run-all:disabled {
-  opacity: 0.6;
-  cursor: wait;
 }
 
 /* Les cards « wide » (grid-column: 1 / -1) forcent un retour à la ligne ;

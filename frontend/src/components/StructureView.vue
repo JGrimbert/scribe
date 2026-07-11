@@ -1,24 +1,20 @@
 <template>
   <aside class="structure-panel" :class="`structure-panel--${mode}`">
     <div class="panel-toolbar">
-      <button
+      <BaseButton
           v-if="mode !== 'rail'"
-          type="button"
-          class="mode-toggle"
+          variant="ghost"
+          icon="pi-angle-left"
           :title="mode === 'etendu' ? 'Revenir à la liste' : 'Replier la structure'"
           @click="narrow"
-      >
-        <i class="pi pi-angle-left"></i>
-      </button>
-      <button
+      />
+      <BaseButton
           v-if="mode !== 'etendu'"
-          type="button"
-          class="mode-toggle"
+          variant="ghost"
+          icon="pi-angle-right"
           :title="mode === 'rail' ? 'Déplier la structure' : 'Étendre avec les statistiques'"
           @click="widen"
-      >
-        <i class="pi pi-angle-right"></i>
-      </button>
+      />
     </div>
 
     <div v-if="mode !== 'rail'" class="panel-content">
@@ -49,6 +45,7 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import BaseButton from './ui/BaseButton.vue'
 import StructureNode from './StructureNode.vue'
 
 const props = defineProps({
@@ -167,20 +164,6 @@ function selectNode(nodeId) {
 
 .structure-panel--rail .panel-toolbar {
   justify-content: center;
-}
-
-.mode-toggle {
-  background: transparent;
-  border: none;
-  color: inherit;
-  opacity: 0.6;
-  cursor: pointer;
-  padding: 0.25em;
-  line-height: 1;
-}
-
-.mode-toggle:hover {
-  opacity: 1;
 }
 
 .panel-content {

@@ -72,6 +72,29 @@ liseret de couleur par niveau). Deux corrections manuelles avant validation
   `../backend/CLAUDE.md` pour les pistes de déduction automatique
   explorées et abandonnées (table des matières, motif de récurrence).
 
+## Design system — atomic design + Storybook
+
+- **Tokens** : `src/assets/base.css` est la source unique (couleurs, typo
+  `--font-ui`/`--font-serif`, échelles `--fs-*`/`--sp-*`, `--radius-*`,
+  opacités `--op-*`). Ne pas introduire de couleur/taille en dur dans un
+  composant — ajouter un token si besoin.
+- **Composants réutilisables** : `src/components/ui/` — atoms (`BaseButton`,
+  `BaseChip`, `BaseSelect`, `ScoreBar`, `StatItem`, `UiNote`) et molecules
+  (`UiCard`, `UiTable`, `ChipGroup`, `TreeRow`). Chaque composant a sa story
+  colocalisée (`*.stories.js`, CSF3). Le domaine métier (cards d'analyse,
+  vues) les consomme et ne garde en scoped que son layout propre.
+- **Storybook** (`@storybook/vue3-vite`, config `.storybook/`) :
+  `npm run storybook` (port 6006), `npm run build-storybook` (smoke-test,
+  sortie `storybook-static/` gitignorée). `preview.js` importe primeicons +
+  `base.css` (mêmes tokens et fond que l'app).
+- Conventions : radius discrets (tokens, 4 px max), pas de scrollbars
+  internes multiples (tronquer les listes, `UiTable scroll` en dernier
+  recours), transitions compositor-only (opacity/transform), sans-serif
+  partout dans l'UI (`--font-serif` réservé au contenu du manuscrit),
+  liseret de couleur uniquement s'il est sémantique (niveaux de calibration).
+- Hors périmètre : la couche Quill/Folio (éditeur paginé) ne passe pas par
+  `ui/` ni Storybook.
+
 ## Vocabulaire — Quill vs Folio
 
 Deux couches, deux mots, à ne jamais mélanger :

@@ -3,44 +3,36 @@
     <div class="menu">
       <h1>SCRIBE</h1>
       <div class="menu-actions">
-        <button
-            type="button"
-            class="menu-toggle"
-            :class="{ 'menu-toggle--active': route.name === 'registry' }"
+        <BaseButton
+            variant="ghost"
+            icon="pi-book"
+            :active="route.name === 'registry'"
             title="Registre des documents"
             @click="router.push('/')"
-        >
-          <i class="pi pi-book"></i>
-        </button>
-        <button
+        />
+        <BaseButton
             v-if="lastDocumentId"
-            type="button"
-            class="menu-toggle"
-            :class="{ 'menu-toggle--active': route.name === 'document' }"
+            variant="ghost"
+            icon="pi-chart-bar"
+            :active="route.name === 'document'"
             title="Analyse"
             @click="router.push(`/documents/${lastDocumentId}`)"
-        >
-          <i class="pi pi-chart-bar"></i>
-        </button>
-        <button
+        />
+        <BaseButton
             v-if="lastDocumentPath"
-            type="button"
-            class="menu-toggle"
-            :class="{ 'menu-toggle--active': isDocumentRoute }"
+            variant="ghost"
+            icon="pi-file-edit"
+            :active="isDocumentRoute"
             title="Éditeur"
             @click="router.push(lastDocumentPath)"
-        >
-          <i class="pi pi-file-edit"></i>
-        </button>
-        <button
-            type="button"
-            class="menu-toggle"
-            :class="{ 'menu-toggle--active': quillVisible }"
+        />
+        <BaseButton
+            variant="ghost"
+            icon="pi-eye"
+            :active="quillVisible"
             :title="quillVisible ? 'Masquer la fenêtre Quill' : 'Afficher la fenêtre Quill'"
             @click="quillVisible = !quillVisible"
-        >
-          <i class="pi pi-eye"></i>
-        </button>
+        />
         <i class="pi pi-cog"></i>
       </div>
     </div>
@@ -52,6 +44,7 @@
 <script setup>
 import { ref, computed, provide } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import BaseButton from './components/ui/BaseButton.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -119,24 +112,6 @@ h1 {
   display: flex;
   align-items: center;
   gap: 0.6em;
-}
-
-.menu-toggle {
-  background: transparent;
-  border: none;
-  color: inherit;
-  opacity: 0.6;
-  cursor: pointer;
-  padding: 0.2em;
-  line-height: 1;
-}
-
-.menu-toggle:hover {
-  opacity: 0.85;
-}
-
-.menu-toggle--active {
-  opacity: 1;
 }
 
 .menu::before {

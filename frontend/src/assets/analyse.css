@@ -1,158 +1,29 @@
-/* ── Styles partagés des cards du dashboard d'analyse ─────────────
-   Importé (non scopé) par AnalyseView.vue : classes communes aux cards
-   (états, tables, chips, barres de score, SVG) — le spécifique reste
-   scopé dans chaque card. */
+/* ── Résidus partagés du dashboard d'analyse ───────────────────────
+   Importé (non scopé) par AnalyseView.vue. Ne garder ici que ce qui est
+   commun à plusieurs cards ET impossible à porter par un composant ui/
+   (cadres SVG, largeur de colonne de score). Tout le reste vit dans
+   src/components/ui/. */
 
-.analyse-card .state {
-    padding: 1em 0;
-    opacity: 0.6;
-}
-
-.analyse-card .state--error,
-.analyse-view > .state--error {
-    color: #b3261e;
-    opacity: 1;
-}
-
-.analyse-card .hint {
-    margin: 0 0 0.25em;
-    font-size: 0.85em;
-    opacity: 0.6;
-}
-
-.analyse-card h3 {
-    margin: 1.5em 0 0.25em;
-    font-size: 1em;
-}
-
-.analyse-card h3:first-child {
-    margin-top: 0.5em;
-}
-
-/* ── Défilement interne — usage exceptionnel (la table « Par article »,
-   une ligne par article, ~800 lignes) : partout ailleurs, tronquer. ── */
-.scroll-panel {
-    max-height: 24em;
-    overflow-y: auto;
-}
-
-/* ── Tables ── */
-.analyse-card .data-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.9em;
-    margin-top: 0.5em;
-}
-
-.analyse-card .data-table th,
-.analyse-card .data-table td {
-    text-align: left;
-    padding: 0.4em 0.6em;
-    border-bottom: 1px solid var(--c-border, #e0d8cc);
-}
-
-/* Les en-têtes restent visibles quand la table défile dans un scroll-panel. */
-.analyse-card .scroll-panel .data-table thead th {
-    position: sticky;
-    top: 0;
-    background: var(--c-bg, #faf8f4);
-}
-
-.analyse-card .data-table .num {
-    text-align: right;
-    font-variant-numeric: tabular-nums;
-}
-
-.analyse-card .word-node-row {
-    cursor: pointer;
-}
-
-.analyse-card .word-node-row:hover {
-    background: var(--c-surface4, rgba(0, 0, 0, 0.04));
-}
-
-.analyse-card .word-detail {
-    margin-top: 1em;
-    padding-top: 1em;
-    border-top: 1px solid var(--c-border, #e0d8cc);
-}
-
-/* ── Chips (entités, thèmes) ── */
-.analyse-card .entity-chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.4em;
-}
-
-.analyse-card .entity-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4em;
-    padding: 0.25em 0.6em;
-    border: 1px solid var(--c-border, #e0d8cc);
-    border-radius: 999px;
-    background: var(--c-surface, transparent);
-    color: inherit;
-    cursor: pointer;
-    font-size: 0.85em;
-}
-
-.analyse-card .entity-chip:hover,
-.analyse-card .entity-chip--active {
-    border-color: var(--c-accent);
-    color: var(--c-accent);
-}
-
-.analyse-card .entity-count {
-    font-size: 0.85em;
-    opacity: 0.6;
-    font-variant-numeric: tabular-nums;
-}
-
-/* ── Barres de score ── */
-.analyse-card .score-col {
-    width: 14em;
-    white-space: nowrap;
-}
-
-.analyse-card .score-bar-track {
-    display: inline-block;
-    vertical-align: middle;
-    width: 8em;
-    height: 0.5em;
-    margin-right: 0.6em;
-    border-radius: 999px;
-    background: var(--c-surface4, rgba(0, 0, 0, 0.08));
-    overflow: hidden;
-}
-
-.analyse-card .score-bar {
-    display: block;
-    height: 100%;
-    border-radius: 999px;
-    background: var(--c-accent);
-}
-
-.analyse-card .score-value {
-    font-variant-numeric: tabular-nums;
-    font-size: 0.9em;
-}
-
-/* ── Visualisations SVG ── */
-.analyse-card .viz {
+/* cadre commun des visualisations SVG (nuage, réseau, carte UMAP) */
+.viz {
     display: block;
     width: 100%;
     height: auto;
     margin: 0.5em 0;
-    border: 1px solid var(--c-border, #e0d8cc);
-    border-radius: 4px;
-    background: var(--c-surface, rgba(255, 255, 255, 0.8));
+    border: 1px solid var(--c-border);
+    border-radius: var(--radius-md);
+    background: var(--c-surface);
 }
 
-.analyse-card .topic-dot {
-    display: inline-block;
-    width: 0.7em;
-    height: 0.7em;
-    border-radius: 50%;
-    flex-shrink: 0;
+/* détail ouvert sous un clic (mot, entité) */
+.word-detail {
+    margin-top: var(--sp-4);
+    padding-top: var(--sp-4);
+    border-top: 1px solid var(--c-border);
+}
+
+/* colonne « Proximité » des tables à ScoreBar */
+.score-col {
+    width: 14em;
+    white-space: nowrap;
 }

@@ -13,23 +13,23 @@
     <template v-else>
       <div class="registry-header">
         <h2>Registre des documents</h2>
-        <label class="upload" :class="{ 'upload--busy': uploading }">
+        <BaseButton as="label" variant="solid" :busy="uploading">
           {{ uploading ? 'Import en cours…' : 'Importer un .odt' }}
           <input type="file" accept=".odt" hidden :disabled="uploading" @change="onFileChange" />
-        </label>
+        </BaseButton>
       </div>
 
-      <p v-if="error" class="error">{{ error }}</p>
+      <UiNote v-if="error" variant="error">{{ error }}</UiNote>
 
-      <table v-if="documents.length" class="registry-table">
+      <UiTable v-if="documents.length">
         <thead>
           <tr>
             <th>Titre</th>
-            <th>Axes</th>
-            <th>Blocs</th>
-            <th>Articles</th>
-            <th>Mots</th>
-            <th>Caractères</th>
+            <th class="num">Axes</th>
+            <th class="num">Blocs</th>
+            <th class="num">Articles</th>
+            <th class="num">Mots</th>
+            <th class="num">Caractères</th>
             <th>Importé le</th>
             <th></th>
           </tr>
@@ -38,32 +38,31 @@
           <tr
               v-for="doc in documents"
               :key="doc.id"
-              class="registry-row"
+              class="row-link"
               @click="router.push(`/documents/${doc.id}`)"
           >
             <td>{{ doc.title }}</td>
-            <td>{{ doc.totalAxes }}</td>
-            <td>{{ doc.totalBlocs }}</td>
-            <td>{{ doc.totalArticles }}</td>
-            <td>{{ doc.totalMots.toLocaleString('fr') }}</td>
-            <td>{{ doc.totalCaracteres.toLocaleString('fr') }}</td>
+            <td class="num">{{ doc.totalAxes }}</td>
+            <td class="num">{{ doc.totalBlocs }}</td>
+            <td class="num">{{ doc.totalArticles }}</td>
+            <td class="num">{{ doc.totalMots.toLocaleString('fr') }}</td>
+            <td class="num">{{ doc.totalCaracteres.toLocaleString('fr') }}</td>
             <td>{{ formatDate(doc.importedAt) }}</td>
-            <td class="registry-row__actions">
-              <button
-                  type="button"
+            <td class="row-actions">
+              <BaseButton
+                  variant="ghost"
+                  icon="pi-trash"
                   class="delete-btn"
                   title="Supprimer ce document"
-                  :disabled="deletingId === doc.id"
+                  :busy="deletingId === doc.id"
                   @click.stop="onDelete(doc)"
-              >
-                <i class="pi pi-trash"></i>
-              </button>
+              />
             </td>
           </tr>
         </tbody>
-      </table>
+      </UiTable>
 
-      <p v-else-if="!loading" class="empty">Aucun document importé pour l'instant.</p>
+      <UiNote v-else-if="!loading">Aucun document importé pour l'instant.</UiNote>
     </template>
   </div>
 </template>
@@ -71,6 +70,9 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import BaseButton from './ui/BaseButton.vue'
+import UiNote from './ui/UiNote.vue'
+import UiTable from './ui/UiTable.vue'
 import ImportCalibration from './ImportCalibration.vue'
 
 const router = useRouter()
@@ -166,70 +168,11 @@ onMounted(fetchDocuments)
   margin-bottom: 1.5em;
 }
 
-.upload {
-  font-size: 0.85em;
-  padding: 0.5rem 1rem;
-  background: var(--c-accent);
-  color: white;
-  border-radius: 6px;
-  cursor: pointer;
-}
-
-.upload--busy {
-  opacity: 0.6;
-  cursor: wait;
-}
-
-.registry-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.9em;
-}
-
-.registry-table th,
-.registry-table td {
-  text-align: left;
-  padding: 0.5em 0.75em;
-  border-bottom: 1px solid var(--c-border, #e0d8cc);
-}
-
-.registry-row {
-  cursor: pointer;
-}
-
-.registry-row:hover {
-  background: var(--c-surface4, rgba(0, 0, 0, 0.04));
-}
-
-.registry-row__actions {
+.row-actions {
   text-align: right;
 }
 
-.delete-btn {
-  border: none;
-  background: none;
-  cursor: pointer;
-  opacity: 0.5;
-  padding: 0.25em;
-  font-size: 0.95em;
-  color: inherit;
-}
-
 .delete-btn:hover {
-  opacity: 1;
-  color: #b91c1c;
-}
-
-.delete-btn:disabled {
-  opacity: 0.3;
-  cursor: wait;
-}
-
-.error {
-  color: #b91c1c;
-}
-
-.empty {
-  opacity: 0.6;
+  color: var(--c-danger);
 }
 </style>

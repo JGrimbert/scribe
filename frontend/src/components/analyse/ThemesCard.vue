@@ -1,40 +1,40 @@
 <template>
-  <AnalyseCard title="Thèmes" wide :busy="running === 'topics'">
+  <UiCard title="Thèmes" wide :busy="running === 'topics'">
     <div v-if="running === 'topics' && topicsProgress" class="topics-progress">
-      <span class="score-bar-track topics-progress-track">
-        <span class="score-bar" :style="{ width: topicsProgress.pct + '%' }"></span>
-      </span>
-      <span class="topics-progress-label">{{ topicsProgress.step }} ({{ Math.round(topicsProgress.pct) }} %)</span>
+      <ScoreBar
+          :pct="topicsProgress.pct"
+          :label="`${topicsProgress.step} (${Math.round(topicsProgress.pct)} %)`"
+          track-width="16em"
+      />
     </div>
 
-    <p v-if="stepErrors.topics" class="state state--error">{{ stepErrors.topics }}</p>
-    <p v-if="!topics && running !== 'topics'" class="state">
+    <UiNote v-if="stepErrors.topics" variant="error">{{ stepErrors.topics }}</UiNote>
+    <UiNote v-if="!topics && running !== 'topics'">
       Analyse pas encore calculée. Nécessite le service NLP local (<code>npm run dev:nlp</code>) —
       l'extraction d'un manuscrit complet prend plusieurs minutes, l'avancement s'affiche ici.
-    </p>
+    </UiNote>
 
     <template v-if="topics">
       <div class="topics-columns">
         <div>
-          <p class="hint">
+          <UiNote variant="hint">
             {{ topics.topics.length }} thèmes détectés —
             {{ topics.outliers.count }} segments hors thème ({{ formatPercent(topics.outliers.share) }}).
             Les mots listés sont les plus caractéristiques de chaque thème (c-TF-IDF), pas des titres.
-          </p>
+          </UiNote>
 
-          <div class="entity-chips topic-chips">
-            <button
+          <ChipGroup>
+            <BaseChip
                 v-for="topic in topics.topics"
                 :key="topic.topicId"
-                type="button"
-                class="entity-chip"
-                :class="{ 'entity-chip--active': selectedTopicId === topic.topicId }"
+                :count="topic.count"
+                :dot="topicColor(topic.topicId)"
+                :active="selectedTopicId === topic.topicId"
                 @click="selectedTopicId = selectedTopicId === topic.topicId ? null : topic.topicId"
             >
-              <span class="topic-dot" :style="{ background: topicColor(topic.topicId) }"></span>
-              {{ topic.label }} <span class="entity-count">{{ topic.count }}</span>
-            </button>
-          </div>
+              {{ topic.label }}
+            </BaseChip>
+          </ChipGroup>
 
           <template v-if="selectedTopic">
             <h3>Thème « {{ selectedTopic.label }} » — {{ selectedTopic.count }} segments ({{ formatPercent(selectedTopic.share) }})</h3>
@@ -51,31 +51,28 @@
             </div>
 
             <h3>Présence par axe</h3>
-            <table class="data-table">
+            <UiTable>
               <tbody>
                 <tr v-for="row in selectedTopicByAxe" :key="row.axeId ?? 'liminaire'">
                   <td>{{ row.titre }}</td>
                   <td class="score-col">
-                    <span class="score-bar-track">
-                      <span class="score-bar" :style="{ width: row.pct + '%' }"></span>
-                    </span>
-                    <span class="score-value">{{ row.count }} / {{ row.segments }}</span>
+                    <ScoreBar :pct="row.pct" :label="`${row.count} / ${row.segments}`" />
                   </td>
                 </tr>
               </tbody>
-            </table>
+            </UiTable>
           </template>
-          <p v-else class="hint">Cliquer un thème pour son détail (mots, présence par axe).</p>
+          <UiNote v-else variant="hint">Cliquer un thème pour son détail (mots, présence par axe).</UiNote>
         </div>
 
         <div>
           <template v-if="topics.projection?.length">
             <h3>Carte des segments</h3>
-            <p class="hint">
+            <UiNote variant="hint">
               Chaque point est un segment de ~250 mots, placé par proximité sémantique (UMAP) —
               deux points voisins parlent de choses proches, quel que soit leur chapitre.
               Cliquer un thème le met en évidence ; cliquer un point ouvre son article.
-            </p>
+            </UiNote>
             <svg class="viz" viewBox="0 0 640 420" role="img" aria-label="Carte sémantique des segments">
               <circle
                   v-for="(point, i) in projectionPoints"
@@ -91,22 +88,27 @@
             </svg>
             <div class="map-legend">
               <span v-for="item in mapLegend" :key="item.label" class="map-legend-item">
-                <span class="topic-dot" :style="{ background: item.color }"></span>{{ item.label }}
+                <span class="legend-dot" :style="{ background: item.color }"></span>{{ item.label }}
               </span>
             </div>
           </template>
-          <p v-else class="hint">
+          <UiNote v-else variant="hint">
             Carte des segments indisponible sur cette analyse — relancer l'analyse pour l'obtenir.
-          </p>
+          </UiNote>
         </div>
       </div>
     </template>
-  </AnalyseCard>
+  </UiCard>
 </template>
 
 <script setup>
 import { computed, inject, ref } from 'vue'
-import AnalyseCard from './AnalyseCard.vue'
+import UiCard from '../ui/UiCard.vue'
+import UiNote from '../ui/UiNote.vue'
+import UiTable from '../ui/UiTable.vue'
+import BaseChip from '../ui/BaseChip.vue'
+import ChipGroup from '../ui/ChipGroup.vue'
+import ScoreBar from '../ui/ScoreBar.vue'
 import { useAnalyse } from '../../composables/useAnalyse'
 import { formatPercent } from '../../script/format'
 
@@ -202,19 +204,7 @@ const selectedTopicByAxe = computed(() => {
 
 <style scoped>
 .topics-progress {
-  display: flex;
-  align-items: center;
-  gap: 0.75em;
   padding: 0.5em 0 1em;
-}
-
-.topics-progress-track {
-  width: 16em;
-}
-
-.topics-progress-label {
-  font-size: 0.85em;
-  opacity: 0.7;
 }
 
 /* Deux colonnes internes : thèmes + détail à gauche, carte à droite. */
@@ -231,16 +221,12 @@ const selectedTopicByAxe = computed(() => {
   }
 }
 
-.topic-chips {
-  margin-top: 0.5em;
-}
-
 .topic-words {
   display: flex;
   flex-wrap: wrap;
   gap: 0.3em 0.8em;
   padding: 0.4em 0 0.6em;
-  font-family: Georgia, serif;
+  font-family: var(--font-serif);
   font-size: 1.05em;
   color: var(--c-accent);
 }
@@ -264,5 +250,13 @@ const selectedTopicByAxe = computed(() => {
   display: inline-flex;
   align-items: center;
   gap: 0.4em;
+}
+
+.legend-dot {
+  display: inline-block;
+  width: 0.7em;
+  height: 0.7em;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 </style>

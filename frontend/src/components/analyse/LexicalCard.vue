@@ -1,16 +1,16 @@
 <template>
-  <AnalyseCard title="Analyse linguistique" wide :busy="running === 'lexical'">
-    <p v-if="stepErrors.lexical" class="state state--error">{{ stepErrors.lexical }}</p>
-    <p v-if="!lexical" class="state">
+  <UiCard title="Analyse linguistique" wide :busy="running === 'lexical'">
+    <UiNote v-if="stepErrors.lexical" variant="error">{{ stepErrors.lexical }}</UiNote>
+    <UiNote v-if="!lexical">
       Analyse pas encore calculée. Nécessite le service NLP local (<code>npm run dev:nlp</code>) —
       le calcul peut prendre quelques minutes sur un manuscrit complet.
-    </p>
+    </UiNote>
 
     <template v-else>
       <div class="lexical-columns">
         <div>
           <h3>Catégories grammaticales</h3>
-          <table class="data-table">
+          <UiTable>
             <tbody>
               <tr v-for="pos in posRows" :key="pos.tag">
                 <td>{{ pos.label }}</td>
@@ -18,15 +18,15 @@
                 <td class="num">{{ pos.percent }} %</td>
               </tr>
             </tbody>
-          </table>
+          </UiTable>
         </div>
 
         <div v-if="lexical.graph && graphLayout">
           <h3>Réseau lexical</h3>
-          <p class="hint">
+          <UiNote variant="hint">
             Noms co-présents dans une même phrase — la taille suit la fréquence, l'épaisseur du
             lien la force d'association (NPMI). Survoler un mot pour son compte exact.
-          </p>
+          </UiNote>
           <svg class="viz" viewBox="0 0 640 440" role="img" aria-label="Réseau lexical de co-occurrences">
             <line
                 v-for="edge in graphLayout.edges"
@@ -43,33 +43,29 @@
             </g>
           </svg>
         </div>
-        <p v-else-if="!lexical.graph" class="hint">
+        <UiNote v-else-if="!lexical.graph" variant="hint">
           Réseau lexical indisponible sur cette analyse — relancer l'analyse pour l'obtenir.
-        </p>
+        </UiNote>
       </div>
 
       <h3>Entités nommées</h3>
-      <p v-if="!lexical.entities.length" class="state">Aucune entité détectée.</p>
-      <div v-for="group in entityGroups" :key="group.label" class="entity-group">
-        <h4>
-          {{ group.title }}
-          <span class="entity-group-count">
-            ({{ group.total }}{{ group.total > group.entities.length ? `, ${group.entities.length} affichées` : '' }})
-          </span>
-        </h4>
-        <div class="entity-chips">
-          <button
-              v-for="entity in group.entities"
-              :key="entity.text"
-              type="button"
-              class="entity-chip"
-              :class="{ 'entity-chip--active': isSelectedEntity(entity) }"
-              @click="toggleEntity(entity)"
-          >
-            {{ entity.text }} <span class="entity-count">{{ entity.count }}</span>
-          </button>
-        </div>
-      </div>
+      <UiNote v-if="!lexical.entities.length">Aucune entité détectée.</UiNote>
+      <ChipGroup
+          v-for="group in entityGroups"
+          :key="group.label"
+          :title="group.title"
+          :meta="group.total > group.entities.length ? `${group.total}, ${group.entities.length} affichées` : String(group.total)"
+      >
+        <BaseChip
+            v-for="entity in group.entities"
+            :key="entity.text"
+            :count="entity.count"
+            :active="isSelectedEntity(entity)"
+            @click="toggleEntity(entity)"
+        >
+          {{ entity.text }}
+        </BaseChip>
+      </ChipGroup>
 
       <div v-if="selectedNamedEntity" class="word-detail">
         <h3>
@@ -80,37 +76,39 @@
       </div>
 
       <h3>Par article</h3>
-      <div class="scroll-panel">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Article</th>
-              <th class="num">Phrases</th>
-              <th class="num">Mots</th>
-              <th class="num">Mots / phrase</th>
-              <th class="num">Diversité (TTR)</th>
-              <th class="num">Densité lexicale</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="unit in lexical.units" :key="unit.nodeId" class="word-node-row" @click="goToNode(unit.nodeId)">
-              <td>{{ unit.titre }}</td>
-              <td class="num">{{ formatInt(unit.sentences) }}</td>
-              <td class="num">{{ formatInt(unit.words) }}</td>
-              <td class="num">{{ unit.avgSentenceLength.toLocaleString('fr') }}</td>
-              <td class="num">{{ formatPercent(unit.ttr) }}</td>
-              <td class="num">{{ formatPercent(unit.lexicalDensity) }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+      <UiTable scroll>
+        <thead>
+          <tr>
+            <th>Article</th>
+            <th class="num">Phrases</th>
+            <th class="num">Mots</th>
+            <th class="num">Mots / phrase</th>
+            <th class="num">Diversité (TTR)</th>
+            <th class="num">Densité lexicale</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="unit in lexical.units" :key="unit.nodeId" class="row-link" @click="goToNode(unit.nodeId)">
+            <td>{{ unit.titre }}</td>
+            <td class="num">{{ formatInt(unit.sentences) }}</td>
+            <td class="num">{{ formatInt(unit.words) }}</td>
+            <td class="num">{{ unit.avgSentenceLength.toLocaleString('fr') }}</td>
+            <td class="num">{{ formatPercent(unit.ttr) }}</td>
+            <td class="num">{{ formatPercent(unit.lexicalDensity) }}</td>
+          </tr>
+        </tbody>
+      </UiTable>
     </template>
-  </AnalyseCard>
+  </UiCard>
 </template>
 
 <script setup>
 import { computed, ref } from 'vue'
-import AnalyseCard from './AnalyseCard.vue'
+import UiCard from '../ui/UiCard.vue'
+import UiNote from '../ui/UiNote.vue'
+import UiTable from '../ui/UiTable.vue'
+import BaseChip from '../ui/BaseChip.vue'
+import ChipGroup from '../ui/ChipGroup.vue'
 import NodesTable from './NodesTable.vue'
 import { useAnalyse } from '../../composables/useAnalyse'
 import { formatInt, formatPercent } from '../../script/format'
@@ -274,21 +272,6 @@ const graphLayout = computed(() =>
   }
 }
 
-.entity-group {
-  margin-top: 0.75em;
-}
-
-.entity-group h4 {
-  margin: 0 0 0.4em;
-  font-size: 0.9em;
-  opacity: 0.75;
-}
-
-.entity-group-count {
-  font-weight: normal;
-  opacity: 0.6;
-}
-
 .graph-edge {
   stroke: #a8946f;
 }
@@ -300,8 +283,8 @@ const graphLayout = computed(() =>
 
 .graph-node text {
   font-size: 10px;
-  fill: var(--c-ink2, #5a5047);
-  font-family: system-ui, sans-serif;
+  fill: var(--c-ink2);
+  font-family: var(--font-ui);
   paint-order: stroke;
   stroke: rgba(255, 255, 255, 0.75);
   stroke-width: 2.5px;

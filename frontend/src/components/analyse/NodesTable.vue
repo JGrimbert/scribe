@@ -1,20 +1,22 @@
 <template>
-  <table class="data-table">
+  <UiTable>
     <thead>
       <tr><th>Article</th><th>Occurrences</th></tr>
     </thead>
     <tbody>
-      <tr v-for="n in shown" :key="n.nodeId" class="word-node-row" @click="$emit('open', n.nodeId)">
+      <tr v-for="n in shown" :key="n.nodeId" class="row-link" @click="$emit('open', n.nodeId)">
         <td>{{ n.titre }}</td>
         <td>{{ n.count }}</td>
       </tr>
     </tbody>
-  </table>
-  <p v-if="hidden > 0" class="hint">+ {{ hidden }} autres articles</p>
+  </UiTable>
+  <UiNote v-if="hidden > 0" variant="hint">+ {{ hidden }} autres articles</UiNote>
 </template>
 
 <script setup>
 import { computed } from 'vue'
+import UiTable from '../ui/UiTable.vue'
+import UiNote from '../ui/UiNote.vue'
 
 const props = defineProps({
   nodes: { type: Array, required: true },

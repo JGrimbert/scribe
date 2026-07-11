@@ -5,8 +5,11 @@
     padding: 0;
 }
 
-/* ── Theme LIGHT ONLY ─────────────────────────────────── */
+/* ── Design tokens — source unique ─────────────────────
+   Les composants src/components/ui/ ne s'appuient que sur ces variables.
+   Thème light uniquement pour l'instant. */
 :root {
+    /* Couleurs */
     --c-bg: #faf8f4;
     --c-surface: rgba(255, 255, 255, 0.8);
     --c-surface2: #f2ede6;
@@ -21,121 +24,52 @@
     --c-accent2: #c8a96e;
     --c-border: #e0d8cc;
     --c-muted: #8a7f72;
+    --c-danger: #b3261e;
     --c-green: #28a745;
     --c-yellow: #ffc107;
     --c-orange: #fd7e14;
     --c-gray: #adb5bd;
+
+    /* Typo — --font-serif est réservé au contenu du manuscrit
+       (nuage de mots, extraits) ; l'UI est en --font-ui partout. */
+    --font-ui: system-ui, sans-serif;
+    --font-serif: Georgia, serif;
+    --fs-xs: 0.75rem;
+    --fs-sm: 0.85rem;
+    --fs-md: 0.9rem;
+    --fs-lg: 1.3rem;
+
+    /* Rythme */
+    --sp-1: 0.25rem;
+    --sp-2: 0.5rem;
+    --sp-3: 0.75rem;
+    --sp-4: 1rem;
+    --sp-6: 1.5rem;
+
+    /* Formes */
+    --radius-sm: 3px;
+    --radius-md: 4px;
+    --radius-pill: 999px;
+
+    /* Emphases (opacité des textes/icônes secondaires) */
+    --op-faint: 0.35;
+    --op-muted: 0.6;
+    --op-soft: 0.75;
 }
 
-/* ── Body background ─────────────────────────────────── */
+/* ── Body ────────────────────────────────────────────── */
 body {
-    font-family: system-ui, sans-serif;
+    font-family: var(--font-ui);
     background-color: var(--c-bg);
     background-image: url("/sand.png");
     background-repeat: repeat;
     color: var(--c-ink);
 }
 
-/* ── Layout root ─────────────────────────────────────── */
-.app {
-    min-height: 100vh;
-}
-
-/* ── View ────────────────────────────────────────────── */
-.view {
-    padding: 2rem;
-    font-family: Georgia, serif;
-}
-
-
-.axe-title {
-    font-size: 1rem;
-    color: var(--c-accent);
-    margin-bottom: 0.75rem;
-    padding-bottom: 0.25rem;
-}
-
-/* ── Blocs ────────────────────────────────────────────── */
-.blocs {
-    width: 200px;
-    display: grid;
-    /* grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); */
-    gap: 0.75rem;
-}
-
+/* ── Quill : toolbar flottante (couche éditeur, hors périmètre ui/) ── */
 .ql-toolbar.ql-snow {
-    padding: 0.rem;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.33);
-}
-
-.ql-toolbar.ql-snow, .bloc {
     background: var(--c-surface);
     backdrop-filter: var(--c-backdrop-filter-blur);
     border-radius: 6px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.33);
 }
-
-
-.bloc {
-    cursor: pointer;
-    padding: 0.5rem;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-}
-
-.bloc-title {
-    font-size: 0.85rem;
-    margin-bottom: 0.5rem;
-}
-
-.dots {
-    display: flex;
-    gap: 4px;
-    flex-wrap: wrap;
-    margin-bottom: 0.4rem;
-}
-
-.dot {
-    width: 10px;
-    height: 10px;
-    border-radius: 2px;
-    background: var(--c-accent2);
-}
-
-/* ── Modal ───────────────────────────────────────────── */
-.modal-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.4);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-}
-
-.modal {
-    background: var(--c-surface);
-    backdrop-filter: var(--c-backdrop-filter-blur);
-    padding: 1.5rem;
-    border-radius: 8px;
-    width: min(600px, 90vw);
-    max-height: 80vh;
-    overflow: auto;
-}
-
-.close {
-    position: absolute;
-    right: 1rem;
-    top: 1rem;
-    border: none;
-    background: var(--c-surface2);
-    border-radius: 50%;
-    width: 28px;
-    height: 28px;
-    cursor: pointer;
-}
-
-
-
-
-
-
-
-

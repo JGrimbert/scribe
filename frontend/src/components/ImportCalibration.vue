@@ -2,13 +2,13 @@
   <div class="calibration">
     <div class="calibration-header">
       <h2>Calibrage de l'import</h2>
-      <p class="hint">
+      <UiNote variant="hint">
         Cliquez la ligne de démarcation à l'endroit où le vrai contenu
         commence (tout ce qui précède part en liminaire). Dépliez un titre
         pour voir ses sous-titres ; +/− change son niveau. Le repère ⤓
         signale un saut de page forcé — souvent (pas toujours) un signe de
         niveau supérieur.
-      </p>
+      </UiNote>
     </div>
 
     <div class="outline">
@@ -29,17 +29,19 @@
     </div>
 
     <div class="calibration-footer">
-      <span v-if="error" class="error">{{ error }}</span>
-      <button class="cancel" @click="$emit('cancel')">Annuler</button>
-      <button class="commit" :disabled="committing" @click="onCommit">
+      <UiNote v-if="error" variant="error" class="footer-error">{{ error }}</UiNote>
+      <BaseButton variant="outline" @click="$emit('cancel')">Annuler</BaseButton>
+      <BaseButton variant="solid" :busy="committing" @click="onCommit">
         {{ committing ? 'Import en cours…' : "Valider l'import" }}
-      </button>
+      </BaseButton>
     </div>
   </div>
 </template>
 
 <script setup>
 import { computed, reactive, ref } from 'vue'
+import BaseButton from './ui/BaseButton.vue'
+import UiNote from './ui/UiNote.vue'
 import CalibrationNode from './CalibrationNode.vue'
 
 const props = defineProps({
@@ -150,12 +152,6 @@ async function onCommit() {
   margin: 0 0 0.5em;
 }
 
-.hint {
-  font-size: 0.85em;
-  opacity: 0.75;
-  margin: 0 0 1em;
-}
-
 .outline {
   overflow-y: auto;
   flex: 1 1 auto;
@@ -228,31 +224,9 @@ async function onCommit() {
   margin-top: 1em;
 }
 
-.error {
-  color: #b91c1c;
-  font-size: 0.85em;
+.footer-error {
   margin-right: auto;
-}
-
-.commit {
-  padding: 0.5rem 1rem;
-  background: var(--c-accent);
-  color: white;
-  border-radius: 6px;
-  cursor: pointer;
-  border: none;
-}
-
-.commit:disabled {
-  opacity: 0.6;
-  cursor: wait;
-}
-
-.cancel {
-  padding: 0.5rem 1rem;
-  border-radius: 6px;
-  cursor: pointer;
-  border: 1px solid var(--c-border, #e0d8cc);
-  background: none;
+  padding: 0;
+  font-size: 0.85em;
 }
 </style>
