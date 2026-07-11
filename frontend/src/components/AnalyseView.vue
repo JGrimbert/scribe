@@ -227,12 +227,90 @@
           </table>
         </template>
       </section>
+
+      <!-- ── Volet thèmes (BERTopic via nlp-service, job asynchrone) ── -->
+      <section class="volet">
+        <div class="analyse-toolbar">
+          <h2>Thèmes</h2>
+          <button type="button" class="relancer" :disabled="computingTopics" @click="relancerTopics">
+            <i v-if="computingTopics" class="pi pi-spin pi-spinner"></i>
+            {{ computingTopics ? 'Extraction en cours…' : topics ? "Relancer l'analyse" : "Lancer l'analyse" }}
+          </button>
+          <span v-if="topics" class="computed-at">
+            Calculée le {{ formatDate(topics.computedAt) }} — {{ topics.segmentsTotal }} segments
+          </span>
+        </div>
+
+        <div v-if="computingTopics && topicsProgress" class="topics-progress">
+          <span class="score-bar-track topics-progress-track">
+            <span class="score-bar" :style="{ width: topicsProgress.pct + '%' }"></span>
+          </span>
+          <span class="topics-progress-label">{{ topicsProgress.step }} ({{ Math.round(topicsProgress.pct) }} %)</span>
+        </div>
+
+        <p v-if="topicsError" class="state state--error">{{ topicsError }}</p>
+        <p v-if="!topics && !computingTopics" class="state">
+          Analyse pas encore calculée. Nécessite le service NLP local (<code>npm run dev:nlp</code>) —
+          l'extraction d'un manuscrit complet prend plusieurs minutes, l'avancement s'affiche ici.
+        </p>
+
+        <template v-if="topics && !computingTopics">
+          <p class="hint">
+            {{ topics.topics.length }} thèmes détectés —
+            {{ topics.outliers.count }} segments hors thème ({{ formatPercent(topics.outliers.share) }}).
+            Les mots listés sont les plus caractéristiques de chaque thème (c-TF-IDF), pas des titres.
+          </p>
+
+          <div class="entity-chips topic-chips">
+            <button
+                v-for="topic in topics.topics"
+                :key="topic.topicId"
+                type="button"
+                class="entity-chip"
+                :class="{ 'entity-chip--active': selectedTopicId === topic.topicId }"
+                @click="selectedTopicId = selectedTopicId === topic.topicId ? null : topic.topicId"
+            >
+              {{ topic.label }} <span class="entity-count">{{ topic.count }}</span>
+            </button>
+          </div>
+
+          <div v-if="selectedTopic" class="word-detail">
+            <h3>Thème « {{ selectedTopic.label }} » — {{ selectedTopic.count }} segments ({{ formatPercent(selectedTopic.share) }})</h3>
+
+            <div class="topic-words">
+              <span
+                  v-for="word in selectedTopic.words"
+                  :key="word.word"
+                  class="topic-word"
+                  :style="{ opacity: 0.55 + 0.45 * (word.weight / selectedTopic.words[0].weight) }"
+              >
+                {{ word.word }}
+              </span>
+            </div>
+
+            <h3>Présence par axe</h3>
+            <table class="data-table topic-axes-table">
+              <tbody>
+                <tr v-for="row in selectedTopicByAxe" :key="row.axeId ?? 'liminaire'">
+                  <td>{{ row.titre }}</td>
+                  <td class="score-col">
+                    <span class="score-bar-track">
+                      <span class="score-bar" :style="{ width: row.pct + '%' }"></span>
+                    </span>
+                    <span class="score-value">{{ row.count }} / {{ row.segments }}</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </template>
+      </section>
     </template>
   </div>
 </template>
 
 <script setup>
-import { computed, h, onMounted, ref, watch } from 'vue'
+import { computed, h, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 const route = useRoute()
@@ -280,9 +358,15 @@ const computingSemantic = ref(false)
 const semanticError = ref(null)
 const semanticFocusId = ref(null)
 
+const computingTopics = ref(false)
+const topicsError = ref(null)
+const topicsProgress = ref(null)
+const selectedTopicId = ref(null)
+
 const wordFrequency = computed(() => analysis.value?.wordFrequency ?? null)
 const lexical = computed(() => analysis.value?.lexical ?? null)
 const semantic = computed(() => analysis.value?.semantic ?? null)
+const topics = computed(() => analysis.value?.topics ?? null)
 
 async function readJsonOrThrow(res) {
   if (!res.ok) {
@@ -346,6 +430,43 @@ async function relancerSemantic() {
     semanticError.value = `Échec de l'analyse : ${e.message}`
   } finally {
     computingSemantic.value = false
+  }
+}
+
+// Job asynchrone : POST → jobId, puis polling du statut jusqu'à done/error.
+// `alive` coupe le polling si la vue est démontée en cours de route.
+let alive = true
+onUnmounted(() => {
+  alive = false
+})
+
+const POLL_INTERVAL_MS = 2500
+
+async function relancerTopics() {
+  computingTopics.value = true
+  topicsError.value = null
+  topicsProgress.value = { pct: 0, step: 'démarrage' }
+  try {
+    const res = await fetch(`/api/documents/${route.params.id}/analyse/topics`, { method: 'POST' })
+    const { jobId } = await readJsonOrThrow(res)
+
+    while (alive) {
+      await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
+      const statusRes = await fetch(`/api/documents/${route.params.id}/analyse/topics/jobs/${jobId}`)
+      const status = await readJsonOrThrow(statusRes)
+      topicsProgress.value = { pct: status.pct, step: status.step }
+      if (status.status === 'error') throw new Error(status.error)
+      if (status.status === 'done') {
+        analysis.value = status.analysis
+        selectedTopicId.value = null
+        break
+      }
+    }
+  } catch (e) {
+    topicsError.value = `Échec de l'extraction : ${e.message}`
+  } finally {
+    computingTopics.value = false
+    topicsProgress.value = null
   }
 }
 
@@ -492,6 +613,28 @@ const duplicatePairs = computed(
 const topPairs = computed(
   () => allPairs.value.filter((p) => p.score < DUPLICATE_THRESHOLD).slice(0, 15),
 )
+
+// ── Thèmes ──
+const selectedTopic = computed(
+  () => topics.value?.topics.find((t) => t.topicId === selectedTopicId.value) ?? null,
+)
+
+// Présence du thème sélectionné dans chaque axe, en % des segments de l'axe
+// (pas du total : les axes n'ont pas tous la même longueur).
+const selectedTopicByAxe = computed(() => {
+  if (!selectedTopic.value || !topics.value) return []
+  const topicId = selectedTopic.value.topicId
+  return topics.value.axes.map((axe) => {
+    const count = axe.distribution.find((d) => d.topicId === topicId)?.count ?? 0
+    return {
+      axeId: axe.axeId,
+      titre: axe.titre,
+      segments: axe.segments,
+      count,
+      pct: axe.segments ? (count / axe.segments) * 100 : 0,
+    }
+  })
+})
 
 // ── Utilitaires ──
 function goToNode(nodeId) {
@@ -715,6 +858,40 @@ h3 {
 
 .units-table {
   margin-bottom: 1em;
+}
+
+.topics-progress {
+  display: flex;
+  align-items: center;
+  gap: 0.75em;
+  padding: 0.5em 0 1em;
+}
+
+.topics-progress-track {
+  width: 16em;
+}
+
+.topics-progress-label {
+  font-size: 0.85em;
+  opacity: 0.7;
+}
+
+.topic-chips {
+  margin-top: 0.5em;
+}
+
+.topic-words {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3em 0.8em;
+  padding: 0.4em 0 0.6em;
+  font-family: Georgia, serif;
+  font-size: 1.05em;
+  color: var(--c-accent);
+}
+
+.topic-axes-table {
+  max-width: 44em;
 }
 
 .semantic-picker {

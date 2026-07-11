@@ -1,13 +1,22 @@
 import { createHash } from 'crypto'
-import { Injectable } from '@nestjs/common'
+import { BadRequestException, Injectable } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 import { DocumentsService } from '../documents/documents.service'
+import { TrameNode } from '../import/odt-parser'
 import { computeWordFrequency, WordFrequencyEntry } from './word-frequency'
 import { plainNodeText, plainParagraphTexts } from './plain-text'
-import { NlpClientService } from './nlp-client.service'
+import { buildSegments } from './segmentation'
+import { NlpClientService, NlpTopicsResult } from './nlp-client.service'
 import { dot, meanNormalized } from './vector-math'
-import { DocumentAnalysisResponse, LexicalAnalysis, SemanticAnalysis, SemanticUnit } from './dto'
+import {
+  DocumentAnalysisResponse,
+  LexicalAnalysis,
+  SemanticAnalysis,
+  SemanticUnit,
+  TopicsAnalysis,
+  TopicsJobStatusResponse,
+} from './dto'
 
 // Lots d'embeddings : assez petits pour que chaque appel HTTP au service
 // Python reste sous les timeouts (undici coupe à 5 min sans en-têtes), assez
@@ -15,6 +24,8 @@ import { DocumentAnalysisResponse, LexicalAnalysis, SemanticAnalysis, SemanticUn
 const EMBED_BATCH_SIZE = 64
 const CACHE_QUERY_CHUNK = 500
 const NEIGHBORS_K = 8
+const MIN_TOPIC_SEGMENTS = 20
+const TOPIC_LABEL_WORDS = 4
 // En deçà, un nœud n'a pas de représentation sémantique fiable (constaté sur
 // manuscrit réel : des nœuds réduits à « I. » ou à une épigraphe dupliquée
 // saturaient les paires à 100 %) — exclu de l'analyse plutôt que bruité.
@@ -173,6 +184,103 @@ export class AnalyseService {
     return vectorByHash
   }
 
+  // Lance le job côté service Python et rend la main aussitôt — le calcul
+  // (embeddings + UMAP + HDBSCAN) prend plusieurs minutes, le frontend
+  // suit l'avancement via topicsJobStatus.
+  async startTopics(documentId: string): Promise<{ jobId: string }> {
+    const { data } = await this.documentsService.getContent(documentId)
+    const segments = buildSegments(data)
+    if (segments.length < MIN_TOPIC_SEGMENTS) {
+      throw new BadRequestException(
+        `Pas assez de texte pour extraire des thèmes (${segments.length} segments, minimum ${MIN_TOPIC_SEGMENTS})`,
+      )
+    }
+    return this.nlpClient.startTopicsJob(segments.map(({ id, text }) => ({ id, text })))
+  }
+
+  async topicsJobStatus(documentId: string, jobId: string): Promise<TopicsJobStatusResponse> {
+    const job = await this.nlpClient.jobStatus(jobId)
+    if (job.status === 'error') {
+      return { status: 'error', pct: job.pct, step: job.step, error: job.error ?? 'erreur inconnue' }
+    }
+    if (job.status !== 'done' || !job.result) {
+      return { status: job.status, pct: job.pct, step: job.step }
+    }
+    const analysis = await this.persistTopics(documentId, job.result)
+    return { status: 'done', pct: 100, step: 'terminé', analysis }
+  }
+
+  private async persistTopics(
+    documentId: string,
+    result: NlpTopicsResult,
+  ): Promise<DocumentAnalysisResponse> {
+    const { trame, data } = await this.documentsService.getContent(documentId)
+
+    const axeOfNode = new Map<string, string>()
+    const walk = (node: TrameNode, axeId: string) => {
+      axeOfNode.set(node.id, axeId)
+      node.children.forEach((child) => walk(child, axeId))
+    }
+    trame.axes.forEach((axe) => walk(axe, axe.id))
+
+    // Répartition thème × axe à partir des assignations par segment — le
+    // nodeId est encodé dans l'id du segment (cf. segmentation.ts), rien à
+    // conserver entre le lancement du job et son polling.
+    const countsByAxe = new Map<string | null, Map<number, number>>()
+    const segmentsByAxe = new Map<string | null, number>()
+    for (const { id, topic } of result.assignments) {
+      const nodeId = id.split('::')[0]
+      const axeId = axeOfNode.get(nodeId) ?? null
+      segmentsByAxe.set(axeId, (segmentsByAxe.get(axeId) ?? 0) + 1)
+      if (topic === -1) continue
+      const axeCounts = countsByAxe.get(axeId) ?? new Map<number, number>()
+      axeCounts.set(topic, (axeCounts.get(topic) ?? 0) + 1)
+      countsByAxe.set(axeId, axeCounts)
+    }
+
+    const segmentsTotal = result.assignments.length
+    const outlierCount = result.topics.find((t) => t.topic === -1)?.count ?? 0
+    const share = (count: number) =>
+      segmentsTotal ? Math.round((count / segmentsTotal) * 1000) / 1000 : 0
+
+    const topics: TopicsAnalysis = {
+      computedAt: new Date().toISOString(),
+      model: result.model,
+      params: result.params,
+      segmentsTotal,
+      outliers: { count: outlierCount, share: share(outlierCount) },
+      topics: result.topics
+        .filter((t) => t.topic !== -1)
+        .sort((a, b) => b.count - a.count)
+        .map((t) => ({
+          topicId: t.topic,
+          label: t.words.slice(0, TOPIC_LABEL_WORDS).map((w) => w.word).join(' · '),
+          count: t.count,
+          share: share(t.count),
+          words: t.words,
+        })),
+      axes: trame.axes
+        .map((axe) => ({
+          axeId: axe.id as string | null,
+          titre: data[axe.id]?.titre ?? '(sans titre)',
+          segments: segmentsByAxe.get(axe.id) ?? 0,
+          distribution: Array.from(countsByAxe.get(axe.id)?.entries() ?? [])
+            .map(([topicId, count]) => ({ topicId, count }))
+            .sort((a, b) => b.count - a.count),
+        }))
+        .filter((axe) => axe.segments > 0),
+    }
+
+    const topicsJson = topics as unknown as Prisma.InputJsonValue
+    await this.prisma.documentAnalysis.upsert({
+      where: { documentId },
+      create: { documentId, topics: topicsJson, topicsComputedAt: new Date() },
+      update: { topics: topicsJson, topicsComputedAt: new Date() },
+    })
+
+    return this.get(documentId)
+  }
+
   async get(documentId: string): Promise<DocumentAnalysisResponse> {
     const found = await this.prisma.documentAnalysis.findUnique({ where: { documentId } })
     return {
@@ -184,6 +292,7 @@ export class AnalyseService {
         : null,
       lexical: (found?.lexical as unknown as LexicalAnalysis | null) ?? null,
       semantic: (found?.semantic as unknown as SemanticAnalysis | null) ?? null,
+      topics: (found?.topics as unknown as TopicsAnalysis | null) ?? null,
     }
   }
 }

@@ -58,10 +58,52 @@ export interface SemanticAnalysis {
   units: SemanticUnit[]
 }
 
+export interface TopicWord {
+  word: string
+  weight: number
+}
+
+export interface TopicSummary {
+  topicId: number
+  label: string
+  count: number
+  share: number
+  words: TopicWord[]
+}
+
+export interface TopicAxeDistribution {
+  axeId: string | null // null = liminaire (hors axes)
+  titre: string
+  segments: number
+  distribution: { topicId: number; count: number }[]
+}
+
+// Thèmes BERTopic : résumé par thème + répartition par axe (l'évolution des
+// thèmes au fil du manuscrit). Les segments hors thème (outliers HDBSCAN)
+// sont comptés à part, pas mélangés aux thèmes.
+export interface TopicsAnalysis {
+  computedAt: string
+  model: string
+  params: Record<string, unknown>
+  segmentsTotal: number
+  outliers: { count: number; share: number }
+  topics: TopicSummary[]
+  axes: TopicAxeDistribution[]
+}
+
+export interface TopicsJobStatusResponse {
+  status: 'queued' | 'running' | 'done' | 'error'
+  pct: number
+  step: string
+  error?: string
+  analysis?: DocumentAnalysisResponse
+}
+
 // Chaque volet est null tant qu'il n'a pas été calculé (plus de 404 : les
 // analyses sont indépendantes, l'une peut exister sans les autres).
 export interface DocumentAnalysisResponse {
   wordFrequency: { computedAt: string; entries: WordFrequencyEntry[] } | null
   lexical: LexicalAnalysis | null
   semantic: SemanticAnalysis | null
+  topics: TopicsAnalysis | null
 }

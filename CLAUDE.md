@@ -7,11 +7,14 @@ Monorepo npm workspaces réunissant :
 - `backend/` — API NestJS + PostgreSQL (Prisma) : registre de documents,
   import `.odt`, analyses (module `analyse`). Voir `backend/CLAUDE.md`.
 - `nlp-service/` — service Python FastAPI (pas un workspace npm) : pipeline
-  NLP français (spaCy `fr_core_news_lg` + embeddings
-  `dangvantuan/sentence-camembert-base` ; BERTopic prévu en phase 3).
-  **Sans état** : reçoit du texte brut, rend du JSON — toute persistance
-  reste côté Nest (`AnalyseService`), y compris le cache d'embeddings
-  (`EmbeddingCache`, adressé par hash de contenu).
+  NLP français (spaCy `fr_core_news_lg`, embeddings
+  `dangvantuan/sentence-camembert-base`, thèmes BERTopic). **Sans état** :
+  reçoit du texte brut, rend du JSON — toute persistance reste côté Nest
+  (`AnalyseService`), y compris le cache d'embeddings (`EmbeddingCache`,
+  adressé par hash de contenu). Les analyses longues (BERTopic) passent par
+  des jobs asynchrones en mémoire (`POST /v1/jobs/topics` + polling
+  `GET /v1/jobs/:id`) — perdus si le service redémarre, même compromis que
+  la Map de preview d'import.
   Nest le joint via `NLP_SERVICE_URL` (défaut `http://localhost:8001`) et
   renvoie un 503 explicite s'il est éteint. Venv local `.venv/` (gitignoré),
   Python 3.12 : `py -3.12 -m venv .venv` puis

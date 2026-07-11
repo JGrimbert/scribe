@@ -1,6 +1,6 @@
 import { Controller, Get, Param, Post } from '@nestjs/common'
 import { AnalyseService } from './analyse.service'
-import { DocumentAnalysisResponse } from './dto'
+import { DocumentAnalysisResponse, TopicsJobStatusResponse } from './dto'
 
 @Controller('documents')
 export class AnalyseController {
@@ -27,5 +27,21 @@ export class AnalyseController {
   @Post(':id/analyse/semantic')
   recomputeSemantic(@Param('id') id: string): Promise<DocumentAnalysisResponse> {
     return this.analyseService.recomputeSemantic(id)
+  }
+
+  // Extraction de thèmes : job asynchrone côté service Python. Le POST rend
+  // un jobId immédiatement, le GET est pollé par le frontend et persiste le
+  // résultat quand le job aboutit.
+  @Post(':id/analyse/topics')
+  startTopics(@Param('id') id: string): Promise<{ jobId: string }> {
+    return this.analyseService.startTopics(id)
+  }
+
+  @Get(':id/analyse/topics/jobs/:jobId')
+  topicsJobStatus(
+    @Param('id') id: string,
+    @Param('jobId') jobId: string,
+  ): Promise<TopicsJobStatusResponse> {
+    return this.analyseService.topicsJobStatus(id, jobId)
   }
 }

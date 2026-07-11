@@ -92,6 +92,11 @@ model DocumentAnalysis {
   semantic           Json?
   semanticComputedAt DateTime?
 
+  // topics : thèmes BERTopic sur segments + répartition par axe (job
+  // asynchrone côté nlp-service, persisté à la fin du polling).
+  topics           Json?
+  topicsComputedAt DateTime?
+
   @@map("document_analyses")
 }
 

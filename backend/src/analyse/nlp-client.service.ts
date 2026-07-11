@@ -2,6 +2,7 @@ import {
   BadGatewayException,
   Injectable,
   Logger,
+  NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common'
 
@@ -56,6 +57,34 @@ export interface NlpHealthResponse {
   embeddings: { model: string }
 }
 
+export interface NlpTopicWord {
+  word: string
+  weight: number
+}
+
+export interface NlpTopic {
+  topic: number
+  count: number
+  words: NlpTopicWord[]
+}
+
+export interface NlpTopicsResult {
+  model: string
+  params: Record<string, unknown>
+  topics: NlpTopic[]
+  assignments: { id: string; topic: number }[]
+}
+
+export interface NlpJobStatus {
+  jobId: string
+  kind: string
+  status: 'queued' | 'running' | 'done' | 'error'
+  pct: number
+  step: string
+  error: string | null
+  result: NlpTopicsResult | null
+}
+
 // Client HTTP du service Python nlp-service/ (FastAPI). Le service est
 // sans état : il reçoit du texte brut, rend du JSON — toute persistance
 // reste côté Nest (AnalyseService).
@@ -76,17 +105,33 @@ export class NlpClientService {
     return this.post<NlpEmbeddingsResponse>('/v1/embeddings', { texts })
   }
 
-  async health(): Promise<NlpHealthResponse> {
+  startTopicsJob(segments: { id: string; text: string }[]): Promise<{ jobId: string }> {
+    return this.post<{ jobId: string }>('/v1/jobs/topics', { segments })
+  }
+
+  jobStatus(jobId: string): Promise<NlpJobStatus> {
+    return this.getJson<NlpJobStatus>(`/v1/jobs/${jobId}`)
+  }
+
+  health(): Promise<NlpHealthResponse> {
+    return this.getJson<NlpHealthResponse>('/health')
+  }
+
+  private async getJson<T>(path: string): Promise<T> {
     let res: Response
     try {
-      res = await fetch(`${this.baseUrl}/health`)
+      res = await fetch(this.baseUrl + path)
     } catch {
       throw new ServiceUnavailableException(
         `Service NLP injoignable (${this.baseUrl}) — le lancer avec \`npm run dev:nlp\``,
       )
     }
-    if (!res.ok) throw new BadGatewayException(`Service NLP : HTTP ${res.status} sur /health`)
-    return res.json() as Promise<NlpHealthResponse>
+    if (res.status === 404) {
+      const detail = (await res.json().catch(() => null)) as { detail?: string } | null
+      throw new NotFoundException(detail?.detail ?? `Service NLP : introuvable (${path})`)
+    }
+    if (!res.ok) throw new BadGatewayException(`Service NLP : HTTP ${res.status} sur ${path}`)
+    return res.json() as Promise<T>
   }
 
   private async post<T>(path: string, body: unknown): Promise<T> {

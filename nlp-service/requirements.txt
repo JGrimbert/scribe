@@ -1,10 +1,11 @@
-# Phases 1 (lexical spaCy) + 2 (embeddings sentence-camembert, torch CPU
-# ~2,5 Go). BERTopic arrivera avec la phase 3 — ne pas l'installer avant.
+# Phases 1 (lexical spaCy), 2 (embeddings sentence-camembert, torch CPU
+# ~2,5 Go) et 3 (thèmes BERTopic — tire umap-learn/hdbscan/numba/pandas).
 fastapi>=0.115,<1
 uvicorn>=0.30,<1
 spacy>=3.8,<3.9
 fr-core-news-lg @ https://github.com/explosion/spacy-models/releases/download/fr_core_news_lg-3.8.0/fr_core_news_lg-3.8.0-py3-none-any.whl
 sentence-transformers>=5,<6
+bertopic>=0.16,<1
 
 # Tests
 pytest>=8,<9

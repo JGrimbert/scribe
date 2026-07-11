@@ -72,6 +72,16 @@ l'instant, ne pas retirer le middleware Vite sans en parler.
     `Paragraph`, volontairement : survit aux réimports, dédoublonne, et une
     réanalyse ne vectorise que les textes jamais vus. Premier calcul long
     (minutes), les suivants quasi instantanés.
+  - **topics** (`POST /documents/:id/analyse/topics` → `{ jobId }`, puis
+    polling `GET /documents/:id/analyse/topics/jobs/:jobId`) — thèmes
+    BERTopic. Nest découpe le corpus en segments de ~200-400 mots
+    (`segmentation.ts`, jamais à cheval sur deux nœuds, nodeId encodé dans
+    l'id du segment), le service Python fait embeddings + UMAP + HDBSCAN en
+    job asynchrone, et Nest persiste à la fin du polling le résumé par thème
+    + la répartition par axe. Piège c-TF-IDF : ne PAS mettre `min_df` sur le
+    CountVectorizer — BERTopic l'ajuste sur les documents concaténés par
+    thème, `min_df=2` élague les termes propres à un seul thème (ceux qu'on
+    veut).
   - `GET /documents/:id/analyse` renvoie toujours 200 avec les volets à
     `null` tant qu'ils ne sont pas calculés (pas de 404).
   - Piège : les colonnes `Json` sont du `jsonb` Postgres, qui **ne préserve
