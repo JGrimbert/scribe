@@ -9,11 +9,12 @@ export const Simple = {
   args: { value: '105 329', label: 'mots' },
 }
 
+// Le bandeau du dashboard : une tuile par stat.
 export const Bandeau = {
   render: () => ({
     components: { StatItem },
     template: `
-      <div style="display: flex; align-items: baseline; flex-wrap: wrap; gap: 0.4em 1.7em;">
+      <div style="display: flex; align-items: stretch; flex-wrap: wrap; gap: 0.6em;">
         <StatItem value="105 329" label="mots" />
         <StatItem value="6 865" label="phrases" />
         <StatItem value="10 855" label="lemmes uniques" />

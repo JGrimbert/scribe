@@ -18,6 +18,8 @@
 
     --c-backdrop-filter-blur: blur(3px);
 
+    --c-paper: #fffdf8; /* fond de lecture opaque (tables) — blanc à peine crème */
+
     --c-ink: #1a1612;
     --c-ink2: #5a5047;
     --c-accent: #7c4f2a;

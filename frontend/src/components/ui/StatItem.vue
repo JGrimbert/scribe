@@ -13,10 +13,16 @@ defineProps({
 </script>
 
 <style scoped>
+/* Chaque stat est sa propre tuile — même chrome que UiCard. */
 .stat-item {
   display: flex;
-  align-items: baseline;
-  gap: 0.45em;
+  flex-direction: column;
+  gap: 0.15em;
+  padding: 0.55em 0.85em;
+  background: var(--c-surface);
+  backdrop-filter: var(--c-backdrop-filter-blur);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-md);
 }
 
 .stat-item__value {
@@ -25,7 +31,8 @@ defineProps({
 }
 
 .stat-item__label {
-  font-size: var(--fs-sm);
+  font-size: var(--fs-xs);
   opacity: var(--op-muted);
+  white-space: nowrap;
 }
 </style>

@@ -4,8 +4,9 @@
     <UiNote v-else-if="error" variant="error">{{ error }}</UiNote>
 
     <template v-else>
-      <!-- Bandeau global : stats du manuscrit + relance séquentielle de toutes
-           les analyses (chaque card affiche son spinner quand vient son tour). -->
+      <!-- Bandeau global : une tuile par stat + relance séquentielle de
+           toutes les analyses (chaque card affiche son spinner quand vient
+           son tour). -->
       <div class="stats-banner">
         <StatItem v-for="item in statItems" :key="item.label" :value="item.value" :label="item.label" />
         <UiNote v-if="!statItems.length" variant="hint">
@@ -89,10 +90,10 @@ const statItems = computed(() => {
 
 .stats-banner {
   display: flex;
-  align-items: baseline;
+  align-items: stretch;
   flex-wrap: wrap;
-  gap: 0.4em 1.7em;
-  padding: 0.4em 0.2em 1.1em;
+  gap: 0.6em;
+  margin-bottom: 1em;
 }
 
 .run-all {

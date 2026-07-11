@@ -2,7 +2,7 @@
 // une couleur ou une taille en dur où que ce soit.
 
 const COLORS = [
-  'c-bg', 'c-surface', 'c-surface2', 'c-surface3', 'c-surface4',
+  'c-bg', 'c-paper', 'c-surface', 'c-surface2', 'c-surface3', 'c-surface4',
   'c-ink', 'c-ink2', 'c-accent', 'c-accent2', 'c-border', 'c-muted', 'c-danger',
 ]
 

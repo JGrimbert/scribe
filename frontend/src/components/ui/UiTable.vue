@@ -25,6 +25,7 @@ defineProps({
   border-collapse: collapse;
   font-size: var(--fs-md);
   margin-top: var(--sp-2);
+  background: var(--c-paper);
 }
 
 /* le contenu (thead/tbody) vient du slot → :deep obligatoire */
@@ -38,7 +39,7 @@ defineProps({
 .ui-table-wrap--scroll .ui-table :deep(thead th) {
   position: sticky;
   top: 0;
-  background: var(--c-bg);
+  background: var(--c-paper);
 }
 
 .ui-table :deep(.num) {
@@ -50,7 +51,8 @@ defineProps({
   cursor: pointer;
 }
 
+/* surface2 (beige) : un hover translucide blanc serait invisible sur --c-paper */
 .ui-table :deep(.row-link:hover) {
-  background: var(--c-surface3);
+  background: var(--c-surface2);
 }
 </style>
