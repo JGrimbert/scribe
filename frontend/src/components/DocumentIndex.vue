@@ -29,7 +29,7 @@
               v-for="axe in axes"
               :key="axe.id"
               class="axe-row"
-              @click="router.push(`/documents/${route.params.id}/axe/${axe.id}`)"
+              @click="router.push(`/documents/${route.params.id}/noeud/${axe.id}`)"
           >
             <td>{{ axe.titre }}</td>
             <td>{{ axe.nbDescendants }}</td>

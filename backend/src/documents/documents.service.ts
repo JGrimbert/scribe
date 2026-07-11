@@ -73,7 +73,11 @@ export class DocumentsService {
             mots: item.stats?.mots ?? null,
             caracteres: item.stats?.caracteres ?? null,
             paragraphs: {
-              create: item.texte.map((content, i) => ({ position: i, content })),
+              create: item.texte.map((entry, i) =>
+                entry.type === 'list'
+                  ? { position: i, type: 'LIST' as const, ordered: entry.ordered, content: JSON.stringify(entry.items) }
+                  : { position: i, type: 'TEXT' as const, content: entry.text },
+              ),
             },
           },
         })
@@ -119,7 +123,11 @@ export class DocumentsService {
         level: node.level,
         titre: node.titre,
         slug: node.slug,
-        texte: node.paragraphs.map((p) => p.content),
+        texte: node.paragraphs.map((p): HarmonizedItem['texte'][number] =>
+          p.type === 'LIST'
+            ? { type: 'list', ordered: p.ordered ?? false, items: JSON.parse(p.content) }
+            : { type: 'paragraph', text: p.content },
+        ),
         connexe: (node.connexe as HarmonizedItem['connexe']) ?? null,
         indexGlobal: node.indexGlobal,
         stats: node.mots != null ? { mots: node.mots, caracteres: node.caracteres ?? 0 } : null,
@@ -138,6 +146,16 @@ export class DocumentsService {
     const axes = (childrenByParent.get(null) ?? []).map((axe) => buildTree(axe.id))
 
     return { trame: { axes }, data }
+  }
+
+  async remove(id: string): Promise<void> {
+    const document = await this.prisma.document.findUnique({ where: { id } })
+    if (!document) throw new NotFoundException(`Document ${id} introuvable`)
+
+    // Cascade Prisma (onDelete: Cascade sur Node.documentId et
+    // Paragraph.nodeId, cf. schema.prisma) : supprimer le Document suffit à
+    // supprimer tous ses nœuds/paragraphes.
+    await this.prisma.document.delete({ where: { id } })
   }
 
   private toSummary(document: {

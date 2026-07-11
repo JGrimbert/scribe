@@ -88,7 +88,7 @@ import {useFragmentEditor} from "../composables/useFragmentEditor.js";
 const props = defineProps({
   trame: Object,
   data: Object,
-  axeId: String,
+  nodeId: String,
 
   pageWidthMm: { type: Number, default: 150 },
   pageHeightMm: { type: Number, default: 210 },
@@ -111,22 +111,13 @@ const scalePercent = computed(() => props.scalePercent)
 /* ------------------ DERIVED ------------------ */
 
 const sections = computed(() => {
-  if (!props.trame || !props.data || !props.axeId) return []
-  const axe = props.trame.axes.find((a) => a.id === props.axeId)
-  if (!axe) return []
-  const out = []
-  walk(out, axe, 0)
-  return out
+  if (!props.trame || !props.data || !props.nodeId) return []
+  const item = props.data[props.nodeId]
+  if (!item) return []
+  // Un seul article par vue : le texte propre au nœud, jamais celui de ses
+  // descendants (cf. plan "Articles par nœud").
+  return [{ ...item, depth: 0 }]
 })
-
-function walk(out, node, depth) {
-  const item = props.data[node.id]
-  if (!item) return
-  out.push({ ...item, depth })
-  for (const child of node.children) {
-    walk(out, child, depth + 1)
-  }
-}
 
 /* ------------------ PAGINATION ------------------ */
 

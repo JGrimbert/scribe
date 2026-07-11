@@ -58,7 +58,7 @@ async function mountQuill() {
   quill = new Quill(editorHost.value, {
     theme: 'snow',
     modules: {
-      toolbar: [['bold', 'italic']],
+      toolbar: [['bold', 'italic'], [{ list: 'ordered' }, { list: 'bullet' }]],
     },
   })
 

@@ -49,12 +49,19 @@ model Node {
   @@map("nodes")
 }
 
+enum ParagraphType {
+  TEXT
+  LIST
+}
+
 model Paragraph {
-  id       String @id @default(uuid())
+  id       String        @id @default(uuid())
   nodeId   String
-  node     Node   @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+  node     Node          @relation(fields: [nodeId], references: [id], onDelete: Cascade)
 
   position Int
+  type     ParagraphType @default(TEXT)
+  ordered  Boolean?
   content  String
 
   @@index([nodeId])

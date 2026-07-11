@@ -31,6 +31,7 @@
             <th>Mots</th>
             <th>Caractères</th>
             <th>Importé le</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
@@ -47,6 +48,17 @@
             <td>{{ doc.totalMots.toLocaleString('fr') }}</td>
             <td>{{ doc.totalCaracteres.toLocaleString('fr') }}</td>
             <td>{{ formatDate(doc.importedAt) }}</td>
+            <td class="registry-row__actions">
+              <button
+                  type="button"
+                  class="delete-btn"
+                  title="Supprimer ce document"
+                  :disabled="deletingId === doc.id"
+                  @click.stop="onDelete(doc)"
+              >
+                <i class="pi pi-trash"></i>
+              </button>
+            </td>
           </tr>
         </tbody>
       </table>
@@ -68,6 +80,7 @@ const loading = ref(false)
 const uploading = ref(false)
 const error = ref(null)
 const pendingPreview = ref(null)
+const deletingId = ref(null)
 
 async function fetchDocuments() {
   loading.value = true
@@ -109,6 +122,22 @@ async function onFileChange(e) {
 async function onImportCommitted() {
   pendingPreview.value = null
   await fetchDocuments()
+}
+
+async function onDelete(doc) {
+  if (!window.confirm(`Supprimer définitivement « ${doc.title} » ? Cette action est irréversible.`)) return
+
+  deletingId.value = doc.id
+  error.value = null
+  try {
+    const res = await fetch(`/api/documents/${doc.id}`, { method: 'DELETE' })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    await fetchDocuments()
+  } catch (e) {
+    error.value = `Échec de la suppression : ${e.message}`
+  } finally {
+    deletingId.value = null
+  }
 }
 
 function formatDate(iso) {
@@ -166,6 +195,30 @@ onMounted(fetchDocuments)
 
 .registry-row:hover {
   background: var(--c-surface4, rgba(0, 0, 0, 0.04));
+}
+
+.registry-row__actions {
+  text-align: right;
+}
+
+.delete-btn {
+  border: none;
+  background: none;
+  cursor: pointer;
+  opacity: 0.5;
+  padding: 0.25em;
+  font-size: 0.95em;
+  color: inherit;
+}
+
+.delete-btn:hover {
+  opacity: 1;
+  color: #b91c1c;
+}
+
+.delete-btn:disabled {
+  opacity: 0.3;
+  cursor: wait;
 }
 
 .error {

@@ -12,7 +12,7 @@ const routes = [
     component: DocumentLayout,
     children: [
       { path: '', name: 'document', component: DocumentIndex },
-      { path: 'axe/:axeId', name: 'editor', component: EditorView },
+      { path: 'noeud/:nodeId', name: 'editor', component: EditorView },
     ],
   },
 ]

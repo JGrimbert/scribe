@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, Param, Post, UploadedFile, UseInterceptors } from '@nestjs/common'
+import { BadRequestException, Body, Controller, Delete, Get, HttpCode, Param, Post, UploadedFile, UseInterceptors } from '@nestjs/common'
 import { FileInterceptor } from '@nestjs/platform-express'
 import { DocumentsService } from './documents.service'
 import { CommitImportRequest, DocumentContent, DocumentSummary, PreviewResponse } from './dto'
@@ -28,5 +28,11 @@ export class DocumentsController {
   @Post('preview/:previewId/commit')
   commit(@Param('previewId') previewId: string, @Body() corrections: CommitImportRequest): Promise<DocumentSummary> {
     return this.documentsService.commitImport(previewId, corrections)
+  }
+
+  @Delete(':id')
+  @HttpCode(204)
+  remove(@Param('id') id: string): Promise<void> {
+    return this.documentsService.remove(id)
   }
 }

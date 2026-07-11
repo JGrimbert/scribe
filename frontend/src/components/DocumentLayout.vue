@@ -2,23 +2,16 @@
   <template v-if="trame && data">
     <div class="document-layout">
       <StructureView
-          v-if="route.params.axeId"
+          v-if="route.params.nodeId"
           :trame="trame"
           :data="data"
-          :axe-id="route.params.axeId"
-          @openNode="openedNode = $event"
+          :node-id="route.params.nodeId"
       />
 
       <div class="document-layout__content">
         <router-view />
       </div>
     </div>
-
-    <BlocModal
-        v-if="openedNode"
-        :node="openedNode"
-        @close="openedNode = null"
-    />
   </template>
 
   <p v-else class="loading">Chargement du document…</p>
@@ -28,13 +21,11 @@
 import { ref, provide, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import StructureView from './StructureView.vue'
-import BlocModal from './BlocModal.vue'
 
 const route = useRoute()
 
 const trame = ref(null)
 const data = ref(null)
-const openedNode = ref(null)
 
 provide('documentTrame', trame)
 provide('documentData', data)

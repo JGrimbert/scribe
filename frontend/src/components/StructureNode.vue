@@ -1,6 +1,11 @@
 <template>
   <div class="tree-node">
-    <div class="node-title" :style="{ paddingLeft: depth * 1.1 + 'em' }" @click="$emit('open', node)">
+    <div
+        class="node-title"
+        :class="{ 'node-title--current': node.id === currentNodeId }"
+        :style="{ paddingLeft: depth * 1.1 + 'em' }"
+        @click="$emit('open', node.id)"
+    >
       {{ node.titre }}
     </div>
     <StructureNode
@@ -8,6 +13,7 @@
         :key="child.id"
         :node="child"
         :depth="depth + 1"
+        :current-node-id="currentNodeId"
         @open="$emit('open', $event)"
     />
   </div>
@@ -17,6 +23,7 @@
 defineProps({
   node: { type: Object, required: true },
   depth: { type: Number, default: 0 },
+  currentNodeId: String,
 })
 
 defineEmits(['open'])
@@ -28,6 +35,10 @@ defineEmits(['open'])
   padding-top: 0.15em;
   padding-bottom: 0.15em;
   font-size: 0.9em;
+}
+
+.node-title--current {
+  font-weight: 700;
 }
 
 .node-title:hover {

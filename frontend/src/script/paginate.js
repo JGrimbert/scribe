@@ -1,5 +1,5 @@
 import { Previewer } from 'pagedjs'
-import { buildFragmentRegistry, createFragmentApi } from "./fragment.js";
+import { buildFragmentRegistry, createFragmentApi, renderTexteEntry } from "./fragment.js";
 import { createRegistry } from "./registry.js";
 
 
@@ -85,13 +85,16 @@ function buildBlocks(sections) {
             html: `<${titleTag}>${section.titre}</${titleTag}>`
         })
 
-        ;(section.texte || []).forEach((p, index) => {
+        ;(section.texte || []).forEach((entry, index) => {
+            // Rétrocompatibilité chemin statique Marvarid/ historique
+            // (texte[] en simples strings) — cf. ../../CLAUDE.md.
+            const e = typeof entry === 'string' ? { type: 'paragraph', text: entry } : entry
             blocks.push({
                 id: `${section.id}__texte__${index}`,
-                type: 'paragraph',
+                type: e.type === 'list' ? 'list' : 'paragraph',
                 path: { kind: 'texte', index },
                 ownerId: section.id,
-                html: `<p>${p}</p>`
+                html: renderTexteEntry(e)
             })
         })
 

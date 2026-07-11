@@ -3,7 +3,7 @@
     <FolioComposer
         :trame="trame"
         :data="data"
-        :axe-id="route.params.axeId"
+        :node-id="route.params.nodeId"
         :quill-visible="quillVisible"
     />
     <Scroll

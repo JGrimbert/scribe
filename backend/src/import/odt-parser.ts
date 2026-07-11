@@ -32,6 +32,23 @@ export interface Stats {
   status: 'vide' | 'ébauche' | 'partiel' | 'rédigé'
 }
 
+// Un item de liste ODT (text:list-item), à plat : `depth` (0 = premier
+// niveau) remplace l'imbrication réelle des <text:list> ODT — convention
+// alignée sur celle de Quill 2 pour les listes imbriquées (classes
+// `ql-indent-N` sur des <li> à plat, jamais de <ul>/<ol> imbriqués), pour
+// que le format round-trip sans traduction supplémentaire côté édition.
+export interface ListItemEntry {
+  text: string
+  depth: number
+}
+
+// Une entrée de `texte[]` : soit un paragraphe simple (comportement
+// historique), soit une liste entière (tous ses items) traitée comme UN
+// seul bloc — cf. backend/CLAUDE.md et le plan "Articles par nœud" pour la
+// justification (minimise l'impact sur la logique de fusion/split
+// frontend, qui reste par-entrée).
+export type TexteEntry = { type: 'paragraph'; text: string } | { type: 'list'; ordered: boolean; items: ListItemEntry[] }
+
 // Un nœud de titre, à n'importe quelle profondeur (remplace les anciens
 // ParsedAxe/ParsedBloc/ParsedArticle distincts). `texte` est le contenu
 // propre à ce nœud, avant son premier enfant ; `children` porte la suite de
@@ -40,7 +57,7 @@ export interface ParsedNode {
   titre: string
   slug: string
   numeroRomain: string | null
-  texte: string[]
+  texte: TexteEntry[]
   citations: string[]
   pistes: string[]
   tableau: string[][] | null
@@ -72,7 +89,7 @@ export interface HarmonizedItem {
   level: number // profondeur (0 = racine), remplace l'ancien type 'axe'|'bloc'|'article'
   titre: string
   slug: string
-  texte: string[]
+  texte: TexteEntry[]
   connexe: { tableau: string[][] | null; pistes: string[] } | null
   indexGlobal: number | null
   stats: Omit<Stats, 'status' | 'paragraphes'> | null
@@ -110,12 +127,14 @@ export interface OdtParseOutput {
 // fichier.
 export interface FlatNode {
   index: number
-  kind: 'heading' | 'paragraph' | 'table'
+  kind: 'heading' | 'paragraph' | 'table' | 'list'
   level: number // détecté automatiquement ; seulement pertinent si kind === 'heading'
   text: string
   styleName: string
   hasPageBreak: boolean // fo:break-before forcé sur le style de ce nœud
   tableData?: string[][]
+  listItems?: ListItemEntry[] // pertinent si kind === 'list'
+  listOrdered?: boolean // pertinent si kind === 'list'
 }
 
 export interface OutlineEntry {
@@ -207,6 +226,54 @@ function buildPageBreakStyles(doc: any): Set<string> {
   return styles
 }
 
+// Styles de liste (text:list-style, dans automatic-styles ET styles — un
+// style de liste réutilisé délibérément est souvent nommé et rangé dans
+// office:styles plutôt qu'auto-généré). Ne retient que la distinction
+// numéroté/à puces (premier niveau) : les nuances (romain, lettré, puce
+// personnalisée) sont laissées à un rendu cosmétique côté frontend, pas
+// portées par Quill de toute façon (cf. plan "Articles par nœud").
+function buildListStyles(doc: any): Map<string, boolean> {
+  const styleNodes = select(
+    '//*[local-name()="automatic-styles" or local-name()="styles"]/*[local-name()="list-style"]',
+    doc,
+  ) as any[]
+  const ordered = new Map<string, boolean>()
+  for (const styleNode of styleNodes) {
+    const name = styleNode.getAttribute('style:name')
+    if (!name) continue
+    const hasNumberLevel = (select('*[local-name()="list-level-style-number"]', styleNode) as any[]).length > 0
+    ordered.set(name, hasNumberLevel)
+  }
+  return ordered
+}
+
+// Aplatit un <text:list> en items { text, depth } — une sous-liste imbriquée
+// dans un text:list-item incrémente juste `depth`, pas de structure
+// récursive (cf. ListItemEntry).
+function extractListItems(listNode: any, depth: number, items: ListItemEntry[]) {
+  const itemNodes = select('text:list-item', listNode) as any[]
+  for (const itemNode of itemNodes) {
+    const children = itemNode.childNodes
+    const textParts: string[] = []
+    for (let i = 0; i < children.length; i++) {
+      const child = children[i]
+      if (child.nodeType !== 1) continue
+      if (child.localName === 'p' || child.localName === 'h') {
+        const t = nodeText(child).trim()
+        if (t) textParts.push(t)
+      }
+    }
+    if (textParts.length) items.push({ text: textParts.join(' '), depth })
+
+    for (let i = 0; i < children.length; i++) {
+      const child = children[i]
+      if (child.nodeType === 1 && child.localName === 'list') {
+        extractListItems(child, depth + 1, items)
+      }
+    }
+  }
+}
+
 // Extrait le texte des lignes de la table des matières (si présente), pour
 // aider à repérer où la vraie structure démarre : le liminaire (page de
 // titre, auteur...) n'y figure normalement pas.
@@ -289,6 +356,7 @@ function buildFlatNodes(xmlContent: string): {
   if (!body) throw new Error('Impossible de trouver le corps du document ODT')
 
   const pageBreakStyles = buildPageBreakStyles(doc)
+  const listStyles = buildListStyles(doc)
   const tocTexts = extractTocTexts(doc)
 
   const rawNodes: any[] = []
@@ -317,6 +385,25 @@ function buildFlatNodes(xmlContent: string): {
 
   for (const node of rawNodes) {
     const localName = node.localName
+
+    if (localName === 'list') {
+      const items: ListItemEntry[] = []
+      extractListItems(node, 0, items)
+      if (items.length) {
+        const styleName = node.getAttribute('text:style-name') || ''
+        flatNodes.push({
+          index: flatNodes.length,
+          kind: 'list',
+          level: 0,
+          text: '',
+          styleName,
+          hasPageBreak: false,
+          listItems: items,
+          listOrdered: listStyles.get(styleName) ?? false,
+        })
+      }
+      continue
+    }
 
     if (localName === 'p' || localName === 'h') {
       const styleName = node.getAttribute('text:style-name') || ''
@@ -428,8 +515,12 @@ function buildParsedResult(
     return s
   }
 
+  function entryPlainText(entry: TexteEntry): string {
+    return entry.type === 'list' ? entry.items.map((item) => item.text).join('\n') : entry.text
+  }
+
   function fullText(node: ParsedNode): string {
-    return [node.texte.join('\n'), ...node.children.map(fullText)].join('\n')
+    return [node.texte.map(entryPlainText).join('\n'), ...node.children.map(fullText)].join('\n')
   }
 
   function closeTo(level: number) {
@@ -454,6 +545,18 @@ function buildParsedResult(
     if (node.kind === 'table') {
       const current = stack[stack.length - 1]
       if (current) current.tableau = node.tableData ?? null
+      continue
+    }
+
+    if (node.kind === 'list') {
+      const items = node.listItems ?? []
+      const current = stack[stack.length - 1]
+      if (current) {
+        current.texte.push({ type: 'list', ordered: node.listOrdered ?? false, items })
+      } else {
+        paragraphesPreambule++
+        result.preambule.push(items.map((item) => item.text).join('\n'))
+      }
       continue
     }
 
@@ -493,7 +596,7 @@ function buildParsedResult(
       if (/highlight|surlign/i.test(node.styleName)) {
         current.pistes.push(text)
       }
-      current.texte.push(text)
+      current.texte.push({ type: 'paragraph', text })
     } else {
       paragraphesPreambule++
       result.preambule.push(text)

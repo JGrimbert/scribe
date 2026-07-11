@@ -75,12 +75,23 @@ export function createFragmentApi(blockRegistry, fragmentMap, blockFragments) {
                 return
             }
             const [first, ...rest] = pieces
-            const sep = joinNeedsSpace(glued[glued.length - 1], first) ? ' ' : ''
-            glued[glued.length - 1] += sep + first
+            // Les fragments d'un même bloc partagent toujours le même type
+            // (Paged.js les a produits en coupant physiquement UN bloc
+            // d'origine, jamais en recomposant deux blocs différents) :
+            // pas besoin de garde de compatibilité de type ici. Pour une
+            // liste, on concatène les items (pas de perte des bords de
+            // <li>) ; pour un paragraphe, on recolle le texte comme avant.
+            const last = glued[glued.length - 1]
+            if (last.type === 'list' && first.type === 'list') {
+                glued[glued.length - 1] = { type: 'list', ordered: last.ordered, items: [...last.items, ...first.items] }
+            } else {
+                const sep = joinNeedsSpace(entryText(last), entryText(first)) ? ' ' : ''
+                glued[glued.length - 1] = { type: 'paragraph', text: entryText(last) + sep + entryText(first) }
+            }
             glued.push(...rest)
         })
 
-        const assembled = glued.map(p => `<p>${p}</p>`).join('')
+        const assembled = glued.map(renderTexteEntry).join('')
 
         blockRegistry.get(blockId)?.setHtml(assembled)
     }
@@ -161,16 +172,60 @@ function joinNeedsSpace(prevHtml, nextHtml) {
     return prevText !== '' && nextText !== '' && !/\s$/.test(prevText) && !/^\s/.test(nextText)
 }
 
+// Une entrée de `owner.texte[]` : { type: 'paragraph', text } ou
+// { type: 'list', ordered, items: [{ text, depth }] } — cf.
+// backend/src/import/odt-parser.ts (TexteEntry) dont ce format est le
+// pendant frontend. `depth` suit la convention Quill (classes ql-indent-N
+// sur des <li> à plat, pas de <ul>/<ol> imbriqués).
+
+function parseListItems(listEl) {
+    return [...listEl.children].map((li) => {
+        const match = /ql-indent-(\d+)/.exec(li.className || '')
+        return { text: li.innerHTML, depth: match ? parseInt(match[1], 10) : 0 }
+    })
+}
+
+// Découpe le HTML produit par Quill en entrées `texte[]` : un <ul>/<ol> de
+// haut niveau devient UNE entrée liste (tous ses <li>), tout le reste
+// (typiquement des <p>) devient une entrée paragraphe par élément —
+// symétrique de renderTexteEntry.
 export function extractParagraphs(html) {
 
     const tmp = document.createElement('div')
     tmp.innerHTML = html
 
-    const ps = [...tmp.querySelectorAll('p')]
+    const children = [...tmp.children]
 
-    if (ps.length) {
-        return ps.map(p => p.innerHTML)
+    if (children.length) {
+        return children.map((el) => {
+            if (el.tagName === 'UL' || el.tagName === 'OL') {
+                return { type: 'list', ordered: el.tagName === 'OL', items: parseListItems(el) }
+            }
+            return { type: 'paragraph', text: el.innerHTML }
+        })
     }
 
-    return [tmp.innerHTML]
+    return [{ type: 'paragraph', text: tmp.innerHTML }]
+}
+
+// Inverse d'extractParagraphs : reconstruit le HTML d'une entrée texte[]
+// pour l'affichage/l'édition (buildBlocks, setFragment).
+export function renderTexteEntry(entry) {
+    if (entry.type === 'list') {
+        const tag = entry.ordered ? 'ol' : 'ul'
+        const items = entry.items
+            .map((item) => `<li${item.depth > 0 ? ` class="ql-indent-${item.depth}"` : ''}>${item.text}</li>`)
+            .join('')
+        return `<${tag}>${items}</${tag}>`
+    }
+    return `<p>${entry.text}</p>`
+}
+
+// Texte "adressable" par offset de caractère d'une entrée — pour un
+// paragraphe, son HTML brut ; pour une liste, la concaténation du HTML de
+// ses items (sans séparateur, cf. renderTexteEntry). Même limitation déjà
+// documentée pour les paragraphes : une longueur de chaîne HTML brute, pas
+// un compte de caractères visibles.
+export function entryText(entry) {
+    return entry.type === 'list' ? entry.items.map((item) => item.text).join('') : entry.text
 }

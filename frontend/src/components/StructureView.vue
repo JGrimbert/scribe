@@ -14,19 +14,20 @@
         <div v-for="axe in axes" :key="axe.id" class="axe">
           <h2
               class="axe-title"
-              :class="{ 'axe-title--current': axe.id === axeId }"
-              @click="selectAxe(axe.id)"
+              :class="{ 'axe-title--current': axe.id === nodeId }"
+              @click="selectNode(axe.id)"
           >
             {{ axe.titre }}
           </h2>
 
-          <div v-if="axe.id === axeId" class="children">
+          <div v-if="isAncestorOfCurrent(axe)" class="children">
             <StructureNode
                 v-for="child in axe.children"
                 :key="child.id"
                 :node="child"
                 :depth="0"
-                @open="$emit('openNode', $event)"
+                :current-node-id="nodeId"
+                @open="selectNode"
             />
           </div>
         </div>
@@ -45,10 +46,8 @@ import StructureNode from './StructureNode.vue'
 const props = defineProps({
   trame: Object,
   data: Object,
-  axeId: String,
+  nodeId: String,
 })
-
-defineEmits(['openNode'])
 
 const route = useRoute()
 const router = useRouter()
@@ -67,8 +66,17 @@ const axes = computed(() => {
   return props.trame.axes.map(resolve)
 })
 
-function selectAxe(axeId) {
-  router.push(`/documents/${route.params.id}/axe/${axeId}`)
+function containsNode(node, id) {
+  if (node.id === id) return true
+  return node.children.some((child) => containsNode(child, id))
+}
+
+function isAncestorOfCurrent(axe) {
+  return !!props.nodeId && containsNode(axe, props.nodeId)
+}
+
+function selectNode(nodeId) {
+  router.push(`/documents/${route.params.id}/noeud/${nodeId}`)
 }
 </script>
 

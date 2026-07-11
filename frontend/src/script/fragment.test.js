@@ -1,13 +1,43 @@
 import { describe, it, expect } from 'vitest'
-import { extractParagraphs, createFragmentApi } from './fragment.js'
+import { extractParagraphs, renderTexteEntry, entryText, createFragmentApi } from './fragment.js'
 
 describe('extractParagraphs', () => {
     it("découpe un HTML en paragraphes d'après les balises <p>", () => {
-        expect(extractParagraphs('<p>Un</p><p>Deux</p>')).toEqual(['Un', 'Deux'])
+        expect(extractParagraphs('<p>Un</p><p>Deux</p>')).toEqual([
+            { type: 'paragraph', text: 'Un' },
+            { type: 'paragraph', text: 'Deux' },
+        ])
     })
 
     it("renvoie le HTML entier comme unique paragraphe s'il n'y a pas de <p>", () => {
-        expect(extractParagraphs('texte brut')).toEqual(['texte brut'])
+        expect(extractParagraphs('texte brut')).toEqual([{ type: 'paragraph', text: 'texte brut' }])
+    })
+
+    it('reconnaît une liste à puces (<ul>) comme une seule entrée liste', () => {
+        expect(extractParagraphs('<ul><li>Un</li><li>Deux</li></ul>')).toEqual([
+            { type: 'list', ordered: false, items: [{ text: 'Un', depth: 0 }, { text: 'Deux', depth: 0 }] },
+        ])
+    })
+
+    it('reconnaît une liste numérotée (<ol>) et préserve la profondeur (classes ql-indent-N)', () => {
+        expect(extractParagraphs('<ol><li>Un</li><li class="ql-indent-1">Un-a</li></ol>')).toEqual([
+            { type: 'list', ordered: true, items: [{ text: 'Un', depth: 0 }, { text: 'Un-a', depth: 1 }] },
+        ])
+    })
+})
+
+describe('renderTexteEntry / entryText', () => {
+    it('rend une entrée paragraphe en <p>', () => {
+        expect(renderTexteEntry({ type: 'paragraph', text: 'Bonjour' })).toBe('<p>Bonjour</p>')
+    })
+
+    it('rend une entrée liste imbriquée en <ul>/<ol> avec les classes ql-indent-N', () => {
+        const entry = { type: 'list', ordered: true, items: [{ text: 'Un', depth: 0 }, { text: 'Un-a', depth: 1 }] }
+        expect(renderTexteEntry(entry)).toBe('<ol><li>Un</li><li class="ql-indent-1">Un-a</li></ol>')
+    })
+
+    it('extrait le texte adressable d\'une liste (concaténation des items, sans séparateur)', () => {
+        expect(entryText({ type: 'list', ordered: false, items: [{ text: 'Un', depth: 0 }, { text: 'Deux', depth: 0 }] })).toBe('UnDeux')
     })
 })
 
@@ -82,6 +112,27 @@ describe('createFragmentApi setFragment', () => {
         api.setFragment(frag0.fragId, '<p>Bonjour</p><p> le monde.</p>')
 
         expect(savedHtml).toBe('<p>Bonjour</p><p> le monde.</p>')
+    })
+
+    it('recolle une liste scindée par la pagination sans perdre les bords de <li>', () => {
+        const blockId = 'art__texte__0'
+        const frag0 = makeFragment(blockId, 0, '<ul><li>Un</li><li>Deux</li></ul>')
+        const frag1 = makeFragment(blockId, 1, '<ul><li>Trois</li></ul>')
+
+        const fragmentMap = new Map([
+            [frag0.fragId, frag0],
+            [frag1.fragId, frag1],
+        ])
+        const blockFragments = new Map([[blockId, [frag0.fragId, frag1.fragId]]])
+
+        let savedHtml = null
+        const blockRegistry = new Map([[blockId, { setHtml: (html) => { savedHtml = html } }]])
+
+        const api = createFragmentApi(blockRegistry, fragmentMap, blockFragments)
+
+        api.setFragment(frag1.fragId, '<ul><li>Trois, modifié</li></ul>')
+
+        expect(savedHtml).toBe('<ul><li>Un</li><li>Deux</li><li>Trois, modifié</li></ul>')
     })
 
     it('getBlockId retrouve le bloc propriétaire à partir d\'un fragId', () => {
