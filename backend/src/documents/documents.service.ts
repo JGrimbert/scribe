@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common'
+import { Prisma } from '@prisma/client'
 import { randomUUID } from 'crypto'
 import { PrismaService } from '../prisma/prisma.service'
 import {
@@ -58,40 +59,44 @@ export class DocumentsService {
         },
       })
 
-      const createNode = (item: HarmonizedItem, parentId: string | null, position: number) =>
-        tx.node.create({
-          data: {
-            id: item.id,
-            documentId: doc.id,
-            level: item.level,
-            parentId,
-            position,
-            titre: item.titre,
-            slug: item.slug,
-            indexGlobal: item.indexGlobal,
-            connexe: item.connexe ?? undefined,
-            mots: item.stats?.mots ?? null,
-            caracteres: item.stats?.caracteres ?? null,
-            paragraphs: {
-              create: item.texte.map((entry, i) =>
-                entry.type === 'list'
-                  ? { position: i, type: 'LIST' as const, ordered: entry.ordered, content: JSON.stringify(entry.items) }
-                  : { position: i, type: 'TEXT' as const, content: entry.text },
-              ),
-            },
-          },
+      // Ids déjà stables (harmonize), parentId/position en colonnes : on aplatit
+      // l'arbre en deux tableaux et on insère en deux createMany plutôt qu'un
+      // create par nœud. DFS pré-ordre → chaque parent précède ses enfants dans
+      // nodeRows, donc la FK auto-référente Node.parentId est satisfaite ligne à
+      // ligne. Évite la cascade d'allers-retours qui dépassait le timeout de
+      // transaction Prisma (5 s) sur un gros document.
+      const nodeRows: Prisma.NodeCreateManyInput[] = []
+      const paragraphRows: Prisma.ParagraphCreateManyInput[] = []
+
+      const collect = (node: TrameNode, parentId: string | null, position: number) => {
+        const item = data[node.id]
+        nodeRows.push({
+          id: item.id,
+          documentId: doc.id,
+          level: item.level,
+          parentId,
+          position,
+          titre: item.titre,
+          slug: item.slug,
+          indexGlobal: item.indexGlobal,
+          connexe: item.connexe ?? undefined,
+          mots: item.stats?.mots ?? null,
+          caracteres: item.stats?.caracteres ?? null,
         })
-
-      async function createTree(node: TrameNode, parentId: string | null, position: number) {
-        await createNode(data[node.id], parentId, position)
-        for (let i = 0; i < node.children.length; i++) {
-          await createTree(node.children[i], node.id, i)
-        }
+        item.texte.forEach((entry, i) =>
+          paragraphRows.push(
+            entry.type === 'list'
+              ? { nodeId: item.id, position: i, type: 'LIST', ordered: entry.ordered, content: JSON.stringify(entry.items) }
+              : { nodeId: item.id, position: i, type: 'TEXT', content: entry.text },
+          ),
+        )
+        node.children.forEach((child, i) => collect(child, node.id, i))
       }
 
-      for (let axeIndex = 0; axeIndex < trame.axes.length; axeIndex++) {
-        await createTree(trame.axes[axeIndex], null, axeIndex)
-      }
+      trame.axes.forEach((axe, i) => collect(axe, null, i))
+
+      await tx.node.createMany({ data: nodeRows })
+      await tx.paragraph.createMany({ data: paragraphRows })
 
       return doc
     })
