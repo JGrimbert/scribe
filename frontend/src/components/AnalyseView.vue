@@ -8,19 +8,23 @@
            toutes les analyses (chaque card affiche son spinner quand vient
            son tour). -->
       <div class="stats-banner">
-        <StatItem v-for="item in statItems" :key="item.label" :value="item.value" :label="item.label" />
-        <UiNote v-if="!statItems.length" variant="hint">
-          Statistiques globales indisponibles — lancer les analyses.
-        </UiNote>
+        <StatItem
+            v-for="item in statItems"
+            :key="item.label"
+            :value="item.value"
+            :label="item.label"
+            :hint="item.hint"
+            :empty="item.empty"
+        />
 
         <BaseButton
-            variant="accent"
+            variant="solid-alt"
             class="run-all"
             :icon="running ? null : 'pi-play'"
             :busy="!!running"
             @click="runAll"
         >
-          {{ running ? `Analyse : ${STEP_LABELS[running]}…` : hasAny ? 'Relancer les analyses' : 'Lancer les analyses' }}
+          {{ running ? `Analyse : ${STEP_LABELS[running]}…` : hasAny ? 'Relancer l’analyse' : 'Lancer l’analyse' }}
         </BaseButton>
       </div>
 
@@ -35,7 +39,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, watch } from 'vue'
+import { computed, inject, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { provideAnalyse } from '../composables/useAnalyse'
 import { formatInt, formatPercent } from '../script/format'
@@ -56,6 +60,11 @@ const STEP_LABELS = {
 const route = useRoute()
 const { loading, error, analysis, running, fetchAnalysis, runAll } = provideAnalyse()
 
+// Structure du document (fournie par DocumentLayout) : source des stats
+// structurelles (caractères, paragraphes, chapitres), absentes du NLP.
+const trame = inject('documentTrame', ref(null))
+const data = inject('documentData', ref(null))
+
 onMounted(fetchAnalysis)
 watch(() => route.params.id, (id) => { if (id) fetchAnalysis() })
 
@@ -64,16 +73,52 @@ const hasAny = computed(() => {
   return !!(a?.lexical || a?.semantic || a?.topics)
 })
 
+// Caractères/mots déjà agrégés récursivement côté backend (somme sur les axes
+// de tête = total) ; paragraphes et chapitres (tous les nœuds-titres) en un
+// seul parcours de l'arbre.
+const structure = computed(() => {
+  const axes = trame.value?.axes
+  const d = data.value
+  if (!axes || !d) return null
+
+  let caracteres = 0
+  let paragraphes = 0
+  let titres = 0
+  const walk = (node) => {
+    titres++
+    paragraphes += d[node.id]?.texte?.length ?? 0
+    node.children.forEach(walk)
+  }
+  for (const axe of axes) {
+    caracteres += d[axe.id]?.stats?.caracteres ?? 0
+    walk(axe)
+  }
+  return { caracteres, paragraphes, titres }
+})
+
+const HINTS = {
+  lemmes: 'Formes de base distinctes — un lemme regroupe les flexions d’un mot (chante, chantait → chanter).',
+  diversite: 'TTR : mots distincts / mots totaux. Plus c’est élevé, plus le vocabulaire est varié.',
+  densite: 'Part des mots porteurs de sens (noms, verbes, adjectifs, adverbes) sur le total.',
+}
+
+// Ligne toujours affichée : chaque tuile porte sa valeur si calculée, sinon
+// « — » centré (StatItem `empty`). Structure dispo dès le chargement, stats
+// NLP après l'analyse lexicale.
 const statItems = computed(() => {
   const g = analysis.value?.lexical?.global
-  if (!g) return []
+  const s = structure.value
+  const tile = (label, value, hint = null) => ({ label, value, hint, empty: value == null })
   return [
-    { label: 'mots', value: formatInt(g.words) },
-    { label: 'phrases', value: formatInt(g.sentences) },
-    { label: 'lemmes uniques', value: formatInt(g.uniqueLemmas) },
-    { label: 'mots / phrase', value: g.avgSentenceLength.toLocaleString('fr') },
-    { label: 'diversité (TTR)', value: formatPercent(g.ttr) },
-    { label: 'densité lexicale', value: formatPercent(g.lexicalDensity) },
+    tile('caractères', s ? formatInt(s.caracteres) : null),
+    tile('mots', g ? formatInt(g.words) : null),
+    tile('phrases', g ? formatInt(g.sentences) : null),
+    tile('paragraphes', s ? formatInt(s.paragraphes) : null),
+    tile('chapitres', s ? formatInt(s.titres) : null),
+    tile('lemmes', g ? formatInt(g.uniqueLemmas) : null, HINTS.lemmes),
+    tile('mots / phrase', g ? g.avgSentenceLength.toLocaleString('fr') : null),
+    tile('diversité', g ? formatPercent(g.ttr) : null, HINTS.diversite),
+    tile('densité', g ? formatPercent(g.lexicalDensity) : null, HINTS.densite),
   ]
 })
 </script>
@@ -87,6 +132,8 @@ const statItems = computed(() => {
   padding: 1.25em;
 }
 
+/* Tuiles + bouton se partagent 100 % de la largeur (chaque case flex: 1,
+   min 8em, retour à la ligne au besoin). */
 .stats-banner {
   display: flex;
   align-items: stretch;
@@ -95,9 +142,13 @@ const statItems = computed(() => {
   margin-bottom: 1em;
 }
 
+.stats-banner > * {
+  flex: 1 1 8em;
+}
+
+/* Le bouton « Relancer » est la dernière case, centré comme une tuile. */
 .run-all {
-  margin-left: auto;
-  align-self: center;
+  justify-content: center;
 }
 
 /* Les cards « wide » (grid-column: 1 / -1) forcent un retour à la ligne ;

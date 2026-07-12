@@ -4,7 +4,7 @@ export default {
   title: 'Atoms/BaseButton',
   component: BaseButton,
   argTypes: {
-    variant: { control: 'select', options: ['accent', 'solid', 'outline', 'ghost'] },
+    variant: { control: 'select', options: ['accent', 'solid', 'solid-alt', 'outline', 'ghost'] },
   },
 }
 
@@ -22,6 +22,12 @@ export const Accent = {
 export const Solid = {
   args: { variant: 'solid' },
   render: render("Valider l'import"),
+}
+
+// Solid en couleur complémentaire (teal) — ex : « Relancer l'analyse ».
+export const SolidAlt = {
+  args: { variant: 'solid-alt', icon: 'pi-play' },
+  render: render("Relancer l'analyse"),
 }
 
 export const Outline = {

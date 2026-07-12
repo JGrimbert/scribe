@@ -24,6 +24,10 @@
     --c-ink2: #5a5047;
     --c-accent: #7c4f2a;
     --c-accent2: #c8a96e;
+    /* Complémentaire du brun dominant (teal/pétrole) — pour réveiller l'UI
+       trop monochrome : accents ponctuels (boutons, pastilles). */
+    --c-accent-alt: #2a6f7c;
+    --c-accent-alt-ink: #ffffff;
     --c-border: #e0d8cc;
     --c-muted: #8a7f72;
     --c-danger: #b3261e;

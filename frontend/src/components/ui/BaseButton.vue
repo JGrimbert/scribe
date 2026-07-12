@@ -20,7 +20,7 @@ defineProps({
   variant: {
     type: String,
     default: 'outline',
-    validator: (v) => ['accent', 'solid', 'outline', 'ghost'].includes(v),
+    validator: (v) => ['accent', 'solid', 'solid-alt', 'outline', 'ghost'].includes(v),
   },
   icon: { type: String, default: null },
   busy: { type: Boolean, default: false },
@@ -72,6 +72,16 @@ defineProps({
 }
 
 .base-button--solid:hover:not(:disabled) {
+  filter: brightness(1.12);
+}
+
+.base-button--solid-alt {
+  background: var(--c-accent-alt);
+  border-color: var(--c-accent-alt);
+  color: var(--c-accent-alt-ink);
+}
+
+.base-button--solid-alt:hover:not(:disabled) {
   filter: brightness(1.12);
 }
 
