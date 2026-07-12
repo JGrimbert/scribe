@@ -20,6 +20,20 @@ export const Simple = {
   }),
 }
 
+// Sans titre : en-tête non rendu, le contenu occupe toute la card (ex : nuage).
+export const SansTitre = {
+  args: {},
+  render: (args) => ({
+    components: { UiCard },
+    setup: () => ({ args }),
+    template: `
+      <UiCard v-bind="args">
+        <p>Card sans en-tête.</p>
+      </UiCard>
+    `,
+  }),
+}
+
 export const Busy = {
   args: { title: 'Analyse linguistique', busy: true },
   render: (args) => ({

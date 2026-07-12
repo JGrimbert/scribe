@@ -29,10 +29,13 @@
       </div>
 
       <div class="dashboard-grid">
-        <VocabulaireCard />
-        <LexicalCard />
-        <SemantiqueCard />
-        <ThemesCard />
+        <VocabulaireCard :class="{ 'dashboard-grid__full': focusCloud }" />
+        <!-- TEMPORAIRE : isole le nuage le temps de le retravailler. -->
+        <template v-if="!focusCloud">
+          <LexicalCard />
+          <SemantiqueCard />
+          <ThemesCard />
+        </template>
       </div>
     </template>
   </div>
@@ -56,6 +59,10 @@ const STEP_LABELS = {
   semantic: 'proximité sémantique',
   topics: 'thèmes',
 }
+
+// TEMPORAIRE : n'affiche que le nuage (pleine largeur) le temps de le
+// retravailler. Repasser à false pour retrouver le dashboard complet.
+const focusCloud = true
 
 const route = useRoute()
 const { loading, error, analysis, running, fetchAnalysis, runAll } = provideAnalyse()
@@ -159,5 +166,9 @@ const statItems = computed(() => {
   grid-auto-flow: dense;
   gap: 1em;
   align-items: start;
+}
+
+.dashboard-grid__full {
+  grid-column: 1 / -1;
 }
 </style>

@@ -1,5 +1,5 @@
 <template>
-  <UiCard title="Vocabulaire" bare :busy="running === 'lexical'">
+  <UiCard bare :busy="running === 'lexical'">
     <UiNote v-if="stepErrors.lexical" variant="error">{{ stepErrors.lexical }}</UiNote>
     <UiNote v-if="!lexical">Analyse linguistique pas encore calculée pour ce document.</UiNote>
     <UiNote v-else-if="!lemmas">
@@ -7,6 +7,36 @@
     </UiNote>
 
     <template v-else>
+      <UiNote v-if="!filteredWords.length" variant="hint">
+        Aucun mot pour cette sélection de natures grammaticales.
+      </UiNote>
+
+      <svg
+          v-else
+          class="viz vocab-cloud"
+          :viewBox="`0 0 ${CLOUD_W} ${CLOUD_H}`"
+          role="img"
+          aria-label="Nuage des lemmes les plus fréquents"
+      >
+        <g :transform="`translate(${CLOUD_W / 2}, ${CLOUD_H / 2})`">
+          <text
+              v-for="word in placedWords"
+              :key="word.text"
+              class="cloud-word"
+              :class="{ 'cloud-word--alt': word.alt }"
+              :transform="`translate(${word.x}, ${word.y})`"
+              :style="wordStyle(word)"
+              @mouseenter="hovered = word.text"
+              @mouseleave="hovered = null"
+              @click="toggle(word.text)"
+          >
+            {{ word.text }}
+            <title>{{ word.text }} — {{ word.count }} occurrence{{ word.count > 1 ? 's' : '' }}</title>
+          </text>
+        </g>
+      </svg>
+
+      <!-- Filtres sous le nuage. -->
       <ChipGroup title="Nature grammaticale" :meta="`${filteredWords.length} mots affichés`">
         <BaseChip
             v-for="filter in POS_FILTERS"
@@ -19,34 +49,8 @@
         </BaseChip>
       </ChipGroup>
 
-      <UiNote v-if="!filteredWords.length" variant="hint">
-        Aucun mot pour cette sélection de natures grammaticales.
-      </UiNote>
-
-      <svg
-          v-else
-          class="viz"
-          :viewBox="`0 0 ${CLOUD_W} ${CLOUD_H}`"
-          role="img"
-          aria-label="Nuage des lemmes les plus fréquents"
-      >
-        <g :transform="`translate(${CLOUD_W / 2}, ${CLOUD_H / 2})`">
-          <text
-              v-for="word in placedWords"
-              :key="word.text"
-              class="cloud-word"
-              :class="{ 'cloud-word--active': selected === word.text, 'cloud-word--alt': word.alt }"
-              :transform="`translate(${word.x}, ${word.y}) rotate(${word.rotate})`"
-              :font-size="word.size"
-              @click="selected = selected === word.text ? null : word.text"
-          >
-            {{ word.text }}
-            <title>{{ word.text }} — {{ word.count }} occurrence{{ word.count > 1 ? 's' : '' }}</title>
-          </text>
-        </g>
-      </svg>
-
-      <div v-if="selectedEntry" class="word-detail">
+      <!-- TEMPORAIRE : détail masqué le temps de retravailler le nuage. -->
+      <div v-if="selectedEntry && !FOCUS_CLOUD" class="word-detail">
         <h3>« {{ selectedEntry.lemma }} » — {{ selectedEntry.count }} occurrence{{ selectedEntry.count > 1 ? 's' : '' }}</h3>
         <NodesTable :nodes="selectedEntry.nodes" @open="goToNode" />
       </div>
@@ -66,9 +70,15 @@ import { useAnalyse } from '../../composables/useAnalyse'
 
 const { analysis, running, stepErrors, goToNode } = useAnalyse()
 
-const MAX_WORDS = 90
-const CLOUD_W = 620
-const CLOUD_H = 440
+// TEMPORAIRE : isole le nuage (masque le détail par article) le temps de le
+// retravailler. Repasser à false pour réafficher.
+const FOCUS_CLOUD = true
+
+const MAX_WORDS = 80
+// Canvas volontairement large et bas (≈2.2:1) : le nuage respire en bande
+// horizontale plutôt qu'en pavé carré.
+const CLOUD_W = 920
+const CLOUD_H = 420
 
 // Regroupe les POS spaCy en catégories UI. Noms communs et noms propres sont
 // fusionnés sous « Noms » (l'utilisateur ne distingue pas les deux à l'œil).
@@ -83,6 +93,7 @@ const POS_TO_KEY = Object.fromEntries(POS_FILTERS.flatMap((f) => f.pos.map((p) =
 // Adverbes décochés par défaut : souvent peu porteurs de sens.
 const active = reactive({ nom: true, adj: true, verbe: true, adverbe: false })
 const selected = ref(null)
+const hovered = ref(null)
 
 const lexical = computed(() => analysis.value?.lexical ?? null)
 const lemmas = computed(() => lexical.value?.lemmas ?? null)
@@ -106,6 +117,24 @@ const selectedEntry = computed(
   () => lemmas.value?.find((lemma) => lemma.lemma === selected.value) ?? null,
 )
 
+function toggle(text) {
+  selected.value = selected.value === text ? null : text
+}
+
+// Animation : on ne joue que sur taille + graisse (pas de soulignage). La
+// taille est transitionnée en CSS ; le grossissement peut chevaucher les
+// voisins, effet « pop » assumé (le layout d3 reste figé).
+function wordStyle(word) {
+  const isActive = word.text === selected.value
+  const isHover = word.text === hovered.value
+  const factor = isActive ? 1.35 : isHover ? 1.18 : 1
+  return {
+    fontSize: `${word.size * factor}px`,
+    fontWeight: isActive ? 700 : isHover ? 600 : 400,
+    fillOpacity: isActive || isHover ? 1 : 0.85,
+  }
+}
+
 // ── Layout du nuage (d3-cloud) ──
 
 // PRNG déterministe (mulberry32) injecté dans d3-cloud : même vocabulaire →
@@ -126,10 +155,9 @@ const placedWords = ref([])
 
 // Échelle en racine carrée : les fréquences sont très déséquilibrées, une
 // échelle linéaire écraserait tous les mots sauf le premier. Spirale
-// archimédienne + nombre de mots plafonné : le nuage se remplit du centre
-// vers l'extérieur en blob elliptique plutôt qu'en pavage rectangulaire.
-// d3-cloud écarte silencieusement les mots qui ne tiennent plus — acceptable,
-// ce sont les moins fréquents.
+// archimédienne + padding généreux : le nuage se remplit du centre vers
+// l'extérieur en blob elliptique, aéré. d3-cloud écarte silencieusement les
+// mots qui ne tiennent plus — acceptable, ce sont les moins fréquents.
 watch(
   filteredWords,
   (words) => {
@@ -143,11 +171,11 @@ watch(
       .words(words.map((w, i) => ({
         text: w.lemma,
         count: w.count,
-        size: Math.round(12 + (Math.sqrt(w.count) / maxSqrt) * 36),
+        size: Math.round(16 + (Math.sqrt(w.count) / maxSqrt) * 48),
         alt: i % 3 === 1, // deux encres alternées, purement décoratif
       })))
       .spiral('archimedean')
-      .padding(3)
+      .padding(6)
       .rotate(() => 0)
       .font('Georgia')
       .fontSize((d) => d.size)
@@ -160,10 +188,8 @@ watch(
 </script>
 
 <style scoped>
-.viz {
-  display: block;
-  width: 100%;
-  height: auto;
+.vocab-cloud {
+  overflow: visible; /* le grossissement au survol peut dépasser le viewBox */
 }
 
 .cloud-word {
@@ -171,18 +197,12 @@ watch(
   text-anchor: middle;
   fill: var(--c-accent);
   cursor: pointer;
+  /* Fluide : seule la taille est transitionnée en continu (la graisse saute,
+     Georgia n'a pas de poids intermédiaires). */
+  transition: font-size 0.35s cubic-bezier(0.22, 1, 0.36, 1), fill-opacity 0.3s ease, fill 0.3s ease;
 }
 
 .cloud-word--alt {
   fill: var(--c-ink2);
-}
-
-.cloud-word:hover,
-.cloud-word--active {
-  text-decoration: underline;
-}
-
-.cloud-word--active {
-  font-weight: 700;
 }
 </style>

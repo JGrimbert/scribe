@@ -1,7 +1,7 @@
 <template>
   <section class="ui-card" :class="{ 'ui-card--wide': wide, 'ui-card--bare': bare }">
-    <header class="ui-card__header">
-      <h2>{{ title }}</h2>
+    <header v-if="title || busy" class="ui-card__header">
+      <h2 v-if="title">{{ title }}</h2>
       <i v-if="busy" class="pi pi-spin pi-spinner ui-card__busy"></i>
     </header>
 
@@ -13,7 +13,8 @@
 
 <script setup>
 defineProps({
-  title: { type: String, required: true },
+  // optionnel : sans titre (ni busy), l'en-tête n'est pas rendu du tout
+  title: { type: String, default: null },
   wide: { type: Boolean, default: false },
   // sans fond/bordure/flou : la card se fond dans la grille (ex : nuage de mots)
   bare: { type: Boolean, default: false },
