@@ -15,6 +15,9 @@
     --c-surface2: #f2ede6;
     --c-surface3: rgba(255, 255, 255, 0.6);
     --c-surface4: rgba(255, 255, 255, 0.2);
+    /* Survol chaud des barres (topbar/fil d'Ariane) — teinte accent très diluée,
+       remplace le blanc translucide qui jurait sur les fonds sable. */
+    --c-hover: color-mix(in srgb, var(--c-accent) 10%, transparent);
 
     --c-backdrop-filter-blur: blur(3px);
 
@@ -68,6 +71,11 @@
     --radius-md: 4px;
     --radius-pill: 999px;
 
+    /* Relief — ombre très légère et chaude sous la topbar */
+    --shadow-bar: 0 2px 5px rgba(74, 48, 22, 0.1);
+    /* Ombre de popover (menu de styles) — plus marquée, même teinte chaude */
+    --shadow-pop: 0 6px 20px rgba(74, 48, 22, 0.18);
+
     /* Emphases (opacité des textes/icônes secondaires) */
     --op-faint: 0.35;
     --op-muted: 0.6;
@@ -81,6 +89,36 @@ body {
     background-image: url("/sand-1783861576005.png");
     background-repeat: repeat;
     color: var(--c-ink);
+}
+
+/* ── Barres harmonisées : topbar + fil d'Ariane ───────────
+   Corps de texte espresso (tranche sur le fond sable vif, contrairement à
+   --c-ink2 qui s'y noyait).
+
+   --c-bar-accent = accent de PREMIER PLAN (wordmark, plume, item courant, vue
+   active). Volontairement distinct de --c-accent : les fonds ::before des deux
+   barres restent dérivés de --c-accent (brun), donc changer de thème ne touche
+   jamais au fond. Thématisé via [data-bar-theme] sur .app (menu de l'engrenage) ;
+   seules ces deux barres sont concernées, pas le reste de l'app. */
+.menu,
+.doc-bar {
+    --c-ink2: #2e1e12;
+    --c-bar-accent: var(--c-accent); /* repli brun si aucun thème */
+}
+
+.app[data-bar-theme="teal"] .menu,
+.app[data-bar-theme="teal"] .doc-bar {
+    --c-bar-accent: var(--c-accent-alt);
+}
+
+.app[data-bar-theme="caramel"] .menu,
+.app[data-bar-theme="caramel"] .doc-bar {
+    --c-bar-accent: #b5551a;
+}
+
+.app[data-bar-theme="espresso"] .menu,
+.app[data-bar-theme="espresso"] .doc-bar {
+    --c-bar-accent: #7a3d12;
 }
 
 /* ── Quill : toolbar flottante (couche éditeur, hors périmètre ui/) ── */

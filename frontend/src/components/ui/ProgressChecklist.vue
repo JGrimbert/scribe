@@ -85,7 +85,7 @@ const ICONS = {
    parent) pour que les couleurs d'étapes fonctionnent comme dans l'encadré. */
 .progress-checklist--compact {
   --tone: var(--c-accent);
-  --callout-ink: var(--c-ink);
+  --callout-ink: var(--c-ink2);
   display: flex;
   align-items: center;
   gap: var(--sp-2);

@@ -93,7 +93,7 @@ const checklistVisible = computed(
   display: flex;
   align-items: center;
   backdrop-filter: var(--c-backdrop-filter-blur);
-  color: var(--c-ink);
+  color: var(--c-ink2);
   overflow: hidden;
 }
 
@@ -154,22 +154,29 @@ const checklistVisible = computed(
   opacity: var(--op-soft);
   overflow: hidden;
   text-overflow: ellipsis;
+  /* Casse unifiée avec la sidebar (crumb = item flex, donc blockifié —
+     ::first-letter s'applique). */
+  text-transform: lowercase;
+}
+
+.crumb::first-letter {
+  text-transform: uppercase;
 }
 
 .crumb--root {
-  font-weight: bold;
+  font-weight: 500;
   flex-shrink: 0;
 }
 
 .crumb:hover {
   opacity: 1;
-  background: var(--c-surface3);
+  background: var(--c-hover);
 }
 
 .crumb--current {
   opacity: 1;
-  color: var(--c-accent);
-  font-weight: bold;
+  color: var(--c-bar-accent);
+  font-weight: 600;
 }
 
 .crumb-sep {
