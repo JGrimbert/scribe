@@ -29,12 +29,22 @@
         </button>
       </template>
     </nav>
+
+    <ProgressChecklist
+        v-if="checklistVisible"
+        compact
+        class="doc-bar__checklist"
+        :items="checklistItems"
+        :progress="checklistProgress"
+    />
   </div>
 </template>
 
 <script setup>
 import { computed } from 'vue'
 import { pathToInAxes } from '../script/trame'
+import ProgressChecklist from './ui/ProgressChecklist.vue'
+import { useAnalyse } from '../composables/useAnalyse'
 
 const props = defineProps({
   title: String,
@@ -55,6 +65,24 @@ const crumbs = computed(() => {
     titre: props.data[id]?.titre || '(sans titre)',
   }))
 })
+
+// Checklist de progression d'analyse (store fourni par DocumentLayout). Visible
+// seulement en mode analyse (scoped), tant que la révélation n'est pas terminée
+// ou qu'une analyse tourne.
+const analyse = useAnalyse()
+
+const checklistItems = computed(() =>
+  analyse ? analyse.steps.map((step) => ({ label: step.label, status: analyse.stepStatus(step) })) : [],
+)
+
+const checklistProgress = computed(() => {
+  const tp = analyse?.topicsProgress.value
+  return tp ? { pct: tp.pct, label: `${tp.step} (${Math.round(tp.pct)} %)` } : null
+})
+
+const checklistVisible = computed(
+  () => props.scoped && !!analyse && (!analyse.revealDone.value || analyse.running.value !== null),
+)
 </script>
 
 <style scoped>
@@ -148,5 +176,13 @@ const crumbs = computed(() => {
   flex: 0 0 auto;
   font-size: 0.7em;
   opacity: var(--op-faint);
+}
+
+/* Checklist à l'extrémité droite : le fil d'Ariane (flex 1) la pousse au bord,
+   elle tronque avant de forcer la barre à déborder. */
+.doc-bar__checklist {
+  flex: 0 1 auto;
+  min-width: 0;
+  padding-right: 0.6em;
 }
 </style>

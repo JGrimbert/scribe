@@ -34,9 +34,14 @@ import { ref, computed, provide, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import StructureView from './StructureView.vue'
 import DocumentBar from './DocumentBar.vue'
+import { provideAnalyse } from '../composables/useAnalyse'
 
 const route = useRoute()
 const router = useRouter()
+
+// Store d'analyse fourni ici (et non dans AnalyseView) : DocumentBar, monté
+// au-dessus du <router-view>, doit pouvoir le consommer pour la checklist.
+provideAnalyse()
 
 const trame = ref(null)
 const data = ref(null)

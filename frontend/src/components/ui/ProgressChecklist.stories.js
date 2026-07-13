@@ -47,6 +47,15 @@ export const Erreur = {
   },
 }
 
+// Variante bande inline (topbar) : sans encadré, une seule ligne, % en fin.
+export const Compacte = {
+  args: {
+    compact: true,
+    items: withStatus(['done', 'done', 'running', 'pending', 'pending', 'pending']),
+    progress: { pct: 42, label: 'extraction des thèmes (42 %)' },
+  },
+}
+
 // Vue d'ensemble : tous les statuts empilés pour comparer l'espacement et les
 // couleurs d'un coup d'œil.
 export const TousLesEtats = {

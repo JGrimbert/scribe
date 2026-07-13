@@ -1,5 +1,22 @@
 <template>
-  <UiCallout class="progress-checklist" tone="info">
+  <!-- Bande compacte pour la topbar : pas d'encadré, une seule ligne. -->
+  <div v-if="compact" class="progress-checklist progress-checklist--compact">
+    <i class="progress-checklist__hourglass pi pi-hourglass"></i>
+    <ul class="progress-checklist__items">
+      <li
+          v-for="(item, i) in items"
+          :key="i"
+          class="progress-checklist__item"
+          :class="`is-${item.status}`"
+      >
+        <i class="progress-checklist__icon pi" :class="ICONS[item.status]"></i>
+        <span>{{ item.label }}</span>
+      </li>
+    </ul>
+    <span v-if="progress" class="progress-checklist__pct">{{ Math.round(progress.pct) }} %</span>
+  </div>
+
+  <UiCallout v-else class="progress-checklist" tone="info">
     <template #title>
       <i class="progress-checklist__hourglass pi pi-hourglass"></i>
       <span>{{ title }}</span>
@@ -34,6 +51,8 @@ defineProps({
   items: { type: Array, default: () => [] },
   // { pct, label } d'une tâche longue, ou null
   progress: { type: Object, default: null },
+  // Rendu bande inline (topbar) plutôt que callout encadré.
+  compact: { type: Boolean, default: false },
 })
 
 const ICONS = {
@@ -59,6 +78,38 @@ const ICONS = {
   /* largeur fixe : les points qui s'effacent ne font pas « respirer » le titre */
   width: 1.1em;
   letter-spacing: 0.08em;
+}
+
+/* Variante bande : intégrée dans une rangée fine (topbar), une seule ligne qui
+   tronque au lieu de wrapper. --tone/--callout-ink fournis ici (pas de UiCallout
+   parent) pour que les couleurs d'étapes fonctionnent comme dans l'encadré. */
+.progress-checklist--compact {
+  --tone: var(--c-accent);
+  --callout-ink: var(--c-ink);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--fs-xs);
+}
+
+.progress-checklist--compact .progress-checklist__hourglass {
+  flex: 0 0 auto;
+  opacity: var(--op-soft);
+}
+
+.progress-checklist--compact .progress-checklist__items {
+  flex-wrap: nowrap;
+  column-gap: var(--sp-3);
+  min-width: 0;
+  overflow: hidden;
+}
+
+.progress-checklist__pct {
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+  opacity: var(--op-soft);
 }
 
 .progress-checklist__item {

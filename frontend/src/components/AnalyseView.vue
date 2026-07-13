@@ -28,15 +28,8 @@
     <UiNote v-if="error" variant="error">{{ error }}</UiNote>
 
     <template v-else>
-      <!-- Overlay de progression : en `absolute` dans un slot de hauteur nulle
-           pour qu'il ne réserve aucune place et ne déforme pas le layout en
-           disparaissant, une fois la révélation terminée. -->
-      <div class="checklist-slot">
-        <Transition name="checklist">
-          <AnalyseChecklist v-if="checklistVisible" />
-        </Transition>
-      </div>
-
+      <!-- La checklist de progression vit désormais dans DocumentBar (à droite
+           du fil d'Ariane), plus en overlay sur le nuage. -->
       <div class="cloud-row">
         <Transition name="reveal" appear>
           <VocabulaireCard v-if="isRevealed('cloud')" class="cloud-row__cloud" />
@@ -81,12 +74,11 @@
 <script setup>
 import { computed, inject, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { provideAnalyse } from '../composables/useAnalyse'
+import { useAnalyse } from '../composables/useAnalyse'
 import { formatInt, formatPercent } from '../script/format'
 import BaseButton from './ui/BaseButton.vue'
 import StatItem from './ui/StatItem.vue'
 import UiNote from './ui/UiNote.vue'
-import AnalyseChecklist from './analyse/AnalyseChecklist.vue'
 import VocabulaireCard from './analyse/VocabulaireCard.vue'
 import OccurrencesCard from './analyse/OccurrencesCard.vue'
 import LexicalCard from './analyse/LexicalCard.vue'
@@ -101,11 +93,7 @@ const STEP_LABELS = {
 }
 
 const route = useRoute()
-const { error, analysis, running, isRevealed, revealDone, fetchAnalysis, runAll } = provideAnalyse()
-
-// Checklist affichée tant que la révélation n'est pas finie, ou qu'une analyse
-// tourne (relance ciblée d'une étape). Disparaît ensuite (overlay absolu).
-const checklistVisible = computed(() => !revealDone.value || running.value !== null)
+const { error, analysis, running, isRevealed, fetchAnalysis, runAll } = useAnalyse()
 
 // Structure du document (fournie par DocumentLayout) : source des stats
 // structurelles (caractères, paragraphes, chapitres), absentes du NLP.
@@ -196,37 +184,6 @@ const statItems = computed(() => {
 /* Le bouton « Relancer » est la dernière case, centré comme une tuile. */
 .run-all {
   justify-content: center;
-}
-
-/* Slot de hauteur nulle : la checklist (absolue) flotte dessous sans réserver
-   d'espace, donc sa disparition ne pousse rien. */
-.checklist-slot {
-  position: relative;
-}
-
-/* Bornée à la largeur du nuage (colonne de gauche, flex 2/3) : elle peut
-   déborder sur le nuage, mais ne doit pas passer sous la card Occurrences à
-   droite. Au-dessus du contenu (z-index) pour rester lisible. */
-.checklist-slot :deep(.progress-checklist) {
-  position: absolute;
-  /* En recouvrement du nuage, mais légèrement inséré (marge) pour se détacher
-     et ne pas se confondre avec l'espacement propre au nuage. Fond opaque →
-     masque proprement les mots dessous. Largeur bornée au nuage (col. gauche). */
-  top: 0.6em;
-  left: 0.6em;
-  width: calc(65% - 1.2em);
-  margin: 0;
-  z-index: 2;
-}
-
-.checklist-enter-active,
-.checklist-leave-active {
-  transition: opacity 0.4s ease;
-}
-
-.checklist-enter-from,
-.checklist-leave-to {
-  opacity: 0;
 }
 
 /* Nuage + filtres (2/3) à gauche ; colonne droite (1/3) empilant les
