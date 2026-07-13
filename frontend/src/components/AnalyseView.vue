@@ -29,8 +29,11 @@
       </div>
 
       <div class="cloud-row">
-        <VocabulaireCard class="cloud-row__cloud" />
-        <SemantiqueCard class="cloud-row__prox" />
+        <VocabulaireCard class="cloud-row__cloud" @select="selectedWord = $event" />
+        <div class="cloud-row__side">
+          <OccurrencesCard :entry="selectedWord" />
+          <SemantiqueCard />
+        </div>
       </div>
 
       <div class="dashboard-grid">
@@ -50,6 +53,7 @@ import BaseButton from './ui/BaseButton.vue'
 import StatItem from './ui/StatItem.vue'
 import UiNote from './ui/UiNote.vue'
 import VocabulaireCard from './analyse/VocabulaireCard.vue'
+import OccurrencesCard from './analyse/OccurrencesCard.vue'
 import LexicalCard from './analyse/LexicalCard.vue'
 import SemantiqueCard from './analyse/SemantiqueCard.vue'
 import ThemesCard from './analyse/ThemesCard.vue'
@@ -62,6 +66,9 @@ const STEP_LABELS = {
 
 const route = useRoute()
 const { loading, error, analysis, running, fetchAnalysis, runAll } = provideAnalyse()
+
+// Lemme sélectionné dans le nuage (VocabulaireCard) → alimente OccurrencesCard.
+const selectedWord = ref(null)
 
 // Structure du document (fournie par DocumentLayout) : source des stats
 // structurelles (caractères, paragraphes, chapitres), absentes du NLP.
@@ -154,7 +161,8 @@ const statItems = computed(() => {
   justify-content: center;
 }
 
-/* Nuage + filtres (2/3) à gauche, table de proximité sémantique (1/3) à côté. */
+/* Nuage + filtres (2/3) à gauche ; colonne droite (1/3) empilant les
+   occurrences du mot sélectionné puis la proximité sémantique. */
 .cloud-row {
   display: flex;
   align-items: flex-start;
@@ -167,9 +175,12 @@ const statItems = computed(() => {
   min-width: 0;
 }
 
-.cloud-row__prox {
+.cloud-row__side {
   flex: 1 1 0;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1em;
 }
 
 /* Les cards « wide » (grid-column: 1 / -1) forcent un retour à la ligne ;

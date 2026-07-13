@@ -47,12 +47,6 @@
           {{ filter.label }}
         </BaseChip>
       </ChipGroup>
-
-      <!-- TEMPORAIRE : détail masqué le temps de retravailler le nuage. -->
-      <div v-if="selectedEntry && !FOCUS_CLOUD" class="word-detail">
-        <h3>« {{ selectedEntry.lemma }} » — {{ selectedEntry.count }} occurrence{{ selectedEntry.count > 1 ? 's' : '' }}</h3>
-        <NodesTable :nodes="selectedEntry.nodes" @open="goToNode" />
-      </div>
     </template>
   </UiCard>
 </template>
@@ -65,24 +59,23 @@ import UiCard from '../ui/UiCard.vue'
 import UiNote from '../ui/UiNote.vue'
 import ChipGroup from '../ui/ChipGroup.vue'
 import BaseChip from '../ui/BaseChip.vue'
-import NodesTable from './NodesTable.vue'
 import { useAnalyse } from '../../composables/useAnalyse'
 
-const { analysis, running, stepErrors, goToNode } = useAnalyse()
+const { analysis, running, stepErrors } = useAnalyse()
 
-// TEMPORAIRE : isole le nuage (masque le détail par article) le temps de le
-// retravailler. Repasser à false pour réafficher.
-const FOCUS_CLOUD = true
+// Le détail des occurrences est rendu à côté (OccurrencesCard, piloté par
+// AnalyseView) : on publie juste le lemme sélectionné.
+const emit = defineEmits(['select'])
 
 const MAX_WORDS = 80
 // Positions « maison » denses posées par d3-cloud.
 const CLOUD_W = 760
 const CLOUD_H = 440
-const CLOUD_PADDING = 6
+const CLOUD_PADDING = 4
 
 // États exclusifs (jamais cumulés) : actif > survol > normal. Actif = maximum.
 const SCALE_HOVER = 1.05
-const SCALE_ACTIVE = 1.1
+//const SCALE_ACTIVE = 1.1
 
 // Dégradé par fréquence : mot rare (clair) → mot fréquent (teal profond).
 const COLOR_LOW = '#aec4c7'
@@ -92,11 +85,15 @@ const COLOR_HIGH = '#0e7183'
 // radialement, avec une intensité qui décroît avec la distance (diffusion
 // douce). Chacun est ramené à sa position maison à la désélection.
 const HOME_STRENGTH = 0.2
-const VELOCITY_DECAY = 0.8
-const REHEAT_ALPHA = 0.4
 const REHEAT_DECAY = 0.04
-const PUSH_STRENGTH = 4.5 // ampleur de la poussée radiale (↓ = plus discret)
-const PUSH_RANGE = 160 // portée : distance à laquelle la poussée est ~divisée par 2
+
+
+const PUSH_STRENGTH = 8;
+const PUSH_RANGE = 200;
+const REHEAT_ALPHA = 0.7;
+const VELOCITY_DECAY = 0.7;
+const SCALE_ACTIVE = 1.05; // Grossissement plus discret
+
 
 // Regroupe les POS spaCy en catégories UI. Noms communs et noms propres sont
 // fusionnés sous « Noms » (l'utilisateur ne distingue pas les deux à l'œil).
@@ -134,6 +131,8 @@ const filteredWords = computed(() =>
 const selectedEntry = computed(
   () => lemmas.value?.find((lemma) => lemma.lemma === selected.value) ?? null,
 )
+
+watch(selectedEntry, (entry) => emit('select', entry), { immediate: true })
 
 function toggle(text) {
   selected.value = selected.value === text ? null : text
@@ -217,21 +216,28 @@ function buildFromLayout(out) {
     text: w.text,
     count: w.count,
     size: w.size,
-    hx: w.x, // position maison
-    hy: w.y,
-    x: w.x,
-    y: w.y,
+    hx: w.x, hy: w.y,
+    x: w.x, y: w.y,
   }))
 
   sim = forceSimulation(simNodes)
-    .velocityDecay(VELOCITY_DECAY)
-    .force('x', forceX((d) => d.hx).strength(HOME_STRENGTH))
-    .force('y', forceY((d) => d.hy).strength(HOME_STRENGTH))
-    .force('radial', radialPush())
-    .stop()
+      .velocityDecay(VELOCITY_DECAY)
+      .force('x', forceX((d) => d.hx).strength(HOME_STRENGTH))
+      .force('y', forceY((d) => d.hy).strength(HOME_STRENGTH))
+      .force('radial', radialPush())
+      .stop()
 
   placed.value = simNodes.slice()
   sim.on('tick', () => { placed.value = simNodes.slice() })
+
+  // Sélection du mot le plus fréquent
+  const top = out.reduce((m, w) => (w.count > m.count ? w : m), out[0])
+  selected.value = top?.text ?? null
+
+  // ⚡ NOUVEAU : Déclenche le repoussement radial à l'initialisation
+  if (sim && selected.value) {
+    sim.alpha(REHEAT_ALPHA).alphaDecay(REHEAT_DECAY).restart()
+  }
 }
 
 const placeCloud = (words) => {
