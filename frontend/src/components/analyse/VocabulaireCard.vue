@@ -35,16 +35,17 @@
         </g>
       </svg>
 
-      <!-- Filtres sous le nuage. -->
-      <ChipGroup title="Nature grammaticale" :meta="`${filteredWords.length} mots affichés`">
+      <!-- Filtres cliquables sous le nuage : natures présentes dans le nuage.
+           Chaque chip : lemmes distincts de cette nature · part des occurrences. -->
+      <ChipGroup>
         <BaseChip
             v-for="filter in POS_FILTERS"
             :key="filter.key"
             :active="active[filter.key]"
-            :count="countByKey[filter.key]"
             @click="active[filter.key] = !active[filter.key]"
         >
           {{ filter.label }}
+          <span class="chip-stats">{{ statLabel(filterStats[filter.key]) }}</span>
         </BaseChip>
       </ChipGroup>
     </template>
@@ -61,6 +62,7 @@ import UiNote from '../ui/UiNote.vue'
 import ChipGroup from '../ui/ChipGroup.vue'
 import BaseChip from '../ui/BaseChip.vue'
 import { useAnalyse } from '../../composables/useAnalyse'
+import { formatInt } from '../../script/format'
 import { loadLayout, saveLayout, signature } from '../../script/layoutCache'
 
 const route = useRoute()
@@ -97,10 +99,11 @@ const VELOCITY_DECAY = 0.7;
 const SCALE_ACTIVE = 1.05; // Grossissement plus discret
 
 
-// Regroupe les POS spaCy en catégories UI. Noms communs et noms propres sont
-// fusionnés sous « Noms » (l'utilisateur ne distingue pas les deux à l'œil).
+// Natures présentes dans le nuage (seules celles-ci ont des lemmes à filtrer) —
+// une par POS, noms communs et propres désormais scindés.
 const POS_FILTERS = [
-  { key: 'nom', label: 'Noms', pos: ['NOUN', 'PROPN'] },
+  { key: 'nom', label: 'Noms', pos: ['NOUN'] },
+  { key: 'propre', label: 'Noms propres', pos: ['PROPN'] },
   { key: 'adj', label: 'Adjectifs', pos: ['ADJ'] },
   { key: 'verbe', label: 'Verbes', pos: ['VERB'] },
   { key: 'adverbe', label: 'Adverbes', pos: ['ADV'] },
@@ -108,21 +111,34 @@ const POS_FILTERS = [
 const POS_TO_KEY = Object.fromEntries(POS_FILTERS.flatMap((f) => f.pos.map((p) => [p, f.key])))
 
 // Adverbes décochés par défaut : souvent peu porteurs de sens.
-const active = reactive({ nom: true, adj: true, verbe: true, adverbe: false })
+const active = reactive({ nom: true, propre: true, adj: true, verbe: true, adverbe: false })
 const selected = ref(null)
 const hovered = ref(null)
 
 const lexical = computed(() => analysis.value?.lexical ?? null)
 const lemmas = computed(() => lexical.value?.lemmas ?? null)
 
-const countByKey = computed(() => {
-  const counts = { nom: 0, adj: 0, verbe: 0, adverbe: 0 }
-  for (const lemma of lemmas.value ?? []) {
-    const key = POS_TO_KEY[lemma.pos]
-    if (key) counts[key]++
-  }
-  return counts
-})
+const posCounts = computed(() => lexical.value?.global?.posCounts ?? {})
+const distinctByPos = computed(() => lexical.value?.global?.distinctByPos ?? {})
+// Dénominateur du pourcentage : tokens hors ponctuation/espaces (comme posCounts).
+const totalTokens = computed(
+  () => Object.values(posCounts.value).reduce((sum, c) => sum + c, 0) || 1,
+)
+
+function statFor(posList) {
+  const occ = posList.reduce((sum, p) => sum + (posCounts.value[p] ?? 0), 0)
+  const distinct = posList.reduce((sum, p) => sum + (distinctByPos.value[p] ?? 0), 0)
+  return { distinct, occ, percent: ((occ / totalTokens.value) * 100).toFixed(1).replace('.', ',') }
+}
+
+// Lemmes distincts de la nature · part de ses occurrences dans le texte.
+function statLabel(s) {
+  return `${formatInt(s.distinct)} · ${s.percent} %`
+}
+
+const filterStats = computed(() =>
+  Object.fromEntries(POS_FILTERS.map((f) => [f.key, statFor(f.pos)])),
+)
 
 // Lemmes déjà triés par fréquence décroissante côté backend (most_common) :
 // on filtre par POS puis on garde le haut du panier.
@@ -321,11 +337,14 @@ watch(selected, () => {
   transition: font-size 0.3s ease, fill 0.3s ease;
 }
 
-/* Filtres (footer) centrés. */
-:deep(.chip-group__title) {
-  text-align: center;
+/* Les trois nombres d'un chip (mots distincts · occurrences · part). */
+.chip-stats {
+  opacity: var(--op-muted);
+  font-size: 0.85em;
+  font-variant-numeric: tabular-nums;
 }
 
+/* Filtres centrés sous le nuage. */
 :deep(.chip-group__chips) {
   justify-content: center;
 }

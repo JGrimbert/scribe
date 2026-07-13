@@ -7,6 +7,9 @@
     <div class="chip-group__chips">
       <slot />
     </div>
+    <div v-if="$slots.footer" class="chip-group__footer">
+      <slot name="footer" />
+    </div>
   </div>
 </template>
 
@@ -38,5 +41,15 @@ defineProps({
   display: flex;
   flex-wrap: wrap;
   gap: 0.4em;
+}
+
+/* Légende discrète (ex : sens des nombres des chips) + éventuel « ? ». */
+.chip-group__footer {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  margin-top: 0.5em;
+  font-size: var(--fs-xs);
+  opacity: var(--op-muted);
 }
 </style>

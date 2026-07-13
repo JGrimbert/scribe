@@ -29,6 +29,9 @@ export interface NlpGlobalStats {
   lexicalDensity: number
   avgSentenceLength: number
   posCounts: Record<string, number>
+  // Lemmes distincts par nature (vocabulaire). Absent des analyses calculées
+  // avant son introduction — relancer l'analyse lexicale pour l'obtenir.
+  distinctByPos?: Record<string, number>
 }
 
 export interface NlpEntity {

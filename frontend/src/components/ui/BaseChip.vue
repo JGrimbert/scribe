@@ -1,9 +1,14 @@
 <template>
-  <button type="button" class="base-chip" :class="{ 'base-chip--active': active }">
+  <component
+      :is="isStatic ? 'span' : 'button'"
+      :type="isStatic ? null : 'button'"
+      class="base-chip"
+      :class="{ 'base-chip--active': active, 'base-chip--static': isStatic }"
+  >
     <span v-if="dot" class="chip-dot" :style="{ background: dot }"></span>
     <slot />
     <span v-if="count !== null" class="chip-count">{{ count }}</span>
-  </button>
+  </component>
 </template>
 
 <script setup>
@@ -12,6 +17,8 @@ defineProps({
   count: { type: [Number, String], default: null },
   // couleur d'une pastille optionnelle (ex : thème)
   dot: { type: String, default: null },
+  // chip d'information seule : non cliquable, atténuée (pas un <button>).
+  isStatic: { type: Boolean, default: false },
 })
 </script>
 
@@ -31,10 +38,17 @@ defineProps({
   line-height: 1.3;
 }
 
-.base-chip:hover,
+.base-chip:not(.base-chip--static):hover,
 .base-chip--active {
   border-color: var(--c-accent);
   color: var(--c-accent);
+}
+
+/* Information seule : atténuée, non interactive. */
+.base-chip--static {
+  cursor: default;
+  border-style: dashed;
+  opacity: var(--op-soft);
 }
 
 .chip-dot {

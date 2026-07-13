@@ -14,16 +14,24 @@
     <template v-else>
       <div class="lexical-columns">
         <div>
-          <h3>Catégories grammaticales</h3>
-          <UiTable>
-            <tbody>
-              <tr v-for="pos in posRows" :key="pos.tag">
-                <td>{{ pos.label }}</td>
-                <td class="num">{{ formatInt(pos.count) }}</td>
-                <td class="num">{{ pos.percent }} %</td>
-              </tr>
-            </tbody>
-          </UiTable>
+          <h3>Entités nommées</h3>
+          <UiNote v-if="!lexical.entities.length">Aucune entité détectée.</UiNote>
+          <ChipGroup
+              v-for="group in entityGroups"
+              :key="group.label"
+              :title="group.title"
+              :meta="group.total > group.entities.length ? `${group.total}, ${group.entities.length} affichées` : String(group.total)"
+          >
+            <BaseChip
+                v-for="entity in group.entities"
+                :key="entity.text"
+                :count="entity.count"
+                :active="isSelectedEntity(entity)"
+                @click="toggleEntity(entity)"
+            >
+              {{ entity.text }}
+            </BaseChip>
+          </ChipGroup>
         </div>
 
         <div v-if="lexical.graph && graphLayout">
@@ -52,25 +60,6 @@
           Réseau lexical indisponible sur cette analyse — relancer l'analyse pour l'obtenir.
         </UiNote>
       </div>
-
-      <h3>Entités nommées</h3>
-      <UiNote v-if="!lexical.entities.length">Aucune entité détectée.</UiNote>
-      <ChipGroup
-          v-for="group in entityGroups"
-          :key="group.label"
-          :title="group.title"
-          :meta="group.total > group.entities.length ? `${group.total}, ${group.entities.length} affichées` : String(group.total)"
-      >
-        <BaseChip
-            v-for="entity in group.entities"
-            :key="entity.text"
-            :count="entity.count"
-            :active="isSelectedEntity(entity)"
-            @click="toggleEntity(entity)"
-        >
-          {{ entity.text }}
-        </BaseChip>
-      </ChipGroup>
 
       <div v-if="selectedNamedEntity" class="word-detail">
         <h3>
@@ -129,33 +118,11 @@ onMounted(() => settle('lexical'))
 // Tronqué plutôt que scrollé : les entités sont triées par occurrences.
 const MAX_ENTITIES_PER_GROUP = 24
 
-const POS_FR = {
-  NOUN: 'Noms', VERB: 'Verbes', ADJ: 'Adjectifs', ADV: 'Adverbes',
-  PROPN: 'Noms propres', PRON: 'Pronoms', DET: 'Déterminants',
-  ADP: 'Prépositions', AUX: 'Auxiliaires', CCONJ: 'Conjonctions (coord.)',
-  SCONJ: 'Conjonctions (subord.)', NUM: 'Numéraux', INTJ: 'Interjections',
-  PART: 'Particules', SYM: 'Symboles', X: 'Autres',
-}
 const ENTITY_LABELS_FR = { PER: 'Personnes', LOC: 'Lieux', ORG: 'Organisations', MISC: 'Divers' }
 
 const selectedEntityKey = ref(null)
 
 const lexical = computed(() => analysis.value?.lexical ?? null)
-
-// Tri côté client : le Json persiste en jsonb, qui ne préserve pas l'ordre
-// des clés renvoyé par le service Python.
-const posRows = computed(() => {
-  const counts = lexical.value?.global.posCounts ?? {}
-  const total = Object.values(counts).reduce((sum, c) => sum + c, 0) || 1
-  return Object.entries(counts)
-    .sort(([, a], [, b]) => b - a)
-    .map(([tag, count]) => ({
-      tag,
-      label: POS_FR[tag] ?? tag,
-      count,
-      percent: ((count / total) * 100).toFixed(1).replace('.', ','),
-    }))
-})
 
 const entityGroups = computed(() => {
   const byLabel = new Map()
@@ -282,7 +249,7 @@ const graphLayout = computed(() => {
 </script>
 
 <style scoped>
-/* Catégories grammaticales et réseau lexical côte à côte quand la card est large. */
+/* Entités nommées et réseau lexical côte à côte quand la card est large. */
 .lexical-columns {
   display: grid;
   grid-template-columns: minmax(18em, 28em) minmax(24em, 1fr);

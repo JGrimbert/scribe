@@ -149,6 +149,9 @@ def analyze_units(nlp: Language, units: list[LexicalUnitIn]) -> dict:
     lemma_totals: Counter = Counter()
     lemma_pos: dict[str, Counter] = defaultdict(Counter)
     lemma_nodes: dict[str, Counter] = defaultdict(Counter)
+    # Vocabulaire par nature : toutes natures confondues (mots-outils inclus),
+    # non plafonné — sert les labels de filtres du nuage côté frontend.
+    lemma_pos_all: dict[str, Counter] = defaultdict(Counter)
 
     total_tokens = 0
     total_words = 0
@@ -169,11 +172,12 @@ def analyze_units(nlp: Language, units: list[LexicalUnitIn]) -> dict:
         total_content_words += content_words
 
         for token in doc:
-            if (
-                token.pos_ not in LEMMA_POS
-                or not token.is_alpha
-                or len(token.lemma_) < LEMMA_MIN_LEN
-            ):
+            if not token.is_alpha:
+                continue
+            # Vocabulaire global (même convention .lower() que uniqueLemmas),
+            # avant le filtrage propre au nuage.
+            lemma_pos_all[token.lemma_.lower()][token.pos_] += 1
+            if token.pos_ not in LEMMA_POS or len(token.lemma_) < LEMMA_MIN_LEN:
                 continue
             lemma = _cloud_lemma(token)
             # Filtrage au niveau du lemme, pas du token (token.is_stop) : spaCy
@@ -214,6 +218,10 @@ def analyze_units(nlp: Language, units: list[LexicalUnitIn]) -> dict:
     ]
     entities.sort(key=lambda e: e.count, reverse=True)
 
+    distinct_by_pos: Counter = Counter()
+    for _lemma, poss in lemma_pos_all.items():
+        distinct_by_pos[poss.most_common(1)[0][0]] += 1
+
     global_stats = GlobalStats(
         sentences=total_sentences,
         tokens=total_tokens,
@@ -223,6 +231,7 @@ def analyze_units(nlp: Language, units: list[LexicalUnitIn]) -> dict:
         lexicalDensity=round(total_content_words / total_words, 4) if total_words else 0.0,
         avgSentenceLength=round(total_words / total_sentences, 2) if total_sentences else 0.0,
         posCounts=dict(pos_counts.most_common()),
+        distinctByPos=dict(distinct_by_pos.most_common()),
     )
 
     graph = _build_graph(graph_lemma_sentences, graph_pair_sentences, max(total_sentences, 1))

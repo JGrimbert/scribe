@@ -47,7 +47,12 @@ class GlobalStats(BaseModel):
     ttr: float
     lexicalDensity: float
     avgSentenceLength: float
+    # Occurrences par nature (tokens).
     posCounts: dict[str, int]
+    # Lemmes DISTINCTS par nature (vocabulaire), chaque lemme rangé sous sa
+    # nature dominante — non plafonné (indépendant de LEMMA_MAX qui ne borne
+    # que la liste du nuage). Somme == uniqueLemmas.
+    distinctByPos: dict[str, int]
 
 
 class LexicalGraphNode(BaseModel):
