@@ -67,6 +67,10 @@
           />
         </Transition>
       </div>
+
+      <!-- Entités non migrées vers les filtres du nuage (organisations, divers) :
+           gardées en bas, en lecture seule, pour ne rien perdre. -->
+      <EntitiesLeftoverCard v-if="isRevealed('lexical')" class="leftover-entities" />
     </template>
   </div>
 </template>
@@ -81,6 +85,7 @@ import StatItem from './ui/StatItem.vue'
 import UiNote from './ui/UiNote.vue'
 import VocabulaireCard from './analyse/VocabulaireCard.vue'
 import OccurrencesCard from './analyse/OccurrencesCard.vue'
+import EntitiesLeftoverCard from './analyse/EntitiesLeftoverCard.vue'
 import LexicalCard from './analyse/LexicalCard.vue'
 import SemantiqueCard from './analyse/SemantiqueCard.vue'
 import SemanticPairsCard from './analyse/SemanticPairsCard.vue'
@@ -187,17 +192,33 @@ const statItems = computed(() => {
 }
 
 /* Nuage + filtres (2/3) à gauche ; colonne droite (1/3) empilant les
-   occurrences du mot sélectionné puis la proximité sémantique. */
+   occurrences du mot sélectionné puis la proximité sémantique. Les trois
+   cards sont `bare` : c'est cette rangée qui porte le fond blanc et se lit
+   comme un seul bloc, séparateurs internes tracés à la bordure. */
 .cloud-row {
   display: flex;
-  align-items: flex-start;
-  gap: 1em;
+  align-items: stretch;
   margin-bottom: 1em;
+  background: var(--c-surface);
+  backdrop-filter: var(--c-backdrop-filter-blur);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-md);
 }
 
 .cloud-row__cloud {
   flex: 2 1 0;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Body en colonne pleine hauteur : en-tête ferré haut, filtres ferrés bas, le
+   nuage remplit l'espace intermédiaire. Respire plus que les régions de droite. */
+.cloud-row__cloud :deep(.ui-card__body) {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 1.4em;
 }
 
 .cloud-row__side {
@@ -205,7 +226,22 @@ const statItems = computed(() => {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 1em;
+  border-left: 1px solid var(--c-border);
+}
+
+/* Séparateur horizontal entre occurrences et proximité. */
+.cloud-row__side > * + * {
+  border-top: 1px solid var(--c-border);
+}
+
+/* La proximité s'étire pour que le bas de la colonne droite rejoigne le bas
+   du nuage — tout s'arrête à la même ligne. */
+.cloud-row__side > *:last-child {
+  flex: 1;
+}
+
+.cloud-row__side :deep(.ui-card__body) {
+  padding: 1.1em 1.25em;
 }
 
 /* Les cards « wide » (grid-column: 1 / -1) forcent un retour à la ligne ;
@@ -216,6 +252,11 @@ const statItems = computed(() => {
   grid-auto-flow: dense;
   gap: 1em;
   align-items: start;
+}
+
+.leftover-entities {
+  display: block;
+  margin-top: 1em;
 }
 
 </style>

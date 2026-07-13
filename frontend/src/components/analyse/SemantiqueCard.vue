@@ -1,5 +1,5 @@
 <template>
-  <UiCard title="Proximité sémantique" :busy="running === 'semantic'">
+  <UiCard bare :busy="running === 'semantic'">
     <UiNote v-if="stepErrors.semantic" variant="error">{{ stepErrors.semantic }}</UiNote>
     <template v-if="!semantic && running !== 'semantic'">
       <UiNote>
@@ -18,9 +18,14 @@
       </UiNote>
 
       <template v-else>
-        <p class="focus-lead">
-          Articles proches de « {{ focusUnit.titre }} »
-        </p>
+        <header class="focus-head">
+          <p class="focus-lead">
+            « {{ focusUnit.titre }} » — proximité des articles
+          </p>
+          <BaseButton variant="solid-alt" class="focus-edit" @click="goToNode(focusNodeId)">
+            Éditer <i class="pi pi-arrow-right"></i>
+          </BaseButton>
+        </header>
         <UiTable>
           <thead>
             <tr><th>Article proche</th><th class="score-col">Proximité</th></tr>
@@ -55,7 +60,7 @@ import BaseButton from '../ui/BaseButton.vue'
 import { useAnalyse } from '../../composables/useAnalyse'
 import { formatPercent } from '../../script/format'
 
-const { analysis, running, stepErrors, focusNodeId, settle, runStep } = useAnalyse()
+const { analysis, running, stepErrors, focusNodeId, goToNode, settle, runStep } = useAnalyse()
 
 const semantic = computed(() => analysis.value?.semantic ?? null)
 
@@ -82,10 +87,24 @@ onMounted(() => settle('semantique'))
 </script>
 
 <style scoped>
+/* Légende à gauche, bouton « Éditer » calé à droite. */
+.focus-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75em;
+  margin-bottom: 0.75em;
+}
+
 .focus-lead {
-  margin: 0.25em 0 0.75em;
+  margin: 0;
   font-size: var(--fs-sm);
-  opacity: var(--op-muted);
+  font-weight: 700;
+  color: var(--c-ink);
+}
+
+.focus-edit {
+  flex-shrink: 0;
 }
 
 .run-step {

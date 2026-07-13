@@ -12,62 +12,31 @@
     </template>
 
     <template v-else>
-      <div class="lexical-columns">
-        <div>
-          <h3>Entités nommées</h3>
-          <UiNote v-if="!lexical.entities.length">Aucune entité détectée.</UiNote>
-          <ChipGroup
-              v-for="group in entityGroups"
-              :key="group.label"
-              :title="group.title"
-              :meta="group.total > group.entities.length ? `${group.total}, ${group.entities.length} affichées` : String(group.total)"
-          >
-            <BaseChip
-                v-for="entity in group.entities"
-                :key="entity.text"
-                :count="entity.count"
-                :active="isSelectedEntity(entity)"
-                @click="toggleEntity(entity)"
-            >
-              {{ entity.text }}
-            </BaseChip>
-          </ChipGroup>
-        </div>
-
-        <div v-if="lexical.graph && graphLayout">
-          <h3>Réseau lexical</h3>
-          <UiNote variant="hint">
-            Noms co-présents dans une même phrase — la taille suit la fréquence, l'épaisseur du
-            lien la force d'association (NPMI). Survoler un mot pour son compte exact.
-          </UiNote>
-          <svg class="viz" viewBox="0 0 640 440" role="img" aria-label="Réseau lexical de co-occurrences">
-            <line
-                v-for="edge in graphLayout.edges"
-                :key="edge.source + '|' + edge.target"
-                :x1="edge.x1" :y1="edge.y1" :x2="edge.x2" :y2="edge.y2"
-                class="graph-edge"
-                :stroke-width="1 + edge.npmi * 2.5"
-                :stroke-opacity="0.25 + edge.npmi * 0.45"
-            />
-            <g v-for="node in graphLayout.nodes" :key="node.lemma" class="graph-node">
-              <circle :cx="node.x" :cy="node.y" :r="node.r" />
-              <text v-if="node.labelled" :x="node.x + node.r + 3" :y="node.y + 3">{{ node.lemma }}</text>
-              <title>{{ node.lemma }} — présent dans {{ node.count }} phrases</title>
-            </g>
-          </svg>
-        </div>
-        <UiNote v-else-if="!lexical.graph" variant="hint">
-          Réseau lexical indisponible sur cette analyse — relancer l'analyse pour l'obtenir.
+      <template v-if="lexical.graph && graphLayout">
+        <h3>Réseau lexical</h3>
+        <UiNote variant="hint">
+          Noms co-présents dans une même phrase — la taille suit la fréquence, l'épaisseur du
+          lien la force d'association (NPMI). Survoler un mot pour son compte exact.
         </UiNote>
-      </div>
-
-      <div v-if="selectedNamedEntity" class="word-detail">
-        <h3>
-          « {{ selectedNamedEntity.text }} » ({{ entityLabelFr(selectedNamedEntity.label) }})
-          — {{ selectedNamedEntity.count }} occurrence{{ selectedNamedEntity.count > 1 ? 's' : '' }}
-        </h3>
-        <NodesTable :nodes="selectedNamedEntity.nodes" @open="goToNode" />
-      </div>
+        <svg class="viz" viewBox="0 0 640 440" role="img" aria-label="Réseau lexical de co-occurrences">
+          <line
+              v-for="edge in graphLayout.edges"
+              :key="edge.source + '|' + edge.target"
+              :x1="edge.x1" :y1="edge.y1" :x2="edge.x2" :y2="edge.y2"
+              class="graph-edge"
+              :stroke-width="1 + edge.npmi * 2.5"
+              :stroke-opacity="0.25 + edge.npmi * 0.45"
+          />
+          <g v-for="node in graphLayout.nodes" :key="node.lemma" class="graph-node">
+            <circle :cx="node.x" :cy="node.y" :r="node.r" />
+            <text v-if="node.labelled" :x="node.x + node.r + 3" :y="node.y + 3">{{ node.lemma }}</text>
+            <title>{{ node.lemma }} — présent dans {{ node.count }} phrases</title>
+          </g>
+        </svg>
+      </template>
+      <UiNote v-else-if="!lexical.graph" variant="hint">
+        Réseau lexical indisponible sur cette analyse — relancer l'analyse pour l'obtenir.
+      </UiNote>
 
       <h3>Par article</h3>
       <UiTable scroll>
@@ -97,15 +66,12 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import UiCard from '../ui/UiCard.vue'
 import UiNote from '../ui/UiNote.vue'
 import UiTable from '../ui/UiTable.vue'
-import BaseChip from '../ui/BaseChip.vue'
 import BaseButton from '../ui/BaseButton.vue'
-import ChipGroup from '../ui/ChipGroup.vue'
-import NodesTable from './NodesTable.vue'
 import { useAnalyse } from '../../composables/useAnalyse'
 import { formatInt, formatPercent } from '../../script/format'
 import { loadLayout, saveLayout, signature } from '../../script/layoutCache'
@@ -115,48 +81,7 @@ const { analysis, running, stepErrors, goToNode, settle, runStep } = useAnalyse(
 
 onMounted(() => settle('lexical'))
 
-// Tronqué plutôt que scrollé : les entités sont triées par occurrences.
-const MAX_ENTITIES_PER_GROUP = 24
-
-const ENTITY_LABELS_FR = { PER: 'Personnes', LOC: 'Lieux', ORG: 'Organisations', MISC: 'Divers' }
-
-const selectedEntityKey = ref(null)
-
 const lexical = computed(() => analysis.value?.lexical ?? null)
-
-const entityGroups = computed(() => {
-  const byLabel = new Map()
-  for (const entity of lexical.value?.entities ?? []) {
-    if (!byLabel.has(entity.label)) byLabel.set(entity.label, [])
-    byLabel.get(entity.label).push(entity)
-  }
-  return Array.from(byLabel.entries()).map(([label, entities]) => ({
-    label,
-    title: entityLabelFr(label),
-    total: entities.length,
-    entities: entities.slice(0, MAX_ENTITIES_PER_GROUP),
-  }))
-})
-
-function entityLabelFr(label) {
-  return ENTITY_LABELS_FR[label] ?? label
-}
-
-function entityKey(entity) {
-  return `${entity.label}::${entity.text}`
-}
-
-function isSelectedEntity(entity) {
-  return selectedEntityKey.value === entityKey(entity)
-}
-
-function toggleEntity(entity) {
-  selectedEntityKey.value = isSelectedEntity(entity) ? null : entityKey(entity)
-}
-
-const selectedNamedEntity = computed(
-  () => lexical.value?.entities.find((e) => entityKey(e) === selectedEntityKey.value) ?? null,
-)
 
 // ── Réseau lexical ──
 const GRAPH_W = 640
@@ -249,20 +174,6 @@ const graphLayout = computed(() => {
 </script>
 
 <style scoped>
-/* Entités nommées et réseau lexical côte à côte quand la card est large. */
-.lexical-columns {
-  display: grid;
-  grid-template-columns: minmax(18em, 28em) minmax(24em, 1fr);
-  gap: 1.5em;
-  align-items: start;
-}
-
-@media (max-width: 70em) {
-  .lexical-columns {
-    grid-template-columns: 1fr;
-  }
-}
-
 .run-step {
   margin-top: 0.75em;
 }
