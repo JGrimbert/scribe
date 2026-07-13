@@ -27,7 +27,7 @@ vues. Routes (`src/router/index.js`) :
   `src/composables/useAnalyse.js` — `provideAnalyse()` dans la vue,
   `useAnalyse()` dans les cards). L'ancien écran "Chapitrage"
   (`DocumentIndex.vue`) a été supprimé — ses stats (sous-titres, mots)
-  vivent dans le mode étendu de `StructureView`.
+  vivent dans l'infobulle des nœuds de `StructureView`.
 - `/documents/:id/axe/:axeId` — `EditorView.vue` → `FolioComposer`/`Scroll`
   (Scroll toujours désactivé, `v-if="false === true"`).
 
@@ -46,11 +46,36 @@ dépendent :
   0/1/2). `paginate.js` (`buildBlocks`) choisit le tag de titre (`h1`..`h6`)
   selon cette profondeur.
 - `StructureView.vue` (sidebar, montée sur toutes les routes document) + son
-  sous-composant récursif `StructureNode.vue` — accordéon à 3 modes persistés
-  en localStorage (`rail` : colonne d'icônes ; `liste` : arbre repliable,
-  stats en infobulle ; `etendu` : arbre + colonnes sous-titres/mots). Le
-  chemin vers le nœud courant s'auto-déplie ; compte les descendants
-  récursivement (les `stats.mots` du backend sont déjà agrégées).
+  sous-composant récursif `StructureNode.vue` — accordéon **replié/déplié**
+  (prop `expanded` binaire : rail étroit vs arbre repliable, stats en
+  infobulle). L'état `expanded` et le chevron qui le pilote vivent désormais
+  dans `DocumentBar.vue` (voir ci-dessous), pas dans la sidebar. Le chemin
+  vers le nœud courant s'auto-déplie ; compte les descendants récursivement
+  (les `stats.mots` du backend sont déjà agrégées). Le clic sur un nœud émet
+  `select` — c'est `DocumentLayout` qui décide de l'effet (voir ci-dessous).
+
+### Menus environnants — topbar, `DocumentBar`, scope d'analyse
+
+- **Deux barres empilées, hauteur == largeur du rail** : la topbar globale
+  (`App.vue`, `.menu`) et la sidebar repliée partagent le token `--bar-size`
+  (`base.css`) — hauteur de barre = largeur de rail, harmonisées par une
+  seule variable.
+- `DocumentBar.vue` — **seconde topbar** (pleine largeur, sous `.menu`, montée
+  par `DocumentLayout`), fond `--c-subbar` (teinte fondue entre topbar et
+  sidebar). Contient le chevron de repli (largeur `--bar-size`, aligné
+  au-dessus du rail) puis un **fil d'Ariane** : titre du livre → niveaux de
+  titres jusqu'au nœud courant (`pathToInAxes`, `src/script/trame.js`,
+  partagé avec `StructureView`). Le titre du livre vient de `GET
+  /documents/:id` (`content.title`, ajouté côté backend).
+- **Effet des liens (sidebar + fil d'Ariane) selon l'état**, arbitré par
+  `select()` dans `DocumentLayout` :
+  - **Édition** (route `editor`) : navigation vers l'article (`/noeud/:id`) —
+    le lien « livre » ramène à la racine analyse.
+  - **Analyse** (route `document`) : pose le **scope** (`scopeNodeId`,
+    fourni via `provide('analyseScopeNodeId')`) sans naviguer — le nœud
+    courant du fil d'Ariane et du surlignage suit ce scope. ⚠️ Câblage seul
+    pour l'instant : le recalcul NLP restreint au sous-arbre n'est **pas
+    encore branché** (l'analyse reste globale), c'est le chantier suivant.
 
 ### Calibration d'import
 

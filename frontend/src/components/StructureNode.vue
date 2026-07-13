@@ -12,10 +12,6 @@
         @toggle="$emit('toggle', node.id)"
     >
       {{ node.titre }}
-      <template v-if="mode === 'etendu'" #trailing>
-        <span class="stat-col">{{ node.descendants || '—' }}</span>
-        <span class="stat-col">{{ node.mots.toLocaleString('fr') }}</span>
-      </template>
     </TreeRow>
 
     <Transition name="fold">
@@ -25,7 +21,6 @@
             :key="child.id"
             :node="child"
             :depth="depth + 1"
-            :mode="mode"
             :current-node-id="currentNodeId"
             :expanded-ids="expandedIds"
             @open="$emit('open', $event)"
@@ -43,7 +38,6 @@ import TreeRow from './ui/TreeRow.vue'
 const props = defineProps({
   node: { type: Object, required: true },
   depth: { type: Number, default: 0 },
-  mode: { type: String, required: true },
   currentNodeId: String,
   expandedIds: { type: Object, required: true },
 })
@@ -52,9 +46,9 @@ const emit = defineEmits(['open', 'toggle'])
 
 const isExpanded = computed(() => props.expandedIds.has(props.node.id))
 
-// En mode liste les stats vivent dans l'infobulle ; en étendu elles sont visibles.
+// Stats (sous-titres, mots) en infobulle — plus de colonnes dédiées depuis la
+// suppression du mode « étendu ».
 const tooltip = computed(() => {
-  if (props.mode !== 'liste') return null
   const parts = []
   if (props.node.descendants) {
     parts.push(`${props.node.descendants} sous-titre${props.node.descendants > 1 ? 's' : ''}`)
@@ -73,16 +67,6 @@ function openNode() {
 <style scoped>
 .tree-node__row--axe {
   color: var(--c-accent);
-}
-
-.stat-col {
-  flex: 0 0 auto;
-  width: 5.2em;
-  text-align: right;
-  font-size: 0.8em;
-  opacity: var(--op-muted);
-  font-variant-numeric: tabular-nums;
-  font-weight: normal;
 }
 
 .children {

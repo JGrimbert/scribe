@@ -150,7 +150,7 @@ export class DocumentsService {
 
     const axes = (childrenByParent.get(null) ?? []).map((axe) => buildTree(axe.id))
 
-    return { trame: { axes }, data }
+    return { title: document.title, trame: { axes }, data }
   }
 
   async remove(id: string): Promise<void> {

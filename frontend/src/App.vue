@@ -99,6 +99,7 @@ h1 {
   flex: 0 0 auto;
   position: sticky;
   top: 0;
+  height: var(--bar-size);
   color: #FFF;
   font-weight: bold;
   padding: 0.4em;

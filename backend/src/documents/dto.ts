@@ -26,6 +26,7 @@ export interface DocumentSummary {
  * côté frontend, inutile de les reconstruire depuis la DB.
  */
 export interface DocumentContent {
+  title: string
   trame: { axes: Trame['axes'] }
   data: DataMap
 }

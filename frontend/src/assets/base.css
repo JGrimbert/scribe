@@ -20,6 +20,7 @@
 
     --c-paper: #fffdf8; /* fond de lecture opaque (tables) — blanc à peine crème */
 
+
     --c-ink: #1a1612;
     --c-ink2: #5a5047;
     --c-accent: #7c4f2a;
@@ -58,6 +59,9 @@
     --sp-3: 0.75rem;
     --sp-4: 1rem;
     --sp-6: 1.5rem;
+
+    /* Layout — hauteur de la topbar == largeur de la sidebar repliée (rail) */
+    --bar-size: 2.6rem;
 
     /* Formes */
     --radius-sm: 3px;

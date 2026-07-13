@@ -1,38 +1,15 @@
 <template>
-  <aside class="structure-panel" :class="`structure-panel--${mode}`">
-    <div class="panel-toolbar">
-      <BaseButton
-          v-if="mode !== 'rail'"
-          variant="ghost"
-          icon="pi-angle-left"
-          :title="mode === 'etendu' ? 'Revenir à la liste' : 'Replier la structure'"
-          @click="narrow"
-      />
-      <BaseButton
-          v-if="mode !== 'etendu'"
-          variant="ghost"
-          icon="pi-angle-right"
-          :title="mode === 'rail' ? 'Déplier la structure' : 'Étendre avec les statistiques'"
-          @click="widen"
-      />
-    </div>
-
-    <div v-if="mode !== 'rail'" class="panel-content">
-      <div v-if="mode === 'etendu' && axes.length" class="stats-header">
-        <span class="stats-header-label">sous-titres</span>
-        <span class="stats-header-label">mots</span>
-      </div>
-
+  <aside class="structure-panel" :class="expanded ? 'structure-panel--liste' : 'structure-panel--rail'">
+    <div v-if="expanded" class="panel-content">
       <template v-if="axes.length">
         <StructureNode
             v-for="axe in axes"
             :key="axe.id"
             :node="axe"
             :depth="0"
-            :mode="mode"
             :current-node-id="nodeId"
             :expanded-ids="expandedIds"
-            @open="selectNode"
+            @open="$emit('select', $event)"
             @toggle="toggleNode"
         />
       </template>
@@ -43,36 +20,18 @@
 </template>
 
 <script setup>
-import { computed, reactive, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import BaseButton from './ui/BaseButton.vue'
+import { computed, reactive, watch } from 'vue'
 import StructureNode from './StructureNode.vue'
+import { pathToInAxes } from '../script/trame'
 
 const props = defineProps({
   trame: Object,
   data: Object,
   nodeId: String,
+  expanded: Boolean,
 })
 
-const route = useRoute()
-const router = useRouter()
-
-// ── Mode (rail / liste / etendu), persisté entre sessions ──
-const MODES = ['rail', 'liste', 'etendu']
-const STORAGE_KEY = 'scribe.structure.mode'
-
-const stored = localStorage.getItem(STORAGE_KEY)
-const mode = ref(MODES.includes(stored) ? stored : 'liste')
-
-watch(mode, (m) => localStorage.setItem(STORAGE_KEY, m))
-
-function narrow() {
-  mode.value = MODES[MODES.indexOf(mode.value) - 1]
-}
-
-function widen() {
-  mode.value = MODES[MODES.indexOf(mode.value) + 1]
-}
+defineEmits(['select'])
 
 // ── Arbre résolu (titres + stats) ──
 function resolve(node) {
@@ -100,35 +59,15 @@ function toggleNode(id) {
   else expandedIds.add(id)
 }
 
-// Chemin (ids des ancêtres + le nœud lui-même) vers un id donné.
-function pathTo(node, id) {
-  if (node.id === id) return [node.id]
-  for (const child of node.children) {
-    const sub = pathTo(child, id)
-    if (sub) return [node.id, ...sub]
-  }
-  return null
-}
-
 // Le chemin vers le nœud courant s'auto-déplie (sans replier le reste).
 watch(
   () => [props.nodeId, axes.value],
   () => {
     if (!props.nodeId) return
-    for (const axe of axes.value) {
-      const path = pathTo(axe, props.nodeId)
-      if (path) {
-        path.forEach((id) => expandedIds.add(id))
-        break
-      }
-    }
+    pathToInAxes(props.trame?.axes ?? [], props.nodeId).forEach((id) => expandedIds.add(id))
   },
   { immediate: true },
 )
-
-function selectNode(nodeId) {
-  router.push(`/documents/${route.params.id}/noeud/${nodeId}`)
-}
 </script>
 
 <style scoped>
@@ -136,7 +75,7 @@ function selectNode(nodeId) {
   flex: 0 0 auto;
   background: var(--c-surface4);
   backdrop-filter: var(--c-backdrop-filter-blur);
-  max-height: calc(100vh - 2em);
+  max-height: calc(100vh - 2 * var(--bar-size));
   display: flex;
   flex-direction: column;
   /* pas de transition de largeur : elle re-layoute tout le contenu à droite
@@ -144,49 +83,18 @@ function selectNode(nodeId) {
 }
 
 .structure-panel--rail {
-  width: 2.6em;
+  width: var(--bar-size);
 }
 
 .structure-panel--liste {
   width: 260px;
 }
 
-.structure-panel--etendu {
-  width: 420px;
-}
-
-.panel-toolbar {
-  flex: 0 0 auto;
-  display: flex;
-  justify-content: flex-end;
-  padding: 0.35em 0.4em;
-}
-
-.structure-panel--rail .panel-toolbar {
-  justify-content: center;
-}
-
 .panel-content {
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
-  padding: 0 0.6em 1em;
-}
-
-.stats-header {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.8em;
-  padding: 0 0.5em 0.3em 0;
-  border-bottom: 1px solid var(--c-border, #e0d8cc);
-  margin-bottom: 0.4em;
-}
-
-.stats-header-label {
-  font-size: 0.7em;
-  opacity: 0.55;
-  width: 5.2em;
-  text-align: right;
+  padding: 0.6em 0.6em 1em;
 }
 
 .empty {
