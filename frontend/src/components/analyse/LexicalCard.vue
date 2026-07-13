@@ -1,10 +1,15 @@
 <template>
   <UiCard title="Analyse linguistique" wide :busy="running === 'lexical'">
     <UiNote v-if="stepErrors.lexical" variant="error">{{ stepErrors.lexical }}</UiNote>
-    <UiNote v-if="!lexical">
-      Analyse pas encore calculée. Nécessite le service NLP local (<code>npm run dev:nlp</code>) —
-      le calcul peut prendre quelques minutes sur un manuscrit complet.
-    </UiNote>
+    <template v-if="!lexical && running !== 'lexical'">
+      <UiNote>
+        Analyse pas encore calculée. Nécessite le service NLP local (<code>npm run dev:nlp</code>) —
+        le calcul peut prendre quelques minutes sur un manuscrit complet.
+      </UiNote>
+      <BaseButton variant="outline" icon="pi-play" :busy="!!running" class="run-step" @click="runStep('lexical')">
+        Lancer l'analyse linguistique
+      </BaseButton>
+    </template>
 
     <template v-else>
       <div class="lexical-columns">
@@ -103,17 +108,23 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import UiCard from '../ui/UiCard.vue'
 import UiNote from '../ui/UiNote.vue'
 import UiTable from '../ui/UiTable.vue'
 import BaseChip from '../ui/BaseChip.vue'
+import BaseButton from '../ui/BaseButton.vue'
 import ChipGroup from '../ui/ChipGroup.vue'
 import NodesTable from './NodesTable.vue'
 import { useAnalyse } from '../../composables/useAnalyse'
 import { formatInt, formatPercent } from '../../script/format'
+import { loadLayout, saveLayout, signature } from '../../script/layoutCache'
 
-const { analysis, running, stepErrors, goToNode } = useAnalyse()
+const route = useRoute()
+const { analysis, running, stepErrors, goToNode, settle, runStep } = useAnalyse()
+
+onMounted(() => settle('lexical'))
 
 // Tronqué plutôt que scrollé : les entités sont triées par occurrences.
 const MAX_ENTITIES_PER_GROUP = 24
@@ -252,9 +263,22 @@ function layoutGraph(graph) {
   }
 }
 
-const graphLayout = computed(() =>
-  lexical.value?.graph?.nodes?.length ? layoutGraph(lexical.value.graph) : null,
-)
+// Layout de force déterministe mais coûteux (260 itérations O(n²)) : caché par
+// signature du graphe pour ne pas le recalculer à chaque montage.
+const graphLayout = computed(() => {
+  const graph = lexical.value?.graph
+  if (!graph?.nodes?.length) return null
+  const sig = signature(
+    graph.nodes.map((n) => `${n.lemma}:${n.count}`).join('|') +
+      '#' +
+      graph.edges.map((e) => `${e.source}-${e.target}:${e.npmi}`).join('|'),
+  )
+  const cached = loadLayout('graph', route.params.id, sig)
+  if (cached) return cached
+  const out = layoutGraph(graph)
+  saveLayout('graph', route.params.id, sig, out)
+  return out
+})
 </script>
 
 <style scoped>
@@ -270,6 +294,10 @@ const graphLayout = computed(() =>
   .lexical-columns {
     grid-template-columns: 1fr;
   }
+}
+
+.run-step {
+  margin-top: 0.75em;
 }
 
 .graph-edge {

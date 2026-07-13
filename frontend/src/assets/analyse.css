@@ -25,3 +25,13 @@
     width: 14em;
     white-space: nowrap;
 }
+
+/* Révélation en chaîne des cards du dashboard (transition compositor-only). */
+.reveal-enter-active {
+    transition: opacity 0.45s ease, transform 0.45s ease;
+}
+
+.reveal-enter-from {
+    opacity: 0;
+    transform: translateY(0.6em);
+}

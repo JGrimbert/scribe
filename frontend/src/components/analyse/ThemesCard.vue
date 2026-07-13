@@ -9,10 +9,15 @@
     </div>
 
     <UiNote v-if="stepErrors.topics" variant="error">{{ stepErrors.topics }}</UiNote>
-    <UiNote v-if="!topics && running !== 'topics'">
-      Analyse pas encore calculée. Nécessite le service NLP local (<code>npm run dev:nlp</code>) —
-      l'extraction d'un manuscrit complet prend plusieurs minutes, l'avancement s'affiche ici.
-    </UiNote>
+    <template v-if="!topics && running !== 'topics'">
+      <UiNote>
+        Analyse pas encore calculée. Nécessite le service NLP local (<code>npm run dev:nlp</code>) —
+        l'extraction d'un manuscrit complet prend plusieurs minutes, l'avancement s'affiche ici.
+      </UiNote>
+      <BaseButton variant="outline" icon="pi-play" :busy="!!running" class="run-step" @click="runStep('topics')">
+        Lancer l'analyse des thèmes
+      </BaseButton>
+    </template>
 
     <template v-if="topics">
       <div class="topics-columns">
@@ -102,17 +107,20 @@
 </template>
 
 <script setup>
-import { computed, inject, ref } from 'vue'
+import { computed, inject, onMounted, ref } from 'vue'
 import UiCard from '../ui/UiCard.vue'
 import UiNote from '../ui/UiNote.vue'
 import UiTable from '../ui/UiTable.vue'
 import BaseChip from '../ui/BaseChip.vue'
 import ChipGroup from '../ui/ChipGroup.vue'
 import ScoreBar from '../ui/ScoreBar.vue'
+import BaseButton from '../ui/BaseButton.vue'
 import { useAnalyse } from '../../composables/useAnalyse'
 import { formatPercent } from '../../script/format'
 
-const { analysis, running, stepErrors, topicsProgress, goToNode } = useAnalyse()
+const { analysis, running, stepErrors, topicsProgress, goToNode, settle, runStep } = useAnalyse()
+
+onMounted(() => settle('themes'))
 
 // data du document (fourni par DocumentLayout) — résolution des titres pour
 // les infobulles de la carte, sans dupliquer 762 titres dans l'analyse.
@@ -205,6 +213,10 @@ const selectedTopicByAxe = computed(() => {
 <style scoped>
 .topics-progress {
   padding: 0.5em 0 1em;
+}
+
+.run-step {
+  margin-top: 0.75em;
 }
 
 /* Deux colonnes internes : thèmes + détail à gauche, carte à droite. */

@@ -53,6 +53,7 @@
 
 <script setup>
 import { computed, onUnmounted, reactive, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import cloud from 'd3-cloud'
 import { forceSimulation, forceX, forceY } from 'd3-force'
 import UiCard from '../ui/UiCard.vue'
@@ -60,12 +61,13 @@ import UiNote from '../ui/UiNote.vue'
 import ChipGroup from '../ui/ChipGroup.vue'
 import BaseChip from '../ui/BaseChip.vue'
 import { useAnalyse } from '../../composables/useAnalyse'
+import { loadLayout, saveLayout, signature } from '../../script/layoutCache'
 
-const { analysis, running, stepErrors } = useAnalyse()
+const route = useRoute()
+const { analysis, running, stepErrors, selectedLemma, settle } = useAnalyse()
 
-// Le détail des occurrences est rendu à côté (OccurrencesCard, piloté par
-// AnalyseView) : on publie juste le lemme sélectionné.
-const emit = defineEmits(['select'])
+// Le détail des occurrences est rendu à côté (OccurrencesCard) : on publie
+// juste le lemme sélectionné dans l'état partagé.
 
 const MAX_WORDS = 80
 // Positions « maison » denses posées par d3-cloud.
@@ -132,7 +134,7 @@ const selectedEntry = computed(
   () => lemmas.value?.find((lemma) => lemma.lemma === selected.value) ?? null,
 )
 
-watch(selectedEntry, (entry) => emit('select', entry), { immediate: true })
+watch(selectedEntry, (entry) => { selectedLemma.value = entry }, { immediate: true })
 
 function toggle(text) {
   selected.value = selected.value === text ? null : text
@@ -234,13 +236,17 @@ function buildFromLayout(out) {
   const top = out.reduce((m, w) => (w.count > m.count ? w : m), out[0])
   selected.value = top?.text ?? null
 
-  // ⚡ NOUVEAU : Déclenche le repoussement radial à l'initialisation
+  // Déclenche le repoussement radial à l'initialisation (animation de
+  // sélection du mot le plus fréquent), y compris depuis un layout caché.
   if (sim && selected.value) {
     sim.alpha(REHEAT_ALPHA).alphaDecay(REHEAT_DECAY).restart()
   }
+
+  // Entrée du nuage jouée → la card suivante peut apparaître.
+  settle('cloud')
 }
 
-const placeCloud = (words) => {
+const placeCloud = (words, sig) => {
   const maxSqrt = Math.sqrt(words[0].count)
   cloud()
     .size([CLOUD_W, CLOUD_H])
@@ -255,8 +261,22 @@ const placeCloud = (words) => {
     .font('Georgia')
     .fontSize((d) => d.size)
     .random(mulberry32(1234))
-    .on('end', buildFromLayout)
+    .on('end', (out) => {
+      // On ne persiste que les champs relus par buildFromLayout (positions
+      // « maison » + métrique), pas les objets d3-cloud complets.
+      const data = out.map((w) => ({ text: w.text, count: w.count, size: w.size, x: w.x, y: w.y }))
+      saveLayout('cloud', route.params.id, sig, data)
+      buildFromLayout(data)
+    })
     .start()
+}
+
+// Signature du contenu d'entrée : mêmes lemmes/comptes/ordre + mêmes
+// dimensions → même layout, donc cache réutilisable.
+function cloudSignature(words) {
+  return signature(
+    words.map((w) => `${w.lemma}:${w.count}`).join('|') + `|${CLOUD_W}x${CLOUD_H}|${MAX_WORDS}`,
+  )
 }
 
 watch(
@@ -266,9 +286,13 @@ watch(
     if (!words.length) {
       simNodes = []
       placed.value = []
+      settle('cloud')
       return
     }
-    placeCloud(words)
+    const sig = cloudSignature(words)
+    const cached = loadLayout('cloud', route.params.id, sig)
+    if (cached) buildFromLayout(cached)
+    else placeCloud(words, sig)
   },
   { immediate: true },
 )

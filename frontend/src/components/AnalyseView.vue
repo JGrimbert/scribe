@@ -1,44 +1,78 @@
 <template>
   <div class="analyse-view">
-    <UiNote v-if="loading">Chargement…</UiNote>
-    <UiNote v-else-if="error" variant="error">{{ error }}</UiNote>
+    <!-- Bandeau global : présent dès l'arrivée (tuiles « — » tant que les
+         données manquent), même pendant le chargement de l'analyse. Une tuile
+         par stat + relance séquentielle de toutes les analyses (chaque card
+         affiche son spinner quand vient son tour). -->
+    <div class="stats-banner">
+      <StatItem
+          v-for="item in statItems"
+          :key="item.label"
+          :value="item.value"
+          :label="item.label"
+          :hint="item.hint"
+          :empty="item.empty"
+      />
+
+      <BaseButton
+          variant="solid-alt"
+          class="run-all"
+          :icon="running ? null : 'pi-play'"
+          :busy="!!running"
+          @click="runAll"
+      >
+        {{ running ? `Analyse : ${STEP_LABELS[running]}…` : hasAny ? 'Relancer l’analyse' : 'Lancer l’analyse' }}
+      </BaseButton>
+    </div>
+
+    <UiNote v-if="error" variant="error">{{ error }}</UiNote>
 
     <template v-else>
-      <!-- Bandeau global : une tuile par stat + relance séquentielle de
-           toutes les analyses (chaque card affiche son spinner quand vient
-           son tour). -->
-      <div class="stats-banner">
-        <StatItem
-            v-for="item in statItems"
-            :key="item.label"
-            :value="item.value"
-            :label="item.label"
-            :hint="item.hint"
-            :empty="item.empty"
-        />
-
-        <BaseButton
-            variant="solid-alt"
-            class="run-all"
-            :icon="running ? null : 'pi-play'"
-            :busy="!!running"
-            @click="runAll"
-        >
-          {{ running ? `Analyse : ${STEP_LABELS[running]}…` : hasAny ? 'Relancer l’analyse' : 'Lancer l’analyse' }}
-        </BaseButton>
+      <!-- Overlay de progression : en `absolute` dans un slot de hauteur nulle
+           pour qu'il ne réserve aucune place et ne déforme pas le layout en
+           disparaissant, une fois la révélation terminée. -->
+      <div class="checklist-slot">
+        <Transition name="checklist">
+          <AnalyseChecklist v-if="checklistVisible" />
+        </Transition>
       </div>
 
       <div class="cloud-row">
-        <VocabulaireCard class="cloud-row__cloud" @select="selectedWord = $event" />
+        <Transition name="reveal" appear>
+          <VocabulaireCard v-if="isRevealed('cloud')" class="cloud-row__cloud" />
+        </Transition>
         <div class="cloud-row__side">
-          <OccurrencesCard :entry="selectedWord" />
-          <SemantiqueCard />
+          <Transition name="reveal" appear>
+            <OccurrencesCard v-if="isRevealed('occurrences')" />
+          </Transition>
+          <Transition name="reveal" appear>
+            <SemantiqueCard v-if="isRevealed('semantique')" />
+          </Transition>
         </div>
       </div>
 
       <div class="dashboard-grid">
-        <LexicalCard />
-        <ThemesCard />
+        <Transition name="reveal" appear>
+          <LexicalCard v-if="isRevealed('lexical')" />
+        </Transition>
+        <Transition name="reveal" appear>
+          <ThemesCard v-if="isRevealed('themes')" />
+        </Transition>
+        <Transition name="reveal" appear>
+          <SemanticPairsCard
+              v-if="isRevealed('pairs')"
+              title="Textes identiques ou quasi identiques"
+              mode="duplicates"
+              hint="Ces articles partagent un texte (presque) mot pour mot — doublons ou refrains du manuscrit."
+          />
+        </Transition>
+        <Transition name="reveal" appear>
+          <SemanticPairsCard
+              v-if="isRevealed('pairs')"
+              title="Paires d’articles les plus proches"
+              mode="closest"
+          />
+        </Transition>
       </div>
     </template>
   </div>
@@ -52,10 +86,12 @@ import { formatInt, formatPercent } from '../script/format'
 import BaseButton from './ui/BaseButton.vue'
 import StatItem from './ui/StatItem.vue'
 import UiNote from './ui/UiNote.vue'
+import AnalyseChecklist from './analyse/AnalyseChecklist.vue'
 import VocabulaireCard from './analyse/VocabulaireCard.vue'
 import OccurrencesCard from './analyse/OccurrencesCard.vue'
 import LexicalCard from './analyse/LexicalCard.vue'
 import SemantiqueCard from './analyse/SemantiqueCard.vue'
+import SemanticPairsCard from './analyse/SemanticPairsCard.vue'
 import ThemesCard from './analyse/ThemesCard.vue'
 
 const STEP_LABELS = {
@@ -65,10 +101,11 @@ const STEP_LABELS = {
 }
 
 const route = useRoute()
-const { loading, error, analysis, running, fetchAnalysis, runAll } = provideAnalyse()
+const { error, analysis, running, isRevealed, revealDone, fetchAnalysis, runAll } = provideAnalyse()
 
-// Lemme sélectionné dans le nuage (VocabulaireCard) → alimente OccurrencesCard.
-const selectedWord = ref(null)
+// Checklist affichée tant que la révélation n'est pas finie, ou qu'une analyse
+// tourne (relance ciblée d'une étape). Disparaît ensuite (overlay absolu).
+const checklistVisible = computed(() => !revealDone.value || running.value !== null)
 
 // Structure du document (fournie par DocumentLayout) : source des stats
 // structurelles (caractères, paragraphes, chapitres), absentes du NLP.
@@ -159,6 +196,37 @@ const statItems = computed(() => {
 /* Le bouton « Relancer » est la dernière case, centré comme une tuile. */
 .run-all {
   justify-content: center;
+}
+
+/* Slot de hauteur nulle : la checklist (absolue) flotte dessous sans réserver
+   d'espace, donc sa disparition ne pousse rien. */
+.checklist-slot {
+  position: relative;
+}
+
+/* Bornée à la largeur du nuage (colonne de gauche, flex 2/3) : elle peut
+   déborder sur le nuage, mais ne doit pas passer sous la card Occurrences à
+   droite. Au-dessus du contenu (z-index) pour rester lisible. */
+.checklist-slot :deep(.progress-checklist) {
+  position: absolute;
+  /* En recouvrement du nuage, mais légèrement inséré (marge) pour se détacher
+     et ne pas se confondre avec l'espacement propre au nuage. Fond opaque →
+     masque proprement les mots dessous. Largeur bornée au nuage (col. gauche). */
+  top: 0.6em;
+  left: 0.6em;
+  width: calc(65% - 1.2em);
+  margin: 0;
+  z-index: 2;
+}
+
+.checklist-enter-active,
+.checklist-leave-active {
+  transition: opacity 0.4s ease;
+}
+
+.checklist-enter-from,
+.checklist-leave-to {
+  opacity: 0;
 }
 
 /* Nuage + filtres (2/3) à gauche ; colonne droite (1/3) empilant les

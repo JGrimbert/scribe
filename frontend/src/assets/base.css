@@ -31,6 +31,13 @@
     --c-border: #e0d8cc;
     --c-muted: #8a7f72;
     --c-danger: #b3261e;
+    /* Teinte des blocs d'information / chargement (callouts) — volontairement
+       distincte du brun accent et du teal alt. Les nuances (fond, bordure,
+       cartouche) sont dérivées par color-mix dans UiCallout. */
+    --c-info: #7d5c86; /* Prune */
+    /* Teintes de réserve (mêmes usages « callout », à mobiliser plus tard). */
+    --c-slate: #5f7089; /* Ardoise */
+    --c-sage: #6f8069; /* Sauge */
     --c-green: #28a745;
     --c-yellow: #ffc107;
     --c-orange: #fd7e14;

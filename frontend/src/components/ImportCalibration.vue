@@ -225,8 +225,8 @@ async function onCommit() {
 }
 
 .footer-error {
+  /* pousse le callout d'échec à gauche du footer ; le chrome (fond/bordure/
+     padding) vient de UiCallout */
   margin-right: auto;
-  padding: 0;
-  font-size: 0.85em;
 }
 </style>

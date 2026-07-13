@@ -1,10 +1,23 @@
 <template>
-  <p class="ui-note" :class="`ui-note--${variant}`">
+  <!-- hint : légende explicative inline, non encadrée -->
+  <p v-if="variant === 'hint'" class="ui-note--hint">
     <slot />
   </p>
+
+  <!-- state / error : bloc callout avec cartouche (Info / Échec) -->
+  <UiCallout
+      v-else
+      :tone="variant === 'error' ? 'error' : 'info'"
+      :title="variant === 'error' ? 'Échec' : 'Info'"
+      truncate
+  >
+    <slot />
+  </UiCallout>
 </template>
 
 <script setup>
+import UiCallout from './UiCallout.vue'
+
 defineProps({
   variant: {
     type: String,
@@ -15,17 +28,7 @@ defineProps({
 </script>
 
 <style scoped>
-/* state : message d'attente/vide — error : échec — hint : légende explicative */
-.ui-note--state {
-  padding: var(--sp-4) 0;
-  opacity: var(--op-muted);
-}
-
-.ui-note--error {
-  padding: var(--sp-4) 0;
-  color: var(--c-danger);
-}
-
+/* hint : légende explicative — state/error sont désormais rendus par UiCallout */
 .ui-note--hint {
   margin: 0 0 var(--sp-1);
   font-size: var(--fs-sm);
