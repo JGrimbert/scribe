@@ -120,7 +120,7 @@ export function useWordCloud(words, onSettle) {
     }
     // Le contenu du nuage suffit à identifier le layout (mêmes lemmes/comptes →
     // même disposition) : pas besoin d'y ajouter le nombre de mots.
-    const sig = signature(list.map((w) => `${w.lemma}:${w.count}`).join('|') + `|${CLOUD_W}x${CLOUD_H}`)
+    const sig = signature(list.map((w) => `${w.text}:${w.count}`).join('|') + `|${CLOUD_W}x${CLOUD_H}`)
     const cached = loadLayout('cloud', route.params.id, sig)
     if (cached) {
       buildFromLayout(cached)

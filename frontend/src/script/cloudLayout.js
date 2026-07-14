@@ -37,7 +37,7 @@ export function fitScale(words) {
   let demand = 0
   for (const w of words) {
     const s = fontSize(w.count, maxSqrt)
-    demand += (w.lemma.length * CHAR_WIDTH_RATIO * s + 2 * BASE_PADDING) * (s + 2 * BASE_PADDING)
+    demand += (w.text.length * CHAR_WIDTH_RATIO * s + 2 * BASE_PADDING) * (s + 2 * BASE_PADDING)
   }
   return Math.min(1, Math.sqrt((FILL * CLOUD_W * CLOUD_H) / demand))
 }
@@ -82,7 +82,7 @@ export function placeWords(words, { scale, seed = 1234 } = {}) {
         .size([CLOUD_W, CLOUD_H])
         .words(
           words.map((w) => ({
-            text: w.lemma,
+            text: w.text,
             count: w.count,
             size: Math.max(6, Math.round(fontSize(w.count, maxSqrt) * s)),
           })),

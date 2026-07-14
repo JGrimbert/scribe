@@ -104,20 +104,24 @@ const lemmas = computed(() => lexical.value?.lemmas ?? null)
 const MAX_WORDS_OPTIONS = [40, 80, 120, 160, 200]
 const maxWords = ref(80)
 
-const { active, POS_FILTERS, ENTITY_FILTERS, filterStats, statLabel, filteredLemmas } =
+const { active, POS_FILTERS, ENTITY_FILTERS, filterStats, statLabel, words: allWords, filteredWords } =
   useCloudFilters(lexical)
 
-const words = computed(() => filteredLemmas.value.slice(0, maxWords.value))
+const words = computed(() => filteredWords.value.slice(0, maxWords.value))
 
 const { placed, selected, hovered, toggle, wordStyle, CLOUD_W, CLOUD_H, CLOUD_MARGIN } =
   useWordCloud(words, () => settle('cloud'))
 
-// Pont vers l'état partagé : le lemme sélectionné dans le nuage pilote le détail
-// des occurrences (OccurrencesCard) et la proximité (SemantiqueCard).
+// Pont vers l'état partagé : le mot sélectionné dans le nuage pilote le détail
+// des occurrences (OccurrencesCard) et la proximité (SemantiqueCard). Les mots
+// (communs comme entités) portent { text, count, nodes } → forme attendue
+// d'OccurrencesCard { lemma, count, nodes }.
+const wordByText = computed(() => new Map(allWords.value.map((w) => [w.text, w])))
 watch(
   selected,
   (text) => {
-    selectedLemma.value = lemmas.value?.find((l) => l.lemma === text) ?? null
+    const w = text ? wordByText.value.get(text) : null
+    selectedLemma.value = w ? { lemma: w.text, count: w.count, nodes: w.nodes } : null
   },
   { immediate: true },
 )
