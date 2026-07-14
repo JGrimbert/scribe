@@ -6,6 +6,7 @@ import { DocumentsService } from '../documents/documents.service'
 import { TrameNode } from '../import/odt-parser'
 import { plainNodeText, plainParagraphTexts } from './plain-text'
 import { buildSegments } from './segmentation'
+import { assessCompleteness, stubNodeIds } from './completeness'
 import { NlpClientService, NlpTopicsResult } from './nlp-client.service'
 import { dot, meanNormalized } from './vector-math'
 import {
@@ -179,8 +180,11 @@ export class AnalyseService {
   // (embeddings + UMAP + HDBSCAN) prend plusieurs minutes, le frontend
   // suit l'avancement via topicsJobStatus.
   async startTopics(documentId: string): Promise<{ jobId: string }> {
-    const { data } = await this.documentsService.getContent(documentId)
-    const segments = buildSegments(data)
+    const { trame, data } = await this.documentsService.getContent(documentId)
+    // Les nœuds en attente (texte propre trop court) ne portent pas de thème
+    // et parasitent la carte (points expulsés par UMAP) — retirés du corpus.
+    const excluded = stubNodeIds(trame, data)
+    const segments = buildSegments(data).filter((s) => !excluded.has(s.nodeId))
     if (segments.length < MIN_TOPIC_SEGMENTS) {
       throw new BadRequestException(
         `Pas assez de texte pour extraire des thèmes (${segments.length} segments, minimum ${MIN_TOPIC_SEGMENTS})`,
@@ -318,10 +322,12 @@ export class AnalyseService {
 
   async get(documentId: string): Promise<DocumentAnalysisResponse> {
     const found = await this.prisma.documentAnalysis.findUnique({ where: { documentId } })
+    const { trame, data } = await this.documentsService.getContent(documentId)
     return {
       lexical: (found?.lexical as unknown as LexicalAnalysis | null) ?? null,
       semantic: (found?.semantic as unknown as SemanticAnalysis | null) ?? null,
       topics: (found?.topics as unknown as TopicsAnalysis | null) ?? null,
+      completeness: assessCompleteness(trame, data),
     }
   }
 }

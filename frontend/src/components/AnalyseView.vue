@@ -60,6 +60,9 @@
           />
         </Transition>
         <Transition name="reveal" appear>
+          <AnomaliesCard v-if="isRevealed('pairs')" />
+        </Transition>
+        <Transition name="reveal" appear>
           <SemanticPairsCard
               v-if="isRevealed('pairs')"
               title="Paires d’articles les plus proches"
@@ -92,6 +95,7 @@ import LexicalCard from './analyse/LexicalCard.vue'
 import LexicalUnitsCard from './analyse/LexicalUnitsCard.vue'
 import SemantiqueCard from './analyse/SemantiqueCard.vue'
 import SemanticPairsCard from './analyse/SemanticPairsCard.vue'
+import AnomaliesCard from './analyse/AnomaliesCard.vue'
 import ThemesCard from './analyse/ThemesCard.vue'
 
 const STEP_LABELS = {

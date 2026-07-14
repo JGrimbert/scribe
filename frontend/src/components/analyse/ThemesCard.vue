@@ -75,10 +75,16 @@
             <h3>Carte des segments</h3>
             <UiNote variant="hint">
               Chaque point est un segment de ~250 mots, placé par proximité sémantique (UMAP) —
-              deux points voisins parlent de choses proches, quel que soit leur chapitre.
-              Cliquer un thème le met en évidence ; cliquer un point ouvre son article.
+              deux points voisins parlent de choses proches, quel que soit leur chapitre. Les axes
+              n'ont pas d'unité, seule la proximité compte. Cliquer un thème le met en évidence ;
+              cliquer un point ouvre son article.
             </UiNote>
-            <svg class="viz" viewBox="0 0 640 420" role="img" aria-label="Carte sémantique des segments">
+            <svg
+                class="viz"
+                :viewBox="`0 0 ${MAP_SIZE} ${MAP_SIZE}`"
+                role="img"
+                aria-label="Carte sémantique des segments"
+            >
               <circle
                   v-for="(point, i) in projectionPoints"
                   :key="i"
@@ -158,14 +164,17 @@ const topicLabelById = computed(
   () => new Map((topics.value?.topics ?? []).map((t) => [t.topicId, t.label])),
 )
 
-const MAP_W = 640
-const MAP_H = 420
-const MAP_PAD = 12
+// Carte carrée : les coordonnées UMAP sont désormais normalisées à échelle
+// unique côté service (aspect-preserving) — les étaler dans un rectangle les
+// redéformerait. Un carré préserve la proximité relative des points.
+const MAP_SIZE = 440
+const MAP_PAD = 18
+const toCanvas = (v) => Math.round((MAP_PAD + v * (MAP_SIZE - 2 * MAP_PAD)) * 10) / 10
 
 const projectionPoints = computed(() =>
   (topics.value?.projection ?? []).map((point) => ({
-    cx: Math.round((MAP_PAD + point.x * (MAP_W - 2 * MAP_PAD)) * 10) / 10,
-    cy: Math.round((MAP_PAD + (1 - point.y) * (MAP_H - 2 * MAP_PAD)) * 10) / 10,
+    cx: toCanvas(point.x),
+    cy: toCanvas(1 - point.y),
     topicId: point.topicId,
     nodeId: point.nodeId,
     color: topicColor(point.topicId),
@@ -241,6 +250,12 @@ const selectedTopicByAxe = computed(() => {
   font-family: var(--font-serif);
   font-size: 1.05em;
   color: var(--c-accent);
+}
+
+.viz {
+  display: block;
+  width: 100%;
+  height: auto;
 }
 
 .map-point {

@@ -148,14 +148,21 @@ def run_topics(
     coords = UMAP(
         n_neighbors=30, n_components=2, min_dist=0.25, metric="cosine", random_state=42
     ).fit_transform(embeddings)
-    # Normalisation sur les percentiles 1-99 + écrêtage, pas min-max : UMAP
-    # envoie parfois un petit cluster très à l'écart, et une min-max stricte
+    # Cadrage sur les percentiles 1-99 + écrêtage, pas min-max : UMAP envoie
+    # parfois un petit cluster très à l'écart, et une min-max stricte
     # écraserait toute la structure principale en un amas minuscule (constaté
     # sur manuscrit réel). Les points écrêtés se posent au bord de la carte.
-    mins = np.percentile(coords, 1, axis=0)
-    spans = np.percentile(coords, 99, axis=0) - mins
-    spans[spans == 0] = 1.0
-    normalized = np.clip((coords - mins) / spans, 0.0, 1.0)
+    #
+    # Échelle UNIQUE sur les deux axes (pas un span par axe) : sinon x et y
+    # sont étirés différemment et le nuage se déforme — deux points à distance
+    # égale n'apparaîtraient plus à distance égale. Centré dans [0,1] ; le
+    # facteur 0.9 laisse une marge pour que le gros du nuage ne colle pas aux
+    # bords.
+    lo = np.percentile(coords, 1, axis=0)
+    hi = np.percentile(coords, 99, axis=0)
+    center = (lo + hi) / 2
+    span = float(np.max(hi - lo)) or 1.0
+    normalized = np.clip(0.5 + 0.9 * (coords - center) / span, 0.0, 1.0)
     projection = [
         ProjectionPoint(id=segment.id, x=round(float(x), 3), y=round(float(y), 3))
         for segment, (x, y) in zip(segments, normalized)

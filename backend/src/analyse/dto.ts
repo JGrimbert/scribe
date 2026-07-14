@@ -1,4 +1,5 @@
 import { NlpGlobalStats, NlpLexicalGraph } from './nlp-client.service'
+import { CompletenessAnalysis } from './completeness'
 
 export interface NodeRef {
   nodeId: string
@@ -128,4 +129,7 @@ export interface DocumentAnalysisResponse {
   lexical: LexicalAnalysis | null
   semantic: SemanticAnalysis | null
   topics: TopicsAnalysis | null
+  // Toujours présent : dérivé du contenu (comptes de mots), sans NLP — la
+  // carte des anomalies s'affiche donc avant tout calcul d'analyse.
+  completeness: CompletenessAnalysis
 }
