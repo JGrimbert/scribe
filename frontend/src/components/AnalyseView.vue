@@ -68,8 +68,10 @@
         </Transition>
       </div>
 
-      <!-- Entités non migrées vers les filtres du nuage (organisations, divers) :
-           gardées en bas, en lecture seule, pour ne rien perdre. -->
+      <!-- Bas de page : cards en lecture seule, « à trier plus tard ». Le
+           tableau par article (sorti du bloc Analyse linguistique) et les
+           entités non migrées vers les filtres du nuage. -->
+      <LexicalUnitsCard v-if="isRevealed('lexical')" class="leftover-entities" />
       <EntitiesLeftoverCard v-if="isRevealed('lexical')" class="leftover-entities" />
     </template>
   </div>
@@ -87,6 +89,7 @@ import VocabulaireCard from './analyse/VocabulaireCard.vue'
 import OccurrencesCard from './analyse/OccurrencesCard.vue'
 import EntitiesLeftoverCard from './analyse/EntitiesLeftoverCard.vue'
 import LexicalCard from './analyse/LexicalCard.vue'
+import LexicalUnitsCard from './analyse/LexicalUnitsCard.vue'
 import SemantiqueCard from './analyse/SemantiqueCard.vue'
 import SemanticPairsCard from './analyse/SemanticPairsCard.vue'
 import ThemesCard from './analyse/ThemesCard.vue'

@@ -26,6 +26,81 @@
     white-space: nowrap;
 }
 
+/* ── Modules de la colonne gauche du réseau lexical ────────────────
+   Communs à Inspecteur / Champs lexicaux / Mots-ponts : petites listes
+   cliquables partageant pastille, ligne et métrique ferrée à droite. */
+.lex-module {
+    padding: 0.9em 0;
+}
+
+.lex-module + .lex-module {
+    border-top: 1px solid var(--c-border);
+}
+
+.lex-module__title {
+    margin: 0 0 0.5em;
+    font-size: var(--fs-sm);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    opacity: 0.6;
+}
+
+.lex-module__hint {
+    margin: 0 0 0.4em;
+    font-size: var(--fs-sm);
+    opacity: var(--op-muted);
+}
+
+.lex-swatch {
+    width: 0.7em;
+    height: 0.7em;
+    border-radius: 2px;
+    flex-shrink: 0;
+    display: inline-block;
+}
+
+.lex-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.1em;
+}
+
+.lex-list li {
+    display: flex;
+    align-items: center;
+    gap: 0.55em;
+    padding: 0.28em 0.4em;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: var(--fs-sm);
+}
+
+.lex-list li:hover {
+    background: var(--c-hover);
+}
+
+.lex-list li.active {
+    background: color-mix(in srgb, var(--c-accent) 12%, transparent);
+}
+
+.lex-word {
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.lex-metric {
+    margin-left: auto;
+    padding-left: 0.5em;
+    font-variant-numeric: tabular-nums;
+    opacity: var(--op-muted);
+    font-size: 0.85em;
+    flex-shrink: 0;
+}
+
 /* Révélation en chaîne des cards du dashboard (transition compositor-only). */
 .reveal-enter-active {
     transition: opacity 0.45s ease, transform 0.45s ease;

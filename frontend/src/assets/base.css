@@ -47,6 +47,18 @@
     --c-orange: #fd7e14;
     --c-gray: #adb5bd;
 
+    /* Palette catégorielle — communautés du réseau lexical. Teintes toutes
+       terreuses/désaturées (même famille que l'accent brun/teal), distinguables
+       sans jurer, cyclées au-delà de 8 grappes. */
+    --c-cat-1: #138297;
+    --c-cat-2: #b5551a;
+    --c-cat-3: #7d5c86;
+    --c-cat-4: #6f8069;
+    --c-cat-5: #5f7089;
+    --c-cat-6: #a8843b;
+    --c-cat-7: #9c5049;
+    --c-cat-8: #4f7a6a;
+
     /* Typo — --font-serif est réservé au contenu du manuscrit
        (nuage de mots, extraits) ; l'UI est en --font-ui partout. */
     --font-ui: system-ui, sans-serif;
