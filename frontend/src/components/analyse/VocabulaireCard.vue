@@ -9,7 +9,6 @@
     <template v-else>
       <header class="cloud-head">
         <h3 class="cloud-title">
-          Fréquence
           <i v-if="running === 'lexical'" class="pi pi-spin pi-spinner cloud-busy"></i>
         </h3>
         <label class="cloud-max">

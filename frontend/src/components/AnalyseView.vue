@@ -44,13 +44,19 @@
         </div>
       </div>
 
-      <div class="dashboard-grid">
+      <div class="cloud-row">
         <Transition name="reveal" appear>
           <LexicalCard v-if="isRevealed('lexical')" />
         </Transition>
+      </div>
+
+      <div class="cloud-row">
         <Transition name="reveal" appear>
           <ThemesCard v-if="isRevealed('themes')" />
         </Transition>
+      </div>
+
+      <div class="cloud-row">
         <Transition name="reveal" appear>
           <SemanticPairsCard
               v-if="isRevealed('pairs')"
@@ -59,6 +65,9 @@
               hint="Ces articles partagent un texte (presque) mot pour mot — doublons ou refrains du manuscrit."
           />
         </Transition>
+      </div>
+
+      <div class="cloud-row">
         <Transition name="reveal" appear>
           <AnomaliesCard v-if="isRevealed('pairs')" />
         </Transition>
