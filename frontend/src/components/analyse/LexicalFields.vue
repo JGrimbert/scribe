@@ -1,6 +1,9 @@
 <template>
   <div class="lex-module">
-    <h4 class="lex-module__title">Champs lexicaux</h4>
+    <h4 class="lex-module__title">
+      Champs lexicaux
+      <UiHint text="Grappes de mots qui co-occurrent densément entre eux (détection de communautés, algorithme de Louvain). Chaque couleur en marque un. Cliquez un champ pour l’isoler dans le réseau." />
+    </h4>
     <p v-if="!communities.length" class="lex-module__hint">Aucune grappe détectée.</p>
     <ul v-else class="lex-list">
       <li
@@ -18,6 +21,7 @@
 </template>
 
 <script setup>
+import UiHint from '../ui/UiHint.vue'
 import { useLexicalGraph } from '../../composables/useLexicalGraph'
 
 const { communities, focus, selectCommunity } = useLexicalGraph()

@@ -1,6 +1,9 @@
 <template>
   <div class="lex-module">
-    <h4 class="lex-module__title">Mots-ponts</h4>
+    <h4 class="lex-module__title">
+      Mots-ponts
+      <UiHint text="Mots par lesquels transitent les chemins entre champs lexicaux (centralité d’intermédiarité, ou betweenness). Souvent des termes charnières du texte. La barre indique le score relatif." />
+    </h4>
     <p class="lex-module__hint">Les mots par qui transitent les liens entre champs.</p>
     <ul v-if="bridges.length" class="lex-list">
       <li
@@ -20,6 +23,7 @@
 
 <script setup>
 import ScoreBar from '../ui/ScoreBar.vue'
+import UiHint from '../ui/UiHint.vue'
 import { useLexicalGraph } from '../../composables/useLexicalGraph'
 
 const { bridges, focus, communityColor, selectNode } = useLexicalGraph()

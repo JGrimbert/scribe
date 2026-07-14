@@ -38,12 +38,17 @@
 }
 
 .lex-module__title {
+    display: flex;
+    align-items: center;
+    gap: 0.4em;
     margin: 0 0 0.5em;
     font-size: var(--fs-sm);
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.06em;
-    opacity: 0.6;
+    /* Grisé par la couleur, pas par l'opacité : sinon la pastille « ? »
+       (UiHint) héritée s'affadirait aussi. */
+    color: var(--c-muted);
 }
 
 .lex-module__hint {
