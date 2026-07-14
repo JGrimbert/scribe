@@ -2,6 +2,9 @@ import { computed, inject, provide, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { loadLayout, saveLayout, signature } from '../script/layoutCache'
 import { detectCommunities, betweenness } from '../script/graphMetrics'
+import { buildWordIndex, resolveSelection } from '../script/lexicalSelection'
+import { buildCloudWords } from '../script/cloudCategories'
+import { useAnalyse } from './useAnalyse'
 
 const KEY = Symbol('lexical-graph')
 
@@ -105,8 +108,23 @@ function buildNetwork(graph) {
 export function provideLexicalGraph(lexical) {
   const route = useRoute()
 
-  // Focus courant : soit un nœud (mot), soit une communauté (grappe), soit rien.
-  const focus = ref(null) // { kind: 'node', lemma } | { kind: 'community', id } | null
+  // La sélection d'un NŒUD est déléguée au store d'analyse (selectedLemma) :
+  // cliquer un nœud pilote aussi Occurrences/Proximité, et un mot choisi dans
+  // le nuage surligne son nœud ici. La sélection d'une COMMUNAUTÉ reste locale
+  // (pas de mot unique à propager). `focus` en dérive — pas de watcher croisé,
+  // donc pas de boucle.
+  const { selectedLemma } = useAnalyse()
+  const selectedCommunity = ref(null) // id de grappe surlignée, ou null
+
+  // Focus courant : nœud (mot partagé), communauté (grappe locale), ou rien.
+  // selectedLemma peut porter la casse d'un nom propre (« Margot ») ; on
+  // retrouve le nœud du graphe (« margot ») sans faute de casse.
+  const focus = computed(() => {
+    if (selectedCommunity.value != null) return { kind: 'community', id: selectedCommunity.value }
+    const sel = selectedLemma.value?.lemma
+    const graphLemma = sel ? nodeKeyLower.value.get(sel.toLowerCase()) : undefined
+    return graphLemma ? { kind: 'node', lemma: graphLemma } : null
+  })
 
   // Seuil de force d'association (NPMI) : déclutter purement visuel. Le layout,
   // les communautés et la betweenness restent calculés sur le graphe complet —
@@ -188,6 +206,12 @@ export function provideLexicalGraph(lexical) {
     () => new Map((network.value?.nodes ?? []).map((n) => [n.lemma, n])),
   )
 
+  // Lemme minusculé → lemme réel du graphe (pour l'appariement casse-insensible
+  // du focus depuis selectedLemma).
+  const nodeKeyLower = computed(
+    () => new Map((network.value?.nodes ?? []).map((n) => [n.lemma.toLowerCase(), n.lemma])),
+  )
+
   // Champs lexicaux : une entrée par communauté, membres triés par fréquence.
   const communities = computed(() => {
     const nodes = network.value?.nodes ?? []
@@ -226,20 +250,29 @@ export function provideLexicalGraph(lexical) {
     return { node, associations }
   })
 
+  // Index des mots du NUAGE (mêmes que VocabulaireCard : entités pour les noms
+  // propres, lemmes pour le reste) → aucun différentiel node-clic vs nuage.
+  const wordIndex = computed(() =>
+    buildWordIndex(buildCloudWords(lexical.value?.lemmas, lexical.value?.entities)),
+  )
+
   function selectNode(lemma) {
-    focus.value =
-      focus.value?.kind === 'node' && focus.value.lemma === lemma
-        ? null
-        : { kind: 'node', lemma }
+    selectedCommunity.value = null
+    const current = selectedLemma.value?.lemma
+    if (current && current.toLowerCase() === lemma.toLowerCase()) {
+      selectedLemma.value = null
+      return
+    }
+    const node = nodeByLemma.value.get(lemma)
+    selectedLemma.value = resolveSelection(lemma, wordIndex.value, node?.count ?? 0)
   }
   function selectCommunity(id) {
-    focus.value =
-      focus.value?.kind === 'community' && focus.value.id === id
-        ? null
-        : { kind: 'community', id }
+    selectedLemma.value = null
+    selectedCommunity.value = selectedCommunity.value === id ? null : id
   }
   function clear() {
-    focus.value = null
+    selectedLemma.value = null
+    selectedCommunity.value = null
   }
 
   const store = {
