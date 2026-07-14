@@ -75,6 +75,11 @@
     --sp-4: 1rem;
     --sp-6: 1.5rem;
 
+    /* Respiration interne d'un bloc « split » — token unique par registre.
+       Référence : l'ancien bloc-nuage (viz 1.4 / colonnes latérales 1.1). */
+    --split-pad: 1.4rem;
+    --split-pad-aside: 1.1rem;
+
     /* Layout — hauteur de la topbar == largeur de la sidebar repliée (rail) */
     --bar-size: 2.6rem;
 

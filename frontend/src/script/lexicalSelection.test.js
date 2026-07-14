@@ -42,7 +42,7 @@ describe('resolveSelection', () => {
   // Régression bout-en-bout du bug rapporté : le nœud « margot » (minusculé) ne
   // doit PAS renvoyer le lemme brut (« Margot » 279 occ / 164 articles) mais le
   // mot du nuage, c.-à-d. l'ENTITÉ nommée (220 occ / 136 articles). Aucun
-  // différentiel avec ce qu'affiche VocabulaireCard.
+  // différentiel avec ce qu'affiche VocabulaireCloud.
   it('apparie un nœud à l’entité du nuage, sans différentiel (cas Margot)', () => {
     const lemmas = [{ lemma: 'Margot', pos: 'PROPN', count: 279, nodes: nodesOf(164) }]
     const entities = [

@@ -1,8 +1,7 @@
 <template>
   <div class="lex-module">
-<!--    <h4 class="lex-module__title">Inspecteur</h4>-->
     <template v-if="!inspected" class="lex-module__hint">
-<!--      Cliquez un mot du réseau pour voir ses associations les plus fortes.-->
+      Cliquez un mot du réseau pour voir ses associations les plus fortes.
     </template>
     <template v-else>
       <div class="insp-head">

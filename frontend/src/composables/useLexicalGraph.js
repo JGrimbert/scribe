@@ -250,7 +250,7 @@ export function provideLexicalGraph(lexical) {
     return { node, associations }
   })
 
-  // Index des mots du NUAGE (mêmes que VocabulaireCard : entités pour les noms
+  // Index des mots du NUAGE (mêmes que VocabulaireCloud : entités pour les noms
   // propres, lemmes pour le reste) → aucun différentiel node-clic vs nuage.
   const wordIndex = computed(() =>
     buildWordIndex(buildCloudWords(lexical.value?.lemmas, lexical.value?.entities)),

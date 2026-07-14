@@ -29,34 +29,16 @@
 
     <template v-else>
       <!-- La checklist de progression vit désormais dans DocumentBar (à droite
-           du fil d'Ariane), plus en overlay sur le nuage. -->
-      <div class="cloud-row">
-        <Transition name="reveal" appear>
-          <VocabulaireCard v-if="isRevealed('cloud')" class="cloud-row__cloud" />
-        </Transition>
-        <div class="cloud-row__side">
-          <Transition name="reveal" appear>
-            <OccurrencesCard v-if="isRevealed('occurrences')" />
-          </Transition>
-          <Transition name="reveal" appear>
-            <SemantiqueCard v-if="isRevealed('semantique')" />
-          </Transition>
-        </div>
-      </div>
+           du fil d'Ariane), plus en overlay sur le nuage. Chaque bloc-split
+           (VocabulaireCard / LexicalCard) encapsule son propre cadre et sa
+           révélation ; AnalyseView les aligne sans layout spécifique. -->
+      <VocabulaireCard />
 
-      <div class="cloud-row">
-        <Transition name="reveal" appear>
-          <LexicalCard v-if="isRevealed('lexical')" />
-        </Transition>
-      </div>
+      <LexicalCard />
 
-      <div class="cloud-row">
-        <Transition name="reveal" appear>
-          <ThemesCard v-if="isRevealed('themes')" />
-        </Transition>
-      </div>
+      <ThemesCard />
 
-      <div class="cloud-row">
+      <div class="split">
         <Transition name="reveal" appear>
           <SemanticPairsCard
               v-if="isRevealed('pairs')"
@@ -67,7 +49,7 @@
         </Transition>
       </div>
 
-      <div class="cloud-row">
+      <div class="split">
         <Transition name="reveal" appear>
           <AnomaliesCard v-if="isRevealed('pairs')" />
         </Transition>
@@ -98,11 +80,9 @@ import BaseButton from './ui/BaseButton.vue'
 import StatItem from './ui/StatItem.vue'
 import UiNote from './ui/UiNote.vue'
 import VocabulaireCard from './analyse/VocabulaireCard.vue'
-import OccurrencesCard from './analyse/OccurrencesCard.vue'
 import EntitiesLeftoverCard from './analyse/EntitiesLeftoverCard.vue'
 import LexicalCard from './analyse/LexicalCard.vue'
 import LexicalUnitsCard from './analyse/LexicalUnitsCard.vue'
-import SemantiqueCard from './analyse/SemantiqueCard.vue'
 import SemanticPairsCard from './analyse/SemanticPairsCard.vue'
 import AnomaliesCard from './analyse/AnomaliesCard.vue'
 import ThemesCard from './analyse/ThemesCard.vue'
@@ -205,69 +185,6 @@ const statItems = computed(() => {
 /* Le bouton « Relancer » est la dernière case, centré comme une tuile. */
 .run-all {
   justify-content: center;
-}
-
-/* Nuage + filtres (2/3) à gauche ; colonne droite (1/3) empilant les
-   occurrences du mot sélectionné puis la proximité sémantique. Les trois
-   cards sont `bare` : c'est cette rangée qui porte le fond blanc et se lit
-   comme un seul bloc, séparateurs internes tracés à la bordure. */
-.cloud-row {
-  display: flex;
-  align-items: stretch;
-  margin-bottom: 1em;
-  background: var(--c-surface);
-  backdrop-filter: var(--c-backdrop-filter-blur);
-  border: 1px solid var(--c-border);
-  border-radius: var(--radius-md);
-}
-
-.cloud-row__cloud {
-  flex: 2 1 0;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-/* Body en colonne pleine hauteur : en-tête ferré haut, filtres ferrés bas, le
-   nuage remplit l'espace intermédiaire. Respire plus que les régions de droite. */
-.cloud-row__cloud :deep(.ui-card__body) {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  padding: 1.4em;
-}
-
-.cloud-row__side {
-  flex: 1 1 0;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  border-left: 1px solid var(--c-border);
-}
-
-/* Séparateur horizontal entre occurrences et proximité. */
-.cloud-row__side > * + * {
-  border-top: 1px solid var(--c-border);
-}
-
-/* La proximité s'étire pour que le bas de la colonne droite rejoigne le bas
-   du nuage — tout s'arrête à la même ligne. */
-.cloud-row__side > *:last-child {
-  flex: 1;
-}
-
-.cloud-row__side :deep(.ui-card__body) {
-  padding: 1.1em 1.25em;
-}
-
-/* Les cards « wide » (grid-column: 1 / -1) forcent un retour à la ligne ;
-   dense laisse les petites cards remonter combler les trous. */
-.dashboard-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(30em, 100%), 1fr));
-  grid-auto-flow: dense;
-  gap: 1em;
-  align-items: start;
 }
 
 .leftover-entities {

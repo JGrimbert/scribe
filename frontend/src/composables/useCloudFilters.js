@@ -23,7 +23,7 @@ const ENTITY_KEYS = new Set(['personne', 'lieu'])
 // Filtres du nuage + statistiques par catégorie. `lexical` est le volet lexical
 // réactif (lemmes + entités + posCounts). Expose `words` (tous les mots du nuage)
 // et `filteredWords` (ceux passant les filtres actifs) — c'est cette API que
-// consomme VocabulaireCard.
+// consomme VocabulaireCloud.
 export function useCloudFilters(lexical) {
   // Adverbes décochés par défaut : souvent peu porteurs de sens.
   const active = reactive({ nom: true, personne: true, lieu: true, adj: true, verbe: true, adverbe: false })

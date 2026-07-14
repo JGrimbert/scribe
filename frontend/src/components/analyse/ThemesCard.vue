@@ -1,85 +1,39 @@
 <template>
-  <UiCard title="Thèmes" wide :busy="running === 'topics'">
-    <div v-if="running === 'topics' && topicsProgress" class="topics-progress">
-      <ScoreBar
-          :pct="topicsProgress.pct"
-          :label="`${topicsProgress.step} (${Math.round(topicsProgress.pct)} %)`"
-          track-width="16em"
-      />
-    </div>
-
-    <UiNote v-if="stepErrors.topics" variant="error">{{ stepErrors.topics }}</UiNote>
-    <template v-if="!topics && running !== 'topics'">
-      <UiNote>
-        Analyse pas encore calculée. Nécessite le service NLP local (<code>npm run dev:nlp</code>) —
-        l'extraction d'un manuscrit complet prend plusieurs minutes, l'avancement s'affiche ici.
-      </UiNote>
-      <BaseButton variant="outline" icon="pi-play" :busy="!!running" class="run-step" @click="runStep('topics')">
-        Lancer l'analyse des thèmes
-      </BaseButton>
-    </template>
-
-    <template v-if="topics">
-      <div class="topics-columns">
-        <div>
-          <UiNote variant="hint">
-            {{ topics.topics.length }} thèmes détectés —
-            {{ topics.outliers.count }} segments hors thème ({{ formatPercent(topics.outliers.share) }}).
-            Les mots listés sont les plus caractéristiques de chaque thème (c-TF-IDF), pas des titres.
-          </UiNote>
-
-          <ChipGroup>
-            <BaseChip
-                v-for="topic in topics.topics"
-                :key="topic.topicId"
-                :count="topic.count"
-                :dot="topicColor(topic.topicId)"
-                :active="selectedTopicId === topic.topicId"
-                @click="selectedTopicId = selectedTopicId === topic.topicId ? null : topic.topicId"
-            >
-              {{ topic.label }}
-            </BaseChip>
-          </ChipGroup>
-
-          <template v-if="selectedTopic">
-            <h3>Thème « {{ selectedTopic.label }} » — {{ selectedTopic.count }} segments ({{ formatPercent(selectedTopic.share) }})</h3>
-
-            <div class="topic-words">
-              <span
-                  v-for="word in selectedTopic.words"
-                  :key="word.word"
-                  class="topic-word"
-                  :style="{ opacity: 0.55 + 0.45 * (word.weight / selectedTopic.words[0].weight) }"
-              >
-                {{ word.word }}
-              </span>
-            </div>
-
-            <h3>Présence par axe</h3>
-            <UiTable>
-              <tbody>
-                <tr v-for="row in selectedTopicByAxe" :key="row.axeId ?? 'liminaire'">
-                  <td>{{ row.titre }}</td>
-                  <td class="score-col">
-                    <ScoreBar :pct="row.pct" :label="`${row.count} / ${row.segments}`" />
-                  </td>
-                </tr>
-              </tbody>
-            </UiTable>
-          </template>
-          <UiNote v-else variant="hint">Cliquer un thème pour son détail (mots, présence par axe).</UiNote>
+  <!-- Bloc thèmes : carte des segments (2/3) à gauche, détail au clic (1/3) à
+       droite — même orientation que le bloc-nuage. Cadre et contenu se révèlent
+       d'un bloc. -->
+  <Transition name="reveal" appear>
+    <div v-if="isRevealed('themes')" class="split">
+      <!-- Pas de données : message plein largeur. -->
+      <div v-if="!topics" class="themes-message">
+        <UiNote v-if="stepErrors.topics" variant="error">{{ stepErrors.topics }}</UiNote>
+        <div v-if="running === 'topics' && topicsProgress" class="topics-progress">
+          <ScoreBar
+              :pct="topicsProgress.pct"
+              :label="`${topicsProgress.step} (${Math.round(topicsProgress.pct)} %)`"
+              track-width="16em"
+          />
         </div>
+        <template v-else-if="running !== 'topics'">
+          <UiNote>
+            Analyse pas encore calculée. Nécessite le service NLP local (<code>npm run dev:nlp</code>) —
+            l'extraction d'un manuscrit complet prend plusieurs minutes, l'avancement s'affiche ici.
+          </UiNote>
+          <BaseButton variant="outline" icon="pi-play" :busy="!!running" class="run-step" @click="runStep('topics')">
+            Lancer l'analyse des thèmes
+          </BaseButton>
+        </template>
+      </div>
 
-        <div>
-          <template v-if="topics.projection?.length">
-            <h3>Carte des segments</h3>
-            <UiNote variant="hint">
-              Chaque point est un segment de ~250 mots, placé par proximité sémantique (UMAP) —
-              deux points voisins parlent de choses proches, quel que soit leur chapitre. Les axes
-              n'ont pas d'unité, seule la proximité compte. Cliquer un thème le met en évidence ;
-              cliquer un point ouvre son article.
+      <template v-else>
+        <!-- Carte des segments (viz) -->
+        <div class="split-main">
+          <div class="map-body">
+            <UiNote v-if="!topics.projection?.length" variant="hint">
+              Carte des segments indisponible sur cette analyse — relancer l'analyse pour l'obtenir.
             </UiNote>
             <svg
+                v-else
                 class="viz"
                 :viewBox="`0 0 ${MAP_SIZE} ${MAP_SIZE}`"
                 role="img"
@@ -97,23 +51,87 @@
                 <title>{{ point.titre }} — {{ point.topicLabel }}</title>
               </circle>
             </svg>
-            <div class="map-legend">
-              <span v-for="item in mapLegend" :key="item.label" class="map-legend-item">
-                <span class="legend-dot" :style="{ background: item.color }"></span>{{ item.label }}
-              </span>
+          </div>
+
+          <!-- Footer : thèmes (pastille = légende + sélecteur) puis explication.
+               Pendant un recalcul, l'avancement remplace le footer. -->
+          <div class="map-foot">
+            <div v-if="running === 'topics' && topicsProgress" class="topics-progress">
+              <ScoreBar
+                  :pct="topicsProgress.pct"
+                  :label="`${topicsProgress.step} (${Math.round(topicsProgress.pct)} %)`"
+                  track-width="16em"
+              />
             </div>
-          </template>
-          <UiNote v-else variant="hint">
-            Carte des segments indisponible sur cette analyse — relancer l'analyse pour l'obtenir.
-          </UiNote>
+            <template v-else>
+              <ChipGroup>
+                <BaseChip
+                    v-for="topic in topics.topics"
+                    :key="topic.topicId"
+                    :count="topic.count"
+                    :dot="topicColor(topic.topicId)"
+                    :active="selectedTopicId === topic.topicId"
+                    @click="selectedTopicId = selectedTopicId === topic.topicId ? null : topic.topicId"
+                >
+                  {{ topic.label }}
+                </BaseChip>
+              </ChipGroup>
+              <p class="map-hint">
+                {{ topics.topics.length }} thèmes · {{ topics.outliers.count }} segments hors thème
+                ({{ formatPercent(topics.outliers.share) }}). Chaque point est un segment de ~250 mots
+                placé par proximité sémantique (UMAP) ; cliquer un point ouvre son article, cliquer un
+                thème le met en évidence.
+              </p>
+            </template>
+          </div>
         </div>
-      </div>
-    </template>
-  </UiCard>
+
+        <!-- Détail du thème au clic -->
+        <div class="split-right">
+          <template v-if="selectedTopic">
+            <UiCard bare>
+              <p class="detail-lead">
+                Thème « {{ selectedTopic.label }} » — {{ selectedTopic.count }} segments
+                ({{ formatPercent(selectedTopic.share) }})
+              </p>
+              <div class="topic-words">
+                <span
+                    v-for="word in selectedTopic.words"
+                    :key="word.word"
+                    class="topic-word"
+                    :style="{ opacity: 0.55 + 0.45 * (word.weight / selectedTopic.words[0].weight) }"
+                >
+                  {{ word.word }}
+                </span>
+              </div>
+            </UiCard>
+            <UiCard bare>
+              <p class="detail-lead">Présence par axe</p>
+              <UiTable>
+                <tbody>
+                  <tr v-for="row in selectedTopicByAxe" :key="row.axeId ?? 'liminaire'">
+                    <td>{{ row.titre }}</td>
+                    <td class="score-col">
+                      <ScoreBar :pct="row.pct" :label="`${row.count} / ${row.segments}`" />
+                    </td>
+                  </tr>
+                </tbody>
+              </UiTable>
+            </UiCard>
+          </template>
+          <UiCard v-else bare>
+            <UiNote variant="hint">
+              Cliquer un thème pour son détail : mots caractéristiques et présence par axe.
+            </UiNote>
+          </UiCard>
+        </div>
+      </template>
+    </div>
+  </Transition>
 </template>
 
 <script setup>
-import { computed, inject, onMounted, ref } from 'vue'
+import { computed, inject, ref, watch } from 'vue'
 import UiCard from '../ui/UiCard.vue'
 import UiNote from '../ui/UiNote.vue'
 import UiTable from '../ui/UiTable.vue'
@@ -124,9 +142,11 @@ import BaseButton from '../ui/BaseButton.vue'
 import { useAnalyse } from '../../composables/useAnalyse'
 import { formatPercent } from '../../script/format'
 
-const { analysis, running, stepErrors, topicsProgress, goToNode, settle, runStep } = useAnalyse()
+const { analysis, running, stepErrors, topicsProgress, isRevealed, goToNode, settle, runStep } = useAnalyse()
 
-onMounted(() => settle('themes'))
+// Monté d'emblée (cadre symétrique des autres blocs) : on relaie à la chaîne de
+// révélation quand le contenu apparaît, pas au montage.
+watch(() => isRevealed('themes'), (revealed) => { if (revealed) settle('themes') }, { immediate: true })
 
 // data du document (fourni par DocumentLayout) — résolution des titres pour
 // les infobulles de la carte, sans dupliquer 762 titres dans l'analyse.
@@ -184,23 +204,6 @@ const projectionPoints = computed(() =>
   })),
 )
 
-const mapLegend = computed(() => {
-  const colored = (topics.value?.topics ?? [])
-    .slice(0, TOPIC_PALETTE.length)
-    .map((topic, i) => ({
-      color: TOPIC_PALETTE[i],
-      label: topic.label.split(' · ').slice(0, 2).join(' · '),
-    }))
-  const extras = []
-  if ((topics.value?.topics.length ?? 0) > TOPIC_PALETTE.length) {
-    extras.push({ color: COLOR_OTHER, label: 'autres thèmes' })
-  }
-  if (topics.value?.outliers.count) {
-    extras.push({ color: COLOR_OUTLIER, label: 'hors thème' })
-  }
-  return [...colored, ...extras]
-})
-
 // Présence du thème sélectionné dans chaque axe, en % des segments de l'axe
 // (pas du total : les axes n'ont pas tous la même longueur).
 const selectedTopicByAxe = computed(() => {
@@ -220,36 +223,26 @@ const selectedTopicByAxe = computed(() => {
 </script>
 
 <style scoped>
+.themes-message {
+  flex: 1;
+  padding: var(--split-pad);
+}
+
 .topics-progress {
-  padding: 0.5em 0 1em;
+  padding: 0.5em 0;
 }
 
 .run-step {
   margin-top: 0.75em;
 }
 
-/* Deux colonnes internes : thèmes + détail à gauche, carte à droite. */
-.topics-columns {
-  display: grid;
-  grid-template-columns: minmax(24em, 1fr) minmax(24em, 1fr);
-  gap: 1.5em;
-  align-items: start;
-}
-
-@media (max-width: 70em) {
-  .topics-columns {
-    grid-template-columns: 1fr;
-  }
-}
-
-.topic-words {
+/* Carte : occupe l'espace entre le haut du bloc et le footer. */
+.map-body {
+  flex: 1;
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.3em 0.8em;
-  padding: 0.4em 0 0.6em;
-  font-family: var(--font-serif);
-  font-size: 1.05em;
-  color: var(--c-accent);
+  align-items: center;
+  justify-content: center;
+  min-height: 18em;
 }
 
 .viz {
@@ -264,26 +257,32 @@ const selectedTopicByAxe = computed(() => {
   cursor: pointer;
 }
 
-.map-legend {
+/* Footer ferré bas : thèmes (pastille = légende) puis explication. */
+.map-foot {
+  margin-top: 0.6em;
+}
+
+.map-hint {
+  margin-top: var(--sp-2);
+  font-size: var(--fs-sm);
+  opacity: var(--op-muted);
+}
+
+/* En-tête de chaque module du détail — même graisse que les leads du nuage
+   (Occurrences / Proximité). */
+.detail-lead {
+  margin: 0 0 var(--sp-3);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  color: var(--c-ink);
+}
+
+.topic-words {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.35em 1.1em;
-  font-size: 0.8em;
-  opacity: 0.85;
-  margin-bottom: 1em;
-}
-
-.map-legend-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4em;
-}
-
-.legend-dot {
-  display: inline-block;
-  width: 0.7em;
-  height: 0.7em;
-  border-radius: 50%;
-  flex-shrink: 0;
+  gap: 0.3em 0.8em;
+  font-family: var(--font-serif);
+  font-size: 1.05em;
+  color: var(--c-accent);
 }
 </style>

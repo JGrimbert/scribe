@@ -8,7 +8,7 @@
 //     220 occ / 136 articles), pas le lemme brut (279 / 164). Résoudre contre
 //     `lemmas` rendait donc un différentiel avec ce qu'affiche le nuage.
 //
-// On indexe donc la même liste que VocabulaireCard, insensible à la casse, pour
+// On indexe donc la même liste que VocabulaireCloud, insensible à la casse, pour
 // que cliquer le nœud « margot » affiche exactement le « Margot » du nuage.
 
 // Index text-minuscule → mot du nuage { text, count, nodes, ... }.

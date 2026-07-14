@@ -14,7 +14,7 @@ export async function readJsonOrThrow(res) {
 
 // Ordre de la relance globale ; les clés servent aussi d'identifiants de
 // spinner par card (`running`) et d'erreurs par étape (`stepErrors`). Le
-// nuage de mots (VocabulaireCard) est désormais une facette du volet lexical
+// nuage de mots (VocabulaireCloud) est désormais une facette du volet lexical
 // (lemmes spaCy filtrés par POS), il n'a plus d'étape propre.
 export const ANALYSE_STEPS = ['lexical', 'semantic', 'topics']
 
@@ -59,7 +59,7 @@ export function provideAnalyse() {
   const topicsProgress = ref(null)
 
   // Sélection partagée entre les cards du haut : lemme choisi dans le nuage
-  // (VocabulaireCard) → article focus (OccurrencesCard) → proximité
+  // (VocabulaireCloud) → article focus (OccurrencesCard) → proximité
   // sémantique (SemantiqueCard). Centralisé ici plutôt que prop-drillé.
   const selectedLemma = ref(null) // { lemma, count, nodes[] } ou null
   const focusNodeId = ref(null) // nodeId de l'article focus, ou null

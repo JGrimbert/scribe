@@ -65,7 +65,7 @@ l'instant, ne pas retirer le middleware Vite sans en parler.
     `../CLAUDE.md`), joint par `NlpClientService` (`NLP_SERVICE_URL`, 503
     explicite si éteint). Les ids d'unités renvoyés par Python sont enrichis
     des titres de nœuds avant persistance. Le nuage de mots du frontend
-    (`VocabulaireCard`) est une facette de ce volet — l'ancienne fréquence
+    (`VocabulaireCloud`) est une facette de ce volet — l'ancienne fréquence
     lexicale en TS pur (`word-frequency.ts`, insensible aux accents, sans
     lemmatisation) a été retirée.
   - **semantic** (`POST /documents/:id/analyse/semantic`) — proximité

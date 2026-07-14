@@ -4,6 +4,79 @@
    (cadres SVG, largeur de colonne de score). Tout le reste vit dans
    src/components/ui/. */
 
+/* ── Layout « split » : cadre de bloc + colonnes 2/3 · 1/3 ─────────
+   Un bloc du dashboard. `.split` porte le cadre (fond, bordure, radius) et
+   dispose ses colonnes en flex. `.split-main` = la viz (2/3) ; la colonne
+   étroite (1/3) est `.split-right` (après la viz) ou `.split-left` (avant),
+   chacune traçant le séparateur du bon côté. Padding et séparateurs internes
+   sont centralisés ici (règles globales, pas de scoped/:deep à traverser) et
+   pilotés par --split-pad / --split-pad-aside : nuage et réseau respirent à
+   l'identique, quelle que soit la nature de la viz. */
+.split {
+    display: flex;
+    align-items: stretch;
+    margin-bottom: var(--sp-4);
+    background: var(--c-surface);
+    backdrop-filter: var(--c-backdrop-filter-blur);
+    border: 1px solid var(--c-border);
+    border-radius: var(--radius-md);
+}
+
+/* Viz principale (2/3). La respiration (--split-pad) est posée au bon niveau :
+   sur le corps de l'UiCard si la viz en est une (nuage), sinon sur la colonne
+   elle-même (réseau SVG brut). */
+.split-main {
+    flex: 2 1 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.split-main:not(.ui-card) {
+    padding: var(--split-pad);
+}
+
+.split-main.ui-card > .ui-card__body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: var(--split-pad);
+}
+
+/* Colonnes étroites (1/3) + séparateur avec la viz, tracé côté colonne. */
+.split-left,
+.split-right {
+    flex: 1 1 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.split-right { border-left: 1px solid var(--c-border); }
+.split-left { border-right: 1px solid var(--c-border); }
+
+/* Séparateur entre éléments empilés dans une colonne étroite (cards du nuage,
+   modules du réseau). La variante `.ui-card--bare` rehausse la spécificité pour
+   l'emporter sur le `border: none` des cards bare (classe + [data-v]). */
+.split-left > * + *,
+.split-right > * + *,
+.split-left > .ui-card--bare + .ui-card--bare,
+.split-right > .ui-card--bare + .ui-card--bare {
+    border-top: 1px solid var(--c-border);
+}
+
+/* Respiration des colonnes étroites (--split-pad-aside), portée par le CONTENU
+   et non la colonne — ainsi les séparateurs (border-top) et les bordures de
+   colonne courent d'un bord à l'autre, symétriquement à gauche comme à droite.
+   Cards latérales (nuage) : corps d'UiCard. Modules bruts (réseau) : .lex-module. */
+.split-right > .ui-card > .ui-card__body {
+    padding: var(--split-pad-aside);
+}
+
+/* La dernière card d'une colonne latérale s'étire pour aligner son bas sur la
+   viz — tout s'arrête à la même ligne. */
+.split-right > *:last-child { flex: 1; }
+
 /* cadre commun des visualisations SVG (nuage, réseau, carte UMAP) */
 .viz {
     display: block;
@@ -30,11 +103,7 @@
    Communs à Inspecteur / Champs lexicaux / Mots-ponts : petites listes
    cliquables partageant pastille, ligne et métrique ferrée à droite. */
 .lex-module {
-    padding: 0.9em 0;
-}
-
-.lex-module + .lex-module {
-    border-top: 1px solid var(--c-border);
+    padding: 0.9em var(--split-pad-aside);
 }
 
 .lex-module__title {

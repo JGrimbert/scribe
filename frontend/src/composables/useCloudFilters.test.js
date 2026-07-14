@@ -25,7 +25,7 @@ const lexical = ref({
 describe('useCloudFilters', () => {
   const f = useCloudFilters(lexical)
 
-  // Garde-fou principal : c'est l'API que VocabulaireCard déstructure. Si le
+  // Garde-fou principal : c'est l'API que VocabulaireCloud déstructure. Si le
   // composable ne l'expose pas, `filteredWords.value` plante au setup et le
   // nuage ne s'affiche jamais (régression vécue).
   it('expose bien words et filteredWords, peuplés', () => {
