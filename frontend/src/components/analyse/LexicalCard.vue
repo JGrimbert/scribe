@@ -13,7 +13,21 @@
 
     <template v-else>
       <template v-if="network">
-        <h3>Réseau lexical</h3>
+        <div class="lex-head">
+          <h3>Réseau lexical</h3>
+          <label v-if="npmiExtent && npmiExtent.max > npmiExtent.min" class="lex-threshold">
+            <span>Force min.</span>
+            <input
+                type="range"
+                :min="npmiExtent.min"
+                :max="npmiExtent.max"
+                step="0.01"
+                :value="threshold"
+                @input="threshold = Number($event.target.value)"
+            />
+            <span class="lex-threshold__val">{{ fmtNpmi(threshold) }} · {{ visibleEdges.length }} liens</span>
+          </label>
+        </div>
         <UiNote variant="hint">
           Noms co-présents dans une même phrase — la couleur marque le champ lexical (grappe),
           la taille suit la fréquence, l'épaisseur du lien la force d'association (NPMI).
@@ -54,12 +68,43 @@ const { analysis, running, stepErrors, settle, runStep } = useAnalyse()
 onMounted(() => settle('lexical'))
 
 const lexical = computed(() => analysis.value?.lexical ?? null)
-const { network } = provideLexicalGraph(lexical)
+const { network, threshold, npmiExtent, visibleEdges } = provideLexicalGraph(lexical)
+
+const fmtNpmi = (v) => v.toFixed(2).replace('.', ',')
 </script>
 
 <style scoped>
 .run-step {
   margin-top: 0.75em;
+}
+
+/* En-tête du réseau : titre à gauche, curseur de seuil NPMI à droite. */
+.lex-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1em;
+  flex-wrap: wrap;
+}
+
+.lex-threshold {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6em;
+  font-size: var(--fs-sm);
+  opacity: 0.85;
+}
+
+.lex-threshold input[type='range'] {
+  width: 8em;
+  accent-color: var(--c-accent);
+  cursor: pointer;
+}
+
+.lex-threshold__val {
+  font-variant-numeric: tabular-nums;
+  opacity: var(--op-muted);
+  min-width: 5.5em;
 }
 
 /* Colonne de modules (1/3) à gauche, réseau (2/3) à droite — inverse du bloc

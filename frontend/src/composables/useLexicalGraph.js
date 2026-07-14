@@ -1,4 +1,4 @@
-import { computed, inject, provide, ref } from 'vue'
+import { computed, inject, provide, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { loadLayout, saveLayout, signature } from '../script/layoutCache'
 import { detectCommunities, betweenness } from '../script/graphMetrics'
@@ -108,6 +108,11 @@ export function provideLexicalGraph(lexical) {
   // Focus courant : soit un nœud (mot), soit une communauté (grappe), soit rien.
   const focus = ref(null) // { kind: 'node', lemma } | { kind: 'community', id } | null
 
+  // Seuil de force d'association (NPMI) : déclutter purement visuel. Le layout,
+  // les communautés et la betweenness restent calculés sur le graphe complet —
+  // on ne masque que des arêtes, sans jamais recalculer les positions.
+  const threshold = ref(0)
+
   const network = computed(() => {
     const graph = lexical.value?.graph
     if (!graph?.nodes?.length) return null
@@ -121,6 +126,35 @@ export function provideLexicalGraph(lexical) {
     const out = buildNetwork(graph)
     saveLayout('lexnet', route.params.id, sig, out)
     return out
+  })
+
+  const npmiExtent = computed(() => {
+    const edges = network.value?.edges ?? []
+    if (!edges.length) return null
+    let min = Infinity
+    let max = -Infinity
+    for (const e of edges) {
+      if (e.npmi < min) min = e.npmi
+      if (e.npmi > max) max = e.npmi
+    }
+    return { min, max }
+  })
+
+  // Nouveau document → seuil réinitialisé au minimum (tout visible).
+  watch(npmiExtent, (ext) => { threshold.value = ext ? ext.min : 0 }, { immediate: true })
+
+  const visibleEdges = computed(() =>
+    (network.value?.edges ?? []).filter((e) => e.npmi >= threshold.value),
+  )
+  // Lemmes gardant au moins un lien visible au seuil courant : les autres sont
+  // estompés (contexte), jamais retirés — la carte reste stable.
+  const connectedLemmas = computed(() => {
+    const set = new Set()
+    for (const e of visibleEdges.value) {
+      set.add(e.source)
+      set.add(e.target)
+    }
+    return set
   })
 
   // Adjacence lemme → arêtes incidentes (pour voisinage + associations triées).
@@ -211,6 +245,10 @@ export function provideLexicalGraph(lexical) {
   const store = {
     network,
     focus,
+    threshold,
+    npmiExtent,
+    visibleEdges,
+    connectedLemmas,
     highlighted,
     communities,
     bridges,
