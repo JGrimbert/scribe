@@ -1,32 +1,34 @@
 <template>
   <template v-if="trame && data">
-    <DocumentBar
-        :title="title"
-        :trame="trame"
-        :data="data"
-        :current-node-id="currentNodeId"
-        :sidebar-expanded="sidebarExpanded"
-        :scoped="!isEditor"
-        @toggle-sidebar="sidebarExpanded = !sidebarExpanded"
-        @select="select"
-    />
-
-    <div class="document-layout">
-      <StructureView
+    <div class="document-layout-wrapper">
+      <DocumentBar
+          :title="title"
           :trame="trame"
           :data="data"
-          :expanded="sidebarExpanded"
-          :node-id="currentNodeId"
+          :current-node-id="currentNodeId"
+          :sidebar-expanded="sidebarExpanded"
+          :scoped="!isEditor"
+          @toggle-sidebar="sidebarExpanded = !sidebarExpanded"
           @select="select"
       />
 
-      <div class="document-layout__content">
-        <router-view />
+      <div class="document-layout">
+        <StructureView
+            :trame="trame"
+            :data="data"
+            :expanded="sidebarExpanded"
+            :node-id="currentNodeId"
+            @select="select"
+        />
+
+        <CustomScrollbar class="document-layout__content">
+          <router-view />
+        </CustomScrollbar>
       </div>
     </div>
   </template>
 
-  <p v-else class="loading">Chargement du document…</p>
+  <p v-else class="loading">Chargement du document</p>
 </template>
 
 <script setup>
@@ -34,6 +36,7 @@ import { ref, computed, provide, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import StructureView from './StructureView.vue'
 import DocumentBar from './DocumentBar.vue'
+import CustomScrollbar from './CustomScrollbar.vue'
 import { provideAnalyse } from '../composables/useAnalyse'
 
 const route = useRoute()
@@ -50,7 +53,7 @@ const title = ref('')
 provide('documentTrame', trame)
 provide('documentData', data)
 
-// ── État du shell (partagé sidebar + fil d'Ariane) ──
+// tat du shell (partagé sidebar + fil d'Ariane) 
 const SIDEBAR_KEY = 'scribe.sidebar.expanded'
 const sidebarExpanded = ref(localStorage.getItem(SIDEBAR_KEY) !== 'false')
 watch(sidebarExpanded, (v) => localStorage.setItem(SIDEBAR_KEY, String(v)))
@@ -63,14 +66,14 @@ provide('analyseScopeNodeId', scopeNodeId)
 
 const isEditor = computed(() => route.name === 'editor')
 
-// Nœud « courant » : en édition c'est l'article ouvert (URL), en analyse c'est
+// Nud « courant » : en dition c'est l'article ouvert (URL), en analyse c'est
 // le scope choisi. Sert au surlignage sidebar et au fil d'Ariane.
 const currentNodeId = computed(() =>
     isEditor.value ? route.params.nodeId : scopeNodeId.value,
 )
 
-// Comportement des liens selon l'état : édition → navigation vers l'article ;
-// analyse → pose du scope (pas de navigation).
+// Comportement des liens selon l'tat : dition  navigation vers l'article ;
+// analyse  pose du scope (pas de navigation).
 function select(nodeId) {
   if (isEditor.value) {
     router.push(nodeId ? `/documents/${route.params.id}/noeud/${nodeId}` : `/documents/${route.params.id}`)
@@ -107,10 +110,17 @@ watch(
   opacity: 0.6;
 }
 
+.document-layout-wrapper {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
 .document-layout {
   display: flex;
   flex: 1 1 auto;
   min-height: 0;
+  margin-top: calc(-1 * var(--bar-size));
 }
 
 .document-layout__content {
@@ -118,6 +128,15 @@ watch(
   min-height: 0;
   display: flex;
   flex-direction: column;
-  overflow: auto;
+  position: relative; /* Nécessaire pour le positionnement du conteneur */
+}
+
+/* Assurer que CustomScrollbar prend toute la hauteur disponible */
+:deep(.custom-scrollbar) {
+  height: 100%;
+}
+
+:deep(.custom-scrollbar__content) {
+  height: 100%;
 }
 </style>
