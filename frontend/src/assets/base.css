@@ -31,6 +31,7 @@
     /* Complémentaire du brun dominant (teal/pétrole) — pour réveiller l'UI
        trop monochrome : accents ponctuels (boutons, pastilles). */
     --c-accent-alt: #138297;
+    --c-accent-alt-darker: #034652;
     --c-accent-alt-ink: #ffffff;
     --c-border: #e0d8cc;
     --c-muted: #8a7f72;
@@ -102,8 +103,13 @@
 /* ── Body ────────────────────────────────────────────── */
 body {
     font-family: var(--font-ui);
-    background-color: var(--c-bg);
-    background-image: url("/sand-1783861576005.png");
+    background: linear-gradient(#fef5e4 64.5376%, #fef5e414 100%);
+
+
+
+    /*background-color: #f3f8bb;*/
+    /*background-color: #f2f6d3;*/
+    /*background-image: url("/sand-1783861576005.png");*/
     background-repeat: repeat;
     color: var(--c-ink);
 }
@@ -124,18 +130,25 @@ body {
 }
 
 .app[data-bar-theme="teal"] .menu,
+.app[data-bar-theme="teal"] .structure-panel,
 .app[data-bar-theme="teal"] .doc-bar {
-    --c-bar-accent: var(--c-accent-alt);
+    --c-bar-accent: var(--c-accent-alt-darker);
+    --c-bar-accent-color: #fff;
+
+    --c-doc-bar-bck: rgba(142, 212, 225,0.3);
+    --c-doc-bar-border: 1px solid var(--c-accent-alt);
 }
 
 .app[data-bar-theme="caramel"] .menu,
 .app[data-bar-theme="caramel"] .doc-bar {
     --c-bar-accent: #b5551a;
+    --c-bar-accent-color: #fff;
 }
 
 .app[data-bar-theme="espresso"] .menu,
 .app[data-bar-theme="espresso"] .doc-bar {
     --c-bar-accent: #7a3d12;
+    --c-bar-accent-color: #fff;
 }
 
 /* ── Quill : toolbar flottante (couche éditeur, hors périmètre ui/) ── */

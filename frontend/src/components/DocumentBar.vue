@@ -30,6 +30,15 @@
       </template>
     </nav>
 
+    <BaseButton
+        variant="solid-alt"
+        class="run-all"
+        :icon="running ? null : 'pi-play'"
+        :busy="!!running"
+        @click="runAll"
+    >
+      {{ running ? `Analyse : ${STEP_LABELS[running]}…` : hasAny ? 'Relancer l’analyse' : 'Lancer l’analyse' }}
+    </BaseButton>
     <ProgressChecklist
         v-if="checklistVisible"
         compact
@@ -92,21 +101,12 @@ const checklistVisible = computed(
   height: var(--bar-size);
   display: flex;
   align-items: center;
-  backdrop-filter: var(--c-backdrop-filter-blur);
-  color: var(--c-ink2);
+  background: var(--c-doc-bar-bck);
+  border-bottom: var(--c-doc-bar-border);
+  /*background: rgb(19, 129, 150);*/
+  /*backdrop-filter: var(--c-backdrop-filter-blur);*/
+  /*color: var(--c-ink2);*/
   overflow: hidden;
-}
-
-/* Même teinte que le menu (accent + saturate), opacité moindre : un cadet plus
-   clair de la topbar, qui se fond entre elle et la sidebar (camaïeu). */
-.doc-bar::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: var(--c-accent);
-  opacity: 0.16;
-  filter: saturate(2);
-  z-index: -1;
 }
 
 /* Le chevron occupe exactement la largeur du rail : il se pose au-dessus de la

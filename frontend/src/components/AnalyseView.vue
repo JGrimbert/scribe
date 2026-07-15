@@ -13,16 +13,15 @@
           :hint="item.hint"
           :empty="item.empty"
       />
-
-      <BaseButton
-          variant="solid-alt"
-          class="run-all"
-          :icon="running ? null : 'pi-play'"
-          :busy="!!running"
-          @click="runAll"
-      >
-        {{ running ? `Analyse : ${STEP_LABELS[running]}…` : hasAny ? 'Relancer l’analyse' : 'Lancer l’analyse' }}
-      </BaseButton>
+<!--      <BaseButton-->
+<!--          variant="solid-alt"-->
+<!--          class="run-all"-->
+<!--          :icon="running ? null : 'pi-play'"-->
+<!--          :busy="!!running"-->
+<!--          @click="runAll"-->
+<!--      >-->
+<!--        {{ running ? `Analyse : ${STEP_LABELS[running]}…` : hasAny ? 'Relancer l’analyse' : 'Lancer l’analyse' }}-->
+<!--      </BaseButton>-->
     </div>
 
     <UiNote v-if="error" variant="error">{{ error }}</UiNote>
@@ -47,12 +46,13 @@
               hint="Ces articles partagent un texte (presque) mot pour mot — doublons ou refrains du manuscrit."
           />
         </Transition>
-      </div>
-
-      <div class="split">
         <Transition name="reveal" appear>
           <AnomaliesCard v-if="isRevealed('pairs')" />
         </Transition>
+      </div>
+
+      <div class="split">
+
         <Transition name="reveal" appear>
           <SemanticPairsCard
               v-if="isRevealed('pairs')"
@@ -171,6 +171,12 @@ const statItems = computed(() => {
 /* Tuiles + bouton se partagent 100 % de la largeur (chaque case flex: 1,
    min 8em, retour à la ligne au besoin). */
 .stats-banner {
+
+  background: floralwhite;
+  border: 1px solid #d7d7d7;
+  border-radius: 6px;
+
+  padding: 0.6em;
   display: flex;
   align-items: stretch;
   flex-wrap: wrap;

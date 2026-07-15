@@ -65,9 +65,9 @@ function openNode() {
 </script>
 
 <style scoped>
-.tree-node__row--axe {
+/*.tree-node__row--axe {
   color: var(--c-accent);
-}
+}*/
 
 .children {
   margin-left: 0.9em;
