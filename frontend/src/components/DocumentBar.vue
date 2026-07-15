@@ -30,22 +30,24 @@
       </template>
     </nav>
 
-    <BaseButton
-        variant="solid-alt"
-        class="run-all"
-        :icon="running ? null : 'pi-play'"
-        :busy="!!running"
-        @click="runAll"
-    >
-      {{ running ? `Analyse : ${STEP_LABELS[running]}…` : hasAny ? 'Relancer l’analyse' : 'Lancer l’analyse' }}
-    </BaseButton>
-    <ProgressChecklist
-        v-if="checklistVisible"
-        compact
-        class="doc-bar__checklist"
-        :items="checklistItems"
-        :progress="checklistProgress"
-    />
+    <div class="analyse-cta">
+      <ProgressChecklist
+          v-if="checklistVisible"
+          compact
+          class="doc-bar__checklist"
+          :items="checklistItems"
+          :progress="checklistProgress"
+      />
+      <BaseButton
+          variant="solid-alt"
+          class="run-all"
+          :icon="running ? null : 'pi-play'"
+          :busy="!!running"
+          @click="runAll"
+      >
+        {{ running ? `Analyse : ${STEP_LABELS[running]}…` : hasAny ? 'Relancer l’analyse' : 'Lancer l’analyse' }}
+      </BaseButton>
+    </div>
   </div>
 </template>
 
@@ -54,6 +56,7 @@ import { computed } from 'vue'
 import { pathToInAxes } from '../script/trame'
 import ProgressChecklist from './ui/ProgressChecklist.vue'
 import { useAnalyse } from '../composables/useAnalyse'
+import BaseButton from "./ui/BaseButton.vue";
 
 const props = defineProps({
   title: String,
@@ -67,6 +70,20 @@ const props = defineProps({
 
 defineEmits(['toggle-sidebar', 'select'])
 
+const STEP_LABELS = {
+  lexical: 'analyse linguistique',
+  semantic: 'proximité sémantique',
+  topics: 'thèmes',
+}
+
+// Checklist de progression d'analyse (store fourni par DocumentLayout). Visible
+// seulement en mode analyse (scoped), tant que la révélation n'est pas terminée
+// ou qu'une analyse tourne.
+const {
+  steps, stepStatus, topicsProgress, runAll,
+  revealDone, running, lexical, semantic, topics
+} = useAnalyse()
+
 const crumbs = computed(() => {
   if (!props.currentNodeId || !props.trame || !props.data) return []
   return pathToInAxes(props.trame.axes, props.currentNodeId).map((id) => ({
@@ -75,26 +92,38 @@ const crumbs = computed(() => {
   }))
 })
 
-// Checklist de progression d'analyse (store fourni par DocumentLayout). Visible
-// seulement en mode analyse (scoped), tant que la révélation n'est pas terminée
-// ou qu'une analyse tourne.
-const analyse = useAnalyse()
+const hasAny = computed(() => {
+  return !!(lexical || semantic || topics)
+})
 
 const checklistItems = computed(() =>
-  analyse ? analyse.steps.map((step) => ({ label: step.label, status: analyse.stepStatus(step) })) : [],
+  steps ? steps.map((step) => ({ label: step.label, status: stepStatus(step) })) : [],
 )
 
 const checklistProgress = computed(() => {
-  const tp = analyse?.topicsProgress.value
+  const tp = topicsProgress.value
   return tp ? { pct: tp.pct, label: `${tp.step} (${Math.round(tp.pct)} %)` } : null
 })
 
 const checklistVisible = computed(
-  () => props.scoped && !!analyse && (!analyse.revealDone.value || analyse.running.value !== null),
+  () => props.scoped && !!revealDone && (!revealDone.value || running.value !== null),
 )
 </script>
 
-<style scoped>
+<style scoped lang="scss">
+/* Le bouton « Relancer » est la dernière case, centré comme une tuile. */
+
+.analyse-cta {
+  display: flex;
+  padding-right: 0.6em;
+
+  .run-all {
+    justify-content: center;
+    margin-left: 0.6em;
+  }
+}
+
+
 .doc-bar {
   position: relative;
   flex: 0 0 auto;
