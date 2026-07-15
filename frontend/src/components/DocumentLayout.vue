@@ -2,6 +2,7 @@
   <template v-if="trame && data">
     <div class="document-layout-wrapper">
       <DocumentBar
+          ref="docBarEl"
           :title="title"
           :trame="trame"
           :data="data"
@@ -13,26 +14,33 @@
       />
 
       <div class="document-layout">
-        <StructureView
-            :trame="trame"
-            :data="data"
-            :expanded="sidebarExpanded"
-            :node-id="currentNodeId"
-            @select="select"
-        />
+        <!-- Sidebar avec CustomScrollbar -->
+        <div class="document-layout__sidebar">
+          <CustomScrollbar :top-offset="42">
+            <StructureView
+                :trame="trame"
+                :data="data"
+                :expanded="sidebarExpanded"
+                :node-id="currentNodeId"
+                @select="select"
+            />
+          </CustomScrollbar>
+        </div>
 
-        <CustomScrollbar class="document-layout__content">
-          <router-view />
-        </CustomScrollbar>
+        <!-- Contenu principal avec CustomScrollbar -->
+        <div class="document-layout__content">
+          <CustomScrollbar :top-offset="42">
+            <router-view />
+          </CustomScrollbar>
+        </div>
       </div>
     </div>
   </template>
-
-  <p v-else class="loading">Chargement du document</p>
+  <p v-else class="loading">Chargement du document...</p>
 </template>
 
 <script setup>
-import { ref, computed, provide, watch } from 'vue'
+import { ref, computed, provide, watch, onMounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import StructureView from './StructureView.vue'
 import DocumentBar from './DocumentBar.vue'
@@ -49,6 +57,11 @@ provideAnalyse()
 const trame = ref(null)
 const data = ref(null)
 const title = ref('')
+
+const docBarEl = ref(null)
+const menuEl = ref(null)
+const docBarHeight = ref(0)
+const menuHeight = ref(0)
 
 provide('documentTrame', trame)
 provide('documentData', data)
@@ -102,6 +115,13 @@ watch(
     (id) => { if (id) loadDocument(id) },
     { immediate: true },
 )
+
+onMounted(() => {
+  nextTick(() => {
+    if (docBarEl.value) docBarHeight.value = docBarEl.value.offsetHeight
+    if (menuEl.value) menuHeight.value = menuEl.value.offsetHeight
+  })
+})
 </script>
 
 <style scoped>
@@ -118,17 +138,26 @@ watch(
 
 .document-layout {
   display: flex;
-  flex: 1 1 auto;
+  flex: 1;
   min-height: 0;
-  margin-top: calc(-1 * var(--bar-size));
+  margin-top: calc(-1 * var(--bar-size)); /* Ajuste selon ta doc-bar */
+}
+
+.document-layout__sidebar {
+  width: 250px; /* ou la largeur de ta sidebar */
+  min-height: 0;
+  border-right: 1px solid #eee; /* optionnel */
 }
 
 .document-layout__content {
-  flex: 1 1 auto;
+  flex: 1;
   min-height: 0;
-  display: flex;
-  flex-direction: column;
-  position: relative; /* Nécessaire pour le positionnement du conteneur */
+}
+
+/* Assure que CustomScrollbar prend toute la hauteur */
+.document-layout__sidebar > .custom-scrollbar,
+.document-layout__content > .custom-scrollbar {
+  height: 100%;
 }
 
 /* Assurer que CustomScrollbar prend toute la hauteur disponible */

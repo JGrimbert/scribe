@@ -74,23 +74,13 @@ watch(
 .structure-panel {
   flex: 0 0 auto;
   margin-top: 42px;
-  max-height: calc(100vh - 2 * var(--bar-size));
   display: flex;
   flex-direction: column;
-}
-
-.structure-panel--rail {
-  width: var(--bar-size);
-}
-
-.structure-panel--liste {
-  width: 260px;
 }
 
 .panel-content {
   flex: 1 1 auto;
   min-height: 0;
-  overflow-y: auto;
   padding: 0.6em 0.6em 1em;
 }
 
