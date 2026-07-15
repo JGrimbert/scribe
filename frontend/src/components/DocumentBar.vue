@@ -132,10 +132,9 @@ const checklistVisible = computed(
   align-items: center;
   background: var(--c-doc-bar-bck);
   border-bottom: var(--c-doc-bar-border);
-  /*background: rgb(19, 129, 150);*/
-  /*backdrop-filter: var(--c-backdrop-filter-blur);*/
-  /*color: var(--c-ink2);*/
+  z-index: 99;
   overflow: hidden;
+  backdrop-filter: blur(4px);
 }
 
 /* Le chevron occupe exactement la largeur du rail : il se pose au-dessus de la

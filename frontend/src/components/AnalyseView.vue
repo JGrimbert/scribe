@@ -162,6 +162,7 @@ const statItems = computed(() => {
   flex-wrap: wrap;
   gap: 0.6em;
   margin-bottom: 1em;
+  margin-top: 2em;
 }
 
 .stats-banner > * {

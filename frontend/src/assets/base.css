@@ -104,11 +104,7 @@
 body {
     font-family: var(--font-ui);
     background: linear-gradient(#fef5e4 64.5376%, #fef5e414 100%);
-
-
-
-    /*background-color: #f3f8bb;*/
-    /*background-color: #f2f6d3;*/
+    overflow: hidden;
     /*background-image: url("/sand-1783861576005.png");*/
     background-repeat: repeat;
     color: var(--c-ink);

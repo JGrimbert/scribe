@@ -120,9 +120,7 @@ watch(
   display: flex;
   flex: 1 1 auto;
   min-height: 0;
-  /* Permet au contenu de défiler sous DocumentBar */
   margin-top: calc(-1 * var(--bar-size));
-  padding-top: var(--bar-size);
 }
 
 .document-layout__content {

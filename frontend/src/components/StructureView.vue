@@ -73,19 +73,10 @@ watch(
 <style scoped>
 .structure-panel {
   flex: 0 0 auto;
-  /*
-  background: var(--c-surface4);
-  backdrop-filter: var(--c-backdrop-filter-blur);
-  */
-  /*background: var(--c-doc-bar-bck);*/
-  /*border-right: var(--c-doc-bar-border);*/
-
-
+  margin-top: 42px;
   max-height: calc(100vh - 2 * var(--bar-size));
   display: flex;
   flex-direction: column;
-  /* pas de transition de largeur : elle re-layoute tout le contenu à droite
-     à chaque frame — c'est le "saccadé" perçu, un switch instantané est plus net */
 }
 
 .structure-panel--rail {
