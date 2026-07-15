@@ -8,7 +8,7 @@
 
     <template v-if="anomalies.length">
       <UiNote>{{ anomalies.length }} chapitre(s) sur {{ leafCount }}.</UiNote>
-      <UiTable>
+      <UiTable scroll>
         <thead>
           <tr>
             <th>Chapitre</th>

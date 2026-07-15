@@ -13,16 +13,6 @@
           :hint="item.hint"
           :empty="item.empty"
       />
-
-      <BaseButton
-          variant="solid-alt"
-          class="run-all"
-          :icon="running ? null : 'pi-play'"
-          :busy="!!running"
-          @click="runAll"
-      >
-        {{ running ? `Analyse : ${STEP_LABELS[running]}…` : hasAny ? 'Relancer l’analyse' : 'Lancer l’analyse' }}
-      </BaseButton>
     </div>
 
     <UiNote v-if="error" variant="error">{{ error }}</UiNote>
@@ -47,12 +37,13 @@
               hint="Ces articles partagent un texte (presque) mot pour mot — doublons ou refrains du manuscrit."
           />
         </Transition>
-      </div>
-
-      <div class="split">
         <Transition name="reveal" appear>
           <AnomaliesCard v-if="isRevealed('pairs')" />
         </Transition>
+      </div>
+
+      <div class="split">
+
         <Transition name="reveal" appear>
           <SemanticPairsCard
               v-if="isRevealed('pairs')"
@@ -87,12 +78,6 @@ import SemanticPairsCard from './analyse/SemanticPairsCard.vue'
 import AnomaliesCard from './analyse/AnomaliesCard.vue'
 import ThemesCard from './analyse/ThemesCard.vue'
 
-const STEP_LABELS = {
-  lexical: 'analyse linguistique',
-  semantic: 'proximité sémantique',
-  topics: 'thèmes',
-}
-
 const route = useRoute()
 const { error, analysis, running, isRevealed, fetchAnalysis, runAll } = useAnalyse()
 
@@ -103,11 +88,6 @@ const data = inject('documentData', ref(null))
 
 onMounted(fetchAnalysis)
 watch(() => route.params.id, (id) => { if (id) fetchAnalysis() })
-
-const hasAny = computed(() => {
-  const a = analysis.value
-  return !!(a?.lexical || a?.semantic || a?.topics)
-})
 
 // Caractères/mots déjà agrégés récursivement côté backend (somme sur les axes
 // de tête = total) ; paragraphes et chapitres (tous les nœuds-titres) en un
@@ -151,8 +131,8 @@ const statItems = computed(() => {
     tile('phrases', g ? formatInt(g.sentences) : null),
     tile('paragraphes', s ? formatInt(s.paragraphes) : null),
     tile('chapitres', s ? formatInt(s.titres) : null),
-    tile('lemmes', g ? formatInt(g.uniqueLemmas) : null, HINTS.lemmes),
     tile('mots / phrase', g ? g.avgSentenceLength.toLocaleString('fr') : null),
+    tile('lemmes', g ? formatInt(g.uniqueLemmas) : null, HINTS.lemmes),
     tile('diversité', g ? formatPercent(g.ttr) : null, HINTS.diversite),
     tile('densité', g ? formatPercent(g.lexicalDensity) : null, HINTS.densite),
   ]
@@ -171,6 +151,12 @@ const statItems = computed(() => {
 /* Tuiles + bouton se partagent 100 % de la largeur (chaque case flex: 1,
    min 8em, retour à la ligne au besoin). */
 .stats-banner {
+
+  background: floralwhite;
+  border: 1px solid #d7d7d7;
+  border-radius: 6px;
+
+  padding: 0.6em;
   display: flex;
   align-items: stretch;
   flex-wrap: wrap;
@@ -180,11 +166,6 @@ const statItems = computed(() => {
 
 .stats-banner > * {
   flex: 1 1 8em;
-}
-
-/* Le bouton « Relancer » est la dernière case, centré comme une tuile. */
-.run-all {
-  justify-content: center;
 }
 
 .leftover-entities {

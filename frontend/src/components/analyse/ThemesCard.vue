@@ -52,42 +52,11 @@
               </circle>
             </svg>
           </div>
-
-          <!-- Footer : thèmes (pastille = légende + sélecteur) puis explication.
-               Pendant un recalcul, l'avancement remplace le footer. -->
-          <div class="map-foot">
-            <div v-if="running === 'topics' && topicsProgress" class="topics-progress">
-              <ScoreBar
-                  :pct="topicsProgress.pct"
-                  :label="`${topicsProgress.step} (${Math.round(topicsProgress.pct)} %)`"
-                  track-width="16em"
-              />
-            </div>
-            <template v-else>
-              <ChipGroup>
-                <BaseChip
-                    v-for="topic in topics.topics"
-                    :key="topic.topicId"
-                    :count="topic.count"
-                    :dot="topicColor(topic.topicId)"
-                    :active="selectedTopicId === topic.topicId"
-                    @click="selectedTopicId = selectedTopicId === topic.topicId ? null : topic.topicId"
-                >
-                  {{ topic.label }}
-                </BaseChip>
-              </ChipGroup>
-              <p class="map-hint">
-                {{ topics.topics.length }} thèmes · {{ topics.outliers.count }} segments hors thème
-                ({{ formatPercent(topics.outliers.share) }}). Chaque point est un segment de ~250 mots
-                placé par proximité sémantique (UMAP) ; cliquer un point ouvre son article, cliquer un
-                thème le met en évidence.
-              </p>
-            </template>
-          </div>
         </div>
 
         <!-- Détail du thème au clic -->
         <div class="split-right">
+          <ThemeList />
           <template v-if="selectedTopic">
             <UiCard bare>
               <p class="detail-lead">
@@ -135,54 +104,26 @@ import { computed, inject, ref, watch } from 'vue'
 import UiCard from '../ui/UiCard.vue'
 import UiNote from '../ui/UiNote.vue'
 import UiTable from '../ui/UiTable.vue'
-import BaseChip from '../ui/BaseChip.vue'
-import ChipGroup from '../ui/ChipGroup.vue'
 import ScoreBar from '../ui/ScoreBar.vue'
 import BaseButton from '../ui/BaseButton.vue'
 import { useAnalyse } from '../../composables/useAnalyse'
 import { formatPercent } from '../../script/format'
+import ThemeList from "./ThemeList.vue";
 
-const { analysis, running, stepErrors, topicsProgress, isRevealed, goToNode, settle, runStep } = useAnalyse()
+const {
+  analysis, running, stepErrors, isRevealed, goToNode, settle, runStep,
+  topicsProgress, selectedTopic, selectedTopicId, topicLabelById, topics, topicColor,
+} = useAnalyse()
 
 // Monté d'emblée (cadre symétrique des autres blocs) : on relaie à la chaîne de
 // révélation quand le contenu apparaît, pas au montage.
 watch(() => isRevealed('themes'), (revealed) => { if (revealed) settle('themes') }, { immediate: true })
 
+watch(selectedTopicId, v => console.log('Parent', v))
+
 // data du document (fourni par DocumentLayout) — résolution des titres pour
 // les infobulles de la carte, sans dupliquer 762 titres dans l'analyse.
 const documentData = inject('documentData', ref(null))
-
-const selectedTopicId = ref(null)
-
-const topics = computed(() => analysis.value?.topics ?? null)
-
-const selectedTopic = computed(
-  () => topics.value?.topics.find((t) => t.topicId === selectedTopicId.value) ?? null,
-)
-
-// Palette catégorielle validée (scripts/validate_palette.js du guide dataviz,
-// surface #faf8f4 : ΔE CVD 24,2, tous les checks passent). Ordre FIXE — les
-// 7 premiers thèmes (déjà triés par taille) prennent les 7 teintes, le reste
-// bascule en gris : au-delà, plus personne ne distingue les couleurs.
-const TOPIC_PALETTE = ['#2a78d6', '#1baf7a', '#eda100', '#008300', '#4a3aa7', '#e34948', '#e87ba4']
-const COLOR_OTHER = '#8a7f72'
-const COLOR_OUTLIER = '#cfc5b6'
-
-const topicColorById = computed(() => {
-  const map = new Map()
-  topics.value?.topics.forEach((topic, i) => {
-    map.set(topic.topicId, i < TOPIC_PALETTE.length ? TOPIC_PALETTE[i] : COLOR_OTHER)
-  })
-  return map
-})
-
-function topicColor(topicId) {
-  return topicColorById.value.get(topicId) ?? COLOR_OUTLIER
-}
-
-const topicLabelById = computed(
-  () => new Map((topics.value?.topics ?? []).map((t) => [t.topicId, t.label])),
-)
 
 // Carte carrée : les coordonnées UMAP sont désormais normalisées à échelle
 // unique côté service (aspect-preserving) — les étaler dans un rectangle les
@@ -228,10 +169,6 @@ const selectedTopicByAxe = computed(() => {
   padding: var(--split-pad);
 }
 
-.topics-progress {
-  padding: 0.5em 0;
-}
-
 .run-step {
   margin-top: 0.75em;
 }
@@ -243,6 +180,7 @@ const selectedTopicByAxe = computed(() => {
   align-items: center;
   justify-content: center;
   min-height: 18em;
+  padding: 1em;
 }
 
 .viz {
@@ -257,16 +195,6 @@ const selectedTopicByAxe = computed(() => {
   cursor: pointer;
 }
 
-/* Footer ferré bas : thèmes (pastille = légende) puis explication. */
-.map-foot {
-  margin-top: 0.6em;
-}
-
-.map-hint {
-  margin-top: var(--sp-2);
-  font-size: var(--fs-sm);
-  opacity: var(--op-muted);
-}
 
 /* En-tête de chaque module du détail — même graisse que les leads du nuage
    (Occurrences / Proximité). */

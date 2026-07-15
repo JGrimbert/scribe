@@ -1,4 +1,4 @@
-import { inject, onUnmounted, provide, reactive, ref } from 'vue'
+import {computed, inject, onUnmounted, provide, reactive, ref} from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 const KEY = Symbol('analyse-store')
@@ -42,6 +42,14 @@ const REVEAL_ORDER = DASHBOARD_STEPS.map((s) => s.key)
 const REVEAL_STAGGER_MS = 320
 const REVEAL_FALLBACK_MS = 1400
 
+// Palette catégorielle validée (scripts/validate_palette.js du guide dataviz,
+// surface #faf8f4 : ΔE CVD 24,2, tous les checks passent). Ordre FIXE — les
+// 7 premiers thèmes (déjà triés par taille) prennent les 7 teintes, le reste
+// bascule en gris : au-delà, plus personne ne distingue les couleurs.
+const TOPIC_PALETTE = ['#2a78d6', '#1baf7a', '#eda100', '#008300', '#4a3aa7', '#e34948', '#e87ba4']
+const COLOR_OTHER = '#8a7f72'
+const COLOR_OUTLIER = '#cfc5b6'
+
 // État partagé du dashboard d'analyse : AnalyseView appelle provideAnalyse(),
 // chaque card consomme via useAnalyse(). `analysis` est l'objet complet renvoyé
 // par le backend — chaque étape le remplace entièrement, d'où l'affichage
@@ -74,6 +82,8 @@ export function provideAnalyse() {
   const revealDone = ref(false) // chaîne de révélation terminée
   let fallbackTimer = null
   let staggerTimer = null
+
+  const selectedTopicId = ref(null)
 
   // Coupe le polling topics et les timers de révélation si le dashboard est
   // démonté en cours de route.
@@ -226,6 +236,29 @@ export function provideAnalyse() {
     router.push(`/documents/${route.params.id}/noeud/${nodeId}`)
   }
 
+  /* Chips theme */
+  const topics = computed(() => analysis.value?.topics ?? null)
+
+  const selectedTopic = computed(
+      () => topics.value?.topics.find((t) => t.topicId === selectedTopicId.value) ?? null,
+  )
+
+  const topicColorById = computed(() => {
+    const map = new Map()
+    topics.value?.topics.forEach((topic, i) => {
+      map.set(topic.topicId, i < TOPIC_PALETTE.length ? TOPIC_PALETTE[i] : COLOR_OTHER)
+    })
+    return map
+  })
+
+  const topicLabelById = computed(
+  () => new Map((topics.value?.topics ?? []).map((t) => [t.topicId, t.label])),
+  )
+
+  function topicColor(topicId) {
+    return topicColorById.value.get(topicId) ?? COLOR_OUTLIER
+  }
+
   const store = {
     loading,
     error,
@@ -244,6 +277,11 @@ export function provideAnalyse() {
     runAll,
     runStep,
     goToNode,
+    topics,
+    topicColor,
+    topicLabelById,
+    selectedTopic,
+    selectedTopicId,
   }
   provide(KEY, store)
   return store

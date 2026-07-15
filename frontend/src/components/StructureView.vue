@@ -73,8 +73,14 @@ watch(
 <style scoped>
 .structure-panel {
   flex: 0 0 auto;
+  /*
   background: var(--c-surface4);
   backdrop-filter: var(--c-backdrop-filter-blur);
+  */
+  /*background: var(--c-doc-bar-bck);*/
+  /*border-right: var(--c-doc-bar-border);*/
+
+
   max-height: calc(100vh - 2 * var(--bar-size));
   display: flex;
   flex-direction: column;

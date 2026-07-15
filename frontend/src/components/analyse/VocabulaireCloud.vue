@@ -180,7 +180,7 @@ watch(
 }
 
 .cloud-word {
-  font-family: var(--font-serif);
+  font-family: impact;
   text-anchor: middle;
   dominant-baseline: central;
   cursor: pointer;

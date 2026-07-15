@@ -126,7 +126,7 @@ router.afterEach((to) => {
 })
 </script>
 
-<style>
+<style lang="scss">
 @import 'primeicons/primeicons.css';
 @import "./assets/base.css";
 @import "../public/paged.css";
@@ -151,45 +151,66 @@ router.afterEach((to) => {
   overflow-x: scroll;
 }
 
+/*
+        MENU
+ */
+
 .menu {
   flex: 0 0 auto;
   position: sticky;
   top: 0;
-  height: var(--bar-size);
-  color: var(--c-ink2);
   display: flex;
   align-items: center;
   z-index: 1;
-  box-shadow: var(--shadow-bar);
-}
+  color: #fff;
+  background: var(--c-bar-accent);
+/*  height: var(--bar-size);
+  color: var(--c-ink2);
+  box-shadow: var(--shadow-bar);*/
 
-/* Wordmark : icône dans une boîte de largeur --bar-size, calée pile au-dessus
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+/*    background: var(--c-accent);
+    opacity: 0.3;
+    filter: saturate(2);*/
+    z-index: -1;
+  }
+
+  .base-button--active {
+    color: var(--c-bar-accent-color);
+  }
+
+  /* Wordmark : icône dans une boîte de largeur --bar-size, calée pile au-dessus
    du chevron du fil d'Ariane ; « Scribe » démarre donc à l'aplomb du premier
    crumb. Accent + letter-spacing = titre discret, sans aplat ni capitales. */
-.brand {
-  display: flex;
-  align-items: center;
-}
+  .brand {
+    display: flex;
+    align-items: center;
+  }
 
-.brand__mark {
-  width: var(--bar-size);
-  height: var(--bar-size);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--c-bar-accent);
-}
+  .brand__mark {
+    width: var(--bar-size);
+    height: var(--bar-size);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--c-bar-accent-color);
+  }
 
-.brand__icon {
-  width: 20px;
-  height: 20px;
-}
+  .brand__icon {
+    width: 20px;
+    height: 20px;
+  }
 
-.brand__name {
-  color: var(--c-bar-accent);
-  font-weight: 600;
-  font-size: var(--fs-md);
-  letter-spacing: 0.06em;
+  .brand__name {
+    color: var(--c-bar-accent-color);
+    font-weight: 600;
+    font-size: var(--fs-md);
+    letter-spacing: 0.06em;
+  }
+
 }
 
 .menu-actions {
@@ -200,11 +221,6 @@ router.afterEach((to) => {
   padding-right: 0.6em;
 }
 
-/* Vue active (registre/analyse/éditeur) : même accent que l'item courant du
-   fil d'Ariane, pour lier les deux barres. */
-.menu .base-button--active {
-  color: var(--c-bar-accent);
-}
 
 /* ── Menu de styles (engrenage) ── */
 .settings {
@@ -271,15 +287,4 @@ router.afterEach((to) => {
   flex: 0 0 auto;
   font-size: 0.8em;
 }
-
-.menu::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: var(--c-accent);
-  opacity: 0.3;
-  filter: saturate(2);
-  z-index: -1;
-}
-
 </style>

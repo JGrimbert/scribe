@@ -39,6 +39,7 @@ defineProps({
   border-radius: var(--radius-md);
   cursor: default;
   user-select: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
 
 .stat-item--empty .stat-item__value {
