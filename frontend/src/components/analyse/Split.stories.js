@@ -30,14 +30,14 @@ const CLOUD = [
   ['nuit', 32, 'var(--c-cat-2)'], ['rêve', 28, 'var(--c-cat-4)'], ['père', 22, 'var(--c-cat-5)'],
 ]
 
-// Viz = UiCard bare portant la classe .split-main (comme VocabulaireCloud) :
-// exerce le chemin `.split-main.ui-card > .ui-card__body` (respiration du nuage).
+// Viz « qui remplit » (nuage) : l'enfant de .split-main prend `flex: 1` et
+// occupe toute la colonne. Une viz brute (SVG du réseau) s'y centrerait.
 const viz = `
-  <UiCard bare class="split-main">
+  <div class="split-main">
     <div style="display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:0.15em 0.7em; flex:1; min-height:16em; font-family:var(--font-serif);">
       <span v-for="([w, size, color]) in CLOUD" :key="w" :style="{ fontSize: size + 'px', color }">{{ w }}</span>
     </div>
-  </UiCard>
+  </div>
 `
 
 const aside = (klass) => `

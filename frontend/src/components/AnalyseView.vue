@@ -18,32 +18,18 @@
     <UiNote v-if="error" variant="error">{{ error }}</UiNote>
 
     <template v-else>
-      <!-- La checklist de progression vit désormais dans DocumentBar (à droite
-           du fil d'Ariane), plus en overlay sur le nuage. Chaque bloc-split
-           (VocabulaireCard / LexicalCard) encapsule son propre cadre et sa
-           révélation ; AnalyseView les aligne sans layout spécifique. -->
+
       <VocabulaireCard />
-
       <LexicalCard />
-
       <ThemesCard />
 
       <div class="split">
-        <Transition name="reveal" appear>
-          <SemanticPairsCard
-              v-if="isRevealed('pairs')"
-              title="Textes identiques ou quasi identiques"
-              mode="duplicates"
-              hint="Ces articles partagent un texte (presque) mot pour mot — doublons ou refrains du manuscrit."
-          />
-        </Transition>
         <Transition name="reveal" appear>
           <AnomaliesCard v-if="isRevealed('pairs')" />
         </Transition>
       </div>
 
       <div class="split">
-
         <Transition name="reveal" appear>
           <SemanticPairsCard
               v-if="isRevealed('pairs')"
@@ -52,6 +38,15 @@
           />
         </Transition>
       </div>
+
+      <Transition name="reveal" appear>
+        <SemanticPairsCard
+            v-if="isRevealed('pairs')"
+            title="Textes identiques ou quasi identiques"
+            mode="duplicates"
+            hint="Ces articles partagent un texte (presque) mot pour mot — doublons ou refrains du manuscrit."
+        />
+      </Transition>
 
       <!-- Bas de page : cards en lecture seule, « à trier plus tard ». Le
            tableau par article (sorti du bloc Analyse linguistique) et les
@@ -67,7 +62,6 @@ import { computed, inject, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAnalyse } from '../composables/useAnalyse'
 import { formatInt, formatPercent } from '../script/format'
-import BaseButton from './ui/BaseButton.vue'
 import StatItem from './ui/StatItem.vue'
 import UiNote from './ui/UiNote.vue'
 import VocabulaireCard from './analyse/VocabulaireCard.vue'
@@ -79,7 +73,7 @@ import AnomaliesCard from './analyse/AnomaliesCard.vue'
 import ThemesCard from './analyse/ThemesCard.vue'
 
 const route = useRoute()
-const { error, analysis, running, isRevealed, fetchAnalysis, runAll } = useAnalyse()
+const { error, analysis, isRevealed, fetchAnalysis } = useAnalyse()
 
 // Structure du document (fournie par DocumentLayout) : source des stats
 // structurelles (caractères, paragraphes, chapitres), absentes du NLP.

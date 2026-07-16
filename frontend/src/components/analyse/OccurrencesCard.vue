@@ -5,7 +5,7 @@
     </UiNote>
 
     <template v-else>
-      <p class="occ-lead">
+      <p class="card-lead">
         « {{ entry.lemma }} » — {{ entry.count }} occurrence{{ entry.count > 1 ? 's' : '' }}
         sur {{ entry.nodes.length }} article{{ entry.nodes.length > 1 ? 's' : '' }}
       </p>
@@ -59,13 +59,6 @@ settle('occurrences')
 </script>
 
 <style scoped>
-.occ-lead {
-  margin: 0 0 var(--sp-3);
-  font-size: var(--fs-sm);
-  font-weight: 700;
-  color: var(--c-ink);
-}
-
 .occ-chips {
   display: flex;
   flex-wrap: wrap;

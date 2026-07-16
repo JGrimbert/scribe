@@ -1,7 +1,9 @@
 import {computed, inject, onUnmounted, provide, reactive, ref} from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
-const KEY = Symbol('analyse-store')
+// Exportée pour que les stories puissent injecter un store factice sans monter
+// AnalyseView (routeur + fetch + d3).
+export const ANALYSE_KEY = Symbol('analyse-store')
 
 export async function readJsonOrThrow(res) {
   if (!res.ok) {
@@ -283,10 +285,10 @@ export function provideAnalyse() {
     selectedTopic,
     selectedTopicId,
   }
-  provide(KEY, store)
+  provide(ANALYSE_KEY, store)
   return store
 }
 
 export function useAnalyse() {
-  return inject(KEY)
+  return inject(ANALYSE_KEY)
 }

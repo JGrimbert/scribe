@@ -1,5 +1,5 @@
 <template>
-  <UiCard bare>
+  <div class="cloud">
     <UiNote v-if="stepErrors.lexical" variant="error">{{ stepErrors.lexical }}</UiNote>
     <UiNote v-if="!lexical">Analyse linguistique pas encore calculée pour ce document.</UiNote>
     <UiNote v-else-if="!lemmas">
@@ -79,12 +79,11 @@
         </ChipGroup>
       </div>
     </template>
-  </UiCard>
+  </div>
 </template>
 
 <script setup>
 import { computed, ref, watch } from 'vue'
-import UiCard from '../ui/UiCard.vue'
 import UiNote from '../ui/UiNote.vue'
 import ChipGroup from '../ui/ChipGroup.vue'
 import BaseChip from '../ui/BaseChip.vue'
@@ -127,6 +126,13 @@ watch(
 </script>
 
 <style scoped>
+/* Remplit la colonne : en-tête ferré haut, filtres ferrés bas, nuage au milieu. */
+.cloud {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
 /* En-tête du nuage : titre ferré en haut à gauche, réglage des mots à droite. */
 .cloud-head {
   display: flex;

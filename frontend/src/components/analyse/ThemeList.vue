@@ -37,17 +37,10 @@ import ChipGroup from "../ui/ChipGroup.vue";
 import BaseChip from "../ui/BaseChip.vue";
 import {useAnalyse} from "../../composables/useAnalyse.js";
 import { formatPercent } from '../../script/format'
-import {watch} from "vue";
 import ScoreBar from "../ui/ScoreBar.vue";
 import UiCard from "../ui/UiCard.vue";
 
-const {
-  analysis, goToNode, running,
-  topicsProgress, topics, topicColor, selectedTopicId
-} = useAnalyse()
-
-watch(selectedTopicId, v => console.log('ThemeList', v))
-
+const { running, topicsProgress, topics, topicColor, selectedTopicId } = useAnalyse()
 </script>
 
 <style scoped>

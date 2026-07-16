@@ -19,7 +19,7 @@
 
       <template v-else>
         <header class="focus-head">
-          <p class="focus-lead">
+          <p class="card-lead">
             « {{ focusUnit.titre }} » — proximité des articles
           </p>
           <BaseButton variant="solid-alt" class="focus-edit" @click="goToNode(focusNodeId)">
@@ -96,11 +96,10 @@ onMounted(() => settle('semantique'))
   margin-bottom: 0.75em;
 }
 
-.focus-lead {
-  margin: 0;
-  font-size: var(--fs-sm);
-  font-weight: 700;
-  color: var(--c-ink);
+/* Le lead partage l'en-tête avec le bouton « Éditer » : c'est le header qui
+   porte l'écart avec le tableau. */
+.focus-head .card-lead {
+  margin-bottom: 0;
 }
 
 .focus-edit {

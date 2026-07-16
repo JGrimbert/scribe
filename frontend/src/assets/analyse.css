@@ -22,25 +22,14 @@
     border-radius: var(--radius-md);
 }
 
-/* Viz principale (2/3). La respiration (--split-pad) est posée au bon niveau :
-   sur le corps de l'UiCard si la viz en est une (nuage), sinon sur la colonne
-   elle-même (réseau SVG brut). */
+/* Viz principale (2/3). Une viz brute (réseau, carte) se centre dans sa
+   respiration ; une viz qui remplit (nuage) se donne `flex: 1` et l'emporte. */
 .split-main {
     flex: 2 1 0;
     min-width: 0;
     display: flex;
     flex-direction: column;
-    background: floralwhite;
-}
-
-.split-main:not(.ui-card) {
-    padding: var(--split-pad);
-}
-
-.split-main.ui-card > .ui-card__body {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
+    justify-content: center;
     padding: var(--split-pad);
     background: floralwhite;
 }
@@ -70,13 +59,16 @@
 /* Respiration des colonnes étroites (--split-pad-aside), portée par le CONTENU
    et non la colonne — ainsi les séparateurs (border-top) et les bordures de
    colonne courent d'un bord à l'autre, symétriquement à gauche comme à droite.
-   Cards latérales (nuage) : corps d'UiCard. Modules bruts (réseau) : .lex-module. */
+   Cards latérales (nuage, thèmes) : corps d'UiCard. Modules bruts (réseau) :
+   .lex-module. */
+.split-left > .ui-card > .ui-card__body,
 .split-right > .ui-card > .ui-card__body {
     padding: var(--split-pad-aside);
 }
 
 /* La dernière card d'une colonne latérale s'étire pour aligner son bas sur la
    viz — tout s'arrête à la même ligne. */
+.split-left > *:last-child,
 .split-right > *:last-child { flex: 1; }
 
 /* cadre commun des visualisations SVG (nuage, réseau, carte UMAP) */
@@ -86,6 +78,15 @@
     height: auto;
     margin: 0.5em 0;
 
+}
+
+/* En-tête d'un module de colonne latérale (Occurrences, Proximité, détail d'un
+   thème) — une phrase, pas un titre de card. */
+.card-lead {
+    margin: 0 0 var(--sp-3);
+    font-size: var(--fs-sm);
+    font-weight: 700;
+    color: var(--c-ink);
 }
 
 /* détail ouvert sous un clic (mot, entité) */
