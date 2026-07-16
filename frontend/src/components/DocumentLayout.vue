@@ -1,17 +1,23 @@
 <template>
   <template v-if="trame && data">
     <div class="document-layout-wrapper">
-      <DocumentBar
-          ref="docBarEl"
-          :title="title"
-          :trame="trame"
-          :data="data"
-          :current-node-id="currentNodeId"
-          :sidebar-expanded="sidebarExpanded"
-          :scoped="!isEditor"
-          @toggle-sidebar="sidebarExpanded = !sidebarExpanded"
-          @select="select"
-      />
+      <!-- Hors flux : la zone de scroll occupe TOUTE la hauteur du wrapper et
+           démarre donc sous la barre, qui la recouvre en translucide (le
+           contenu défile derrière et s'y floute). `topOffset` fait démarrer les
+           tracks et le contenu sous la barre. -->
+      <div class="document-layout__bar">
+        <DocumentBar
+            ref="docBarEl"
+            :title="title"
+            :trame="trame"
+            :data="data"
+            :current-node-id="currentNodeId"
+            :sidebar-expanded="sidebarExpanded"
+            :scoped="!isEditor"
+            @toggle-sidebar="sidebarExpanded = !sidebarExpanded"
+            @select="select"
+        />
+      </div>
 
       <div class="document-layout">
         <!-- Sidebar avec CustomScrollbar -->
@@ -131,27 +137,43 @@ onMounted(() => {
 }
 
 .document-layout-wrapper {
+  position: relative;
   display: flex;
   flex-direction: column;
-  height: 100%;
+  /* PAS `height: 100%` : ce 100% se résout contre `.app` (100vh) et ignore la
+     topbar, d'où une boîte qui dépasse le viewport de sa hauteur. */
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.document-layout__bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 99;
 }
 
 .document-layout {
   display: flex;
   flex: 1;
   min-height: 0;
-  margin-top: calc(-1 * var(--bar-size)); /* Ajuste selon ta doc-bar */
 }
 
 .document-layout__sidebar {
-  width: 250px; /* ou la largeur de ta sidebar */
+  width: 250px;
+  flex: 0 0 auto;
   min-height: 0;
-  border-right: 1px solid #eee; /* optionnel */
+  border-right: 1px solid #eee;
 }
 
 .document-layout__content {
   flex: 1;
   min-height: 0;
+  /* `min-width: auto` (défaut d'un item flex) ferait grandir la colonne jusqu'à
+     la largeur intrinsèque de la rangée de folios (~3500px) au lieu de la
+     laisser déborder dans la zone de scroll. */
+  min-width: 0;
 }
 
 /* Assure que CustomScrollbar prend toute la hauteur */

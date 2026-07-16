@@ -76,6 +76,7 @@ watch(
   margin-top: 42px;
   display: flex;
   flex-direction: column;
+  background-color: #f1f2e4;
 }
 
 .panel-content {

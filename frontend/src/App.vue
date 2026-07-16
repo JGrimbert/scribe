@@ -140,15 +140,15 @@ router.afterEach((to) => {
 .scroll-folio {
   width: 100%; /* explicite : une marge auto désactiverait le stretch flex et ferait dépendre
                   la largeur du contenu mis à l'échelle par le JS — boucle de rétroaction avec Folia */
-  flex: 1 1 auto;
-  min-height: 0; /* sinon un enfant flex refuse de rétrécir sous sa taille de contenu */
+  height: 100%; /* PAS `flex: 1` : le parent (CustomScrollbar) est un bloc, le flex serait ignoré
+                   et la hauteur deviendrait celle du contenu — Folia mesurerait alors sa propre
+                   hauteur scalée et la réduirait de 0.92 à chaque passage, jusqu'à disparition */
+  min-height: 0;
   display: flex;
   flex-direction: column;
   padding-top: 1.5em;
   padding-bottom: 1.5em;
   padding-left: 1.5em;
-
-  overflow-x: scroll;
 }
 
 /*

@@ -203,6 +203,18 @@ Fichiers clés :
 
 ## Pièges connus
 
+- **Boucle de rétroaction Folia** : `Folia.vue` calcule son échelle depuis
+  `containerRef.clientWidth/clientHeight`. Si un ancêtre a une hauteur (ou
+  largeur) **indéfinie**, le `height: 100%` de `.spread-scaler` se résout en
+  `auto` : Folia mesure alors sa propre taille scalée et la remultiplie par
+  `0.92` à chaque passage du `ResizeObserver` — décroissance géométrique
+  jusqu'à disparition des folios. Les deux façons de casser la chaîne, déjà
+  rencontrées : un `flex: 1` sur un enfant dont le parent n'est PAS un flex
+  container (ignoré → hauteur de contenu), et un item flex sans `min-width: 0`
+  (son `min-width: auto` le fait grandir jusqu'à la largeur intrinsèque de la
+  rangée de folios au lieu de déborder). Tout ancêtre de `Folia` doit avoir une
+  taille définie **indépendante de son contenu**. Verrouillé par
+  `e2e/scrollbar.spec.js`.
 - **Piège du remount Vue** : fermer l'éditeur (`closeEditor()`) puis le
   rouvrir (`activateFragment()`) dans le MÊME tick synchrone ne démonte
   jamais réellement `<QuillBlock>` si le nouveau `fragId`/`:key` finit par
@@ -240,11 +252,22 @@ Fichiers clés :
   `fragment.js`) — pas de dépendance DOM/Quill/Paged.js réelle. C'est
   volontaire : ça permet de verrouiller les règles de fusion/split sans
   mocker Quill ou Paged.js.
-- Pas encore de tests d'intégration DOM/Quill (Vue Test Utils) ni e2e
-  (Playwright) — **prévu à terme, pas encore en place**. Tant que ça
-  n'existe pas, toute interaction clavier/souris dans `QuillBlock.vue`/
-  `FolioComposer.vue` doit être vérifiée manuellement en navigateur avant
-  d'être considérée comme corrigée (cf. section précédente).
+- **Playwright** (`npm run test:e2e`, config `playwright.config.js`, specs dans
+  `e2e/`) — lance son propre Vite sur le port 5183. Portée : ce que jsdom ne
+  sait pas rendre, c'est-à-dire le **layout réel** (hauteurs, débordements,
+  échelle Folia). Le backend n'est jamais requis : `e2e/fixtures.js` mocke
+  `GET /api/documents/:id` via `page.route` et neutralise les appels d'analyse.
+  - `pagination.spec.js` — plancher de pages + non-débordement du contenu d'un
+    folio.
+  - `scrollbar.spec.js` — géométrie de `CustomScrollbar` (tracks dans le
+    viewport, thumb dans sa track, affichage conditionnel, flèches) et
+    **non-régression de la boucle de rétroaction Folia** (voir "Pièges
+    connus").
+- Pas encore de tests d'intégration DOM/Quill (Vue Test Utils) — **prévu à
+  terme, pas encore en place**. Tant que ça n'existe pas, toute interaction
+  clavier/souris dans `QuillBlock.vue`/`FolioComposer.vue` doit être vérifiée
+  manuellement en navigateur avant d'être considérée comme corrigée (cf.
+  section précédente).
 
 ## Commandes
 
