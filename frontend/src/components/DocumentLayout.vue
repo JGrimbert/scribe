@@ -14,8 +14,11 @@
             :current-node-id="currentNodeId"
             :sidebar-expanded="sidebarExpanded"
             :scoped="!isEditor"
+            :validation-state="currentValidation"
+            :validating="validating"
             @toggle-sidebar="sidebarExpanded = !sidebarExpanded"
             @select="select"
+            @toggle-validation="toggleValidation"
         />
       </div>
 
@@ -108,6 +111,7 @@ async function loadDocument(id) {
   trame.value = null
   data.value = null
   scopeNodeId.value = null
+  validations.value = {}
   const res = await fetch(`/api/documents/${id}`)
   if (!res.ok) {
     alert(`Impossible de charger le document (HTTP ${res.status})`)
@@ -117,6 +121,36 @@ async function loadDocument(id) {
   title.value = content.title ?? ''
   trame.value = content.trame
   data.value = content.data
+  validations.value = content.validations ?? {}
+}
+
+// Validations manuelles (nodeId → 'validé' | 'périmé'), résolues par le backend
+// au chargement — lui seul peut départager les deux (il rehache le texte).
+const validations = ref({})
+const validating = ref(false)
+
+const currentValidation = computed(() =>
+    currentNodeId.value ? (validations.value[currentNodeId.value] ?? null) : null,
+)
+
+// Un chapitre périmé se REvalide (POST, l'empreinte est rafraîchie) ; seul un
+// chapitre à jour se dévalide.
+async function toggleValidation(nodeId) {
+  if (validating.value) return
+  validating.value = true
+  const remove = validations.value[nodeId] === 'validé'
+  try {
+    const res = await fetch(`/api/documents/${route.params.id}/nodes/${nodeId}/validation`, {
+      method: remove ? 'DELETE' : 'POST',
+    })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    if (remove) delete validations.value[nodeId]
+    else validations.value[nodeId] = 'validé'
+  } catch (e) {
+    alert(`Impossible de mettre à jour la validation : ${e.message}`)
+  } finally {
+    validating.value = false
+  }
 }
 
 watch(

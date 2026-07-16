@@ -323,11 +323,12 @@ export class AnalyseService {
   async get(documentId: string): Promise<DocumentAnalysisResponse> {
     const found = await this.prisma.documentAnalysis.findUnique({ where: { documentId } })
     const { trame, data } = await this.documentsService.getContent(documentId)
+    const validations = await this.documentsService.getValidations(documentId)
     return {
       lexical: (found?.lexical as unknown as LexicalAnalysis | null) ?? null,
       semantic: (found?.semantic as unknown as SemanticAnalysis | null) ?? null,
       topics: (found?.topics as unknown as TopicsAnalysis | null) ?? null,
-      completeness: assessCompleteness(trame, data),
+      completeness: assessCompleteness(trame, data, validations),
     }
   }
 }

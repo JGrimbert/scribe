@@ -44,10 +44,33 @@ model Node {
   caracteres  Int?
 
   paragraphs  Paragraph[]
+  validation  NodeValidation?
 
   @@index([documentId])
   @@index([parentId])
   @@map("nodes")
+}
+
+// Validation manuelle d'un chapitre — un FAIT UTILISATEUR, pas une propriété
+// d'import ni une analyse. D'où une table à part plutôt qu'une colonne sur
+// Node (qu'un réimport charrierait) ou un volet de DocumentAnalysis (écrasé à
+// chaque recalcul). Une ligne = « j'ai relu ce chapitre, il est bon ».
+//
+// contentHash : sha256 du texte BRUT du nœud au moment de la validation
+// (plainNodeText — balises retirées, cf. nodeContentHash). Si le texte change
+// ensuite, le hash ne correspond plus et le chapitre bascule en « périmé »
+// plutôt que d'être silencieusement dévalidé : la relecture est à refaire, et
+// ça se voit. Le passage par le texte brut est délibéré — reformater un mot en
+// gras ne périme pas une relecture, réécrire une phrase si.
+model NodeValidation {
+  id          String   @id @default(uuid())
+  nodeId      String   @unique
+  node        Node     @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+
+  validatedAt DateTime @default(now())
+  contentHash String
+
+  @@map("node_validations")
 }
 
 enum ParagraphType {

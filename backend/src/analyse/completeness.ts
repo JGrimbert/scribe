@@ -1,6 +1,6 @@
 import { DataMap, TrameNode } from '../import/odt-parser'
 import { computeStats } from '../import/odt-parser/text-utils'
-import { plainNodeText } from './plain-text'
+import { nodeContentHash, plainNodeText } from './plain-text'
 
 // On ne dépend que de l'arbre des axes (pas de meta/preambule) — accepte donc
 // la trame réduite renvoyée par DocumentsService.getContent.
@@ -21,15 +21,37 @@ type AxesTree = { axes: TrameNode[] }
 //   de rédaction. Un conteneur vide (axe sans préambule) est une structure
 //   normale, pas une anomalie.
 
+// État CALCULÉ, dérivé du seul compte de mots (computeStats).
 export type CompletenessStatus = 'vide' | 'ébauche' | 'partiel' | 'rédigé'
 
-// Ordre du plus vide au plus abouti : porté par le tableau `distribution`
-// (pas par les clés d'un objet) pour que la progression reste lisible côté
-// client sans y redéfinir l'ordre. L'état « validé » (validation manuelle
-// de l'utilisateur, à venir) s'ajoutera en fin de cette échelle.
-const STATUS_SCALE: CompletenessStatus[] = ['vide', 'ébauche', 'partiel', 'rédigé']
+// État AFFICHÉ = état calculé, sauf si l'utilisateur a validé le chapitre :
+// - « validé » : validation présente et le texte n'a pas bougé depuis ;
+// - « périmé » : validation présente mais le texte a changé (hash différent)
+//   — la relecture est à refaire. Volontairement distinct plutôt qu'une
+//   dévalidation silencieuse : une correction de virgule ne doit pas détruire
+//   une relecture sans que ça se voie.
+// Ces deux-là ne sont PAS des paliers de rédaction mais des décisions
+// humaines : d'où leur couleur de statut côté frontend (vert / ambre), et non
+// une teinte de la rampe ordinale.
+export type CompletenessDisplayStatus = CompletenessStatus | 'validé' | 'périmé'
+
+// Ordre du plus vide au plus abouti : porté par le tableau `distribution` (pas
+// par les clés d'un objet) pour que la progression reste lisible côté client
+// sans y redéfinir l'ordre. « périmé » ferme la marche — il vient après
+// « validé » puisqu'on en vient, et c'est là que l'œil doit s'arrêter.
+const STATUS_SCALE: CompletenessDisplayStatus[] = [
+  'vide',
+  'ébauche',
+  'partiel',
+  'rédigé',
+  'validé',
+  'périmé',
+]
 
 const STUB_MAX_WORDS = 50 // frontière « ébauche » de computeStats
+
+// nodeId → contentHash de la validation en base.
+export type ValidationMap = Map<string, string>
 
 const isStub = (status: CompletenessStatus) => status === 'vide' || status === 'ébauche'
 
@@ -41,7 +63,7 @@ export interface CompletenessAnomaly {
 }
 
 export interface CompletenessSlice {
-  status: CompletenessStatus
+  status: CompletenessDisplayStatus
   count: number
 }
 
@@ -70,8 +92,9 @@ interface NodeCompleteness {
   titre: string
   words: number
   isLeaf: boolean
-  status: CompletenessStatus
+  status: CompletenessStatus // calculé, sans la validation (cf. displayStatus)
   axeId: string // axe de tête dont ce nœud descend (lui-même s'il est racine)
+  hash: string // empreinte du texte courant, à comparer à celle de la validation
 }
 
 function classify(trame: AxesTree, data: DataMap): NodeCompleteness[] {
@@ -87,6 +110,7 @@ function classify(trame: AxesTree, data: DataMap): NodeCompleteness[] {
         isLeaf: node.children.length === 0,
         status: stats.status,
         axeId,
+        hash: nodeContentHash(item.texte),
       })
     }
     node.children.forEach((child) => walk(child, axeId))
@@ -95,10 +119,18 @@ function classify(trame: AxesTree, data: DataMap): NodeCompleteness[] {
   return out
 }
 
-function slicesOf(nodes: NodeCompleteness[]): CompletenessSlice[] {
+// L'état affiché : la validation de l'utilisateur écrase l'état calculé.
+function displayStatus(node: NodeCompleteness, validations: ValidationMap): CompletenessDisplayStatus {
+  const validatedHash = validations.get(node.nodeId)
+  if (!validatedHash) return node.status
+  return validatedHash === node.hash ? 'validé' : 'périmé'
+}
+
+function slicesOf(nodes: NodeCompleteness[], validations: ValidationMap): CompletenessSlice[] {
+  const statuses = nodes.map((n) => displayStatus(n, validations))
   return STATUS_SCALE.map((status) => ({
     status,
-    count: nodes.filter((n) => n.status === status).length,
+    count: statuses.filter((s) => s === status).length,
   }))
 }
 
@@ -113,11 +145,19 @@ export function stubNodeIds(trame: AxesTree, data: DataMap): Set<string> {
   )
 }
 
-export function assessCompleteness(trame: AxesTree, data: DataMap): CompletenessAnalysis {
+export function assessCompleteness(
+  trame: AxesTree,
+  data: DataMap,
+  validations: ValidationMap = new Map(),
+): CompletenessAnalysis {
   const nodes = classify(trame, data)
   const leaves = nodes.filter((n) => n.isLeaf)
+  // Un chapitre stub que l'utilisateur a validé tel quel n'est pas une
+  // anomalie : il a explicitement dit que ce contenu lui convenait. Sans cette
+  // exclusion, le même chapitre s'afficherait « validé » dans le graphe et
+  // « en attente » dans la table juste à côté.
   const anomalies = leaves
-    .filter((n) => isStub(n.status))
+    .filter((n) => isStub(n.status) && displayStatus(n, validations) !== 'validé')
     .map((n) => ({ nodeId: n.nodeId, titre: n.titre, words: n.words, status: n.status as 'vide' | 'ébauche' }))
   // Un axe sans aucune feuille (ni enfant, ni texte propre indexé) n'aurait
   // qu'une barre vide à montrer — on ne lui en fait pas.
@@ -128,14 +168,14 @@ export function assessCompleteness(trame: AxesTree, data: DataMap): Completeness
         nodeId: axe.id,
         titre: data[axe.id]?.titre ?? '(sans titre)',
         leafCount: own.length,
-        distribution: slicesOf(own),
+        distribution: slicesOf(own, validations),
       }
     })
     .filter((group) => group.leafCount > 0)
 
   const distribution: CompletenessGroup[] = [
     ...byAxe,
-    { nodeId: null, titre: 'Total', leafCount: leaves.length, distribution: slicesOf(leaves) },
+    { nodeId: null, titre: 'Total', leafCount: leaves.length, distribution: slicesOf(leaves, validations) },
   ]
 
   return { threshold: STUB_MAX_WORDS, leafCount: leaves.length, anomalies, distribution }

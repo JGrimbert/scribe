@@ -7,5 +7,3 @@ export function cssVar(name, fallback = '') {
   const value = getComputedStyle(document.documentElement).getPropertyValue(name)
   return value.trim() || fallback
 }
-
-export const cssVars = (names) => names.map((name) => cssVar(name))

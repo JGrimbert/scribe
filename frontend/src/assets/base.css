@@ -72,6 +72,15 @@
     --c-ramp-3: #8a5c2c;
     --c-ramp-4: #5a3418;
 
+    /* Statuts de relecture — hors rampe, et c'est le propos : « validé » et
+       « périmé » ne sont pas des paliers de rédaction (comptés en mots) mais
+       des décisions humaines. Leur donner une teinte de --c-ramp-* les ferait
+       lire comme « encore un peu plus rédigé », ce qu'ils ne sont pas.
+       Séparation CVD vérifiée à la jonction avec --c-ramp-4 et entre eux
+       (ΔE 13,0 protan), contraste >= 3:1 sur --c-paper. */
+    --c-status-valide: #1e7e34;
+    --c-status-perime: #b8620e;
+
     /* Typo — --font-serif est réservé au contenu du manuscrit
        (nuage de mots, extraits) ; l'UI est en --font-ui partout. */
     --font-ui: system-ui, sans-serif;

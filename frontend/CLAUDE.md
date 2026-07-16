@@ -75,6 +75,14 @@ dépendent :
   titres jusqu'au nœud courant (`pathToInAxes`, `src/script/trame.js`,
   partagé avec `StructureView`). Le titre du livre vient de `GET
   /documents/:id` (`content.title`, ajouté côté backend).
+- **Validation d'un chapitre** — bouton à droite du fil d'Ariane, monté
+  **uniquement en édition et sur un chapitre ouvert** : on valide ce qu'on
+  vient de relire, sous les yeux ; le dashboard ne fait que compter. Trois
+  états (`Valider` / `Validé` / `Revalider`) ; un chapitre périmé propose de
+  revalider et non de dévalider — le texte a changé, l'action utile est de
+  relire. `DocumentLayout` détient l'état (`validations`, chargé résolu depuis
+  `GET /documents/:id`) et fait les appels ; `DocumentBar` n'émet que
+  `toggle-validation`.
 - **Effet des liens (sidebar + fil d'Ariane) selon l'état**, arbitré par
   `select()` dans `DocumentLayout` :
   - **Édition** (route `editor`) : navigation vers l'article (`/noeud/:id`) —
@@ -144,6 +152,12 @@ liseret de couleur par niveau). Deux corrections manuelles avant validation
   résolu — il faut passer la valeur calculée. C'est le seul usage légitime de
   `getComputedStyle` pour de la couleur ; tout ce qui est rendu en DOM garde
   `var()` en CSS.
+- **`--c-status-valide` / `--c-status-perime` sortent de la rampe, exprès** :
+  « validé » et « périmé » ne sont pas des paliers de rédaction (comptés en
+  mots) mais des décisions humaines. Leur donner une teinte de `--c-ramp-*`
+  les ferait lire comme « encore un peu plus rédigé ». Mêmes tokens dans le
+  graphe et sur le bouton de `DocumentBar` : un chapitre vert dans la barre
+  est un chapitre vert dans le graphe.
 - **`--c-ramp-1..4` (rampe ordinale) vs `--c-cat-1..8` (catégorielle)** : une
   échelle dont l'ordre porte le sens (complétude : vide → ébauche → partiel →
   rédigé) prend la rampe d'une seule teinte, clair → foncé — la progression

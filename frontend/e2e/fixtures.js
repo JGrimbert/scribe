@@ -31,7 +31,9 @@ export function buildMockDocument({ paragraphCount = 3, decoyAxes = 0 } = {}) {
     stats: { mots: paragraphCount * 30 },
   }
 
-  return { title: 'Document de test', trame: { axes }, data }
+  // validations : aucune relecture enregistrée — le bouton de la DocumentBar
+  // part donc de son état neutre.
+  return { title: 'Document de test', trame: { axes }, data, validations: {} }
 }
 
 // Neutralise les appels d'analyse (le pipeline NLP n'est pas dans le périmètre

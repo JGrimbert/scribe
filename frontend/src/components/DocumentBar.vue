@@ -30,6 +30,22 @@
       </template>
     </nav>
 
+    <!-- Validation : seulement en édition, et seulement sur un chapitre ouvert
+         — on valide ce qu'on vient de relire, sous les yeux. Le dashboard, lui,
+         ne fait que compter. -->
+    <BaseButton
+        v-if="!scoped && currentNodeId"
+        class="validate"
+        :class="`validate--${validationState ?? 'aucune'}`"
+        :variant="validationState ? 'ghost' : 'outline'"
+        :icon="VALIDATION_UI[validationState ?? 'aucune'].icon"
+        :busy="validating"
+        :title="VALIDATION_UI[validationState ?? 'aucune'].title"
+        @click="$emit('toggle-validation', currentNodeId)"
+    >
+      {{ VALIDATION_UI[validationState ?? 'aucune'].label }}
+    </BaseButton>
+
     <div class="analyse-cta">
       <ProgressChecklist
           v-if="checklistVisible"
@@ -66,9 +82,21 @@ const props = defineProps({
   sidebarExpanded: Boolean,
   // true = mode analyse (le fil d'Ariane pilote le scope), false = édition.
   scoped: Boolean,
+  // État de validation du chapitre courant : 'validé', 'périmé', ou null.
+  validationState: { type: String, default: null },
+  validating: Boolean,
 })
 
-defineEmits(['toggle-sidebar', 'select'])
+defineEmits(['toggle-sidebar', 'select', 'toggle-validation'])
+
+// Les trois états du bouton. « périmé » ne propose pas de dévalider mais de
+// revalider : le texte a changé depuis la relecture, l'action utile est de
+// relire, pas d'effacer la trace.
+const VALIDATION_UI = {
+  aucune: { icon: 'pi-check', label: 'Valider', title: 'Marquer ce chapitre comme relu' },
+  validé: { icon: 'pi-check-circle', label: 'Validé', title: 'Retirer la validation' },
+  périmé: { icon: 'pi-exclamation-triangle', label: 'Revalider', title: 'Le texte a changé depuis la relecture — revalider' },
+}
 
 const STEP_LABELS = {
   lexical: 'analyse linguistique',
@@ -111,6 +139,23 @@ const checklistVisible = computed(
 </script>
 
 <style scoped lang="scss">
+/* Bouton de validation : les deux états « décidés » portent leur couleur de
+   statut (mêmes tokens que le graphe de complétude — un chapitre vert dans la
+   barre est un chapitre vert dans le graphe), l'état neutre reste un outline. */
+.validate {
+  flex: 0 0 auto;
+  margin-right: 0.4em;
+  white-space: nowrap;
+
+  &--validé {
+    color: var(--c-status-valide);
+  }
+
+  &--périmé {
+    color: var(--c-status-perime);
+  }
+}
+
 /* Le bouton « Relancer » est la dernière case, centré comme une tuile. */
 
 .analyse-cta {

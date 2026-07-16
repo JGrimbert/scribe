@@ -29,4 +29,18 @@ export interface DocumentContent {
   title: string
   trame: { axes: Trame['axes'] }
   data: DataMap
+  // État de validation résolu, par nœud — seuls les nœuds validés y figurent.
+  // Résolu ici et pas côté client : départager « validé » de « périmé »
+  // suppose de rehacher le texte courant par le même chemin exactement
+  // (plainNodeText + sha256) — dupliquer ce calcul en JS, c'est signer pour
+  // deux implémentations qui divergeront.
+  validations: Record<string, NodeValidationState>
+}
+
+export type NodeValidationState = 'validé' | 'périmé'
+
+export interface NodeValidationResponse {
+  nodeId: string
+  state: NodeValidationState
+  validatedAt: string
 }

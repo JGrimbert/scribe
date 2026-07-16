@@ -14,13 +14,14 @@ export default {
   title: 'Organisms/AnomaliesBlock',
 }
 
+// counts alignés sur STATUSES : les deux derniers sont les états de relecture.
 const AXES = [
-  { titre: 'I. Le seuil', counts: [0, 1, 3, 8] },
-  { titre: 'II. La traversée', counts: [4, 5, 2, 1] },
-  { titre: 'III. Le retour', counts: [1, 0, 2, 6] },
+  { titre: 'I. Le seuil', counts: [0, 1, 3, 4, 4, 0] },
+  { titre: 'II. La traversée', counts: [4, 5, 2, 1, 0, 0] },
+  { titre: 'III. Le retour', counts: [1, 0, 2, 3, 2, 1] },
 ]
 
-const STATUSES = ['vide', 'ébauche', 'partiel', 'rédigé']
+const STATUSES = ['vide', 'ébauche', 'partiel', 'rédigé', 'validé', 'périmé']
 
 const slices = (counts) => STATUSES.map((status, i) => ({ status, count: counts[i] }))
 

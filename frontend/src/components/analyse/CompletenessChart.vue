@@ -6,7 +6,7 @@
 import { computed } from 'vue'
 import BaseChart from '../ui/BaseChart.vue'
 import { useAnalyse } from '../../composables/useAnalyse'
-import { cssVar, cssVars } from '../../script/theme'
+import { cssVar } from '../../script/theme'
 
 const { analysis } = useAnalyse()
 
@@ -26,8 +26,23 @@ function pointsFor(rows, statusIndex) {
   })
 }
 
+// Couleur par état. Les quatre paliers rédactionnels suivent la rampe ordinale
+// (clair → foncé = la progression se lit dans la couleur) ; les deux états de
+// relecture sortent de la rampe, ce sont des statuts (cf. base.css).
+const COLOR_TOKENS = {
+  vide: '--c-ramp-1',
+  ébauche: '--c-ramp-2',
+  partiel: '--c-ramp-3',
+  rédigé: '--c-ramp-4',
+  validé: '--c-status-valide',
+  périmé: '--c-status-perime',
+}
+
+// Étiquette posée sur le remplissage : les deux paliers clairs de la rampe
+// demandent de l'encre, tous les autres fonds du blanc.
+const LIGHT_FILLS = ['vide', 'ébauche']
+
 const option = computed(() => {
-  const ramp = cssVars(['--c-ramp-1', '--c-ramp-2', '--c-ramp-3', '--c-ramp-4'])
   const ink = cssVar('--c-ink')
   const ink2 = cssVar('--c-ink2')
   const surface = cssVar('--c-paper')
@@ -79,7 +94,7 @@ const option = computed(() => {
       barMaxWidth: 22,
       data: pointsFor(rows, i),
       itemStyle: {
-        color: ramp[i],
+        color: cssVar(COLOR_TOKENS[status]),
         // Séparateur de 2 px à la couleur de la surface entre deux segments :
         // deux parts voisines de la rampe se touchent sinon, et la frontière
         // devient illisible (elles ne diffèrent que par la clarté).
@@ -92,9 +107,7 @@ const option = computed(() => {
         // sur la seule couleur. Masquée sous 8 % de la barre, où le chiffre ne
         // tiendrait pas — légende et infobulle prennent le relais.
         formatter: ({ data }) => (data.value >= 8 ? `${data.count}` : ''),
-        // Texte sur le remplissage : les deux teintes claires de la rampe
-        // demandent de l'encre, les deux foncées du blanc.
-        color: i < 2 ? ink : '#fff',
+        color: LIGHT_FILLS.includes(status) ? ink : '#fff',
         fontFamily: font,
         fontSize: 11,
       },

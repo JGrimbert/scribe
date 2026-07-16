@@ -74,6 +74,14 @@ l'instant, ne pas retirer le middleware Vite sans en parler.
     attente, réapplique le parse avec les corrections (`ImportCorrections`
     : `structureStartIndex` + `levelOverrides` par titre), persiste en
     transaction (`Document` + `Node`s + `Paragraph`s).
+  - `POST`/`DELETE /documents/:id/nodes/:nodeId/validation` — validation
+    manuelle d'un chapitre (« j'ai relu, c'est bon »). Rejouer le `POST`
+    rafraîchit l'empreinte : c'est la revalidation d'un chapitre périmé. Le
+    `DELETE` est idempotent. `GET /documents/:id` renvoie l'état **résolu**
+    par nœud (`validations: { nodeId: 'validé' | 'périmé' }`, seuls les nœuds
+    validés y figurent) : départager les deux suppose de rehacher le texte
+    courant par le même chemin exactement (`nodeContentHash`), et dupliquer ce
+    calcul côté client serait signer pour deux implémentations divergentes.
 
 - `src/analyse/` — `AnalyseModule` : analyses par document, persistées dans
   `DocumentAnalysis` (une ligne par document, volets indépendants et
@@ -120,8 +128,15 @@ l'instant, ne pas retirer le middleware Vite sans en parler.
     stocker. D'où sa présence garantie dans la réponse (pas de `null`), et le
     fait que le bloc anomalies du dashboard s'affiche sans service NLP.
     Expose la table des anomalies (feuilles stub) ET la `distribution` des
-    feuilles sur toute l'échelle vide/ébauche/partiel/rédigé, ventilée par axe
-    de tête + un groupe « Total » — une barre du graphe de complétude.
+    feuilles sur toute l'échelle, ventilée par axe de tête + un groupe
+    « Total » — une barre du graphe de complétude.
+    Deux échelles à ne pas confondre (`CompletenessStatus` vs
+    `CompletenessDisplayStatus`) : les 4 paliers **calculés**
+    (vide/ébauche/partiel/rédigé) et les 2 états **décidés** par
+    l'utilisateur (validé/périmé), qui écrasent le palier calculé à
+    l'affichage. `classify()` ne connaît que les premiers — c'est
+    volontaire : `stubNodeIds` (exclusion du corpus thématique) ne doit
+    dépendre que de la longueur du texte, pas d'une validation.
   - `GET /documents/:id/analyse` renvoie toujours 200 avec les volets à
     `null` tant qu'ils ne sont pas calculés (pas de 404).
   - Outils transverses sous `/analyse` (`analyse-tools.controller.ts`, non
@@ -177,6 +192,16 @@ du liminaire, qui lui n'y figure jamais).
   moment du parse.
 - `Paragraph` — un paragraphe de texte, rattaché à un `Node`, `position`
   explicite (même logique que ci-dessus).
+- `NodeValidation` — la relecture manuelle d'un chapitre. Table à part, et
+  pas une colonne de `Node` ni un volet de `DocumentAnalysis` : c'est un fait
+  **utilisateur**, qu'un réimport ne doit pas charrier et qu'un recalcul
+  d'analyse ne doit pas écraser. `contentHash` (sha256 du texte brut au
+  moment de la validation, `nodeContentHash`) fait basculer le chapitre en
+  « périmé » si le texte change ensuite, plutôt que de le dévalider en
+  silence. Le hash **normalise les espaces** délibérément : `stripHtmlTags`
+  remplaçant chaque balise par une espace, sans ce collapse un simple passage
+  en gras périmerait la relecture. Effet de bord assumé : recouper un
+  paragraphe sans toucher aux mots ne périme rien.
 
 Pas encore de versioning bloc par bloc — prévu plus tard. L'architecture
 (ids stables, `position` en colonne) est pensée pour l'accueillir sans

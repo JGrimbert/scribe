@@ -12,7 +12,15 @@ import {
   Trame,
   TrameNode,
 } from '../import/odt-parser'
-import { CommitImportRequest, DocumentContent, DocumentSummary, PreviewResponse } from './dto'
+import { nodeContentHash } from '../analyse/plain-text'
+import {
+  CommitImportRequest,
+  DocumentContent,
+  DocumentSummary,
+  NodeValidationResponse,
+  NodeValidationState,
+  PreviewResponse,
+} from './dto'
 
 @Injectable()
 export class DocumentsService {
@@ -128,11 +136,7 @@ export class DocumentsService {
         level: node.level,
         titre: node.titre,
         slug: node.slug,
-        texte: node.paragraphs.map((p): HarmonizedItem['texte'][number] =>
-          p.type === 'LIST'
-            ? { type: 'list', ordered: p.ordered ?? false, items: JSON.parse(p.content) }
-            : { type: 'paragraph', text: p.content },
-        ),
+        texte: this.texteOf(node.paragraphs),
         connexe: (node.connexe as HarmonizedItem['connexe']) ?? null,
         indexGlobal: node.indexGlobal,
         stats: node.mots != null ? { mots: node.mots, caracteres: node.caracteres ?? 0 } : null,
@@ -150,7 +154,60 @@ export class DocumentsService {
 
     const axes = (childrenByParent.get(null) ?? []).map((axe) => buildTree(axe.id))
 
-    return { title: document.title, trame: { axes }, data }
+    const validations: Record<string, NodeValidationState> = {}
+    for (const [nodeId, hash] of await this.getValidations(id)) {
+      const item = data[nodeId]
+      if (!item) continue // validation orpheline (nœud disparu) : ignorée, la cascade la nettoiera
+      validations[nodeId] = hash === nodeContentHash(item.texte) ? 'validé' : 'périmé'
+    }
+
+    return { title: document.title, trame: { axes }, data, validations }
+  }
+
+  // Paragraphes en base → `texte[]` du modèle. Partagé par getContent et la
+  // validation : les deux doivent voir EXACTEMENT le même texte, sans quoi une
+  // validation naîtrait périmée.
+  private texteOf(paragraphs: { type: string; ordered: boolean | null; content: string }[]): HarmonizedItem['texte'] {
+    return paragraphs.map((p): HarmonizedItem['texte'][number] =>
+      p.type === 'LIST'
+        ? { type: 'list', ordered: p.ordered ?? false, items: JSON.parse(p.content) }
+        : { type: 'paragraph', text: p.content },
+    )
+  }
+
+  // nodeId → contentHash au moment de la validation. Consommé aussi par
+  // AnalyseService (complétude) : c'est la même vérité, chargée une fois.
+  async getValidations(documentId: string): Promise<Map<string, string>> {
+    const rows = await this.prisma.nodeValidation.findMany({
+      where: { node: { documentId } },
+      select: { nodeId: true, contentHash: true },
+    })
+    return new Map(rows.map((r) => [r.nodeId, r.contentHash]))
+  }
+
+  // Valider = « j'ai relu ce chapitre dans cet état ». Rejouer l'opération sur
+  // un chapitre périmé rafraîchit l'empreinte : c'est la revalidation.
+  async validateNode(documentId: string, nodeId: string): Promise<NodeValidationResponse> {
+    const node = await this.prisma.node.findFirst({
+      where: { id: nodeId, documentId },
+      include: { paragraphs: { orderBy: { position: 'asc' } } },
+    })
+    if (!node) throw new NotFoundException(`Nœud ${nodeId} introuvable dans le document ${documentId}`)
+
+    const contentHash = nodeContentHash(this.texteOf(node.paragraphs))
+    const saved = await this.prisma.nodeValidation.upsert({
+      where: { nodeId },
+      create: { nodeId, contentHash },
+      update: { contentHash, validatedAt: new Date() },
+    })
+    return { nodeId, state: 'validé', validatedAt: saved.validatedAt.toISOString() }
+  }
+
+  // Idempotent : dévalider ce qui ne l'est pas n'est pas une erreur.
+  async unvalidateNode(documentId: string, nodeId: string): Promise<void> {
+    const node = await this.prisma.node.findFirst({ where: { id: nodeId, documentId } })
+    if (!node) throw new NotFoundException(`Nœud ${nodeId} introuvable dans le document ${documentId}`)
+    await this.prisma.nodeValidation.deleteMany({ where: { nodeId } })
   }
 
   async remove(id: string): Promise<void> {

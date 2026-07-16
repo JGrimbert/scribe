@@ -2,7 +2,13 @@ import { describe, it, expect } from 'vitest'
 import { buildParsedResult } from '../import/odt-parser/hierarchy'
 import { harmonize } from '../import/odt-parser/harmonize'
 import { FlatNode } from '../import/odt-parser'
-import { assessCompleteness, stubNodeIds } from './completeness'
+import {
+  assessCompleteness,
+  stubNodeIds,
+  CompletenessDisplayStatus,
+  CompletenessGroup,
+} from './completeness'
+import { nodeContentHash } from './plain-text'
 
 function flat(nodes: Partial<FlatNode>[]): FlatNode[] {
   return nodes.map((n, index) => ({
@@ -15,6 +21,12 @@ function flat(nodes: Partial<FlatNode>[]): FlatNode[] {
     ...n,
   })) as FlatNode[]
 }
+
+// Le groupe « Total » ferme toujours la distribution (cf. assessCompleteness).
+const totalGroup = (distribution: CompletenessGroup[]) => distribution[distribution.length - 1]
+
+const countOf = (distribution: CompletenessGroup[], status: CompletenessDisplayStatus) =>
+  totalGroup(distribution).distribution.find((s) => s.status === status)!.count
 
 const H = (level: number, text: string): Partial<FlatNode> => ({ kind: 'heading', level, text })
 const P = (text: string): Partial<FlatNode> => ({ kind: 'paragraph', text })
@@ -54,7 +66,7 @@ describe('completeness', () => {
     ])
 
     const { distribution } = assessCompleteness(trame, data)
-    expect(distribution.at(-1)).toEqual({
+    expect(totalGroup(distribution)).toEqual({
       nodeId: null,
       titre: 'Total',
       leafCount: 3,
@@ -63,6 +75,10 @@ describe('completeness', () => {
         { status: 'ébauche', count: 1 },
         { status: 'partiel', count: 0 },
         { status: 'rédigé', count: 1 },
+        // Sans validation en base, les deux états humains restent à 0 — mais
+        // présents : la légende du graphe ne doit pas changer de forme.
+        { status: 'validé', count: 0 },
+        { status: 'périmé', count: 0 },
       ],
     })
   })
@@ -89,6 +105,8 @@ describe('completeness', () => {
       { status: 'ébauche', count: 1 },
       { status: 'partiel', count: 0 },
       { status: 'rédigé', count: 0 },
+      { status: 'validé', count: 0 },
+      { status: 'périmé', count: 0 },
     ])
   })
 
@@ -96,6 +114,68 @@ describe('completeness', () => {
     const { trame, data } = build([H(1, 'Axe sans intro'), H(2, 'Chapitre'), P(words(200))])
     const { anomalies } = assessCompleteness(trame, data)
     expect(anomalies).toHaveLength(0)
+  })
+
+  describe('validation manuelle', () => {
+    const doc = () =>
+      build([H(1, 'Axe'), H(2, 'Chapitre relu'), P(words(200)), H(2, 'Chapitre brut'), P(words(200))])
+
+    it('affiche « validé » tant que le texte n’a pas bougé', () => {
+      const { trame, data } = doc()
+      const reluId = trame.axes[0].children[0].id
+      const validations = new Map([[reluId, nodeContentHash(data[reluId].texte)]])
+
+      const { distribution } = assessCompleteness(trame, data, validations)
+      expect(countOf(distribution, 'validé')).toBe(1)
+      expect(countOf(distribution, 'périmé')).toBe(0)
+      expect(countOf(distribution, 'rédigé')).toBe(1) // l'autre chapitre reste calculé
+    })
+
+    it('bascule en « périmé » quand le texte a changé depuis la relecture', () => {
+      const { trame, data } = doc()
+      const reluId = trame.axes[0].children[0].id
+      const validations = new Map([[reluId, 'hash-d-une-version-anterieure']])
+
+      const { distribution } = assessCompleteness(trame, data, validations)
+      expect(countOf(distribution, 'périmé')).toBe(1)
+      expect(countOf(distribution, 'validé')).toBe(0)
+    })
+
+    it('ne périme pas une relecture sur un simple changement de mise en forme', () => {
+      const { trame, data } = doc()
+      const reluId = trame.axes[0].children[0].id
+      const validations = new Map([[reluId, nodeContentHash(data[reluId].texte)]])
+
+      // Même texte, un mot passé en gras : le hash porte sur le texte brut.
+      const entry = data[reluId].texte[0]
+      if (entry.type !== 'paragraph') throw new Error('le fixture pose un paragraphe')
+      entry.text = entry.text.replace('mot', '<strong>mot</strong>')
+
+      const { distribution } = assessCompleteness(trame, data, validations)
+      expect(countOf(distribution, 'validé')).toBe(1)
+    })
+
+    it('retire des anomalies un chapitre stub validé tel quel', () => {
+      const { trame, data } = build([H(1, 'Axe'), H(2, 'Volontairement bref'), P('deux mots')])
+      const briefId = trame.axes[0].children[0].id
+
+      expect(assessCompleteness(trame, data).anomalies).toHaveLength(1)
+
+      const validations = new Map([[briefId, nodeContentHash(data[briefId].texte)]])
+      const validated = assessCompleteness(trame, data, validations)
+      expect(validated.anomalies).toHaveLength(0)
+      expect(countOf(validated.distribution, 'validé')).toBe(1)
+    })
+
+    it('garde en anomalie un chapitre stub dont la validation est périmée', () => {
+      const { trame, data } = build([H(1, 'Axe'), H(2, 'Vidé depuis'), P('deux mots')])
+      const nodeId = trame.axes[0].children[0].id
+      const validations = new Map([[nodeId, 'hash-perime']])
+
+      const { anomalies, distribution } = assessCompleteness(trame, data, validations)
+      expect(anomalies).toHaveLength(1)
+      expect(countOf(distribution, 'périmé')).toBe(1)
+    })
   })
 
   it('exclut du corpus tout stub, feuille ou conteneur', () => {
