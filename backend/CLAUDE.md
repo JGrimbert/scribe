@@ -37,28 +37,40 @@ l'instant, ne pas retirer le middleware Vite sans en parler.
     vérifié manuellement contre un manuscrit réel lors du développement,
     pas de garde-fou contre une régression future.
 
-  **Ce que le parseur retient des styles ODT — et ce qu'il jette.** Point
-  aveugle à connaître avant de promettre quoi que ce soit sur la mise en
-  forme d'origine :
-  - `FlatNode.styleName` est lu (`flatten.ts`) mais **meurt à la passe 2** :
-    `hierarchy.ts` ne s'en sert que pour deux regex en dur
-    (`/citation|quote/i` → `citations`, `/highlight|surlign/i` → `pistes`)
-    et il n'est **persisté nulle part** — `Paragraph` n'a que `type` +
-    `content`. Le style d'un paragraphe (« Définition », « Citation »…)
-    n'est donc pas récupérable après import.
-  - Les **surlignés inline** (`<text:span>` sur un style de caractère à
-    `fo:background-color`) ne sont **pas extraits du tout** :
-    `nodeTextWithLinks` (`xml.ts`) aplatit les spans. Un mot surligné est
-    indiscernable du reste du paragraphe. Seuls les liens internes
-    (`<text:a href="#signet">`) survivent, via le marqueur
-    `<a data-bookmark>` résolu dans `harmonize()`.
-  - Sont retenus : niveau de titre (nom de style ou `text:outline-level`),
-    `fo:break-before` (`hasPageBreak`), caractère numéroté d'une liste,
-    styles méta auteur/titre (`META_STYLES`, noms en dur), tableaux, signets.
+  **Styles ODT : héritage, surlignages, inventaire.** À lire avant de
+  toucher à quoi que ce soit qui concerne la mise en forme d'origine :
+  - **Résolution de l'héritage (`buildStyleTable`/`effectiveStyleName`,
+    `xml.ts`)** — LibreOffice génère un style automatique (`P26`, `T130`) dès
+    qu'un paragraphe porte la moindre mise en forme directe, lequel hérite du
+    vrai style via `style:parent-style-name`. Sur le manuscrit témoin :
+    **338 noms bruts pour 33 styles réels**. Sans cette résolution, toute
+    typologie est illisible. `FlatNode` porte donc les deux : `styleName`
+    (brut — reste la source de `headingLevel`, ne pas y substituer l'autre
+    sous peine de changer la structure détectée) et `effectiveStyle` (résolu
+    + décodé, `_20_` → espace).
+  - **Deux formes de surlignage, pas une** — sur le témoin : 164 paragraphes
+    entiers (`fo:background-color` sur le style de paragraphe →
+    `FlatNode.highlight`) ET 160 spans inline (style de caractère →
+    `<mark data-hl="#ffff00">` posé par `nodeTextWithLinks`). Les deux
+    portent des annotations de travail. Le blanc (`#ffffff`) n'est jamais un
+    surlignage : LibreOffice le pose partout par défaut.
+  - **L'inventaire (`inventory.ts`) se construit sur le XML, pas sur les
+    FlatNode** — ceux-ci sont la vue *structurelle* (tableaux aplatis en
+    données, paragraphes vides écartés). Le style « Voir » (183 usages, dans
+    les tableaux) disparaissait de l'inventaire tant qu'il était construit
+    sur eux. Seule la table des matières est écartée : ses styles sont posés
+    par LibreOffice, pas par l'auteur.
+  - **Les deux regex en dur ont perdu leur autorité** — `hierarchy.ts`
+    classait citations/pistes sur le NOM du style (`/citation|quote/i`,
+    `/highlight|surlign/i`). Elles ne tenaient que sur des noms bruts (« P26 »
+    ne dit rien) et n'étaient pas corrigeables. Les `pistes` viennent
+    désormais d'un vrai surlignage, et la vérité est dans `styleName` +
+    `highlight`, arbitrés par la typologie du document (`typology.ts`).
   - **Le `.odt` source n'est pas conservé** (buffer gardé en mémoire le temps
     de la calibration seulement). Conséquence : tout enrichissement du parse
     est **rétroactivement inapplicable** — il impose de réimporter les
-    documents existants.
+    documents existants. C'est pourquoi `styleInventory` est capturé sur
+    `Document` à l'import : sinon irrécupérable.
 - `src/documents/` — `DocumentsModule` : le registre + le flux d'import en
   deux temps (calibration avant écriture en base, cf. juste en dessous).
   - `GET /documents` — liste des documents avec stats agrégées, pour le
@@ -74,6 +86,20 @@ l'instant, ne pas retirer le middleware Vite sans en parler.
     attente, réapplique le parse avec les corrections (`ImportCorrections`
     : `structureStartIndex` + `levelOverrides` par titre), persiste en
     transaction (`Document` + `Node`s + `Paragraph`s).
+  - `GET`/`PUT /documents/:id/typology` — typologie des styles : quel rôle
+    joue chaque style ODT dans CE document (`typology.ts`). Le GET sert d'un
+    coup l'inventaire, ce qui a été décidé (`null` si rien), les suggestions,
+    et `settled`. Vocabulaire **fermé** (`STYLE_ROLES` : corps/titre/chapeau/
+    citation/définition/renvoi/tableau/liste/ornement/liminaire/ignorer) parce
+    que les règles d'éligibilité vont le viser — une étiquette libre, c'est
+    une faute de frappe qui casse une règle en silence. Deux invariants :
+    - les **suggestions ne sont jamais persistées** à la place de
+      l'utilisateur (`styleTypology` reste `null` tant qu'il n'a pas
+      enregistré) — sinon la machine se serait auto-validée ;
+    - `settled` compare la typologie à l'inventaire, plutôt que d'être un
+      booléen « déjà configuré » : un style apparu depuis (réimport d'une
+      version où l'auteur en a introduit un) repasse le document en « non
+      arbitré ».
   - `POST`/`DELETE /documents/:id/nodes/:nodeId/validation` — validation
     manuelle d'un chapitre (« j'ai relu, c'est bon »). Rejouer le `POST`
     rafraîchit l'empreinte : c'est la revalidation d'un chapitre périmé. Le
@@ -182,6 +208,9 @@ du liminaire, qui lui n'y figure jamais).
 
 - `Document` — un livre importé ; stats agrégées mises en cache à l'import
   (`totalMots`, `totalCaracteres`, etc.) plutôt que recalculées à la volée.
+  `styleInventory` (relevé à l'import, irrécupérable autrement) et
+  `styleTypology` (décidé par l'utilisateur, `null` tant que rien n'est
+  arbitré) — voir `typology.ts`.
   `totalAxes`/`totalBlocs`/`totalArticles` restent 3 champs figés (compat
   registre) mais leur sens est généralisé : profondeur 0 / profondeur 1 /
   profondeur ≥ 2, peu importe la profondeur réelle de l'arbre.
@@ -191,7 +220,10 @@ du liminaire, qui lui n'y figure jamais).
   réécriture de blob. `id` réutilise l'UUID généré par `harmonize()` au
   moment du parse.
 - `Paragraph` — un paragraphe de texte, rattaché à un `Node`, `position`
-  explicite (même logique que ci-dessus).
+  explicite (même logique que ci-dessus). `styleName` (style effectif résolu)
+  et `highlight` (surlignage du paragraphe entier) sont nullables : les
+  documents importés avant ces colonnes n'en ont pas, et le `.odt` n'étant pas
+  conservé, seule une réimportation les remplit.
 - `NodeValidation` — la relecture manuelle d'un chapitre. Table à part, et
   pas une colonne de `Node` ni un volet de `DocumentAnalysis` : c'est un fait
   **utilisateur**, qu'un réimport ne doit pas charrier et qu'un recalcul

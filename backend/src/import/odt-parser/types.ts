@@ -20,7 +20,14 @@ export interface ListItemEntry {
 // seul bloc — cf. backend/CLAUDE.md et le plan "Articles par nœud" pour la
 // justification (minimise l'impact sur la logique de fusion/split
 // frontend, qui reste par-entrée).
-export type TexteEntry = { type: 'paragraph'; text: string } | { type: 'list'; ordered: boolean; items: ListItemEntry[] }
+// `styleName` (style effectif, résolu et décodé) et `highlight` (surlignage du
+// paragraphe entier) voyagent avec l'entrée jusqu'en base : c'est la clé qui
+// permet à la typologie de dire ce qu'est ce paragraphe. Optionnels — les
+// documents importés avant leur introduction n'en ont pas, et le .odt n'étant
+// pas conservé, seule une réimportation les remplit.
+export type TexteEntry =
+  | { type: 'paragraph'; text: string; styleName?: string; highlight?: string | null }
+  | { type: 'list'; ordered: boolean; items: ListItemEntry[]; styleName?: string; highlight?: string | null }
 
 // Un nœud de titre, à n'importe quelle profondeur (remplace les anciens
 // ParsedAxe/ParsedBloc/ParsedArticle distincts). `texte` est le contenu
@@ -40,6 +47,7 @@ export interface ParsedNode {
 }
 
 export interface ParsedResult {
+  inventory: StyleInventory
   meta: {
     parsedAt: string
     totalNodes: number
@@ -103,12 +111,48 @@ export interface FlatNode {
   kind: 'heading' | 'paragraph' | 'table' | 'list'
   level: number // détecté automatiquement ; seulement pertinent si kind === 'heading'
   text: string
+  // Nom BRUT du style ODT (« P26 », « Heading_20_3 »). Reste la source de la
+  // détection de niveau (headingLevel) : ne pas y substituer effectiveStyle,
+  // ça changerait la structure détectée à l'import.
   styleName: string
+  // Style RÉEL derrière le style automatique, décodé (« Paragraphes »,
+  // « Citation paragraphe »). C'est lui que voit la typologie — les noms bruts
+  // sont 10x plus nombreux et ne veulent rien dire.
+  effectiveStyle: string
+  // Surlignage portant sur le paragraphe ENTIER (fo:background-color du style).
+  // Distinct des <mark data-hl> inline, qui vivent dans `text`.
+  highlight: string | null
   hasPageBreak: boolean // fo:break-before forcé sur le style de ce nœud
   tableData?: string[][]
   listItems?: ListItemEntry[] // pertinent si kind === 'list'
   listOrdered?: boolean // pertinent si kind === 'list'
   bookmarkNames?: string[] // signets ODT rattachés à ce titre ; pertinent si kind === 'heading'
+}
+
+// ─── Inventaire des styles — matière première de la typologie ─────────────
+//
+// Deux inventaires séparés parce qu'ils se configurent séparément : un style
+// porte un RÔLE structurel (« Citation paragraphe » = citation), une couleur
+// de surlignage porte une INTENTION d'annotation (« à reprendre »). Un même
+// paragraphe peut avoir les deux.
+
+export interface StyleUsage {
+  name: string // style effectif décodé
+  count: number
+  headings: number // combien de ces occurrences sont des titres — un style à cheval est suspect
+  sample: string // extrait du premier usage non vide, pour reconnaître le style sans rouvrir l'ODT
+}
+
+export interface HighlightUsage {
+  color: string // #rrggbb, tel quel — le sens est affaire de configuration
+  paragraphs: number // paragraphes entiers surlignés
+  spans: number // surlignages inline
+  sample: string
+}
+
+export interface StyleInventory {
+  styles: StyleUsage[] // triés par fréquence décroissante
+  highlights: HighlightUsage[]
 }
 
 export interface OutlineEntry {

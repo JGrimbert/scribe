@@ -19,6 +19,16 @@ model Document {
   totalMots       Int
   totalCaracteres Int
 
+  // styleInventory : styles et surlignages relevés dans le .odt à l'import
+  // (StyleInventory). Capturé ici parce que le .odt source n'est pas conservé
+  // — sans ça, l'inventaire serait irrécupérable sans réimport.
+  styleInventory  Json?
+  // styleTypology : le rôle décidé pour chaque style (DocumentTypology).
+  // NULL tant que l'utilisateur n'a pas tranché — les suggestions ne sont
+  // jamais persistées à sa place (cf. typology.ts). Un style apparu depuis la
+  // dernière décision rend la typologie « non arbitrée » à nouveau.
+  styleTypology   Json?
+
   nodes           Node[]
   analysis        DocumentAnalysis?
 
@@ -87,6 +97,15 @@ model Paragraph {
   type     ParagraphType @default(TEXT)
   ordered  Boolean?
   content  String
+
+  // Style ODT EFFECTIF (parent résolu, décodé : « Citation paragraphe », pas
+  // « P26 ») — c'est la clé de styleTypology. Nullable : les documents importés
+  // avant cette colonne n'en ont pas, et le .odt n'étant pas conservé, seule
+  // une réimportation peut la remplir.
+  styleName String?
+  // Surlignage du paragraphe ENTIER (couleur brute). Les surlignages inline
+  // vivent dans `content`, en <mark data-hl="…">.
+  highlight String?
 
   @@index([nodeId])
   @@map("paragraphs")

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common'
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { randomUUID } from 'crypto'
 import { PrismaService } from '../prisma/prisma.service'
@@ -9,10 +9,12 @@ import {
   HarmonizedItem,
   ImportCorrections,
   ParsedResult,
+  StyleInventory,
   Trame,
   TrameNode,
 } from '../import/odt-parser'
 import { nodeContentHash } from '../analyse/plain-text'
+import { DocumentTypology, isTypologySettled, suggestTypology, typologyErrors } from './typology'
 import {
   CommitImportRequest,
   DocumentContent,
@@ -20,7 +22,11 @@ import {
   NodeValidationResponse,
   NodeValidationState,
   PreviewResponse,
+  SaveTypologyRequest,
+  TypologyResponse,
 } from './dto'
+
+const EMPTY_INVENTORY: StyleInventory = { styles: [], highlights: [] }
 
 @Injectable()
 export class DocumentsService {
@@ -64,6 +70,9 @@ export class DocumentsService {
           totalArticles: result.meta.totalArticles,
           totalMots,
           totalCaracteres,
+          // Le .odt source n'est pas conservé : si l'inventaire n'est pas
+          // capturé ici, il est irrécupérable sans réimport.
+          styleInventory: result.inventory as unknown as Prisma.InputJsonValue,
         },
       })
 
@@ -92,11 +101,15 @@ export class DocumentsService {
           caracteres: item.stats?.caracteres ?? null,
         })
         item.texte.forEach((entry, i) =>
-          paragraphRows.push(
-            entry.type === 'list'
-              ? { nodeId: item.id, position: i, type: 'LIST', ordered: entry.ordered, content: JSON.stringify(entry.items) }
-              : { nodeId: item.id, position: i, type: 'TEXT', content: entry.text },
-          ),
+          paragraphRows.push({
+            nodeId: item.id,
+            position: i,
+            styleName: entry.styleName ?? null,
+            highlight: entry.highlight ?? null,
+            ...(entry.type === 'list'
+              ? { type: 'LIST' as const, ordered: entry.ordered, content: JSON.stringify(entry.items) }
+              : { type: 'TEXT' as const, content: entry.text }),
+          }),
         )
         node.children.forEach((child, i) => collect(child, node.id, i))
       }
@@ -167,12 +180,53 @@ export class DocumentsService {
   // Paragraphes en base → `texte[]` du modèle. Partagé par getContent et la
   // validation : les deux doivent voir EXACTEMENT le même texte, sans quoi une
   // validation naîtrait périmée.
-  private texteOf(paragraphs: { type: string; ordered: boolean | null; content: string }[]): HarmonizedItem['texte'] {
-    return paragraphs.map((p): HarmonizedItem['texte'][number] =>
-      p.type === 'LIST'
-        ? { type: 'list', ordered: p.ordered ?? false, items: JSON.parse(p.content) }
-        : { type: 'paragraph', text: p.content },
-    )
+  private texteOf(
+    paragraphs: { type: string; ordered: boolean | null; content: string; styleName?: string | null; highlight?: string | null }[],
+  ): HarmonizedItem['texte'] {
+    return paragraphs.map((p): HarmonizedItem['texte'][number] => {
+      const style = { styleName: p.styleName ?? undefined, highlight: p.highlight ?? null }
+      return p.type === 'LIST'
+        ? { type: 'list', ordered: p.ordered ?? false, items: JSON.parse(p.content), ...style }
+        : { type: 'paragraph', text: p.content, ...style }
+    })
+  }
+
+  // ─── Typologie des styles ───────────────────────────────────────────────
+
+  async getTypology(id: string): Promise<TypologyResponse> {
+    const document = await this.prisma.document.findUnique({
+      where: { id },
+      select: { styleInventory: true, styleTypology: true },
+    })
+    if (!document) throw new NotFoundException(`Document ${id} introuvable`)
+
+    // Inventaire absent = document importé avant que le parseur ne relève les
+    // styles. Le .odt n'étant pas conservé, il n'y a rien à rattraper : seule
+    // une réimportation le remplira.
+    const inventory = (document.styleInventory as unknown as StyleInventory | null) ?? EMPTY_INVENTORY
+    const typology = document.styleTypology as unknown as DocumentTypology | null
+
+    return {
+      inventory,
+      typology,
+      suggested: suggestTypology(inventory),
+      settled: isTypologySettled(typology, inventory),
+    }
+  }
+
+  async saveTypology(id: string, body: SaveTypologyRequest): Promise<TypologyResponse> {
+    const document = await this.prisma.document.findUnique({ where: { id }, select: { styleInventory: true } })
+    if (!document) throw new NotFoundException(`Document ${id} introuvable`)
+
+    const inventory = (document.styleInventory as unknown as StyleInventory | null) ?? EMPTY_INVENTORY
+    const errors = typologyErrors(body, inventory)
+    if (errors.length) throw new BadRequestException(errors)
+
+    await this.prisma.document.update({
+      where: { id },
+      data: { styleTypology: body as unknown as Prisma.InputJsonValue },
+    })
+    return this.getTypology(id)
   }
 
   // nodeId → contentHash au moment de la validation. Consommé aussi par

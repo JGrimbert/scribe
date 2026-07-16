@@ -31,8 +31,8 @@ export { harmonize } from './harmonize'
 
 // ─── Parser principal ─────────────────────────────────────────────────────
 export function parseOdtXml(xmlContent: string, corrections?: ImportCorrections): ParsedResult {
-  const { flatNodes, meta, sectionsRencontrees } = buildFlatNodes(xmlContent)
-  return buildParsedResult(flatNodes, meta, sectionsRencontrees, corrections).result
+  const { flatNodes, meta, sectionsRencontrees, inventory } = buildFlatNodes(xmlContent)
+  return buildParsedResult(flatNodes, meta, sectionsRencontrees, corrections, inventory).result
 }
 
 // ─── Aperçu (calibration) : parse sans construire la structure finale ─────
@@ -46,8 +46,8 @@ export function parseOdtXmlForPreview(
 
 export async function parseOdtBuffer(buffer: Buffer, corrections?: ImportCorrections): Promise<OdtParseOutput> {
   const xmlContent = await readOdtContentXml(buffer)
-  const { flatNodes, meta, sectionsRencontrees } = buildFlatNodes(xmlContent)
-  const { result, bookmarks } = buildParsedResult(flatNodes, meta, sectionsRencontrees, corrections)
+  const { flatNodes, meta, sectionsRencontrees, inventory } = buildFlatNodes(xmlContent)
+  const { result, bookmarks } = buildParsedResult(flatNodes, meta, sectionsRencontrees, corrections, inventory)
   const { data, trame } = harmonize(result, bookmarks)
   return { result, data, trame }
 }

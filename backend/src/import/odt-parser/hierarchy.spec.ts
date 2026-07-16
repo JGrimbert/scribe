@@ -11,6 +11,8 @@ function flat(nodes: Partial<FlatNode>[]): FlatNode[] {
     level: 0,
     text: '',
     styleName: '',
+    effectiveStyle: '',
+    highlight: null,
     hasPageBreak: false,
     ...n,
   })) as FlatNode[]
@@ -114,16 +116,36 @@ describe('buildParsedResult — contenu, slugs, stats, index', () => {
     expect(result.axes[0].texte).toEqual([{ type: 'list', ordered: true, items: [{ text: 'item', depth: 0 }] }])
   })
 
-  it('classe citations et pistes selon le style ou la ponctuation', () => {
+  it('classe citations et pistes selon le style effectif, le surlignage ou la ponctuation', () => {
     const result = build([
       H(1, 'A'),
       P('« une citation »'),
-      P('surligné', { styleName: 'surlignage' }),
+      // Une piste vient d'un VRAI surlignage (fo:background-color résolu en
+      // amont), plus d'un nom de style qui contiendrait « surlign » : « P26 »
+      // ne dit rien, et l'ancienne heuristique n'était pas corrigeable.
+      P('surligné', { highlight: '#ffff00' }),
     ])
     expect(result.axes[0].citations).toEqual(['« une citation »'])
     expect(result.axes[0].pistes).toEqual(['surligné'])
     // Les deux restent aussi dans le flux texte.
     expect(result.axes[0].texte).toHaveLength(2)
+  })
+
+  it('fait voyager style effectif et surlignage jusque dans texte[]', () => {
+    const result = build([
+      H(1, 'A'),
+      P('Un corps.', { effectiveStyle: 'Paragraphes' }),
+      P('Annoté.', { effectiveStyle: 'Paragraphes', highlight: '#ffff00' }),
+    ])
+    expect(result.axes[0].texte).toEqual([
+      { type: 'paragraph', text: 'Un corps.', styleName: 'Paragraphes' },
+      { type: 'paragraph', text: 'Annoté.', styleName: 'Paragraphes', highlight: '#ffff00' },
+    ])
+  })
+
+  it('n’alourdit pas une entrée sans style ni surlignage', () => {
+    const result = build([H(1, 'A'), P('Nu.')])
+    expect(result.axes[0].texte).toEqual([{ type: 'paragraph', text: 'Nu.' }])
   })
 
   it('propage la meta (auteur/titreLivre) dans result.meta', () => {

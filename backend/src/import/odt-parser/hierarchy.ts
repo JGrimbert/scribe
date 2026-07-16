@@ -1,4 +1,16 @@
-import { FlatNode, ImportCorrections, ParsedNode, ParsedResult, TexteEntry } from './types'
+import { FlatNode, ImportCorrections, ParsedNode, ParsedResult, StyleInventory, TexteEntry } from './types'
+
+const EMPTY_INVENTORY: StyleInventory = { styles: [], highlights: [] }
+
+// N'émet que ce qui existe : un `styleName: ''` / `highlight: null` sur chacun
+// des ~1800 paragraphes d'un manuscrit, c'est autant de clés vides persistées
+// pour ne rien dire.
+function styleOf(node: FlatNode): { styleName?: string; highlight?: string } {
+  return {
+    ...(node.effectiveStyle ? { styleName: node.effectiveStyle } : {}),
+    ...(node.highlight ? { highlight: node.highlight } : {}),
+  }
+}
 import { makeUniqueSlug, extractRomain, computeStats } from './text-utils'
 
 // ─── Passe 2 : construction de la hiérarchie à profondeur arbitraire ──────
@@ -14,11 +26,16 @@ export function buildParsedResult(
   meta: { auteur?: string; titreLivre?: string },
   sectionsRencontrees: number,
   corrections?: ImportCorrections,
+  // Ne se déduit pas de flatNodes : l'inventaire doit voir les paragraphes
+  // internes aux tableaux, que la passe 1 aplatit en données (cf.
+  // inventory.ts). Il vient donc de buildFlatNodes, qui a lu le XML.
+  inventory: StyleInventory = EMPTY_INVENTORY,
 ): { result: ParsedResult; bookmarks: Map<string, ParsedNode> } {
   const structureStartIndex = corrections?.structureStartIndex ?? 0
   const levelOverrides = corrections?.levelOverrides ?? {}
 
   const result: ParsedResult = {
+    inventory,
     meta: {
       parsedAt: new Date().toISOString(),
       totalNodes: flatNodes.length,
@@ -87,7 +104,7 @@ export function buildParsedResult(
       const items = node.listItems ?? []
       const current = stack[stack.length - 1]
       if (current) {
-        current.texte.push({ type: 'list', ordered: node.listOrdered ?? false, items })
+        current.texte.push({ type: 'list', ordered: node.listOrdered ?? false, items, ...styleOf(node) })
       } else {
         paragraphesPreambule++
         result.preambule.push(items.map((item) => item.text).join('\n'))
@@ -129,13 +146,18 @@ export function buildParsedResult(
 
     const current = stack[stack.length - 1]
     if (current) {
-      if (/citation|quote/i.test(node.styleName) || text.startsWith('«') || text.startsWith('"')) {
+      // Ces deux heuristiques ne font plus autorité : elles ne tenaient que
+      // sur des noms de styles bruts (« P26 » ne dit rien) et n'étaient pas
+      // corrigeables. Elles restent ici pour ne pas vider `citations`/`pistes`
+      // des documents déjà importés, mais la vérité est désormais dans
+      // styleName + highlight, arbitrés par la typologie du document.
+      if (/citation|quote/i.test(node.effectiveStyle) || text.startsWith('«') || text.startsWith('"')) {
         current.citations.push(text)
       }
-      if (/highlight|surlign/i.test(node.styleName)) {
+      if (node.highlight) {
         current.pistes.push(text)
       }
-      current.texte.push({ type: 'paragraph', text })
+      current.texte.push({ type: 'paragraph', text, ...styleOf(node) })
     } else {
       paragraphesPreambule++
       result.preambule.push(text)

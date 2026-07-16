@@ -1,4 +1,5 @@
-import { DataMap, ImportCorrections, OutlineEntry, Trame } from '../import/odt-parser'
+import { DataMap, ImportCorrections, OutlineEntry, StyleInventory, Trame } from '../import/odt-parser'
+import { DocumentTypology, StyleRole } from './typology'
 
 export interface PreviewResponse {
   previewId: string
@@ -43,4 +44,20 @@ export interface NodeValidationResponse {
   nodeId: string
   state: NodeValidationState
   validatedAt: string
+}
+
+// Tout ce dont l'écran de typologie a besoin en un appel : ce qu'il y a dans
+// le document (inventory), ce qui a été décidé (typology, null si rien), et ce
+// qu'on propose à défaut (suggested). `settled` réconcilie les deux — un style
+// apparu depuis la dernière décision suffit à repasser à false.
+export interface TypologyResponse {
+  inventory: StyleInventory
+  typology: DocumentTypology | null
+  suggested: DocumentTypology
+  settled: boolean
+}
+
+export interface SaveTypologyRequest {
+  styles: Record<string, StyleRole>
+  highlights: Record<string, string>
 }

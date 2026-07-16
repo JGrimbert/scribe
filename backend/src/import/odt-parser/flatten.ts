@@ -1,6 +1,6 @@
 import { DOMParser } from 'xmldom'
 import * as xpath from 'xpath'
-import { FlatNode, ListItemEntry } from './types'
+import { FlatNode, ListItemEntry, StyleInventory } from './types'
 import {
   NS,
   select,
@@ -9,10 +9,14 @@ import {
   headingLevel,
   buildPageBreakStyles,
   buildListStyles,
+  buildStyleTable,
+  effectiveStyleName,
+  styleBackground,
   extractListItems,
   extractTocTexts,
   extractTable,
 } from './xml'
+import { buildStyleInventory } from './inventory'
 
 const META_STYLES = {
   auteur: ['auteur', 'P301'],
@@ -30,6 +34,7 @@ export function buildFlatNodes(xmlContent: string): {
   meta: { auteur?: string; titreLivre?: string }
   sectionsRencontrees: number
   tocTexts: string[]
+  inventory: StyleInventory
 } {
   const doc = new DOMParser().parseFromString(xmlContent, 'text/xml')
 
@@ -44,6 +49,7 @@ export function buildFlatNodes(xmlContent: string): {
 
   const pageBreakStyles = buildPageBreakStyles(doc)
   const listStyles = buildListStyles(doc)
+  const styleTable = buildStyleTable(doc)
   const tocTexts = extractTocTexts(doc)
 
   const rawNodes: any[] = []
@@ -75,7 +81,7 @@ export function buildFlatNodes(xmlContent: string): {
 
     if (localName === 'list') {
       const items: ListItemEntry[] = []
-      extractListItems(node, 0, items)
+      extractListItems(node, 0, items, styleTable)
       if (items.length) {
         const styleName = node.getAttribute('text:style-name') || ''
         flatNodes.push({
@@ -84,6 +90,8 @@ export function buildFlatNodes(xmlContent: string): {
           level: 0,
           text: '',
           styleName,
+          effectiveStyle: effectiveStyleName(styleName, styleTable),
+          highlight: styleBackground(styleName, styleTable),
           hasPageBreak: false,
           listItems: items,
           listOrdered: listStyles.get(styleName) ?? false,
@@ -108,6 +116,8 @@ export function buildFlatNodes(xmlContent: string): {
 
       const level = headingLevel(node)
       const hasPageBreak = pageBreakStyles.has(styleName)
+      const effectiveStyle = effectiveStyleName(styleName, styleTable)
+      const highlight = styleBackground(styleName, styleTable)
 
       if (level >= 1) {
         // Texte du titre gardé brut (pas de lien) : un lien partiel dans un
@@ -122,12 +132,25 @@ export function buildFlatNodes(xmlContent: string): {
           level,
           text,
           styleName,
+          effectiveStyle,
+          highlight,
           hasPageBreak,
           ...(bookmarkNames.length ? { bookmarkNames } : {}),
         })
       } else {
-        const text = nodeTextWithLinks(node).trim()
-        if (text) flatNodes.push({ index: flatNodes.length, kind: 'paragraph', level: 0, text, styleName, hasPageBreak })
+        const text = nodeTextWithLinks(node, styleTable).trim()
+        if (text) {
+          flatNodes.push({
+            index: flatNodes.length,
+            kind: 'paragraph',
+            level: 0,
+            text,
+            styleName,
+            effectiveStyle,
+            highlight,
+            hasPageBreak,
+          })
+        }
       }
       continue
     }
@@ -139,11 +162,19 @@ export function buildFlatNodes(xmlContent: string): {
         level: 0,
         text: '',
         styleName: '',
+        effectiveStyle: '',
+        highlight: null,
         hasPageBreak: false,
-        tableData: extractTable(node),
+        tableData: extractTable(node, styleTable),
       })
     }
   }
 
-  return { flatNodes, meta, sectionsRencontrees, tocTexts }
+  return {
+    flatNodes,
+    meta,
+    sectionsRencontrees,
+    tocTexts,
+    inventory: buildStyleInventory(doc, styleTable),
+  }
 }
