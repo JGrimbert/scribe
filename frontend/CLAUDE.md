@@ -25,7 +25,15 @@ vues. Routes (`src/router/index.js`) :
   document) → `AnalyseView.vue` : dashboard d'analyse en grille de cards
   (`src/components/analyse/*Card.vue`, état partagé via
   `src/composables/useAnalyse.js` — `provideAnalyse()` dans la vue,
-  `useAnalyse()` dans les cards). L'ancien écran "Chapitrage"
+  `useAnalyse()` dans les cards). Un bloc = `AnalyseBlock.vue` (cadre commun :
+  révélation, spinner, états vide/erreur, colonnes 2/3 · 1/3). Une étape de
+  `DASHBOARD_STEPS` peut avoir **`needs: null`** — dérivée du seul contenu du
+  document (complétude), donc jamais « indisponible » ni en attente du NLP ;
+  `stepStatus` la traite à part (sans la garde, `running === step.needs`
+  serait vrai dès que rien ne tourne). `AnomaliesBlock.vue` est le cas mixte à
+  connaître : son graphe de complétude est gratuit et s'affiche tout de suite,
+  pendant que sa table des doublons attend le NLP dans la même colonne.
+  L'ancien écran "Chapitrage"
   (`DocumentIndex.vue`) a été supprimé — ses stats (sous-titres, mots)
   vivent dans l'infobulle des nœuds de `StructureView`.
 - `/documents/:id/axe/:axeId` — `EditorView.vue` → `FolioComposer`/`Scroll`
@@ -119,6 +127,37 @@ liseret de couleur par niveau). Deux corrections manuelles avant validation
   liseret de couleur uniquement s'il est sémantique (niveaux de calibration).
 - Hors périmètre : la couche Quill/Folio (éditeur paginé) ne passe pas par
   `ui/` ni Storybook.
+
+### Graphiques — echarts
+
+- **`ui/BaseChart.vue`** est le seul point d'entrée d'Apache ECharts : il
+  gère l'instance (init/`dispose` — echarts ne se nettoie pas au retrait du
+  DOM), le `ResizeObserver` (echarts mesure son conteneur à l'init et ne se
+  réajuste jamais seul) et prend une option echarts complète en prop. Les
+  composants métier construisent l'option, pas le graphe.
+- **Import modulaire obligatoire** : `echarts/core` + les seuls modules
+  utilisés (`echarts.use([...])` dans `BaseChart`). Un
+  `import * as echarts from 'echarts'` embarque tous les types de graphes
+  (~1 Mo). Ajouter le module d'un nouveau type **là et seulement là**.
+- **Les couleurs viennent des tokens, via `script/theme.js` (`cssVar`)** :
+  echarts peint dans un `<canvas>`, où un `var(--c-ramp-1)` n'est jamais
+  résolu — il faut passer la valeur calculée. C'est le seul usage légitime de
+  `getComputedStyle` pour de la couleur ; tout ce qui est rendu en DOM garde
+  `var()` en CSS.
+- **`--c-ramp-1..4` (rampe ordinale) vs `--c-cat-1..8` (catégorielle)** : une
+  échelle dont l'ordre porte le sens (complétude : vide → ébauche → partiel →
+  rédigé) prend la rampe d'une seule teinte, clair → foncé — la progression
+  se lit alors dans la couleur. `--c-cat-*` encode une identité (communautés
+  du réseau lexical), où l'ordre est arbitraire. Ne pas confondre : colorier
+  une échelle ordonnée en catégoriel détruit l'information d'ordre.
+  Les valeurs de `--c-ramp-*` sont **calculées et validées**, pas choisies à
+  l'œil (cf. le commentaire dans `base.css`) — revalider avant retouche.
+- Piège de vérification : dans un navigateur headless sans
+  `requestAnimationFrame`, les barres d'un graphe echarts restent figées à
+  `width: 0` (premier frame de l'animation d'entrée) — le graphe **paraît**
+  vide alors que la liste d'affichage zrender est correcte. Ce n'est pas un
+  bug du composant ; sonder `chart.getZr().storage.getDisplayList()` plutôt
+  que les pixels du canvas.
 
 ## Vocabulaire — Quill vs Folio
 

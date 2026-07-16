@@ -1,5 +1,5 @@
 <template>
-  <UiCard :title="title" wide :busy="running === 'semantic'">
+  <UiCard :title="title" :wide="!bare" :bare="bare" :busy="running === 'semantic'">
     <UiNote v-if="stepErrors.semantic" variant="error">{{ stepErrors.semantic }}</UiNote>
     <UiNote v-if="!semantic">
       Proximité sémantique pas encore calculée.
@@ -42,6 +42,9 @@ const props = defineProps({
   // 'duplicates' : textes (quasi) identiques ; 'closest' : paires proches.
   mode: { type: String, required: true },
   hint: { type: String, default: null },
+  // Monté dans la colonne étroite d'un bloc (pas dans la grille de cards) :
+  // sans cadre propre, et sans `wide` qui n'y voudrait rien dire.
+  bare: { type: Boolean, default: false },
 })
 
 const { analysis, running, stepErrors, focusNodeId, settle } = useAnalyse()

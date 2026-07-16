@@ -27,12 +27,15 @@ const POLL_INTERVAL_MS = 2500
 // Étapes du dashboard, dans l'ordre de révélation (= ordre DOM). `needs`
 // désigne l'analyse backend dont dépend l'étape : sert au statut de la
 // checklist (running/erreur/indisponible) et n'est PAS l'ordre de révélation.
+// `needs: null` = étape dérivée du seul contenu du document (complétude,
+// comptes de mots) : rien à calculer, donc jamais indisponible.
 export const DASHBOARD_STEPS = [
   { key: 'cloud', label: 'Fréquence', needs: 'lexical' },
   { key: 'occurrences', label: 'Occurrences', needs: 'lexical' },
   { key: 'semantique', label: 'Proximité', needs: 'semantic' },
   { key: 'lexical', label: 'Lexicale', needs: 'lexical' },
   { key: 'themes', label: 'Thématiques', needs: 'topics' },
+  { key: 'completude', label: 'Complétude', needs: null },
   { key: 'pairs', label: 'Similarités', needs: 'semantic' },
 ]
 
@@ -136,9 +139,15 @@ export function provideAnalyse() {
   // relance NLP : une analyse qui tourne prime, puis l'erreur, puis l'absence
   // de données, puis l'état de révélation.
   function stepStatus(step) {
-    if (running.value === step.needs) return 'running'
-    if (stepErrors[step.needs]) return 'error'
-    if (!analysis.value?.[step.needs]) return 'unavailable'
+    // Étape sans dépendance backend (needs: null) : elle ne peut être ni en
+    // cours, ni en erreur, ni indisponible — seul son état de révélation
+    // compte. Sans cette garde, `running.value === step.needs` serait vrai dès
+    // que rien ne tourne (null === null) et l'étape resterait en spinner.
+    if (step.needs) {
+      if (running.value === step.needs) return 'running'
+      if (stepErrors[step.needs]) return 'error'
+      if (!analysis.value?.[step.needs]) return 'unavailable'
+    }
     if (!revealed[step.key]) return 'pending'
     // Spinner tant que l'étape est l'« active » (jusqu'à révélation de la
     // suivante), puis coche.

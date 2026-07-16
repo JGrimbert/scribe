@@ -81,6 +81,13 @@ model DocumentAnalysis {
   document      Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
 
   computedAt    DateTime @default(now())
+
+  // registres : colonne INUTILISÉE — référencée nulle part dans le code
+  // (backend comme frontend), et l'intention d'origine s'est perdue. Laissée
+  // en place volontairement le temps de trancher : elle ne coûte rien tant
+  // qu'elle reste nulle. Ne pas s'en servir comme fourre-tout au motif qu'elle
+  // est libre (la typologie des styles, par exemple, aura sa propre colonne) —
+  // soit on retrouve son usage et on la documente ici, soit on la supprime.
   registres     Json?
 
   lexical           Json?

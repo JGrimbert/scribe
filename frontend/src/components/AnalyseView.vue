@@ -22,12 +22,7 @@
       <VocabulaireCard />
       <LexicalCard />
       <ThemesCard />
-
-      <div class="split">
-        <Transition name="reveal" appear>
-          <AnomaliesCard v-if="isRevealed('pairs')" />
-        </Transition>
-      </div>
+      <AnomaliesBlock />
 
       <div class="split">
         <Transition name="reveal" appear>
@@ -38,15 +33,6 @@
           />
         </Transition>
       </div>
-
-      <Transition name="reveal" appear>
-        <SemanticPairsCard
-            v-if="isRevealed('pairs')"
-            title="Textes identiques ou quasi identiques"
-            mode="duplicates"
-            hint="Ces articles partagent un texte (presque) mot pour mot — doublons ou refrains du manuscrit."
-        />
-      </Transition>
 
       <!-- Bas de page : cards en lecture seule, « à trier plus tard ». Le
            tableau par article (sorti du bloc Analyse linguistique) et les
@@ -69,7 +55,7 @@ import EntitiesLeftoverCard from './analyse/EntitiesLeftoverCard.vue'
 import LexicalCard from './analyse/LexicalCard.vue'
 import LexicalUnitsCard from './analyse/LexicalUnitsCard.vue'
 import SemanticPairsCard from './analyse/SemanticPairsCard.vue'
-import AnomaliesCard from './analyse/AnomaliesCard.vue'
+import AnomaliesBlock from './analyse/AnomaliesBlock.vue'
 import ThemesCard from './analyse/ThemesCard.vue'
 
 const route = useRoute()

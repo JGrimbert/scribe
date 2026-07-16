@@ -36,6 +36,29 @@ l'instant, ne pas retirer le middleware Vite sans en parler.
   - **Aucun test automatisé** (`*.spec.ts`) sur ce fichier à ce jour —
     vérifié manuellement contre un manuscrit réel lors du développement,
     pas de garde-fou contre une régression future.
+
+  **Ce que le parseur retient des styles ODT — et ce qu'il jette.** Point
+  aveugle à connaître avant de promettre quoi que ce soit sur la mise en
+  forme d'origine :
+  - `FlatNode.styleName` est lu (`flatten.ts`) mais **meurt à la passe 2** :
+    `hierarchy.ts` ne s'en sert que pour deux regex en dur
+    (`/citation|quote/i` → `citations`, `/highlight|surlign/i` → `pistes`)
+    et il n'est **persisté nulle part** — `Paragraph` n'a que `type` +
+    `content`. Le style d'un paragraphe (« Définition », « Citation »…)
+    n'est donc pas récupérable après import.
+  - Les **surlignés inline** (`<text:span>` sur un style de caractère à
+    `fo:background-color`) ne sont **pas extraits du tout** :
+    `nodeTextWithLinks` (`xml.ts`) aplatit les spans. Un mot surligné est
+    indiscernable du reste du paragraphe. Seuls les liens internes
+    (`<text:a href="#signet">`) survivent, via le marqueur
+    `<a data-bookmark>` résolu dans `harmonize()`.
+  - Sont retenus : niveau de titre (nom de style ou `text:outline-level`),
+    `fo:break-before` (`hasPageBreak`), caractère numéroté d'une liste,
+    styles méta auteur/titre (`META_STYLES`, noms en dur), tableaux, signets.
+  - **Le `.odt` source n'est pas conservé** (buffer gardé en mémoire le temps
+    de la calibration seulement). Conséquence : tout enrichissement du parse
+    est **rétroactivement inapplicable** — il impose de réimporter les
+    documents existants.
 - `src/documents/` — `DocumentsModule` : le registre + le flux d'import en
   deux temps (calibration avant écriture en base, cf. juste en dessous).
   - `GET /documents` — liste des documents avec stats agrégées, pour le
@@ -91,6 +114,14 @@ l'instant, ne pas retirer le middleware Vite sans en parler.
     termes propres à un seul thème (ceux qu'on veut). Les volets `graph`
     (lexical) et `projection` (topics) sont optionnels dans les Json
     persistés : absents des analyses calculées avant la phase 4.
+  - **completeness** — seul volet calculé **à la volée** au `GET` et jamais
+    persisté (`completeness.ts`) : il ne dépend que des comptes de mots
+    (`computeStats`), pas du NLP, donc le recalculer coûte moins cher que le
+    stocker. D'où sa présence garantie dans la réponse (pas de `null`), et le
+    fait que le bloc anomalies du dashboard s'affiche sans service NLP.
+    Expose la table des anomalies (feuilles stub) ET la `distribution` des
+    feuilles sur toute l'échelle vide/ébauche/partiel/rédigé, ventilée par axe
+    de tête + un groupe « Total » — une barre du graphe de complétude.
   - `GET /documents/:id/analyse` renvoie toujours 200 avec les volets à
     `null` tant qu'ils ne sont pas calculés (pas de 404).
   - Outils transverses sous `/analyse` (`analyse-tools.controller.ts`, non

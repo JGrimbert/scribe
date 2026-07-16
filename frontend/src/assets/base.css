@@ -60,6 +60,18 @@
     --c-cat-7: #9c5049;
     --c-cat-8: #4f7a6a;
 
+    /* Rampe ordinale — une seule teinte (le brun accent), clair → foncé. Pour
+       les échelles où l'ordre porte le sens (complétude d'un chapitre : vide →
+       ébauche → partiel → rédigé), par opposition à --c-cat-* qui encode une
+       identité. Valeurs calculées, pas choisies à l'œil : validées par le
+       validateur du guide dataviz en mode --ordinal sur la surface --c-paper
+       (L monotone, ΔL >= 0,06, extrémité claire >= 2:1). Revalider avant toute
+       retouche — éclaircir --c-ramp-1 le fait passer sous le seuil. */
+    --c-ramp-1: #cbb08a;
+    --c-ramp-2: #b08a4f;
+    --c-ramp-3: #8a5c2c;
+    --c-ramp-4: #5a3418;
+
     /* Typo — --font-serif est réservé au contenu du manuscrit
        (nuage de mots, extraits) ; l'UI est en --font-ui partout. */
     --font-ui: system-ui, sans-serif;

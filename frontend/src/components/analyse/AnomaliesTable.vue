@@ -1,12 +1,12 @@
 <template>
-  <UiCard title="Chapitres en attente" wide>
-    <UiNote variant="hint">
-      Chapitres au contenu insuffisant (moins de {{ threshold }} mots de texte propre) — sans doute
-      non rédigés ou réduits à un titre. Exclus de l'analyse thématique ; à rapprocher des
-      « Textes identiques » (gabarits recopiés en attente de rédaction).
-    </UiNote>
+  <UiCard bare>
+    <p class="card-lead">Chapitres en attente</p>
 
     <template v-if="anomalies.length">
+      <UiNote variant="hint">
+        Moins de {{ threshold }} mots de texte propre — sans doute non rédigés ou réduits à un
+        titre. Exclus de l'analyse thématique.
+      </UiNote>
       <UiNote>{{ anomalies.length }} chapitre(s) sur {{ leafCount }}.</UiNote>
       <UiTable scroll>
         <thead>
