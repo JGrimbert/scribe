@@ -5,6 +5,10 @@ export interface PreviewResponse {
   previewId: string
   outline: OutlineEntry[]
   suggestedStructureStartIndex: number
+  // Absent = aucune suggestion de partie finale. C'est un résultat à part
+  // entière, pas une erreur : l'écran de calibration n'affiche alors pas de
+  // seconde démarcation tant que l'utilisateur ne la pose pas lui-même.
+  suggestedStructureEndIndex?: number
 }
 
 export type CommitImportRequest = ImportCorrections
@@ -23,7 +27,7 @@ export interface DocumentSummary {
 
 /**
  * Sous-ensemble de Trame réellement consommé par FolioComposer (sections
- * computed, cf. FolioComposer.vue) : meta/preambule ne sont pas utilisés
+ * computed, cf. FolioComposer.vue) : meta/liminaire/final ne sont pas utilisés
  * côté frontend, inutile de les reconstruire depuis la DB.
  */
 export interface DocumentContent {

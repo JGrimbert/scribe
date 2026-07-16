@@ -1,6 +1,7 @@
 import { BadRequestException, Body, Controller, Delete, Get, HttpCode, Param, Post, Put, UploadedFile, UseInterceptors } from '@nestjs/common'
 import { FileInterceptor } from '@nestjs/platform-express'
 import { DocumentsService } from './documents.service'
+import { StructureShapes } from '../analyse/structure-shapes'
 import { DocumentRules } from './rules'
 import {
   CommitImportRequest,
@@ -56,6 +57,16 @@ export class DocumentsController {
   @Put(':id/typology')
   saveTypology(@Param('id') id: string, @Body() body: SaveTypologyRequest): Promise<TypologyResponse> {
     return this.documentsService.saveTypology(id, body)
+  }
+
+  // Formes structurelles : la séquence de styles de chaque nœud, en RLE. Sert
+  // les « modèles de structure » de l'écran de typologie. Renvoie des STYLES,
+  // pas des rôles : la traduction se fait côté client, en réactif, pour que les
+  // motifs se recomposent à chaque rôle changé sans aller-retour (cf.
+  // structure-shapes.ts).
+  @Get(':id/structure-shapes')
+  getStructureShapes(@Param('id') id: string): Promise<StructureShapes> {
+    return this.documentsService.getStructureShapes(id)
   }
 
   // Règles d'éligibilité : ce qu'un chapitre doit contenir pour être réputé

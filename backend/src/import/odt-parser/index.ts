@@ -21,13 +21,24 @@ import { OdtParseOutput, ParsedResult, ImportCorrections, FlatNode, OutlineEntry
 import { readOdtContentXml } from './xml'
 import { buildFlatNodes } from './flatten'
 import { buildParsedResult } from './hierarchy'
-import { buildOutline, suggestStructureStartIndex } from './calibration'
+import { buildOutline, suggestStructureEndIndex, suggestStructureStartIndex } from './calibration'
 import { harmonize } from './harmonize'
 
 export * from './types'
 export { readOdtContentXml } from './xml'
-export { buildOutline, suggestStructureStartIndex } from './calibration'
+export { buildOutline, suggestStructureEndIndex, suggestStructureStartIndex } from './calibration'
 export { harmonize } from './harmonize'
+export { ventilateInventory, zoneOfDepth } from './zones'
+
+// Ce que la calibration a besoin de savoir avant toute écriture : les titres
+// détectés, et les deux bornes suggérées. `suggestedStructureEndIndex` est
+// optionnel — pas de suggestion est un résultat valable (cf. calibration.ts).
+export interface PreviewParse {
+  flatNodes: FlatNode[]
+  outline: OutlineEntry[]
+  suggestedStructureStartIndex: number
+  suggestedStructureEndIndex?: number
+}
 
 // ─── Parser principal ─────────────────────────────────────────────────────
 export function parseOdtXml(xmlContent: string, corrections?: ImportCorrections): ParsedResult {
@@ -36,12 +47,15 @@ export function parseOdtXml(xmlContent: string, corrections?: ImportCorrections)
 }
 
 // ─── Aperçu (calibration) : parse sans construire la structure finale ─────
-export function parseOdtXmlForPreview(
-  xmlContent: string,
-): { flatNodes: FlatNode[]; outline: OutlineEntry[]; suggestedStructureStartIndex: number } {
+export function parseOdtXmlForPreview(xmlContent: string): PreviewParse {
   const { flatNodes, tocTexts } = buildFlatNodes(xmlContent)
   const outline = buildOutline(flatNodes)
-  return { flatNodes, outline, suggestedStructureStartIndex: suggestStructureStartIndex(outline, tocTexts) }
+  return {
+    flatNodes,
+    outline,
+    suggestedStructureStartIndex: suggestStructureStartIndex(outline, tocTexts),
+    suggestedStructureEndIndex: suggestStructureEndIndex(outline),
+  }
 }
 
 export async function parseOdtBuffer(buffer: Buffer, corrections?: ImportCorrections): Promise<OdtParseOutput> {
@@ -52,9 +66,7 @@ export async function parseOdtBuffer(buffer: Buffer, corrections?: ImportCorrect
   return { result, data, trame }
 }
 
-export async function parseOdtBufferForPreview(
-  buffer: Buffer,
-): Promise<{ flatNodes: FlatNode[]; outline: OutlineEntry[]; suggestedStructureStartIndex: number }> {
+export async function parseOdtBufferForPreview(buffer: Buffer): Promise<PreviewParse> {
   const xmlContent = await readOdtContentXml(buffer)
   return parseOdtXmlForPreview(xmlContent)
 }

@@ -69,15 +69,71 @@ describe('buildParsedResult — corrections utilisateur', () => {
     expect(result.meta.titresVides).toBe(0)
   })
 
-  it('envoie en préambule tout ce qui précède structureStartIndex', () => {
+  it('envoie en liminaire tout ce qui précède structureStartIndex', () => {
     const result = build([P('page de titre'), P('auteur'), H(1, 'Vrai début'), P('corps')], {
       structureStartIndex: 2,
     })
-    expect(result.preambule).toEqual(['page de titre', 'auteur'])
-    expect(result.meta.paragraphesPreambule).toBe(2)
+    expect(result.liminaire).toEqual([
+      { type: 'paragraph', text: 'page de titre' },
+      { type: 'paragraph', text: 'auteur' },
+    ])
+    expect(result.meta.paragraphesLiminaire).toBe(2)
     expect(result.axes).toHaveLength(1)
     expect(result.axes[0].titre).toBe('Vrai début')
     expect(result.axes[0].texte).toEqual([{ type: 'paragraph', text: 'corps' }])
+  })
+
+  // Ce que l'ancien `preambule: string[]` perdait, et toute la raison du
+  // changement : sans styleName ni highlight, la typologie n'a rien à dire de
+  // ces zones.
+  it('le liminaire porte styleName et highlight', () => {
+    const result = build(
+      [P('Marvarid', { effectiveStyle: 'Titre principal' }), P('à reprendre', { highlight: '#ffff00' }), H(1, 'Début')],
+      { structureStartIndex: 2 },
+    )
+    expect(result.liminaire).toEqual([
+      { type: 'paragraph', text: 'Marvarid', styleName: 'Titre principal' },
+      { type: 'paragraph', text: 'à reprendre', highlight: '#ffff00' },
+    ])
+  })
+
+  it('envoie en final tout ce qui suit structureEndIndex, titres compris', () => {
+    const result = build([H(1, 'Axe'), P('corps'), H(1, 'Index'), P('entrée', { effectiveStyle: 'Index 1' })], {
+      structureStartIndex: 0,
+      structureEndIndex: 2,
+    })
+    expect(result.final).toEqual([
+      { type: 'paragraph', text: 'Index' },
+      { type: 'paragraph', text: 'entrée', styleName: 'Index 1' },
+    ])
+    expect(result.meta.paragraphesFinal).toBe(2)
+    // Le titre de la partie finale ne devient pas un axe.
+    expect(result.axes.map((a) => a.titre)).toEqual(['Axe'])
+  })
+
+  it('sans structureEndIndex, le corps va jusqu’au bout', () => {
+    const result = build([H(1, 'Axe'), P('corps'), H(1, 'Index')], { structureStartIndex: 0 })
+    expect(result.final).toEqual([])
+    expect(result.meta.paragraphesFinal).toBe(0)
+    expect(result.axes).toHaveLength(2)
+  })
+})
+
+describe('buildParsedResult — style d’une liste', () => {
+  it('retient le style des ITEMS, pas celui du <text:list>', () => {
+    // « L1 » est un style de liste : absent de l'inventaire (qui ne compte que
+    // p/h), donc impossible à typologiser, et il ressortirait en trou dans les
+    // signatures de structure. Le style qui a un sens est celui des items.
+    const result = build([
+      H(1, 'Axe'),
+      { kind: 'list', effectiveStyle: 'L1', listItems: [{ text: 'un', depth: 0 }], innerStyles: ['Puces ?'] },
+    ])
+    expect(result.axes[0].texte[0]).toMatchObject({ type: 'list', styleName: 'Puces ?' })
+  })
+
+  it('n’invente pas de style quand les items n’en portent pas', () => {
+    const result = build([H(1, 'Axe'), { kind: 'list', effectiveStyle: 'L1', listItems: [{ text: 'un', depth: 0 }] }])
+    expect(result.axes[0].texte[0]).not.toHaveProperty('styleName')
   })
 })
 

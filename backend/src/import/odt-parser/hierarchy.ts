@@ -1,4 +1,6 @@
-import { FlatNode, ImportCorrections, ParsedNode, ParsedResult, StyleInventory, TexteEntry } from './types'
+import { FlatNode, ImportCorrections, ParsedNode, ParsedResult, StyleInventory, TexteEntry, ZoneKey } from './types'
+import { makeUniqueSlug, extractRomain, computeStats, stripHtmlTags } from './text-utils'
+import { ventilateInventory, zoneOfDepth } from './zones'
 
 const EMPTY_INVENTORY: StyleInventory = { styles: [], highlights: [] }
 
@@ -6,12 +8,31 @@ const EMPTY_INVENTORY: StyleInventory = { styles: [], highlights: [] }
 // des ~1800 paragraphes d'un manuscrit, c'est autant de clés vides persistées
 // pour ne rien dire.
 function styleOf(node: FlatNode): { styleName?: string; highlight?: string } {
+  // Le style porté par un <text:list> est un style de LISTE (« L1 ») : il ne
+  // dit rien de ce qu'est ce texte, et n'existe pas dans l'inventaire — qui ne
+  // compte que les paragraphes et les titres. Ce qui a un sens, c'est le style
+  // des paragraphes des items (« Puces ? »). Sans cette substitution, une liste
+  // porte en base un nom de style que la typologie ne peut pas arbitrer, et qui
+  // ressort en trou dans les signatures de structure.
+  const styleName = node.kind === 'list' ? (node.innerStyles?.[0] ?? '') : node.effectiveStyle
   return {
-    ...(node.effectiveStyle ? { styleName: node.effectiveStyle } : {}),
+    ...(styleName ? { styleName } : {}),
     ...(node.highlight ? { highlight: node.highlight } : {}),
   }
 }
-import { makeUniqueSlug, extractRomain, computeStats, stripHtmlTags } from './text-utils'
+
+// Un FlatNode tel qu'il se range dans le liminaire ou le final : ces zones ne
+// sont pas de la structure, tout y est aplati en entrées de texte — un titre y
+// est un paragraphe comme un autre. Rend `null` pour ce qui n'a rien à y dire
+// (tableau, entrée vide).
+function matterEntryOf(node: FlatNode): TexteEntry | null {
+  if (node.kind === 'table') return null
+  if (node.kind === 'list') {
+    const items = node.listItems ?? []
+    return items.length ? { type: 'list', ordered: node.listOrdered ?? false, items, ...styleOf(node) } : null
+  }
+  return node.text ? { type: 'paragraph', text: node.text, ...styleOf(node) } : null
+}
 
 // ─── Passe 2 : construction de la hiérarchie à profondeur arbitraire ──────
 // `level` (1-indexé, comme text:outline-level) pilote juste "combien
@@ -32,6 +53,7 @@ export function buildParsedResult(
   inventory: StyleInventory = EMPTY_INVENTORY,
 ): { result: ParsedResult; bookmarks: Map<string, ParsedNode> } {
   const structureStartIndex = corrections?.structureStartIndex ?? 0
+  const structureEndIndex = corrections?.structureEndIndex
   const levelOverrides = corrections?.levelOverrides ?? {}
 
   const result: ParsedResult = {
@@ -43,20 +65,26 @@ export function buildParsedResult(
       totalBlocs: 0,
       totalAxes: 0,
       maxDepth: 0,
-      paragraphesPreambule: 0,
+      paragraphesLiminaire: 0,
+      paragraphesFinal: 0,
       sectionsRencontrees: 0,
       titresVides: 0,
       ...meta,
     },
-    preambule: [],
+    liminaire: [],
+    final: [],
     axes: [],
   }
 
   const stack: ParsedNode[] = []
   const slugsByParent = new Map<ParsedNode | null, Set<string>>()
   const bookmarkToParsedNode = new Map<string, ParsedNode>()
+  // La zone de chaque FlatNode, relevée au fil de CETTE pile — la seule qui
+  // fasse autorité sur la profondeur (cf. zones.ts).
+  const zones = new Map<number, ZoneKey>()
   let titresVides = 0
-  let paragraphesPreambule = 0
+  let paragraphesLiminaire = 0
+  let paragraphesFinal = 0
 
   function slugsFor(parent: ParsedNode | null): Set<string> {
     let s = slugsByParent.get(parent)
@@ -89,29 +117,56 @@ export function buildParsedResult(
     }
   }
 
+  // La zone du contenu courant : celle du dernier titre ouvert. Sans titre
+  // ouvert, on est encore avant la structure — donc en liminaire, exactement là
+  // où ce contenu est rangé quelques lignes plus bas.
+  function currentZone(): ZoneKey {
+    return stack.length ? zoneOfDepth(stack.length - 1) : 'liminaire'
+  }
+
   for (const node of flatNodes) {
     if (node.index < structureStartIndex) {
-      if (node.kind !== 'table' && node.text) {
-        paragraphesPreambule++
-        result.preambule.push(node.text)
+      zones.set(node.index, 'liminaire')
+      const entry = matterEntryOf(node)
+      if (entry) {
+        paragraphesLiminaire++
+        result.liminaire.push(entry)
+      }
+      continue
+    }
+
+    if (structureEndIndex != null && node.index >= structureEndIndex) {
+      zones.set(node.index, 'final')
+      const entry = matterEntryOf(node)
+      if (entry) {
+        paragraphesFinal++
+        result.final.push(entry)
       }
       continue
     }
 
     if (node.kind === 'table') {
+      zones.set(node.index, currentZone())
       const current = stack[stack.length - 1]
       if (current) current.tableau = node.tableData ?? null
       continue
     }
 
     if (node.kind === 'list') {
+      zones.set(node.index, currentZone())
       const items = node.listItems ?? []
       const current = stack[stack.length - 1]
       if (current) {
         current.texte.push({ type: 'list', ordered: node.listOrdered ?? false, items, ...styleOf(node) })
       } else {
-        paragraphesPreambule++
-        result.preambule.push(items.map((item) => item.text).join('\n'))
+        // Aucun titre encore ouvert : du contenu qui traîne avant le premier
+        // titre du corps. Il rejoint le liminaire, faute de nœud à qui
+        // l'attacher.
+        const entry = matterEntryOf(node)
+        if (entry) {
+          paragraphesLiminaire++
+          result.liminaire.push(entry)
+        }
       }
       continue
     }
@@ -140,6 +195,9 @@ export function buildParsedResult(
         bookmarkToParsedNode.set(name, newNode)
       }
       stack.push(newNode)
+      // Après le push : un titre appartient à SA propre profondeur, pas à celle
+      // de son parent.
+      zones.set(node.index, currentZone())
       continue
     }
 
@@ -147,6 +205,8 @@ export function buildParsedResult(
     // (levelOverrides[node.index] === 0) — même traitement, comme contenu
     // du nœud actuellement ouvert.
     if (!text) continue
+
+    zones.set(node.index, currentZone())
 
     const current = stack[stack.length - 1]
     if (current) {
@@ -163,8 +223,8 @@ export function buildParsedResult(
       }
       current.texte.push({ type: 'paragraph', text, ...styleOf(node) })
     } else {
-      paragraphesPreambule++
-      result.preambule.push(text)
+      paragraphesLiminaire++
+      result.liminaire.push({ type: 'paragraph', text, ...styleOf(node) })
     }
   }
 
@@ -195,7 +255,13 @@ export function buildParsedResult(
   result.meta.totalBlocs = totalBlocs
   result.meta.totalAxes = result.axes.length
   result.meta.maxDepth = maxDepth
-  result.meta.paragraphesPreambule = paragraphesPreambule
+  result.meta.paragraphesLiminaire = paragraphesLiminaire
+  result.meta.paragraphesFinal = paragraphesFinal
+
+  // La ventilation est le seul volet de l'inventaire qui dépende des
+  // corrections de calibration : les comptes viennent du XML, les zones de la
+  // pile ci-dessus. D'où un inventaire qui ne se fige qu'ici, et pas au preview.
+  result.inventory = ventilateInventory(inventory, flatNodes, zones)
   result.meta.sectionsRencontrees = sectionsRencontrees
   result.meta.titresVides = titresVides
 

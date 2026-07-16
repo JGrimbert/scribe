@@ -5,6 +5,7 @@
           :preview-id="pendingPreview.previewId"
           :outline="pendingPreview.outline"
           :suggested-structure-start-index="pendingPreview.suggestedStructureStartIndex"
+          :suggested-structure-end-index="pendingPreview.suggestedStructureEndIndex ?? null"
           @committed="onImportCommitted"
           @cancel="pendingPreview = null"
       />

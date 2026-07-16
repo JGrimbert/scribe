@@ -39,7 +39,42 @@ vues. Routes (`src/router/index.js`) :
 - `/documents/:id/styles` — `StylesView.vue` : typologie des styles. Liste
   les styles relevés dans le `.odt` (usages, extrait, rôle) et les couleurs
   de surlignage, un appel unique à `GET /documents/:id/typology` servant
-  inventaire + suggestions + décisions déjà prises. **Les suggestions
+  inventaire + suggestions + décisions déjà prises. Le tableau est rangé
+  **dans l'ordre du livre** (`src/script/zones.js`) — Liminaire, Axes, Blocs
+  sémantiques, Articles, Partie finale — et non plus par fréquence brute :
+  un style se lit d'abord par où il vit (« Dédicace » n'est pas rare, il est
+  liminaire ; « Voir » n'est pas fréquent, il est d'article). Trois points à
+  connaître :
+  - chaque style n'apparaît **qu'une fois**, dans sa zone dominante — la ligne
+    porte le `v-model` du rôle, un style dupliqué donnerait deux contrôles pour
+    une seule décision. Sa répartition réelle se lit dans la barre
+    (`StackedBar`), pas dans la duplication ;
+  - section **« Non situés »** pour les styles que la ventilation ne place
+    nulle part : ce sont les paragraphes vides (filets, ornements), comptés par
+    l'inventaire mais jamais promus en nœuds (cf. `sum(byZone) <= count` dans
+    `../backend/CLAUDE.md`) ;
+  - **fallback plat** si `byZone` est absent — document importé avant la
+    ventilation. Le `.odt` n'étant pas conservé, seul un réimport le ventile ;
+    tout empiler dans « Non situés » serait un mensonge par omission (ces
+    styles ont une zone, on ne la connaît pas).
+
+  L'écran porte aussi les **modèles de structure** (`useStructureShapes.js` +
+  `script/shapes.js`, alimentés par `GET /documents/:id/structure-shapes`) : les
+  formes récurrentes par niveau. Le backend rend des **styles**, la traduction
+  en rôles se fait ici contre la typologie **en cours d'édition** — changer un
+  rôle recompose les motifs dans le même tick, sans aller-retour (c'est la
+  raison d'être de ce partage ; voir `../backend/CLAUDE.md`). Deux pièges :
+  - un nœud **sans texte n'a pas de forme** et n'est jamais proposé comme
+    modèle. Sur le témoin, « vide » est la forme la PLUS fréquente à tous les
+    niveaux (228 articles sur 818) : la promouvoir reviendrait à proposer « un
+    chapitre ne doit rien contenir » comme règle. Comptée à part, jamais
+    modélisée ;
+  - les pourcentages portent sur les nœuds **rédigés**, pas sur le total —
+    rapporté au total, un modèle qui régit tout ce qui est écrit passerait pour
+    marginal.
+  - le chargement des modèles est **détaché** du reste (pas d'`await` dans
+    `load()`, erreur propre) : c'est un complément, son échec ne doit pas
+    masquer la typologie, qui est l'objet de l'écran. **Les suggestions
   pré-remplissent le formulaire mais ne sont pas persistées** tant que
   l'utilisateur n'a pas enregistré (cf. `backend/CLAUDE.md`) : ce qu'il voit
   est une proposition, pas une décision qu'il n'a pas prise. Un document
@@ -117,11 +152,18 @@ dépendent :
 document, en accordéon (`CalibrationNode.vue`, récursif, replié par défaut,
 liseret de couleur par niveau). Deux corrections manuelles avant validation
 (`POST /api/documents/preview/:previewId/commit`) :
-- **Point de départ** : une ligne de démarcation cliquable entre chaque
-  titre sépare le liminaire (page de titre, auteur...) de la vraie
-  structure — pré-positionnée sur une suggestion du backend
-  (`suggestedStructureStartIndex`, basée sur la table des matières si
-  présente), ajustable.
+- **Les deux bornes du livre** : chaque ligne de démarcation entre deux titres
+  porte deux poignées, révélées au survol — « Début du contenu » (fin du
+  liminaire : page de titre, auteur...) et « Partie finale » (début de la
+  table des matières, de l'index...). La première est pré-positionnée sur
+  `suggestedStructureStartIndex` (basée sur la table des matières si
+  présente) ; la seconde sur `suggestedStructureEndIndex`, **souvent absent**
+  — le backend ne suggère une fin que sur le nom du titre, et la plupart des
+  manuscrits n'ont pas d'appareil de fin (voir `../backend/CLAUDE.md` pour
+  pourquoi le croisement avec la ToC a été abandonné de ce côté-là). Re-cliquer
+  la poignée active retire la borne : la partie finale est facultative. Le
+  backend refuse `endIndex <= startIndex` (des bornes croisées ne feraient pas
+  une erreur mais un livre vide).
 - **Niveau par titre** : boutons `−`/`+` (pas de liste déroulante — la
   sémantique axe/bloc/article est propre à Marvarid, pas à l'ODT, cf.
   `../backend/CLAUDE.md`). L'arbre de l'accordéon se recalcule en direct
@@ -137,8 +179,12 @@ liseret de couleur par niveau). Deux corrections manuelles avant validation
   opacités `--op-*`). Ne pas introduire de couleur/taille en dur dans un
   composant — ajouter un token si besoin.
 - **Composants réutilisables** : `src/components/ui/` — atoms (`BaseButton`,
-  `BaseChip`, `BaseSelect`, `ScoreBar`, `StatItem`, `UiNote`) et molecules
-  (`UiCard`, `UiTable`, `ChipGroup`, `TreeRow`). Chaque composant a sa story
+  `BaseChip`, `BaseSelect`, `ScoreBar`, `StackedBar`, `StatItem`, `UiNote`) et
+  molecules (`UiCard`, `UiTable`, `ChipGroup`, `TreeRow`). `ScoreBar` montre UNE
+  valeur sur une échelle (une progression) ; `StackedBar` montre la
+  **répartition** d'un total entre catégories — il ne sait pas ce qu'il peint,
+  les couleurs viennent de l'appelant, parce que le choix rampe ordinale vs
+  palette catégorielle se décide dans le domaine métier (voir plus bas). Chaque composant a sa story
   colocalisée (`*.stories.js`, CSF3). Le domaine métier (cards d'analyse,
   vues) les consomme et ne garde en scoped que son layout propre.
 - **Storybook** (`@storybook/vue3-vite`, config `.storybook/`) :

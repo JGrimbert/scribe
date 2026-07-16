@@ -35,6 +35,22 @@ model Document {
   // manuelle, elle l'informe.
   validationRules Json?
 
+  // liminaire / final : les deux bouts du livre qui ne sont pas de la structure
+  // (page de titre, auteur, dédicace ; table des matières, index, glossaire),
+  // sous forme de TexteEntry[] — ils portent donc styleName et highlight, ce
+  // qu'un simple tableau de chaînes ne faisait pas.
+  //
+  // Des colonnes Json et pas des Node/Paragraph, délibérément : ces zones ne
+  // sont ni éditées, ni validées, ni analysées. Leur donner des nœuds les ferait
+  // entrer dans completeness, conformity et l'arbre de StructureView, où elles
+  // n'ont rien à faire. Même nature que styleInventory : un relevé d'import, lu
+  // en bloc.
+  //
+  // NULL = document importé avant ces colonnes. Le .odt n'étant pas conservé,
+  // seul un réimport les remplit.
+  liminaire       Json?
+  final           Json?
+
   nodes           Node[]
   analysis        DocumentAnalysis?
 

@@ -3,11 +3,12 @@
     <div class="calibration-header">
       <h2>Calibrage de l'import</h2>
       <UiNote variant="hint">
-        Cliquez la ligne de démarcation à l'endroit où le vrai contenu
-        commence (tout ce qui précède part en liminaire). Dépliez un titre
-        pour voir ses sous-titres ; +/− change son niveau. Le repère ⤓
-        signale un saut de page forcé — souvent (pas toujours) un signe de
-        niveau supérieur.
+        Posez les deux démarcations : là où le vrai contenu commence (ce qui
+        précède part en liminaire) et, s'il y en a une, là où la partie finale
+        commence — table des matières, index, glossaire. Ce sont les deux bouts
+        qui ne sont pas de la structure du livre. Dépliez un titre pour voir ses
+        sous-titres ; +/− change son niveau. Le repère ⤓ signale un saut de page
+        forcé — souvent (pas toujours) un signe de niveau supérieur.
       </UiNote>
     </div>
 
@@ -15,16 +16,34 @@
       <template v-for="item in topLevelItems" :key="item.entry.index">
         <div
             class="divider"
-            :class="{ 'divider--active': item.entry.index === structureStartIndex }"
-            @click="structureStartIndex = item.entry.index"
+            :class="{
+              'divider--marked': item.entry.index === structureStartIndex || item.entry.index === structureEndIndex,
+            }"
         >
-          <span class="divider-label">Début du contenu</span>
+          <div class="divider-handles">
+            <button
+                v-if="item.entry.index <= (structureEndIndex ?? Infinity)"
+                class="divider-handle"
+                :class="{ 'divider-handle--active': item.entry.index === structureStartIndex }"
+                type="button"
+                @click="structureStartIndex = item.entry.index"
+            >
+              Début du contenu
+            </button>
+            <button
+                v-if="item.entry.index > structureStartIndex"
+                class="divider-handle"
+                :class="{ 'divider-handle--active': item.entry.index === structureEndIndex }"
+                type="button"
+                @click="toggleEnd(item.entry.index)"
+            >
+              {{ item.entry.index === structureEndIndex ? 'Partie finale ✕' : 'Partie finale' }}
+            </button>
+          </div>
         </div>
 
-        <div v-if="item.type === 'liminaire'" class="liminaire-row">
-          {{ item.entry.text }}
-        </div>
-        <CalibrationNode v-else :node="item.node" @level-change="onLevelChange" />
+        <CalibrationNode v-if="item.type === 'node'" :node="item.node" @level-change="onLevelChange" />
+        <div v-else class="matter-row">{{ item.entry.text }}</div>
       </template>
     </div>
 
@@ -48,14 +67,24 @@ const props = defineProps({
   previewId: { type: String, required: true },
   outline: { type: Array, required: true },
   suggestedStructureStartIndex: { type: Number, required: true },
+  // Absent = le backend n'a rien trouvé de probant. Pas d'erreur : le livre
+  // n'a alors pas de partie finale tant que l'utilisateur n'en pose pas une.
+  suggestedStructureEndIndex: { type: Number, default: null },
 })
 
 const emit = defineEmits(['committed', 'cancel'])
 
 const structureStartIndex = ref(props.suggestedStructureStartIndex)
+const structureEndIndex = ref(props.suggestedStructureEndIndex)
 const levelOverrides = reactive({})
 const committing = ref(false)
 const error = ref(null)
+
+// Re-cliquer la démarcation posée la retire : la partie finale est facultative,
+// et une suggestion fausse doit pouvoir être annulée, pas seulement déplacée.
+function toggleEnd(index) {
+  structureEndIndex.value = structureEndIndex.value === index ? null : index
+}
 
 function effectiveLevel(entry) {
   return levelOverrides[entry.index] ?? entry.level
@@ -84,23 +113,30 @@ function buildTree(entries) {
   return roots
 }
 
+// Les deux bouts ne sont pas de la structure : ils s'affichent à plat, dans
+// l'ordre du document, et seul le corps passe par l'accordéon.
+function isFinal(index) {
+  return structureEndIndex.value != null && index >= structureEndIndex.value
+}
+
 const topLevelItems = computed(() => {
+  const withLevel = (e) => ({ ...e, effectiveLevel: effectiveLevel(e) })
   const items = []
+
   for (const entry of props.outline) {
-    const withLevel = { ...entry, effectiveLevel: effectiveLevel(entry) }
-    if (entry.index < structureStartIndex.value) {
-      items.push({ type: 'liminaire', entry: withLevel })
-    } else {
-      break
-    }
+    if (entry.index < structureStartIndex.value) items.push({ type: 'liminaire', entry: withLevel(entry) })
   }
 
-  const structureEntries = props.outline
-      .filter((e) => e.index >= structureStartIndex.value)
-      .map((e) => ({ ...e, effectiveLevel: effectiveLevel(e) }))
+  const bodyEntries = props.outline
+      .filter((e) => e.index >= structureStartIndex.value && !isFinal(e.index))
+      .map(withLevel)
 
-  for (const root of buildTree(structureEntries)) {
+  for (const root of buildTree(bodyEntries)) {
     items.push({ type: 'node', node: root, entry: root.entry })
+  }
+
+  for (const entry of props.outline) {
+    if (isFinal(entry.index)) items.push({ type: 'final', entry: withLevel(entry) })
   }
 
   return items
@@ -120,6 +156,9 @@ async function onCommit() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         structureStartIndex: structureStartIndex.value,
+        // Omis quand il n'y a pas de partie finale — `undefined` ne sera pas
+        // sérialisé, et c'est bien ce que le backend attend.
+        ...(structureEndIndex.value != null ? { structureEndIndex: structureEndIndex.value } : {}),
         levelOverrides: overrides,
       }),
     })
@@ -159,7 +198,9 @@ async function onCommit() {
   padding: 0.25em;
 }
 
-.liminaire-row {
+/* Liminaire et final : hors structure, donc en retrait — ils se lisent pour se
+   repérer, ils ne se calibrent pas. */
+.matter-row {
   padding: 0.5em 1em;
   margin-bottom: 0.35em;
   opacity: 0.4;
@@ -169,7 +210,6 @@ async function onCommit() {
 .divider {
   height: 0.6em;
   margin: 0.1em 0;
-  cursor: pointer;
   position: relative;
   display: flex;
   align-items: center;
@@ -188,31 +228,43 @@ async function onCommit() {
   opacity: 1;
 }
 
-.divider-label {
+.divider-handles {
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
+  display: flex;
+  gap: 0.35em;
+}
+
+.divider-handle {
+  font: inherit;
   font-size: 0.7em;
   padding: 0.1em 0.6em;
+  border: 0;
   border-radius: 1em;
   background: var(--c-accent);
   color: white;
-  opacity: 0;
-  pointer-events: none;
   white-space: nowrap;
+  cursor: pointer;
+  /* Invisibles au repos : deux pastilles devant chaque titre, ce serait une
+     guirlande. Elles n'apparaissent qu'au survol de LEUR démarcation, ou si
+     elles portent une borne posée. */
+  opacity: 0;
+  transition: opacity 0.1s ease;
 }
 
-.divider:hover .divider-label {
+.divider:hover .divider-handle {
   opacity: 0.6;
 }
 
-.divider--active::before {
+.divider--marked::before {
   opacity: 1;
   height: 2px;
   background: var(--c-accent);
 }
 
-.divider--active .divider-label {
+.divider-handle--active,
+.divider:hover .divider-handle--active {
   opacity: 1;
 }
 

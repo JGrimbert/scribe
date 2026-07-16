@@ -258,6 +258,20 @@ export function extractTocTexts(doc: any): string[] {
     .filter(Boolean)
 }
 
+// Styles effectifs de tous les paragraphes contenus dans un nœud qui les
+// aplatit — cellules d'un tableau, items d'une liste. Relevé brut, répétitions
+// comprises (c'est un compte d'usages, pas un ensemble).
+//
+// extractTable/extractListItems ne rendent que du texte : un style qui ne vit
+// QUE là serait invisible de toute analyse assise sur les FlatNode. Deux cas
+// réels sur le témoin : « Voir » (183 usages en cellule) et « Puces ? » (15 en
+// item de liste).
+export function extractInnerStyles(node: any, table: StyleTable): string[] {
+  return (select('.//text:p', node) as any[])
+    .map((p: any) => effectiveStyleName(p.getAttribute('text:style-name') || '', table))
+    .filter(Boolean)
+}
+
 export function extractTable(tableNode: any, table?: StyleTable): string[][] {
   const rows = select('.//table:table-row', tableNode) as any[]
   return rows.map((row) => {

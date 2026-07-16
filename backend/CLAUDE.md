@@ -58,8 +58,33 @@ l'instant, ne pas retirer le middleware Vite sans en parler.
     FlatNode** — ceux-ci sont la vue *structurelle* (tableaux aplatis en
     données, paragraphes vides écartés). Le style « Voir » (183 usages, dans
     les tableaux) disparaissait de l'inventaire tant qu'il était construit
-    sur eux. Seule la table des matières est écartée : ses styles sont posés
-    par LibreOffice, pas par l'auteur.
+    sur eux. Sont écartés les **appareils générés** — table des matières ET
+    index alphabétique (`GENERATED_ANCESTOR`) : leurs styles (Contents 1/2,
+    Index 1, Index Heading) sont posés par LibreOffice, pas par l'auteur. Le
+    témoin porte les deux, en fin de document.
+  - **Ventilation par zone (`zones.ts`, `StyleUsage.byZone`)** — où chaque
+    style vit dans le livre : `liminaire`, `depth-0/1/2+`, `final`. Trois
+    choses à savoir avant d'y toucher :
+    - **Les zones sortent de `buildParsedResult`**, qui tient déjà la pile des
+      titres ouverts — `zones.ts` ne fait que ventiler. Refaire une pile
+      ailleurs (mêmes `levelOverrides`, même règle « la profondeur est la
+      position dans la pile »), c'était deux logiques de profondeur vouées à
+      diverger. Une passe, une pile.
+    - **`sum(byZone) <= count`, jamais `==`** : `count` vient du XML
+      (exhaustif, et fait autorité pour `isTypologySettled`), `byZone` des
+      FlatNode. Échappent à la ventilation les paragraphes vides (jamais
+      promus en FlatNode — sur le témoin : « Horizontal Line », un filet) et
+      les paragraphes de métadonnées absorbés par `buildFlatNodes`. Ne jamais
+      dériver l'un de l'autre.
+    - **`FlatNode.innerStyles`** relève les styles des paragraphes qu'un nœud
+      APLATIT (cellules d'un tableau, items d'une liste). Sans lui, deux styles
+      réels du témoin sont comptés mais situés nulle part : « Voir » (183, en
+      cellule) et « Puces ? » (15, en item de liste).
+    - Conséquence sur le flux : l'inventaire dépend des corrections de
+      calibration (les bornes déplacent les zones), donc **il ne se fige qu'au
+      commit**, pas au preview.
+    - Chiffres du témoin : 31 styles, dont 22 mono-zone (71 %) — le
+      regroupement par zone porte l'information, ce n'est pas un tri cosmétique.
   - **Les deux regex en dur ont perdu leur autorité** — `hierarchy.ts`
     classait citations/pistes sur le NOM du style (`/citation|quote/i`,
     `/highlight|surlign/i`). Elles ne tenaient que sur des noms bruts (« P26 »
@@ -155,6 +180,29 @@ l'instant, ne pas retirer le middleware Vite sans en parler.
     termes propres à un seul thème (ceux qu'on veut). Les volets `graph`
     (lexical) et `projection` (topics) sont optionnels dans les Json
     persistés : absents des analyses calculées avant la phase 4.
+  - **structure-shapes** (`GET /documents/:id/structure-shapes`, servi par
+    `DocumentsController` — son consommateur est l'écran de typologie, pas le
+    dashboard) — la FORME de chaque nœud : la séquence des styles de ses
+    paragraphes, en RLE (`[['Paragraphes', 4]]`). Dérivé, calculé au `GET`,
+    jamais persisté, comme completeness/conformity. Passe par `getContent` :
+    reconstruire l'arbre ailleurs, ce serait une seconde lecture vouée à
+    diverger. Trois décisions à connaître :
+    - **rend des STYLES, pas des rôles** : dans l'écran de typologie, chaque
+      select change un rôle en direct. Agréger par rôle côté serveur imposerait
+      un aller-retour par changement, et l'utilisateur ne verrait pas ses motifs
+      se former à mesure qu'il typologise. La traduction et l'agrégation sont
+      côté client (`script/shapes.js`), en réactif ;
+    - **tous les nœuds, pas seulement les feuilles** (contrairement à
+      completeness/conformity) : « à quoi ressemble un axe ? » est une question
+      aussi légitime que « à quoi ressemble un article ? » ;
+    - **RLE** : 900 nœuds × leur séquence brute, pour une information très
+      répétitive (« corps corps corps »). Compressé à la source → 135 Ko sur le
+      témoin.
+    - Chiffres du témoin, qui ont tranché **contre le clustering** : 8
+      signatures couvrent 87 à 100 % des nœuds de chaque niveau (articles : 60
+      signatures pour 818 nœuds, dont `définition · corps×N` à ~59 %). Les
+      motifs sont littéraux ; un regroupement flou ne ferait que brouiller ce
+      qui est net. À rouvrir seulement si un manuscrit montre une longue traîne.
   - **completeness** — seul volet calculé **à la volée** au `GET` et jamais
     persisté (`completeness.ts`) : il ne dépend que des comptes de mots
     (`computeStats`), pas du NLP, donc le recalculer coûte moins cher que le
@@ -216,8 +264,12 @@ qui auraient dû être des axes distincts portaient un style personnalisé
 hérité de "Heading 2" (donc niveau bloc) — bug de mise en forme dans le
 `.odt`, pas un bug du parseur, indétectable de façon fiable sans revue
 humaine. D'où l'écran de calibration côté frontend (`ImportCalibration.vue`,
-voir `../frontend/CLAUDE.md`) : preview avant tout écriture, ajustement
-manuel du point de départ (liminaire vs structure) et du niveau par titre.
+voir `../frontend/CLAUDE.md`) : preview avant toute écriture, ajustement
+manuel du niveau par titre et des **deux bornes** du livre — début de la
+structure (liminaire avant) et début de la partie finale (table des matières,
+index, glossaire après). Cf. `ImportCorrections.structureStartIndex` /
+`structureEndIndex` ; la seconde est optionnelle.
+
 Pistes explorées et **abandonnées** faute de signal fiable :
 - Recoupement avec la table des matières pour corriger les niveaux : elle
   est générée à partir des mêmes niveaux que le corps, donc reflète
@@ -225,10 +277,33 @@ Pistes explorées et **abandonnées** faute de signal fiable :
 - Pondération par motif de récurrence structurel : un axe mal classé en
   bloc peut être structurellement identique à un vrai bloc (même nombre de
   sous-titres) — seul le contenu sémantique les distingue.
-La table des matières reste utile pour une chose différente : suggérer où
+- **Symétriser `suggestStructureStartIndex` pour trouver la FIN** (« le dernier
+  titre figurant dans la ToC clôt le corps ») : écrit, essayé sur le témoin,
+  retiré. Il y coupait à « Octogramme », un article de niveau 3, parce que les
+  deux derniers titres avaient été ajoutés après la dernière mise à jour de la
+  ToC — 816 articles au lieu de 818, sans un mot. Une ToC périmée est la norme
+  sur un manuscrit vivant. Et le prix de l'erreur n'est pas symétrique entre
+  les deux bouts : au début, une borne trop basse laisse du liminaire dans le
+  corps — visible, corrigeable ; à la fin, elle ampute de vrais chapitres en
+  silence. `suggestStructureEndIndex` ne se fie donc qu'au NOM du titre
+  (`FINAL_TITLE_RE`), et seulement dans le dernier tiers — un « Index » au
+  milieu d'un manuscrit est un chapitre. Ne rien suggérer est son résultat
+  normal : le témoin n'a pas de partie finale.
+
+La table des matières reste utile pour une chose, et une seule : suggérer où
 la vraie structure commence (`suggestStructureStartIndex` — le premier
 titre du corps qui apparaît aussi dans la table des matières signale la fin
-du liminaire, qui lui n'y figure jamais).
+du liminaire, qui lui n'y figure jamais). Le sens de lecture compte : ce
+signal-là dit « le liminaire s'arrête ici », ce qu'une ToC périmée ne remet
+pas en cause (elle est incomplète par la fin, pas par le début).
+
+**Le liminaire et le final ne sont pas de la structure** : `ParsedResult`
+les porte en `TexteEntry[]` (donc avec `styleName`/`highlight` — c'était tout
+le trou de l'ancien `preambule: string[]`, qui rendait ces zones muettes pour
+la typologie), et ils sont persistés en colonnes `Json` sur `Document`, pas en
+`Node`/`Paragraph` : leur donner des nœuds les ferait entrer dans
+`completeness`, `conformity` et l'arbre de `StructureView`, où ils n'ont rien
+à faire. Un titre y est aplati en simple entrée de texte.
 
 ## Modèle de données (`prisma/schema.prisma`)
 

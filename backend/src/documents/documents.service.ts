@@ -14,6 +14,7 @@ import {
   TrameNode,
 } from '../import/odt-parser'
 import { nodeContentHash } from '../analyse/plain-text'
+import { collectShapes, StructureShapes } from '../analyse/structure-shapes'
 import { DocumentTypology, isTypologySettled, suggestTypology, typologyErrors } from './typology'
 import { DEFAULT_RULES, DocumentRules, normalizeRules, rulesErrors } from './rules'
 import {
@@ -40,16 +41,29 @@ export class DocumentsService {
   private readonly pendingImports = new Map<string, { buffer: Buffer; originalFilename: string }>()
 
   async previewUpload(buffer: Buffer, originalFilename: string): Promise<PreviewResponse> {
-    const { outline, suggestedStructureStartIndex } = await parseOdtBufferForPreview(buffer)
+    const { outline, suggestedStructureStartIndex, suggestedStructureEndIndex } =
+      await parseOdtBufferForPreview(buffer)
     const previewId = randomUUID()
     this.pendingImports.set(previewId, { buffer, originalFilename })
 
-    return { previewId, outline, suggestedStructureStartIndex }
+    return { previewId, outline, suggestedStructureStartIndex, suggestedStructureEndIndex }
   }
 
   async commitImport(previewId: string, corrections: CommitImportRequest): Promise<DocumentSummary> {
     const pending = this.pendingImports.get(previewId)
     if (!pending) throw new NotFoundException(`Aperçu ${previewId} introuvable ou expiré`)
+
+    // Des bornes croisées ne produiraient pas une erreur mais un livre vide :
+    // tout le corps partirait en liminaire ou en final, sans que rien ne le
+    // signale. Refuser avant de consommer l'aperçu — sinon le buffer est perdu
+    // et l'utilisateur doit re-téléverser son .odt pour corriger un lapsus.
+    const { structureStartIndex, structureEndIndex } = corrections
+    if (structureEndIndex != null && structureEndIndex <= structureStartIndex) {
+      throw new BadRequestException(
+        `La partie finale (index ${structureEndIndex}) doit commencer après le début de la structure (index ${structureStartIndex})`,
+      )
+    }
+
     this.pendingImports.delete(previewId)
 
     const { result, data, trame } = await parseOdtBuffer(pending.buffer, corrections as ImportCorrections)
@@ -72,8 +86,11 @@ export class DocumentsService {
           totalMots,
           totalCaracteres,
           // Le .odt source n'est pas conservé : si l'inventaire n'est pas
-          // capturé ici, il est irrécupérable sans réimport.
+          // capturé ici, il est irrécupérable sans réimport. Même raison pour
+          // le liminaire et le final, qui ne deviennent pas des Node.
           styleInventory: result.inventory as unknown as Prisma.InputJsonValue,
+          liminaire: result.liminaire as unknown as Prisma.InputJsonValue,
+          final: result.final as unknown as Prisma.InputJsonValue,
         },
       })
 
@@ -190,6 +207,16 @@ export class DocumentsService {
         ? { type: 'list', ordered: p.ordered ?? false, items: JSON.parse(p.content), ...style }
         : { type: 'paragraph', text: p.content, ...style }
     })
+  }
+
+  // ─── Formes structurelles ───────────────────────────────────────────────
+
+  // Dérivé, calculé à la volée, jamais persisté (cf. structure-shapes.ts).
+  // Passe par getContent : reconstruire l'arbre ici, ce serait une seconde
+  // lecture de la même chose, vouée à diverger de la première.
+  async getStructureShapes(id: string): Promise<StructureShapes> {
+    const { trame, data } = await this.getContent(id)
+    return collectShapes(trame, data)
   }
 
   // ─── Typologie des styles ───────────────────────────────────────────────

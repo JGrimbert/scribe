@@ -18,33 +18,52 @@
     <template v-if="inventory.styles.length">
       <section class="styles-section">
         <h3>Styles de paragraphe <span class="count">{{ inventory.styles.length }}</span></h3>
-        <UiTable>
-          <thead>
-            <tr>
-              <th class="num">usages</th>
-              <th>style</th>
-              <th>extrait</th>
-              <th class="role-col">rôle</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="style in inventory.styles" :key="style.name">
-              <td class="num">{{ style.count }}</td>
-              <td>
-                <span class="style-name">{{ style.name }}</span>
-                <BaseChip v-if="style.headings" class="heading-chip" :title="`${style.headings} usage(s) comme titre`">
-                  titre
-                </BaseChip>
-              </td>
-              <td class="sample">{{ style.sample || '—' }}</td>
-              <td class="role-col">
-                <BaseSelect v-model="styles[style.name]">
-                  <option v-for="role in STYLE_ROLES" :key="role" :value="role">{{ role }}</option>
-                </BaseSelect>
-              </td>
-            </tr>
-          </tbody>
-        </UiTable>
+        <UiNote v-if="zoned" variant="hint">
+          Rangés dans l'ordre du livre, chacun dans la zone où il pèse le plus. La barre montre sa
+          répartition réelle : un style d'une seule couleur signe sa zone, un style bariolé est
+          transverse.
+        </UiNote>
+
+        <template v-for="section in zoneSections" :key="section.zone.key">
+          <h4 class="zone-heading">
+            <span class="zone-swatch" :style="{ background: section.zone.color }"></span>
+            {{ section.zone.label }}
+            <span class="count">{{ section.styles.length }}</span>
+            <span class="zone-hint">{{ section.zone.hint }}</span>
+          </h4>
+          <UiTable>
+            <thead>
+              <tr>
+                <th class="num">usages</th>
+                <th>style</th>
+                <th v-if="zoned" class="zone-col">répartition</th>
+                <th>extrait</th>
+                <th class="role-col">rôle</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="style in section.styles" :key="style.name">
+                <td class="num">{{ style.count }}</td>
+                <td>
+                  <span class="style-name">{{ style.name }}</span>
+                  <BaseChip v-if="style.headings" class="heading-chip" :title="`${style.headings} usage(s) comme titre`">
+                    titre
+                  </BaseChip>
+                </td>
+                <td v-if="zoned" class="zone-col">
+                  <StackedBar v-if="totalOf(style.byZone)" :segments="zoneSegments(style.byZone)" />
+                  <span v-else class="zone-none" title="Aucun usage situé — paragraphes sans texte">—</span>
+                </td>
+                <td class="sample">{{ style.sample || '—' }}</td>
+                <td class="role-col">
+                  <BaseSelect v-model="styles[style.name]">
+                    <option v-for="role in STYLE_ROLES" :key="role" :value="role">{{ role }}</option>
+                  </BaseSelect>
+                </td>
+              </tr>
+            </tbody>
+          </UiTable>
+        </template>
       </section>
 
       <section v-if="inventory.highlights.length" class="styles-section">
@@ -59,6 +78,7 @@
               <th>couleur</th>
               <th class="num">paragraphes</th>
               <th class="num">inline</th>
+              <th v-if="zoned" class="zone-col">répartition</th>
               <th>extrait</th>
               <th class="role-col">rôle</th>
             </tr>
@@ -71,6 +91,10 @@
               </td>
               <td class="num">{{ hl.paragraphs }}</td>
               <td class="num">{{ hl.spans }}</td>
+              <td v-if="zoned" class="zone-col">
+                <StackedBar v-if="totalOf(hl.byZone)" :segments="zoneSegments(hl.byZone)" />
+                <span v-else class="zone-none">—</span>
+              </td>
               <td class="sample">{{ hl.sample || '—' }}</td>
               <td class="role-col">
                 <BaseSelect v-model="highlights[hl.color]">
@@ -80,6 +104,39 @@
             </tr>
           </tbody>
         </UiTable>
+      </section>
+
+      <section v-if="shapeGroups.length" class="styles-section">
+        <h3>Modèles de structure</h3>
+        <UiNote variant="hint">
+          Les formes qui reviennent, niveau par niveau, lues avec les rôles que vous êtes en train
+          d'attribuer — <strong>changez un rôle ci-dessus et ces motifs se recomposent</strong>. Les
+          pourcentages portent sur les nœuds déjà rédigés : un chapitre encore vide n'a pas de forme.
+        </UiNote>
+        <UiNote v-if="shapesError" variant="error">{{ shapesError }}</UiNote>
+
+        <div v-for="group in shapeGroups" :key="group.zone.key" class="shape-group">
+          <h4 class="zone-heading">
+            <span class="zone-swatch" :style="{ background: group.zone.color }"></span>
+            {{ group.zone.label }}
+            <span class="zone-hint">
+              {{ group.total - group.empty }} rédigé(s) sur {{ group.total
+              }}<template v-if="group.empty"> — {{ group.empty }} encore vide(s)</template>
+            </span>
+          </h4>
+
+          <ul v-if="group.signatures.length" class="signatures">
+            <li v-for="signature in group.signatures.slice(0, 6)" :key="signature.key" class="signature">
+              <ScoreBar :pct="signature.pct" :label="`${signature.pct} %`" track-width="5em" />
+              <span class="signature-count">{{ signature.count }}</span>
+              <code class="signature-label">{{ signature.label }}</code>
+              <span class="signature-example" :title="signature.nodes.map((n) => n.titre).join(', ')">
+                ex. {{ signature.nodes[0]?.titre }}
+              </span>
+            </li>
+          </ul>
+          <p v-else class="signature-none">Aucun nœud rédigé à ce niveau — rien à modéliser.</p>
+        </div>
       </section>
 
       <section class="styles-section">
@@ -144,8 +201,12 @@ import { useRoute } from 'vue-router'
 import BaseButton from './ui/BaseButton.vue'
 import BaseChip from './ui/BaseChip.vue'
 import BaseSelect from './ui/BaseSelect.vue'
+import ScoreBar from './ui/ScoreBar.vue'
+import StackedBar from './ui/StackedBar.vue'
 import UiNote from './ui/UiNote.vue'
 import UiTable from './ui/UiTable.vue'
+import { groupByZone, hasZones, totalOf, zoneSegments } from '../script/zones'
+import { useStructureShapes } from '../composables/useStructureShapes'
 
 // Vocabulaires fermés, alignés sur STYLE_ROLES/HIGHLIGHT_ROLES du backend
 // (typology.ts), qui refuse tout rôle hors liste.
@@ -170,6 +231,17 @@ const saved = ref(false)
 const settled = ref(false)
 const inventory = ref({ styles: [], highlights: [] })
 
+// Un document importé avant la ventilation n'a pas de byZone : on retombe alors
+// sur une section unique, l'ancien tableau plat trié par fréquence. Le .odt
+// n'étant pas conservé, seul un réimport le ventile.
+const zoned = computed(() => hasZones(inventory.value.styles))
+
+const zoneSections = computed(() =>
+    zoned.value
+        ? groupByZone(inventory.value.styles)
+        : [{ zone: { key: 'all', label: 'Tous les styles', hint: 'Réimportez le document pour les situer dans le livre', color: 'var(--c-border)' }, styles: inventory.value.styles }],
+)
+
 // Le formulaire. Pré-rempli par les suggestions du backend, écrasées par ce
 // qui a déjà été décidé : l'utilisateur voit une proposition, jamais une
 // décision qu'il n'a pas prise (rien n'est persisté avant qu'il n'enregistre).
@@ -177,6 +249,11 @@ const styles = reactive({})
 const highlights = reactive({})
 
 const rules = reactive({ minChars: null, forbidAnnotations: false, requiresRoles: [], requiresTable: false })
+
+// Les modèles se recalculent contre `styles` — la typologie en cours d'édition,
+// pas celle enregistrée : les motifs suivent les rôles à mesure qu'on les
+// attribue.
+const { groups: shapeGroups, error: shapesError, load: loadShapes } = useStructureShapes(styles)
 
 // Mémoire du seuil quand on décoche « au moins N caractères » : le décocher
 // puis le recocher ne doit pas effacer le chiffre saisi.
@@ -197,6 +274,12 @@ watch(minCharsDraft, (v) => { if (rules.minChars != null) rules.minChars = v ?? 
 async function load() {
   loading.value = true
   loadError.value = null
+
+  // À part, et sans await : les modèles sont un complément. Leur échec porte son
+  // propre message et ne doit pas masquer la typologie, qui est l'objet de
+  // l'écran.
+  loadShapes(route.params.id)
+
   try {
     const [typoRes, rulesRes] = await Promise.all([
       fetch(`/api/documents/${route.params.id}/typology`),
@@ -262,6 +345,11 @@ watch(() => route.params.id, load, { immediate: true })
 <style scoped>
 .styles-view {
   padding: 1.25em;
+  /* La DocumentBar est en position absolue AU-DESSUS de la zone de défilement
+     (translucide, le contenu défile derrière) : sans réserver sa hauteur, le
+     titre se lit à travers la barre. --bar-size est la même variable qui donne
+     sa hauteur à la barre — pas un nombre magique à resynchroniser. */
+  padding-top: calc(var(--bar-size) + 1.25em);
   max-width: 70em;
 }
 
@@ -286,6 +374,95 @@ watch(() => route.params.id, load, { immediate: true })
 .count {
   opacity: var(--op-faint);
   font-weight: 400;
+}
+
+/* Une zone du livre : un cran sous le titre de section, au-dessus de son
+   tableau. La pastille reprend la couleur des segments de la barre — c'est ce
+   qui relie « où je suis » à « ce que je lis dans la répartition ». */
+.zone-heading {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  margin: var(--sp-6) 0 var(--sp-2);
+  font-size: var(--fs-md);
+  font-weight: 600;
+}
+
+.zone-swatch {
+  width: 0.6em;
+  height: 0.6em;
+  border-radius: var(--radius-sm);
+  align-self: center;
+  flex-shrink: 0;
+}
+
+.zone-hint {
+  font-weight: 400;
+  font-size: var(--fs-sm);
+  opacity: var(--op-faint);
+}
+
+.zone-col {
+  width: 1%;
+  white-space: nowrap;
+}
+
+.zone-none {
+  opacity: var(--op-faint);
+}
+
+.shape-group {
+  margin-bottom: var(--sp-4);
+}
+
+/* Une liste, pas un tableau : une signature est une phrase (« définition ·
+   corps×2 »), pas une ligne de données à comparer colonne par colonne. */
+.signatures {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.signature {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  font-size: var(--fs-md);
+}
+
+.signature-count {
+  min-width: 3em;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  opacity: var(--op-muted);
+}
+
+.signature-label {
+  font-family: var(--font-ui);
+  padding: 0.1em 0.5em;
+  border-radius: var(--radius-md);
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  white-space: nowrap;
+}
+
+/* L'exemple sert à raccrocher la signature à du réel ; il cède la place. */
+.signature-example {
+  color: var(--c-ink2);
+  font-style: italic;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.signature-none {
+  margin: 0;
+  color: var(--c-ink2);
+  font-size: var(--fs-md);
 }
 
 .style-name {

@@ -57,11 +57,18 @@ export interface ParsedResult {
     totalBlocs: number // nœuds de profondeur 1
     totalAxes: number // nœuds racine (profondeur 0)
     maxDepth: number
-    paragraphesPreambule: number
+    paragraphesLiminaire: number
+    paragraphesFinal: number
     sectionsRencontrees: number
     titresVides: number
   }
-  preambule: string[]
+  // Les deux bouts du livre qui ne sont pas de la structure : page de titre,
+  // auteur, dédicace d'un côté ; table des matières, index, glossaire de
+  // l'autre. Des TexteEntry et non des string[] : ils portent styleName et
+  // highlight, sans quoi la typologie n'a rien à dire de ces zones — c'était
+  // précisément le trou de l'ancien `preambule: string[]`.
+  liminaire: TexteEntry[]
+  final: TexteEntry[]
   axes: ParsedNode[]
 }
 
@@ -85,7 +92,8 @@ export interface TrameNode {
 
 export interface Trame {
   meta: ParsedResult['meta']
-  preambule: string[]
+  liminaire: TexteEntry[]
+  final: TexteEntry[]
   axes: TrameNode[]
 }
 
@@ -124,6 +132,15 @@ export interface FlatNode {
   highlight: string | null
   hasPageBreak: boolean // fo:break-before forcé sur le style de ce nœud
   tableData?: string[][]
+  // Styles effectifs des paragraphes que ce nœud APLATIT : les cellules d'un
+  // tableau, les items d'une liste. Un par paragraphe, répétitions comprises
+  // (c'est un relevé d'usages, pas un ensemble).
+  //
+  // `tableData` et `listItems` ne gardent que du texte : un style qui ne vit que
+  // là serait invisible de toute analyse assise sur les FlatNode. Sur le témoin,
+  // deux cas réels — « Voir » (183 usages, tous en cellule) et « Puces ? » (15
+  // usages, tous en item de liste).
+  innerStyles?: string[]
   listItems?: ListItemEntry[] // pertinent si kind === 'list'
   listOrdered?: boolean // pertinent si kind === 'list'
   bookmarkNames?: string[] // signets ODT rattachés à ce titre ; pertinent si kind === 'heading'
@@ -136,11 +153,25 @@ export interface FlatNode {
 // de surlignage porte une INTENTION d'annotation (« à reprendre »). Un même
 // paragraphe peut avoir les deux.
 
+// Les zones du livre, dans l'ordre de lecture. Un style se lit d'abord par où
+// il vit : « Dédicace » n'est pas rare, il est liminaire. Les profondeurs sont
+// regroupées à partir de 2 (cf. zoneOfDepth).
+export const ZONE_KEYS = ['liminaire', 'depth-0', 'depth-1', 'depth-2+', 'final'] as const
+
+export type ZoneKey = (typeof ZONE_KEYS)[number]
+
+// Combien d'usages dans chaque zone. Partiel : une zone absente vaut zéro, et
+// la somme peut être INFÉRIEURE à `count` (cf. ventilateInventory). Vide pour
+// un document importé avant la ventilation — le .odt n'étant pas conservé, seul
+// un réimport le remplit.
+export type ZoneCounts = Partial<Record<ZoneKey, number>>
+
 export interface StyleUsage {
   name: string // style effectif décodé
   count: number
   headings: number // combien de ces occurrences sont des titres — un style à cheval est suspect
   sample: string // extrait du premier usage non vide, pour reconnaître le style sans rouvrir l'ODT
+  byZone?: ZoneCounts
 }
 
 export interface HighlightUsage {
@@ -148,6 +179,9 @@ export interface HighlightUsage {
   paragraphs: number // paragraphes entiers surlignés
   spans: number // surlignages inline
   sample: string
+  // Paragraphes ET spans confondus : ici on veut la répartition, le détail des
+  // deux formes se lit déjà dans les colonnes voisines.
+  byZone?: ZoneCounts
 }
 
 export interface StyleInventory {
@@ -166,8 +200,13 @@ export interface OutlineEntry {
 export interface ImportCorrections {
   // Index (dans FlatNode[]) du premier nœud appartenant à la vraie structure.
   // Tout ce qui précède (page de titre, auteur, sommaire...) part en
-  // préambule, quel que soit le niveau de titre détecté dessus.
+  // liminaire, quel que soit le niveau de titre détecté dessus.
   structureStartIndex: number
+  // Index (dans FlatNode[]) du premier nœud de la partie finale — table des
+  // matières, index, glossaire. Tout ce qui suit (lui compris) part en `final`,
+  // titres compris : ces titres-là ne sont pas de la structure du livre.
+  // `undefined` = pas de partie finale, le corps va jusqu'au bout.
+  structureEndIndex?: number
   // Niveau corrigé pour un titre mal détecté, par index de FlatNode.
   // 0 = "ignorer" (rétrograder en simple paragraphe).
   levelOverrides?: Record<number, number>

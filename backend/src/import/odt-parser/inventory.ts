@@ -12,15 +12,26 @@ import { effectiveStyleName, nodeText, nodeTextWithLinks, select, styleBackgroun
 // disparaissait complètement de l'inventaire. Un inventaire doit être
 // exhaustif : c'est tout son propos.
 //
-// Seule la table des matières est écartée : ses styles (Contents 1/2,
-// Index 1…) sont posés par LibreOffice, pas par l'auteur — les proposer à la
-// configuration serait du bruit.
+// Seuls les APPAREILS GÉNÉRÉS sont écartés : leurs styles (Contents 1/2,
+// Index 1, Index Heading…) sont posés par LibreOffice, pas par l'auteur — les
+// proposer à la configuration serait du bruit. La table des matières était le
+// seul exclu ; l'index alphabétique l'a rejointe après coup, sur constat : le
+// témoin en porte un (6 paragraphes, en fin de document), qui plaçait « Index
+// 1 » et « Index Heading » dans la liste des styles à typologiser. Les deux
+// conteneurs sont générés par le même mécanisme et méritent le même sort.
+//
+// Ils sont déjà absents des FlatNode (flatten.ts saute table-of-content, et ne
+// sait pas descendre dans alphabetical-index) : les garder ici, c'était donc
+// aussi des styles impossibles à ventiler par zone — comptés, jamais situés.
 
 const SAMPLE_MAX = 120
 
-const PARAGRAPHS_XPATH =
-  '//*[(local-name()="p" or local-name()="h") and not(ancestor::*[local-name()="table-of-content"])]'
-const SPANS_XPATH = '//*[local-name()="span" and not(ancestor::*[local-name()="table-of-content"])]'
+// Les conteneurs d'appareil, dont le contenu est régénéré par le traitement de
+// texte à chaque mise à jour des champs.
+const GENERATED_ANCESTOR = 'ancestor::*[local-name()="table-of-content" or local-name()="alphabetical-index"]'
+
+const PARAGRAPHS_XPATH = `//*[(local-name()="p" or local-name()="h") and not(${GENERATED_ANCESTOR})]`
+const SPANS_XPATH = `//*[local-name()="span" and not(${GENERATED_ANCESTOR})]`
 
 function sampleOf(text: string): string {
   const plain = text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()

@@ -77,7 +77,8 @@ export function harmonize(result: ParsedResult, bookmarks?: Map<string, ParsedNo
 
   const trame: Trame = {
     meta: result.meta,
-    preambule: result.preambule,
+    liminaire: result.liminaire,
+    final: result.final,
     axes: result.axes.map((a) => addNode(a, 0)),
   }
 

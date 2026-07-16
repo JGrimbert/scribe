@@ -15,6 +15,7 @@ import {
   extractListItems,
   extractTocTexts,
   extractTable,
+  extractInnerStyles,
 } from './xml'
 import { buildStyleInventory } from './inventory'
 
@@ -95,6 +96,9 @@ export function buildFlatNodes(xmlContent: string): {
           hasPageBreak: false,
           listItems: items,
           listOrdered: listStyles.get(styleName) ?? false,
+          // Le style du <text:list> est un style de LISTE (« L5 ») ; celui qui
+          // dit quelque chose est le style des paragraphes des items.
+          innerStyles: extractInnerStyles(node, styleTable),
         })
       }
       continue
@@ -166,6 +170,7 @@ export function buildFlatNodes(xmlContent: string): {
         highlight: null,
         hasPageBreak: false,
         tableData: extractTable(node, styleTable),
+        innerStyles: extractInnerStyles(node, styleTable),
       })
     }
   }

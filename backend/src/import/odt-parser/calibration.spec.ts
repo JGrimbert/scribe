@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildOutline, suggestStructureStartIndex } from './calibration'
+import { buildOutline, suggestStructureEndIndex, suggestStructureStartIndex } from './calibration'
 import { FlatNode, OutlineEntry } from './types'
 
 function flat(nodes: Partial<FlatNode>[]): FlatNode[] {
@@ -60,5 +60,43 @@ describe('suggestStructureStartIndex', () => {
 
   it('renvoie 0 sur un outline vide', () => {
     expect(suggestStructureStartIndex([], ['quoi'])).toBe(0)
+  })
+})
+
+describe('suggestStructureEndIndex', () => {
+  const outline = (entries: Array<Partial<OutlineEntry>>): OutlineEntry[] =>
+    entries.map((e, i) => ({ index: i, level: 1, text: '', empty: false, hasPageBreak: false, ...e }))
+
+  it('retient un titre d’appareil de fin situé dans le dernier tiers', () => {
+    const o = outline([
+      { index: 0, text: 'Un' },
+      { index: 1, text: 'Deux' },
+      { index: 2, text: 'Trois' },
+      { index: 3, text: 'Table des matières' },
+    ])
+    expect(suggestStructureEndIndex(o)).toBe(3)
+  })
+
+  it('ignore un chapitre nommé « Index » hors du dernier tiers', () => {
+    const o = outline([{ index: 0, text: 'Index' }, { index: 1, text: 'Deux' }, { index: 2, text: 'Trois' }])
+    expect(suggestStructureEndIndex(o)).toBeUndefined()
+  })
+
+  // Le cas qui a fait abandonner le croisement avec la table des matières :
+  // sur le manuscrit témoin, les deux derniers titres ne figurent pas dans une
+  // ToC périmée. Les prendre pour l'appareil de fin ampute le livre de deux
+  // articles, en silence.
+  it('ne prend pas des chapitres absents de la ToC pour une partie finale', () => {
+    const o = outline([
+      { index: 0, text: 'La Lisière' },
+      { index: 1, text: 'Derniers mots' },
+      { index: 2, text: 'Octogramme' },
+      { index: 3, text: 'Pentacle' },
+    ])
+    expect(suggestStructureEndIndex(o)).toBeUndefined()
+  })
+
+  it('ne suggère rien sur un outline vide', () => {
+    expect(suggestStructureEndIndex([])).toBeUndefined()
   })
 })
