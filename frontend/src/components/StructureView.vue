@@ -1,5 +1,5 @@
 <template>
-  <aside class="structure-panel" :class="expanded ? 'structure-panel--liste' : 'structure-panel--rail'">
+  <aside class="structure-panel">
     <div v-if="expanded" class="panel-content">
       <template v-if="axes.length">
         <StructureNode

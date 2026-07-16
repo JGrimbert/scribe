@@ -21,7 +21,10 @@
 
       <div class="document-layout">
         <!-- Sidebar avec CustomScrollbar -->
-        <div class="document-layout__sidebar">
+        <div
+            class="document-layout__sidebar"
+            :class="{ 'document-layout__sidebar--rail': !sidebarExpanded }"
+        >
           <CustomScrollbar :top-offset="42">
             <StructureView
                 :trame="trame"
@@ -165,6 +168,11 @@ onMounted(() => {
   flex: 0 0 auto;
   min-height: 0;
   border-right: 1px solid #eee;
+}
+
+/* Replié : le rail garde la largeur d'une barre, le contenu récupère le reste. */
+.document-layout__sidebar--rail {
+  width: var(--bar-size);
 }
 
 .document-layout__content {
