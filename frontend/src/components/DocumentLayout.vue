@@ -122,12 +122,33 @@ async function loadDocument(id) {
   trame.value = content.trame
   data.value = content.data
   validations.value = content.validations ?? {}
+  loadTypology(id) // non-awaité : le document s'affiche sans attendre cette réponse
 }
 
 // Validations manuelles (nodeId → 'validé' | 'périmé'), résolues par le backend
 // au chargement — lui seul peut départager les deux (il rehache le texte).
 const validations = ref({})
 const validating = ref(false)
+
+// La typologie des styles est-elle arbitrée ? État document, comme trame/data :
+// le dashboard s'en sert pour renvoyer vers l'écran de configuration. Chargé à
+// part de GET /documents/:id — c'est une autre question, et l'écran de
+// typologie a son propre endpoint.
+const typologySettled = ref(true) // présumé arbitré : on ne clignote pas avant de savoir
+provide('typologySettled', typologySettled)
+
+async function loadTypology(id) {
+  try {
+    const res = await fetch(`/api/documents/${id}/typology`)
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const { settled } = await res.json()
+    typologySettled.value = settled
+  } catch {
+    // Le renvoi vers la configuration est une invitation, pas une fonction
+    // vitale : s'il échoue, on ne casse pas le dashboard pour autant.
+    typologySettled.value = true
+  }
+}
 
 const currentValidation = computed(() =>
     currentNodeId.value ? (validations.value[currentNodeId.value] ?? null) : null,

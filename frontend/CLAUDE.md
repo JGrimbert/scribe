@@ -36,6 +36,19 @@ vues. Routes (`src/router/index.js`) :
   L'ancien écran "Chapitrage"
   (`DocumentIndex.vue`) a été supprimé — ses stats (sous-titres, mots)
   vivent dans l'infobulle des nœuds de `StructureView`.
+- `/documents/:id/styles` — `StylesView.vue` : typologie des styles. Liste
+  les styles relevés dans le `.odt` (usages, extrait, rôle) et les couleurs
+  de surlignage, un appel unique à `GET /documents/:id/typology` servant
+  inventaire + suggestions + décisions déjà prises. **Les suggestions
+  pré-remplissent le formulaire mais ne sont pas persistées** tant que
+  l'utilisateur n'a pas enregistré (cf. `backend/CLAUDE.md`) : ce qu'il voit
+  est une proposition, pas une décision qu'il n'a pas prise. Un document
+  importé avant la colonne `styleInventory` affiche un état vide explicite —
+  le `.odt` n'étant pas conservé, seul un réimport le remplit.
+  `DocumentLayout` charge `settled` à part (`provide('typologySettled')`) ;
+  `AnomaliesBlock` s'en sert pour renvoyer vers cet écran. Le défaut est
+  `true` (« présumé arbitré ») pour ne pas faire clignoter un renvoi avant de
+  savoir.
 - `/documents/:id/axe/:axeId` — `EditorView.vue` → `FolioComposer`/`Scroll`
   (Scroll toujours désactivé, `v-if="false === true"`).
 
@@ -127,7 +140,9 @@ liseret de couleur par niveau). Deux corrections manuelles avant validation
 - **Storybook** (`@storybook/vue3-vite`, config `.storybook/`) :
   `npm run storybook` (port 6006), `npm run build-storybook` (smoke-test,
   sortie `storybook-static/` gitignorée). `preview.js` importe primeicons +
-  `base.css` (mêmes tokens et fond que l'app).
+  `base.css` (mêmes tokens et fond que l'app) et installe un **routeur en
+  mémoire** : sans lui, tout composant consommant `useRoute()`/`RouterLink`
+  (renvoi vers la typologie, ouverture d'un chapitre) ne se monte pas.
 - Conventions : radius discrets (tokens, 4 px max), pas de scrollbars
   internes multiples (tronquer les listes, `UiTable scroll` en dernier
   recours), transitions compositor-only (opacity/transform), sans-serif

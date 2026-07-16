@@ -16,6 +16,14 @@
     </template>
 
     <template #aside>
+      <UiCard v-if="!typologySettled" bare>
+        <UiNote variant="hint">
+          Les styles de ce document ne sont pas encore typés : impossible de dire ce qu'un chapitre
+          doit contenir pour être validable.
+          <RouterLink :to="`/documents/${route.params.id}/styles`">Configurer la typologie</RouterLink>
+        </UiNote>
+      </UiCard>
+
       <AnomaliesTable />
       <SemanticPairsCard
           bare
@@ -28,14 +36,22 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, inject, ref } from 'vue'
+import { RouterLink, useRoute } from 'vue-router'
 import AnalyseBlock from './AnalyseBlock.vue'
 import AnomaliesTable from './AnomaliesTable.vue'
 import CompletenessChart from './CompletenessChart.vue'
 import SemanticPairsCard from './SemanticPairsCard.vue'
+import UiCard from '../ui/UiCard.vue'
+import UiNote from '../ui/UiNote.vue'
 import { useAnalyse } from '../../composables/useAnalyse'
 
+const route = useRoute()
 const { analysis } = useAnalyse()
+
+// Fourni par DocumentLayout ; `true` par défaut pour les stories, qui montent
+// le bloc sans le layout et n'ont pas à afficher un renvoi hors sujet.
+const typologySettled = inject('typologySettled', ref(true))
 
 const distribution = computed(() => analysis.value?.completeness?.distribution ?? [])
 </script>
