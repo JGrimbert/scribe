@@ -1,5 +1,6 @@
 import { NlpGlobalStats, NlpLexicalGraph } from './nlp-client.service'
 import { CompletenessAnalysis } from './completeness'
+import { ConformityAnalysis } from './conformity'
 
 export interface NodeRef {
   nodeId: string
@@ -132,4 +133,8 @@ export interface DocumentAnalysisResponse {
   // Toujours présent : dérivé du contenu (comptes de mots), sans NLP — la
   // carte des anomalies s'affiche donc avant tout calcul d'analyse.
   completeness: CompletenessAnalysis
+  // Même nature (dérivé, sans NLP, jamais persisté). `available: false` tant
+  // que la typologie des styles n'est pas arbitrée : sans elle, « sans
+  // annotation » ne veut rien dire.
+  conformity: ConformityAnalysis
 }

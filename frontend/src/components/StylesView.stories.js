@@ -60,18 +60,25 @@ const SUGGESTED = {
   highlights: { '#ffff00': 'annotation', '#ffe994': 'annotation', '#ffff99': 'annotation', '#ffff66': 'annotation' },
 }
 
+const RULES = { minChars: 500, forbidAnnotations: true, requiresRoles: [], requiresTable: false }
+
 // Bouchon de fetch, restauré au démontage — sans quoi une story contaminerait
-// les suivantes.
-const withApi = (payload, { failSave = false } = {}) => (story) => ({
+// les suivantes. L'écran interroge deux endpoints (typologie + règles), le
+// bouchon doit donc router sur l'URL.
+const withApi = (payload, { failSave = false, rules = RULES } = {}) => (story) => ({
   components: { story },
   setup() {
     const real = window.fetch
-    window.fetch = async (url, options) =>
-      options?.method === 'PUT'
-        ? failSave
-          ? new Response(JSON.stringify({ message: ['Rôle inconnu : « nimportequoi »'] }), { status: 400 })
-          : new Response(JSON.stringify({ ...payload, settled: true }), { status: 200 })
-        : new Response(JSON.stringify(payload), { status: 200 })
+    window.fetch = async (url, options) => {
+      const isRules = String(url).endsWith('/rules')
+      if (options?.method === 'PUT') {
+        if (failSave) {
+          return new Response(JSON.stringify({ message: ['Rôle inconnu : « nimportequoi »'] }), { status: 400 })
+        }
+        return new Response(JSON.stringify(isRules ? rules : { ...payload, settled: true }), { status: 200 })
+      }
+      return new Response(JSON.stringify(isRules ? rules : payload), { status: 200 })
+    }
     onUnmounted(() => { window.fetch = real })
   },
   template: '<story />',

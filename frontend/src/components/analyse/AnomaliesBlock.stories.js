@@ -58,6 +58,22 @@ const semantic = () => ({
   ],
 })
 
+// Conformité mesurée sur le manuscrit témoin avec les règles par défaut
+// (>= 500 caractères, zéro annotation).
+const conformity = (available = true) => ({
+  available,
+  rules: { minChars: 500, forbidAnnotations: true, requiresRoles: [], requiresTable: false },
+  leafCount: 824,
+  conformCount: 361,
+  criteria: available
+    ? [
+        { key: 'minChars', label: 'au moins 500 caractères', failing: 403 },
+        { key: 'annotations', label: 'aucune annotation en attente', failing: 94 },
+      ]
+    : [],
+  failures: [],
+})
+
 const fakeStore = ({ analysis, running = null, error = null }) => ({
   analysis: ref(analysis),
   running: ref(running),
@@ -80,7 +96,15 @@ const render = (args) => ({
 
 export const Complet = {
   render,
-  args: { analysis: { completeness: completeness(), semantic: semantic() } },
+  args: { analysis: { completeness: completeness(), semantic: semantic(), conformity: conformity() } },
+}
+
+// Typologie pas encore arbitrée : le backend refuse de juger la conformité,
+// le graphe disparaît (le renvoi vers la configuration prend le relais dans la
+// colonne — fourni par DocumentLayout, absent ici).
+export const SansTypologie = {
+  render,
+  args: { analysis: { completeness: completeness(), semantic: semantic(), conformity: conformity(false) } },
 }
 
 // Le cas normal à l'arrivée sur le dashboard : le graphe et les chapitres en

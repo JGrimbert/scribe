@@ -11,7 +11,7 @@ function styleOf(node: FlatNode): { styleName?: string; highlight?: string } {
     ...(node.highlight ? { highlight: node.highlight } : {}),
   }
 }
-import { makeUniqueSlug, extractRomain, computeStats } from './text-utils'
+import { makeUniqueSlug, extractRomain, computeStats, stripHtmlTags } from './text-utils'
 
 // ─── Passe 2 : construction de la hiérarchie à profondeur arbitraire ──────
 // `level` (1-indexé, comme text:outline-level) pilote juste "combien
@@ -67,8 +67,12 @@ export function buildParsedResult(
     return s
   }
 
+  // « plain » au sens strict : les marqueurs (<a data-bookmark>, <mark
+  // data-hl>) doivent tomber, sinon computeStats les compte comme des mots et
+  // gonfle les stats du livre.
   function entryPlainText(entry: TexteEntry): string {
-    return entry.type === 'list' ? entry.items.map((item) => item.text).join('\n') : entry.text
+    const raw = entry.type === 'list' ? entry.items.map((item) => item.text).join('\n') : entry.text
+    return stripHtmlTags(raw)
   }
 
   function fullText(node: ParsedNode): string {

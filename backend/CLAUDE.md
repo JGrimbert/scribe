@@ -66,6 +66,13 @@ l'instant, ne pas retirer le middleware Vite sans en parler.
     ne dit rien) et n'étaient pas corrigeables. Les `pistes` viennent
     désormais d'un vrai surlignage, et la vérité est dans `styleName` +
     `highlight`, arbitrés par la typologie du document (`typology.ts`).
+  - **Les marqueurs ne sont pas du texte** — `texte[].text` porte des balises
+    (`<a data-bookmark>`, `<mark data-hl>`). Tout calcul assis dessus doit
+    passer par `stripHtmlTags` (`text-utils.ts`, source unique, réexportée par
+    `analyse/plain-text.ts`) : sans ça, `computeStats` compte « <mark » et
+    « data-hl="#ffff00"> » comme des mots — le total du manuscrit témoin s'en
+    trouvait gonflé de ~175 mots. Verrouillé par un test dans
+    `hierarchy.spec.ts`.
   - **Le `.odt` source n'est pas conservé** (buffer gardé en mémoire le temps
     de la calibration seulement). Conséquence : tout enrichissement du parse
     est **rétroactivement inapplicable** — il impose de réimporter les
@@ -163,6 +170,25 @@ l'instant, ne pas retirer le middleware Vite sans en parler.
     l'affichage. `classify()` ne connaît que les premiers — c'est
     volontaire : `stubNodeIds` (exclusion du corpus thématique) ne doit
     dépendre que de la longueur du texte, pas d'une validation.
+  - **conformity** — même nature que completeness (dérivé, sans NLP, calculé
+    au `GET`, jamais persisté) : ce qui manque à chaque chapitre pour être
+    réputé prêt, selon les règles du document (`documents/rules.ts`,
+    `GET`/`PUT /documents/:id/rules`). Ne juge que les feuilles.
+    - **Indicatif, pas bloquant** : la conformité n'interdit pas la validation
+      manuelle. Décision dictée par les chiffres du témoin — exiger définition
+      + tableau des liens y rend 821 chapitres sur 824 non conformes (0,4 %).
+      Une règle qui interdit tout dès le premier jour serait contournée, pas
+      suivie. Les défauts (`DEFAULT_RULES`) ne retiennent donc que les deux
+      critères applicables : >= 500 caractères (51 % passent) et zéro
+      annotation (89 %).
+    - `available: false` tant que la typologie n'est pas arbitrée : sans elle,
+      « sans annotation » ne repose sur rien. Mieux vaut se taire qu'un
+      verdict creux.
+    - Piège : le critère « tableau » se lit dans `connexe.tableau`, **pas**
+      via les rôles. Le parseur aplatit les tableaux en données, leurs
+      paragraphes n'apparaissent jamais dans `texte[]` — un
+      `requiresRoles: ['tableau']` mesurerait 0 tableau sur les 35 que porte
+      le témoin.
   - `GET /documents/:id/analyse` renvoie toujours 200 avec les volets à
     `null` tant qu'ils ne sont pas calculés (pas de 404).
   - Outils transverses sous `/analyse` (`analyse-tools.controller.ts`, non

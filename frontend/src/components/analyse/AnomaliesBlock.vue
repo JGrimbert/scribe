@@ -13,6 +13,10 @@
   >
     <template #main>
       <CompletenessChart />
+      <!-- La conformité ne s'affiche que si la typologie est arbitrée : sans
+           elle, « sans annotation » ne repose sur rien (le renvoi vers la
+           configuration prend alors sa place, dans la colonne). -->
+      <ConformityChart v-if="conformityAvailable" class="conformity-block" />
     </template>
 
     <template #aside>
@@ -41,6 +45,7 @@ import { RouterLink, useRoute } from 'vue-router'
 import AnalyseBlock from './AnalyseBlock.vue'
 import AnomaliesTable from './AnomaliesTable.vue'
 import CompletenessChart from './CompletenessChart.vue'
+import ConformityChart from './ConformityChart.vue'
 import SemanticPairsCard from './SemanticPairsCard.vue'
 import UiCard from '../ui/UiCard.vue'
 import UiNote from '../ui/UiNote.vue'
@@ -54,4 +59,18 @@ const { analysis } = useAnalyse()
 const typologySettled = inject('typologySettled', ref(true))
 
 const distribution = computed(() => analysis.value?.completeness?.distribution ?? [])
+
+// `available` vient du backend : il refuse de juger tant que la typologie
+// n'est pas arbitrée. On ne double pas cette décision côté client.
+const conformityAvailable = computed(
+  () => !!analysis.value?.conformity?.available && !!analysis.value.conformity.criteria.length,
+)
 </script>
+
+<style scoped>
+.conformity-block {
+  margin-top: var(--sp-6);
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--c-border);
+}
+</style>

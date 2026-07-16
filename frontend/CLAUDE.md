@@ -48,7 +48,11 @@ vues. Routes (`src/router/index.js`) :
   `DocumentLayout` charge `settled` à part (`provide('typologySettled')`) ;
   `AnomaliesBlock` s'en sert pour renvoyer vers cet écran. Le défaut est
   `true` (« présumé arbitré ») pour ne pas faire clignoter un renvoi avant de
-  savoir.
+  savoir. L'écran porte aussi les **règles d'éligibilité**
+  (`GET`/`PUT /documents/:id/rules`, second appel) : elles sont indicatives —
+  le bouton « Valider » d'un chapitre reste actif quoi qu'il arrive, seul le
+  compte de conformes du dashboard en dépend (voir `backend/CLAUDE.md` pour
+  le pourquoi chiffré).
 - `/documents/:id/axe/:axeId` — `EditorView.vue` → `FolioComposer`/`Scroll`
   (Scroll toujours désactivé, `v-if="false === true"`).
 

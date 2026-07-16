@@ -7,6 +7,7 @@ import { TrameNode } from '../import/odt-parser'
 import { plainNodeText, plainParagraphTexts } from './plain-text'
 import { buildSegments } from './segmentation'
 import { assessCompleteness, stubNodeIds } from './completeness'
+import { assessConformity } from './conformity'
 import { NlpClientService, NlpTopicsResult } from './nlp-client.service'
 import { dot, meanNormalized } from './vector-math'
 import {
@@ -324,11 +325,13 @@ export class AnalyseService {
     const found = await this.prisma.documentAnalysis.findUnique({ where: { documentId } })
     const { trame, data } = await this.documentsService.getContent(documentId)
     const validations = await this.documentsService.getValidations(documentId)
+    const { typology, rules } = await this.documentsService.getRuleContext(documentId)
     return {
       lexical: (found?.lexical as unknown as LexicalAnalysis | null) ?? null,
       semantic: (found?.semantic as unknown as SemanticAnalysis | null) ?? null,
       topics: (found?.topics as unknown as TopicsAnalysis | null) ?? null,
       completeness: assessCompleteness(trame, data, validations),
+      conformity: assessConformity(trame, data, typology, rules),
     }
   }
 }

@@ -28,6 +28,12 @@ model Document {
   // jamais persistées à sa place (cf. typology.ts). Un style apparu depuis la
   // dernière décision rend la typologie « non arbitrée » à nouveau.
   styleTypology   Json?
+  // validationRules : ce qu'un chapitre doit contenir pour être réputé
+  // conforme (DocumentRules). NULL = les règles par défaut s'appliquent
+  // (cf. rules.ts) — pas besoin de configurer pour que le dashboard dise
+  // quelque chose. Indicatif : la conformité ne bloque pas la validation
+  // manuelle, elle l'informe.
+  validationRules Json?
 
   nodes           Node[]
   analysis        DocumentAnalysis?

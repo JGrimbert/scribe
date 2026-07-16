@@ -1,6 +1,15 @@
 import { Stats } from './types'
 
 const DIACRITICS_RE = new RegExp('[\\u0300-\\u036f]', 'g')
+const HTML_TAG_RE = /<[^>]*>/g
+
+// Le texte d'une entrée porte des marqueurs (`<a data-bookmark>`,
+// `<mark data-hl>`) : sans les retirer, computeStats compte « <mark » et
+// « data-hl="#ffff00"> » comme des mots. Remplacés par une espace (pas une
+// chaîne vide) pour ne pas coller deux mots l'un à l'autre.
+export function stripHtmlTags(text: string): string {
+  return text.replace(HTML_TAG_RE, ' ')
+}
 
 export function slugify(str: string): string {
   return str

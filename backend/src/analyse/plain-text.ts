@@ -1,13 +1,11 @@
 import { createHash } from 'crypto'
 import { HarmonizedItem } from '../import/odt-parser'
+// Une seule définition de « retirer les balises » : le parseur en a besoin
+// pour ses stats, l'analyse pour le NLP. Deux copies, c'est deux règles qui
+// divergent — et des comptes de mots qui ne se recoupent plus.
+import { stripHtmlTags } from '../import/odt-parser/text-utils'
 
-const HTML_TAG_RE = /<[^>]*>/g
-
-// Balises <a class="lien-interne">, <strong>… retirées avant toute analyse —
-// remplacées par un espace (pas une chaîne vide) pour ne pas coller deux mots.
-export function stripHtmlTags(text: string): string {
-  return text.replace(HTML_TAG_RE, ' ')
-}
+export { stripHtmlTags }
 
 // Texte brut de chaque paragraphe d'un nœud (une entrée = un paragraphe,
 // items de liste joints par un retour) — les entrées vides sont écartées.

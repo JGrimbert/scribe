@@ -15,6 +15,7 @@ import {
 } from '../import/odt-parser'
 import { nodeContentHash } from '../analyse/plain-text'
 import { DocumentTypology, isTypologySettled, suggestTypology, typologyErrors } from './typology'
+import { DEFAULT_RULES, DocumentRules, normalizeRules, rulesErrors } from './rules'
 import {
   CommitImportRequest,
   DocumentContent,
@@ -227,6 +228,55 @@ export class DocumentsService {
       data: { styleTypology: body as unknown as Prisma.InputJsonValue },
     })
     return this.getTypology(id)
+  }
+
+  // ─── Règles d'éligibilité ───────────────────────────────────────────────
+
+  // Typologie + règles en une lecture : AnalyseService a besoin des deux
+  // ensemble pour juger la conformité, et elles vivent sur la même ligne.
+  async getRuleContext(id: string): Promise<{ typology: DocumentTypology | null; rules: DocumentRules }> {
+    const document = await this.prisma.document.findUnique({
+      where: { id },
+      select: { styleTypology: true, styleInventory: true, validationRules: true },
+    })
+    if (!document) throw new NotFoundException(`Document ${id} introuvable`)
+
+    const inventory = (document.styleInventory as unknown as StyleInventory | null) ?? EMPTY_INVENTORY
+    const typology = document.styleTypology as unknown as DocumentTypology | null
+    return {
+      // Une typologie à moitié remplie ne permet pas de juger : mieux vaut se
+      // taire (available: false) que rendre un verdict sur des styles non
+      // arbitrés.
+      typology: isTypologySettled(typology, inventory) ? typology : null,
+      // Règles jamais configurées = les défauts s'appliquent : le dashboard
+      // dit quelque chose d'utile sans qu'on ait rien eu à régler. Ne PAS
+      // passer par normalizeRules ici — elle rend des règles toutes vides
+      // pour une entrée nulle, ce qui déclarerait tout le monde conforme.
+      rules: document.validationRules
+        ? normalizeRules(document.validationRules as unknown as DocumentRules)
+        : DEFAULT_RULES,
+    }
+  }
+
+  async getRules(id: string): Promise<DocumentRules> {
+    const document = await this.prisma.document.findUnique({ where: { id }, select: { validationRules: true } })
+    if (!document) throw new NotFoundException(`Document ${id} introuvable`)
+    return (document.validationRules as unknown as DocumentRules | null) ?? DEFAULT_RULES
+  }
+
+  async saveRules(id: string, body: Partial<DocumentRules>): Promise<DocumentRules> {
+    const document = await this.prisma.document.findUnique({ where: { id }, select: { id: true } })
+    if (!document) throw new NotFoundException(`Document ${id} introuvable`)
+
+    const errors = rulesErrors(body)
+    if (errors.length) throw new BadRequestException(errors)
+
+    const rules = normalizeRules(body)
+    await this.prisma.document.update({
+      where: { id },
+      data: { validationRules: rules as unknown as Prisma.InputJsonValue },
+    })
+    return rules
   }
 
   // nodeId → contentHash au moment de la validation. Consommé aussi par

@@ -143,6 +143,21 @@ describe('buildParsedResult — contenu, slugs, stats, index', () => {
     ])
   })
 
+  it('ne compte pas les marqueurs comme des mots dans les stats', () => {
+    // Régression : entryPlainText rendait le texte AVEC ses balises, si bien
+    // que computeStats comptait « <mark », « data-hl="#ffff00"> » et
+    // « </mark> ». Sur le manuscrit témoin, ça gonflait le total du livre de
+    // ~175 mots.
+    const nu = build([H(1, 'A'), P('un deux trois quatre cinq')])
+    const balise = build([
+      H(1, 'A'),
+      P('un deux <mark data-hl="#ffff00">trois</mark> <a data-bookmark="sig">quatre</a> cinq'),
+    ])
+    expect(nu.axes[0].stats!.mots).toBe(5)
+    expect(balise.axes[0].stats!.mots).toBe(5)
+    expect(balise.axes[0].stats!.caracteres).toBe(nu.axes[0].stats!.caracteres)
+  })
+
   it('n’alourdit pas une entrée sans style ni surlignage', () => {
     const result = build([H(1, 'A'), P('Nu.')])
     expect(result.axes[0].texte).toEqual([{ type: 'paragraph', text: 'Nu.' }])

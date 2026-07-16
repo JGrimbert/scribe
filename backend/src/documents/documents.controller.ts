@@ -1,6 +1,7 @@
 import { BadRequestException, Body, Controller, Delete, Get, HttpCode, Param, Post, Put, UploadedFile, UseInterceptors } from '@nestjs/common'
 import { FileInterceptor } from '@nestjs/platform-express'
 import { DocumentsService } from './documents.service'
+import { DocumentRules } from './rules'
 import {
   CommitImportRequest,
   DocumentContent,
@@ -55,6 +56,18 @@ export class DocumentsController {
   @Put(':id/typology')
   saveTypology(@Param('id') id: string, @Body() body: SaveTypologyRequest): Promise<TypologyResponse> {
     return this.documentsService.saveTypology(id, body)
+  }
+
+  // Règles d'éligibilité : ce qu'un chapitre doit contenir pour être réputé
+  // conforme. Indicatif — ça n'interdit pas de valider (cf. rules.ts).
+  @Get(':id/rules')
+  getRules(@Param('id') id: string): Promise<DocumentRules> {
+    return this.documentsService.getRules(id)
+  }
+
+  @Put(':id/rules')
+  saveRules(@Param('id') id: string, @Body() body: Partial<DocumentRules>): Promise<DocumentRules> {
+    return this.documentsService.saveRules(id, body)
   }
 
   // Validation manuelle d'un chapitre (cf. NodeValidation, schema.prisma).

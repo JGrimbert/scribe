@@ -82,13 +82,57 @@
         </UiTable>
       </section>
 
+      <section class="styles-section">
+        <h3>Règles d'éligibilité</h3>
+        <UiNote variant="hint">
+          Ce qu'un chapitre doit contenir pour être réputé prêt. <strong>Indicatif</strong> : le
+          tableau de bord compte les chapitres conformes, mais rien n'empêche de valider un
+          chapitre à la main. Les pourcentages sont ceux de votre document, à titre de repère.
+        </UiNote>
+
+        <div class="rules">
+          <label class="rule">
+            <input v-model="rules.forbidAnnotations" type="checkbox" />
+            <span>Aucune annotation surlignée en attente</span>
+          </label>
+
+          <label class="rule">
+            <input :checked="rules.minChars != null" type="checkbox" @change="toggleMinChars" />
+            <span>Au moins</span>
+            <input
+                v-model.number="minCharsDraft"
+                class="rule-number"
+                type="number"
+                min="0"
+                step="100"
+                :disabled="rules.minChars == null"
+            />
+            <span>caractères</span>
+          </label>
+
+          <label class="rule">
+            <input v-model="rules.requiresTable" type="checkbox" />
+            <span>Un tableau des liens</span>
+          </label>
+
+          <label v-for="role in REQUIRABLE_ROLES" :key="role" class="rule">
+            <input
+                type="checkbox"
+                :checked="rules.requiresRoles.includes(role)"
+                @change="toggleRole(role)"
+            />
+            <span>Un paragraphe « {{ role }} »</span>
+          </label>
+        </div>
+      </section>
+
       <footer class="styles-footer">
         <UiNote v-if="saveError" variant="error">{{ saveError }}</UiNote>
-        <UiNote v-else-if="saved" variant="hint">Typologie enregistrée.</UiNote>
+        <UiNote v-else-if="saved" variant="hint">Configuration enregistrée.</UiNote>
         <UiNote v-else-if="!settled" variant="hint">
           Pas encore arbitrée — le tableau de bord le signale tant que vous n'avez pas validé.
         </UiNote>
-        <BaseButton variant="solid" :busy="saving" @click="save">Enregistrer la typologie</BaseButton>
+        <BaseButton variant="solid" :busy="saving" @click="save">Enregistrer la configuration</BaseButton>
       </footer>
     </template>
   </div>
@@ -111,6 +155,11 @@ const STYLE_ROLES = [
 ]
 const HIGHLIGHT_ROLES = ['annotation', 'emphase', 'ignorer']
 
+// Sous-ensemble de STYLE_ROLES qu'il est sensé d'exiger d'un chapitre. Exiger
+// « corps » ou « ignorer » ne voudrait rien dire ; « tableau » a sa propre case
+// (le parseur range les tableaux à part, cf. rules.ts côté backend).
+const REQUIRABLE_ROLES = ['définition', 'chapeau', 'citation', 'renvoi']
+
 const route = useRoute()
 
 const loading = ref(true)
@@ -127,19 +176,45 @@ const inventory = ref({ styles: [], highlights: [] })
 const styles = reactive({})
 const highlights = reactive({})
 
+const rules = reactive({ minChars: null, forbidAnnotations: false, requiresRoles: [], requiresTable: false })
+
+// Mémoire du seuil quand on décoche « au moins N caractères » : le décocher
+// puis le recocher ne doit pas effacer le chiffre saisi.
+const minCharsDraft = ref(500)
+
+function toggleMinChars(event) {
+  rules.minChars = event.target.checked ? (minCharsDraft.value ?? 0) : null
+}
+
+function toggleRole(role) {
+  const i = rules.requiresRoles.indexOf(role)
+  if (i === -1) rules.requiresRoles.push(role)
+  else rules.requiresRoles.splice(i, 1)
+}
+
+watch(minCharsDraft, (v) => { if (rules.minChars != null) rules.minChars = v ?? 0 })
+
 async function load() {
   loading.value = true
   loadError.value = null
   try {
-    const res = await fetch(`/api/documents/${route.params.id}/typology`)
-    if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    const data = await res.json()
+    const [typoRes, rulesRes] = await Promise.all([
+      fetch(`/api/documents/${route.params.id}/typology`),
+      fetch(`/api/documents/${route.params.id}/rules`),
+    ])
+    if (!typoRes.ok) throw new Error(`HTTP ${typoRes.status}`)
+    if (!rulesRes.ok) throw new Error(`HTTP ${rulesRes.status}`)
+
+    const data = await typoRes.json()
     inventory.value = data.inventory
     settled.value = data.settled
     Object.assign(styles, data.suggested.styles, data.typology?.styles ?? {})
     Object.assign(highlights, data.suggested.highlights, data.typology?.highlights ?? {})
+
+    Object.assign(rules, await rulesRes.json())
+    if (rules.minChars != null) minCharsDraft.value = rules.minChars
   } catch (e) {
-    loadError.value = `Impossible de charger la typologie : ${e.message}`
+    loadError.value = `Impossible de charger la configuration : ${e.message}`
   } finally {
     loading.value = false
   }
@@ -150,16 +225,11 @@ async function save() {
   saveError.value = null
   saved.value = false
   try {
-    const res = await fetch(`/api/documents/${route.params.id}/typology`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ styles: { ...styles }, highlights: { ...highlights } }),
-    })
-    const body = await res.json()
-    if (!res.ok) {
-      throw new Error(Array.isArray(body.message) ? body.message.join(', ') : body.message ?? `HTTP ${res.status}`)
-    }
-    settled.value = body.settled
+    const [typoBody] = await Promise.all([
+      put('typology', { styles: { ...styles }, highlights: { ...highlights } }),
+      put('rules', { ...rules, requiresRoles: [...rules.requiresRoles] }),
+    ])
+    settled.value = typoBody.settled
     saved.value = true
   } catch (e) {
     saveError.value = `Enregistrement impossible : ${e.message}`
@@ -168,10 +238,23 @@ async function save() {
   }
 }
 
+async function put(path, payload) {
+  const res = await fetch(`/api/documents/${route.params.id}/${path}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  const body = await res.json()
+  if (!res.ok) {
+    throw new Error(Array.isArray(body.message) ? body.message.join(', ') : body.message ?? `HTTP ${res.status}`)
+  }
+  return body
+}
+
 // Toute modification efface l'accusé d'enregistrement : sinon « Typologie
 // enregistrée » resterait affiché au-dessus de changements qui, eux, ne le
 // sont pas.
-watch([styles, highlights], () => { saved.value = false })
+watch([styles, highlights, rules], () => { saved.value = false })
 
 watch(() => route.params.id, load, { immediate: true })
 </script>
@@ -244,5 +327,35 @@ watch(() => route.params.id, load, { immediate: true })
   align-items: center;
   gap: var(--sp-4);
   margin-top: var(--sp-6);
+}
+
+.rules {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  margin-top: var(--sp-4);
+}
+
+.rule {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-md);
+  cursor: pointer;
+}
+
+.rule-number {
+  width: 5em;
+  padding: 0.25em 0.4em;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-md);
+  background: var(--c-surface);
+  color: inherit;
+  font: inherit;
+  font-size: var(--fs-md);
+}
+
+.rule-number:disabled {
+  opacity: var(--op-faint);
 }
 </style>
