@@ -30,7 +30,12 @@ const META_STYLES = {
 // document. C'est la passe 2 (buildParsedResult) qui décide, à partir de
 // cette liste, comment construire la hiérarchie — et peut être rejouée avec
 // des corrections sans revenir au XML.
-export function buildFlatNodes(xmlContent: string): {
+// `stylesXml` est optionnel : le parse structurel n'en a aucun besoin (il ne
+// lit que du contenu). Il ne sert qu'à donner une APPARENCE aux styles de
+// l'inventaire — absent, l'inventaire est simplement muet là-dessus, comme
+// avant. C'est aussi ce qui laisse `parseOdtXml(xml)` utilisable tel quel dans
+// les tests, sans ODT complet sous la main.
+export function buildFlatNodes(xmlContent: string, stylesXml?: string): {
   flatNodes: FlatNode[]
   meta: { auteur?: string; titreLivre?: string }
   sectionsRencontrees: number
@@ -38,6 +43,7 @@ export function buildFlatNodes(xmlContent: string): {
   inventory: StyleInventory
 } {
   const doc = new DOMParser().parseFromString(xmlContent, 'text/xml')
+  const stylesDoc = stylesXml ? new DOMParser().parseFromString(stylesXml, 'text/xml') : null
 
   const officeNS = { office: 'urn:oasis:names:tc:opendocument:xmlns:office:1.0', ...NS }
   const selectFull = xpath.useNamespaces(officeNS)
@@ -180,6 +186,6 @@ export function buildFlatNodes(xmlContent: string): {
     meta,
     sectionsRencontrees,
     tocTexts,
-    inventory: buildStyleInventory(doc, styleTable),
+    inventory: buildStyleInventory(doc, styleTable, stylesDoc),
   }
 }

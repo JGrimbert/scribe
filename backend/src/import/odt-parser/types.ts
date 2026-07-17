@@ -184,9 +184,47 @@ export interface HighlightUsage {
   byZone?: ZoneCounts
 }
 
+// Ce à quoi un style RESSEMBLE, résolu sur toute sa chaîne d'héritage. Le
+// parseur ne capturait jusqu'ici aucune propriété visuelle : il ne lisait que
+// `content.xml`, où les styles nommés (« Titre 1 », « Corps de texte ») n'ont
+// qu'un nom — leurs propriétés vivent dans `styles.xml`.
+//
+// Valeurs rendues TELLES QUELLES (« 12pt », « 2.401cm », « 115% »), sans
+// conversion : le frontend les pose en CSS, où elles sont déjà valides. Les
+// convertir en px ici supposerait de fixer un DPI que seul l'affichage connaît.
+export interface StyleVisual {
+  fontFamily?: string
+  fontSize?: string
+  bold?: boolean
+  italic?: boolean
+  color?: string
+  align?: string // start | center | end | justify
+  marginTop?: string
+  marginBottom?: string
+  textIndent?: string
+  lineHeight?: string
+  pageBreakBefore?: boolean
+}
+
+// Le format de page du livre, lu sur le master-page « Standard ». Sans lui, une
+// vignette est au mauvais ratio — et ça se voit immédiatement. Le témoin est en
+// A5 (14,801 × 21,001 cm), pas en A4 : la valeur par défaut de la couche Folio.
+export interface PageFormat {
+  widthCm: number
+  heightCm: number
+  marginTopCm: number
+  marginBottomCm: number
+  marginLeftCm: number
+  marginRightCm: number
+}
+
 export interface StyleInventory {
   styles: StyleUsage[] // triés par fréquence décroissante
   highlights: HighlightUsage[]
+  // Indexé par nom de style EFFECTIF (même clé que `StyleUsage.name`).
+  // Absent d'un document importé avant la lecture de styles.xml.
+  visuals?: Record<string, StyleVisual>
+  page?: PageFormat
 }
 
 export interface OutlineEntry {

@@ -1,5 +1,6 @@
-import { HighlightUsage, StyleInventory, StyleUsage } from './types'
+import { HighlightUsage, StyleInventory, StyleUsage, StyleVisual } from './types'
 import { effectiveStyleName, nodeText, nodeTextWithLinks, select, styleBackground, StyleTable } from './xml'
+import { buildVisualStyles, readPageFormat } from './visual'
 
 // Inventaire des styles et surlignages réellement employés — la matière
 // première de l'écran de typologie.
@@ -87,6 +88,31 @@ function collectHighlights(doc: any, table: StyleTable): HighlightUsage[] {
   return [...byColor.values()].sort((a, b) => b.paragraphs + b.spans - (a.paragraphs + a.spans))
 }
 
-export function buildStyleInventory(doc: any, table: StyleTable): StyleInventory {
-  return { styles: collectStyles(doc, table), highlights: collectHighlights(doc, table) }
+// `stylesDoc` (styles.xml) est optionnel : sans lui, l'inventaire dit quels
+// styles existent et où, mais pas à quoi ils ressemblent — l'état de tout
+// document importé avant que le parseur ne l'ouvre.
+export function buildStyleInventory(doc: any, table: StyleTable, stylesDoc?: any): StyleInventory {
+  const inventory: StyleInventory = {
+    styles: collectStyles(doc, table),
+    highlights: collectHighlights(doc, table),
+  }
+
+  if (stylesDoc) {
+    // Restreint aux styles RÉELLEMENT employés. `buildVisualStyles` résout tout
+    // ce qu'il trouve, styles automatiques compris — sur le témoin, 368 entrées
+    // dont l'immense majorité (« P26 », « P143 ») ne sera jamais une clé de
+    // `StyleUsage.name`. Les persister, c'est du ballast dans une colonne Json
+    // relue à chaque ouverture de l'écran.
+    const all = buildVisualStyles(doc, stylesDoc)
+    const visuals: Record<string, StyleVisual> = {}
+    for (const style of inventory.styles) {
+      if (all[style.name]) visuals[style.name] = all[style.name]
+    }
+    if (Object.keys(visuals).length) inventory.visuals = visuals
+
+    const page = readPageFormat(stylesDoc)
+    if (page) inventory.page = page
+  }
+
+  return inventory
 }

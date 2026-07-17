@@ -6,106 +6,177 @@ servant `structure.json`/`data.json`/`trame.json` en statique depuis le dossier
 parent `Marvarid` (voir `../CLAUDE.md`) — les deux chemins coexistent pour
 l'instant, ne pas retirer le middleware Vite sans en parler.
 
-## Modules
+## Modules — carte
 
 - `src/prisma/` — `PrismaModule`/`PrismaService`, client Prisma exposé en
   global provider.
-- `src/import/odt-parser.ts` — port de `Marvarid/parser/parse.js` +
-  `harmonize.js`, avec deux différences assumées : lecture depuis un
-  `Buffer` en mémoire (upload multipart) plutôt qu'un fichier disque ; et
-  une hiérarchie de titres à **profondeur arbitraire** (`ParsedNode`
-  récursif, `children: ParsedNode[]`) plutôt que les 3 niveaux figés
-  axe/bloc/article de la version d'origine — un ODT n'a nativement que des
-  `text:outline-level` 1..10, la notion axe/bloc/article est propre à
-  Marvarid, pas au format. Deux passes séparées :
-  - `buildFlatNodes` (privée) : lit le XML une fois, produit une liste
-    plate `FlatNode[]` (titre détecté / paragraphe / tableau, dans l'ordre
-    du document) sans construire de hiérarchie. Extrait aussi les styles
-    `fo:break-before` (saut de page forcé — indice utile en calibration,
-    cf. plus bas) et le texte de la table des matières (`extractTocTexts`,
-    si présente) pour suggérer où la vraie structure commence.
-  - `buildParsedResult(flatNodes, meta, sectionsRencontrees, corrections?)` :
-    construit la hiérarchie via une pile (`stack`), en tenant compte des
-    corrections utilisateur (`ImportCorrections` — voir calibration
-    ci-dessous). `level` (1-indexé) ne pilote que "combien d'ancêtres
-    fermer" ; la profondeur réelle d'un nœud est sa position dans la pile,
-    pas une correspondance stricte au numéro — un saut de niveau (Titre 1
-    suivi direct d'un Titre 3) imbrique simplement sans nœud fantôme.
-  - `parseOdtXml`/`parseOdtBuffer` enchaînent les deux passes pour l'usage
-    normal (sans correction = comportement par défaut).
-  - **Aucun test automatisé** (`*.spec.ts`) sur ce fichier à ce jour —
-    vérifié manuellement contre un manuscrit réel lors du développement,
-    pas de garde-fou contre une régression future.
+- `src/import/odt-parser/` — le parseur (voir « Parseur ODT »).
+- `src/documents/` — registre, import, typologie, règles (voir « Registre &
+  import »).
+- `src/analyse/` — analyses par document (voir « Analyses »).
 
-  **Styles ODT : héritage, surlignages, inventaire.** À lire avant de
-  toucher à quoi que ce soit qui concerne la mise en forme d'origine :
-  - **Résolution de l'héritage (`buildStyleTable`/`effectiveStyleName`,
-    `xml.ts`)** — LibreOffice génère un style automatique (`P26`, `T130`) dès
-    qu'un paragraphe porte la moindre mise en forme directe, lequel hérite du
-    vrai style via `style:parent-style-name`. Sur le manuscrit témoin :
-    **338 noms bruts pour 33 styles réels**. Sans cette résolution, toute
-    typologie est illisible. `FlatNode` porte donc les deux : `styleName`
-    (brut — reste la source de `headingLevel`, ne pas y substituer l'autre
-    sous peine de changer la structure détectée) et `effectiveStyle` (résolu
-    + décodé, `_20_` → espace).
-  - **Deux formes de surlignage, pas une** — sur le témoin : 164 paragraphes
-    entiers (`fo:background-color` sur le style de paragraphe →
-    `FlatNode.highlight`) ET 160 spans inline (style de caractère →
-    `<mark data-hl="#ffff00">` posé par `nodeTextWithLinks`). Les deux
-    portent des annotations de travail. Le blanc (`#ffffff`) n'est jamais un
-    surlignage : LibreOffice le pose partout par défaut.
-  - **L'inventaire (`inventory.ts`) se construit sur le XML, pas sur les
-    FlatNode** — ceux-ci sont la vue *structurelle* (tableaux aplatis en
-    données, paragraphes vides écartés). Le style « Voir » (183 usages, dans
-    les tableaux) disparaissait de l'inventaire tant qu'il était construit
-    sur eux. Sont écartés les **appareils générés** — table des matières ET
-    index alphabétique (`GENERATED_ANCESTOR`) : leurs styles (Contents 1/2,
-    Index 1, Index Heading) sont posés par LibreOffice, pas par l'auteur. Le
-    témoin porte les deux, en fin de document.
-  - **Ventilation par zone (`zones.ts`, `StyleUsage.byZone`)** — où chaque
-    style vit dans le livre : `liminaire`, `depth-0/1/2+`, `final`. Trois
-    choses à savoir avant d'y toucher :
-    - **Les zones sortent de `buildParsedResult`**, qui tient déjà la pile des
-      titres ouverts — `zones.ts` ne fait que ventiler. Refaire une pile
-      ailleurs (mêmes `levelOverrides`, même règle « la profondeur est la
-      position dans la pile »), c'était deux logiques de profondeur vouées à
-      diverger. Une passe, une pile.
-    - **`sum(byZone) <= count`, jamais `==`** : `count` vient du XML
-      (exhaustif, et fait autorité pour `isTypologySettled`), `byZone` des
-      FlatNode. Échappent à la ventilation les paragraphes vides (jamais
-      promus en FlatNode — sur le témoin : « Horizontal Line », un filet) et
-      les paragraphes de métadonnées absorbés par `buildFlatNodes`. Ne jamais
-      dériver l'un de l'autre.
-    - **`FlatNode.innerStyles`** relève les styles des paragraphes qu'un nœud
-      APLATIT (cellules d'un tableau, items d'une liste). Sans lui, deux styles
-      réels du témoin sont comptés mais situés nulle part : « Voir » (183, en
-      cellule) et « Puces ? » (15, en item de liste).
-    - Conséquence sur le flux : l'inventaire dépend des corrections de
-      calibration (les bornes déplacent les zones), donc **il ne se fige qu'au
-      commit**, pas au preview.
-    - Chiffres du témoin : 31 styles, dont 22 mono-zone (71 %) — le
-      regroupement par zone porte l'information, ce n'est pas un tri cosmétique.
-  - **Les deux regex en dur ont perdu leur autorité** — `hierarchy.ts`
-    classait citations/pistes sur le NOM du style (`/citation|quote/i`,
-    `/highlight|surlign/i`). Elles ne tenaient que sur des noms bruts (« P26 »
-    ne dit rien) et n'étaient pas corrigeables. Les `pistes` viennent
-    désormais d'un vrai surlignage, et la vérité est dans `styleName` +
-    `highlight`, arbitrés par la typologie du document (`typology.ts`).
-  - **Les marqueurs ne sont pas du texte** — `texte[].text` porte des balises
-    (`<a data-bookmark>`, `<mark data-hl>`). Tout calcul assis dessus doit
-    passer par `stripHtmlTags` (`text-utils.ts`, source unique, réexportée par
-    `analyse/plain-text.ts`) : sans ça, `computeStats` compte « <mark » et
-    « data-hl="#ffff00"> » comme des mots — le total du manuscrit témoin s'en
-    trouvait gonflé de ~175 mots. Verrouillé par un test dans
-    `hierarchy.spec.ts`.
-  - **Le `.odt` source est conservé** (`DocumentSource`, table à part — cf.
-    « Modèle de données »). Un enrichissement du parse est donc applicable
-    rétroactivement, en rejouant le parse depuis le blob. Deux réserves :
-    - les documents importés **avant** cette table n'ont pas de source et
-      restent dans l'ancien régime (seul un réimport les rattache) ;
-    - `styleInventory`, `liminaire` et `final` restent capturés sur `Document`
-      à l'import — reconstructibles, mais les recalculer à chaque lecture
-      reviendrait à reparser un ZIP de 1,6 Mo pour afficher un tableau.
+## Parseur ODT (`src/import/odt-parser/`)
+
+Un **dossier**, pas un fichier — découpé par thème, la carte est en tête de
+`index.ts` (types / text-utils / xml / visual / flatten / calibration /
+hierarchy / harmonize / inventory / zones).
+
+Port de `Marvarid/parser/parse.js` + `harmonize.js`, avec deux différences
+assumées : lecture depuis un `Buffer` en mémoire (upload multipart) plutôt
+qu'un fichier disque ; et une hiérarchie de titres à **profondeur arbitraire**
+(`ParsedNode` récursif, `children: ParsedNode[]`) plutôt que les 3 niveaux
+figés axe/bloc/article de la version d'origine — un ODT n'a nativement que des
+`text:outline-level` 1..10, la notion axe/bloc/article est propre à Marvarid,
+pas au format. Deux passes séparées :
+- `buildFlatNodes(xmlContent, stylesXml?)` : lit le XML une fois, produit une
+  liste plate `FlatNode[]` (titre détecté / paragraphe / tableau, dans l'ordre
+  du document) sans construire de hiérarchie. Extrait aussi les styles
+  `fo:break-before` (saut de page forcé — indice utile en calibration,
+  cf. plus bas) et le texte de la table des matières (`extractTocTexts`,
+  si présente) pour suggérer où la vraie structure commence.
+- `buildParsedResult(flatNodes, meta, sectionsRencontrees, corrections?)` :
+  construit la hiérarchie via une pile (`stack`), en tenant compte des
+  corrections utilisateur (`ImportCorrections` — voir calibration
+  ci-dessous). `level` (1-indexé) ne pilote que "combien d'ancêtres
+  fermer" ; la profondeur réelle d'un nœud est sa position dans la pile,
+  pas une correspondance stricte au numéro — un saut de niveau (Titre 1
+  suivi direct d'un Titre 3) imbrique simplement sans nœud fantôme.
+- `parseOdtXml`/`parseOdtBuffer` enchaînent les deux passes pour l'usage
+  normal (sans correction = comportement par défaut).
+
+**Tests** : `*.spec.ts` colocalisés, sur les modules à logique pure
+(`hierarchy`, `flatten`, `zones`, `inventory`, `calibration`, `harmonize`,
+`text-utils`, `visual`). Ils travaillent sur des fragments XML écrits à la
+main — **aucun ne charge un vrai `.odt`**, et c'est la limite à connaître : la
+lecture de `styles.xml` était verte sur fixtures alors qu'elle rendait zéro
+style sur le manuscrit témoin (cf. « Apparence des styles »). Un parse du vrai
+fichier reste le seul juge.
+
+### Styles ODT — héritage, surlignages, inventaire
+
+À lire avant de toucher à quoi que ce soit qui concerne la mise en forme
+d'origine :
+- **Résolution de l'héritage (`buildStyleTable`/`effectiveStyleName`,
+  `xml.ts`)** — LibreOffice génère un style automatique (`P26`, `T130`) dès
+  qu'un paragraphe porte la moindre mise en forme directe, lequel hérite du
+  vrai style via `style:parent-style-name`. Sur le manuscrit témoin :
+  **338 noms bruts pour 33 styles réels**. Sans cette résolution, toute
+  typologie est illisible. `FlatNode` porte donc les deux : `styleName`
+  (brut — reste la source de `headingLevel`, ne pas y substituer l'autre
+  sous peine de changer la structure détectée) et `effectiveStyle` (résolu
+  + décodé, `_20_` → espace).
+- **Deux formes de surlignage, pas une** — sur le témoin : 164 paragraphes
+  entiers (`fo:background-color` sur le style de paragraphe →
+  `FlatNode.highlight`) ET 160 spans inline (style de caractère →
+  `<mark data-hl="#ffff00">` posé par `nodeTextWithLinks`). Les deux
+  portent des annotations de travail. Le blanc (`#ffffff`) n'est jamais un
+  surlignage : LibreOffice le pose partout par défaut.
+- **L'inventaire (`inventory.ts`) se construit sur le XML, pas sur les
+  FlatNode** — ceux-ci sont la vue *structurelle* (tableaux aplatis en
+  données, paragraphes vides écartés). Le style « Voir » (183 usages, dans
+  les tableaux) disparaissait de l'inventaire tant qu'il était construit
+  sur eux. Sont écartés les **appareils générés** — table des matières ET
+  index alphabétique (`GENERATED_ANCESTOR`) : leurs styles (Contents 1/2,
+  Index 1, Index Heading) sont posés par LibreOffice, pas par l'auteur. Le
+  témoin porte les deux, en fin de document.
+- **Ventilation par zone (`zones.ts`, `StyleUsage.byZone`)** — où chaque
+  style vit dans le livre : `liminaire`, `depth-0/1/2+`, `final`. Trois
+  choses à savoir avant d'y toucher :
+  - **Les zones sortent de `buildParsedResult`**, qui tient déjà la pile des
+    titres ouverts — `zones.ts` ne fait que ventiler. Refaire une pile
+    ailleurs (mêmes `levelOverrides`, même règle « la profondeur est la
+    position dans la pile »), c'était deux logiques de profondeur vouées à
+    diverger. Une passe, une pile.
+  - **`sum(byZone) <= count`, jamais `==`** : `count` vient du XML
+    (exhaustif, et fait autorité pour `isTypologySettled`), `byZone` des
+    FlatNode. Échappent à la ventilation les paragraphes vides (jamais
+    promus en FlatNode — sur le témoin : « Horizontal Line », un filet) et
+    les paragraphes de métadonnées absorbés par `buildFlatNodes`. Ne jamais
+    dériver l'un de l'autre.
+  - **`FlatNode.innerStyles`** relève les styles des paragraphes qu'un nœud
+    APLATIT (cellules d'un tableau, items d'une liste). Sans lui, deux styles
+    réels du témoin sont comptés mais situés nulle part : « Voir » (183, en
+    cellule) et « Puces ? » (15, en item de liste).
+  - Conséquence sur le flux : l'inventaire dépend des corrections de
+    calibration (les bornes déplacent les zones), donc **il ne se fige qu'au
+    commit**, pas au preview.
+  - Chiffres du témoin : 31 styles, dont 22 mono-zone (71 %) — le
+    regroupement par zone porte l'information, ce n'est pas un tri cosmétique.
+- **Les deux regex en dur ont perdu leur autorité** — `hierarchy.ts`
+  classait citations/pistes sur le NOM du style (`/citation|quote/i`,
+  `/highlight|surlign/i`). Elles ne tenaient que sur des noms bruts (« P26 »
+  ne dit rien) et n'étaient pas corrigeables. Les `pistes` viennent
+  désormais d'un vrai surlignage, et la vérité est dans `styleName` +
+  `highlight`, arbitrés par la typologie du document (`typology.ts`).
+- **Les marqueurs ne sont pas du texte** — `texte[].text` porte des balises
+  (`<a data-bookmark>`, `<mark data-hl>`). Tout calcul assis dessus doit
+  passer par `stripHtmlTags` (`text-utils.ts`, source unique, réexportée par
+  `analyse/plain-text.ts`) : sans ça, `computeStats` compte « <mark » et
+  « data-hl="#ffff00"> » comme des mots — le total du manuscrit témoin s'en
+  trouvait gonflé de ~175 mots. Verrouillé par un test dans
+  `hierarchy.spec.ts`.
+- **Le `.odt` source est conservé** (`DocumentSource`, table à part — cf.
+  « Modèle de données »). Un enrichissement du parse est donc applicable
+  rétroactivement, en rejouant le parse depuis le blob. Deux réserves :
+  - les documents importés **avant** cette table n'ont pas de source et
+    restent dans l'ancien régime (seul un réimport les rattache) ;
+  - `styleInventory`, `liminaire` et `final` restent capturés sur `Document`
+    à l'import — reconstructibles, mais les recalculer à chaque lecture
+    reviendrait à reparser un ZIP de 1,6 Mo pour afficher un tableau.
+### Apparence des styles & format de page (`visual.ts`)
+
+Le parseur ne capturait **aucune** propriété visuelle : `xml.ts` ne lit que
+`content.xml`, où un style nommé (« Titre 1 ») n'a qu'un NOM — ses propriétés
+vivent dans `styles.xml` (61 Ko sur le témoin), jamais ouvert. `visual.ts` le
+lit. Unique raison d'être : rendre possible un aperçu FIDÈLE du livre (le
+carrousel de pages-échantillons, cf. `../frontend/CLAUDE.md`) ; sans lui, tout
+rendu est une invention.
+
+- **La chaîne d'héritage est résolue en ENTIER**, contrairement au saut unique
+  d'`effectiveStyleName` (qui reste la source du NOM et ne bouge pas). Sur le
+  témoin : « Heading 1 » → « Heading » → « Standard », et chaque cran n'apporte
+  qu'une partie — le centrage vient de Heading 1, les marges de Heading,
+  l'interligne de Standard. Un saut suffit à trouver un nom, jamais une
+  apparence. Fusion racine → feuille, l'enfant l'emporte propriété par
+  propriété ; `toVisual` n'émet que les clés réellement portées (une clé à
+  `undefined` écraserait l'héritage), et un `seen` casse les cycles.
+- **`style:font-name` ne nomme pas une police** : c'est une référence interne
+  (« Georgia2 », « Arial3 ») vers une déclaration `style:font-face`, qui porte
+  la vraie famille CSS — souvent une pile (« Arial, Helvetica, sans-serif »).
+  Sans `buildFontFaces`, le frontend demande `font-family: Georgia2`, que le
+  navigateur ignore : tout le livre s'affiche dans la police par défaut, et
+  l'aperçu ment sans le dire.
+- **Les valeurs sortent telles quelles** (« 12pt », « 2.401cm », « 115% »), sans
+  conversion : elles sont déjà du CSS valide. Les passer en px ici supposerait
+  de fixer un DPI que seul l'affichage connaît.
+- **Seuls les styles de PARAGRAPHE**, et seuls ceux **réellement inventoriés**.
+  `buildVisualStyles` résout tout ce qu'il trouve (368 entrées sur le témoin,
+  styles automatiques compris) ; `inventory.ts` ne retient que les clés qui sont
+  des `StyleUsage.name` → 31 sur 31, 4,8 Ko de Json. Le reste (« P26 », « P143 »)
+  ne sera jamais une clé de l'inventaire : le persister, c'est du ballast relu à
+  chaque ouverture de l'écran.
+- **Corollaire à connaître** : on résout les styles NOMMÉS, donc un `P26` qui
+  ajoute un italique local par-dessus « Corps de texte » perd sa surcharge.
+  Cohérent avec la base (`Paragraph.styleName` porte déjà le style effectif) —
+  mais l'aperçu montre le style, pas les retouches locales.
+- **Le format de page vient du master-page « Standard »**, et de lui seul. Le
+  témoin en porte 15 (Première page, Enveloppe, Paysage, Entrée de chapitre…) :
+  prendre le premier `page-layout` venu donnerait un livre au format enveloppe.
+  Résultat sur le témoin : **A5, 14,801 × 21,001 cm**, marges 1 / 1,199 / 2 / 2 —
+  alors que la couche Folio rend de l'A4 par défaut. Sans ce relevé les vignettes
+  sont au mauvais ratio, ce qui se voit immédiatement. `readPageFormat` rend
+  `undefined` plutôt que d'inventer une page quand les dimensions manquent.
+- ⚠️ **Piège xpath** : le `select` de `xml.ts` ne déclare que les namespaces
+  `text`/`table`/`fo`. Un prédicat `@style:name="Standard"` **lève** (préfixe
+  inconnu), il ne rend pas vide — d'où `@*[local-name()="name"]`, comme partout
+  ailleurs dans le parseur.
+- ⚠️ **`ventilateInventory` doit spreader son entrée** (`...inventory`). Elle
+  reconstruisait un objet littéral `{ styles, highlights }` : le jour de l'ajout
+  de `visuals`/`page`, les deux disparaissaient en silence entre le parse et la
+  base, tous les tests au vert. Verrouillé par `zones.spec.ts`.
+
+## Registre & import (`src/documents/`)
+
 - `src/documents/` — `DocumentsModule` : le registre + le flux d'import en
   deux temps (calibration avant écriture en base, cf. juste en dessous).
   - `GET /documents` — liste des documents avec stats agrégées, pour le
@@ -185,6 +256,8 @@ l'instant, ne pas retirer le middleware Vite sans en parler.
     validés y figurent) : départager les deux suppose de rehacher le texte
     courant par le même chemin exactement (`nodeContentHash`), et dupliquer ce
     calcul côté client serait signer pour deux implémentations divergentes.
+
+## Analyses (`src/analyse/`)
 
 - `src/analyse/` — `AnalyseModule` : analyses par document, persistées dans
   `DocumentAnalysis` (une ligne par document, volets indépendants et
@@ -323,7 +396,7 @@ l'instant, ne pas retirer le middleware Vite sans en parler.
     pas l'ordre des clés d'objet** (les tableaux, si) — tout ordre
     significatif d'un objet (ex: `posCounts`) doit être retrié côté client.
 
-### Calibration d'import
+## Calibration d'import
 
 Le parseur détecte le niveau d'un titre via son style ODT (nom de style ou
 `text:outline-level`) — fiable seulement si l'auteur a appliqué les styles

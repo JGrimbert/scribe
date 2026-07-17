@@ -19,6 +19,7 @@
  */
 import { OdtParseOutput, ParsedResult, ImportCorrections, FlatNode, OutlineEntry } from './types'
 import { readOdtContentXml } from './xml'
+import { readOdtStylesXml } from './visual'
 import { buildFlatNodes } from './flatten'
 import { buildParsedResult } from './hierarchy'
 import { buildOutline, suggestStructureEndIndex, suggestStructureStartIndex } from './calibration'
@@ -26,6 +27,7 @@ import { harmonize } from './harmonize'
 
 export * from './types'
 export { readOdtContentXml } from './xml'
+export { buildVisualStyles, readOdtStylesXml, readPageFormat, toCm } from './visual'
 export { buildOutline, suggestStructureEndIndex, suggestStructureStartIndex } from './calibration'
 export { harmonize } from './harmonize'
 export { ventilateInventory, zoneOfDepth } from './zones'
@@ -41,8 +43,8 @@ export interface PreviewParse {
 }
 
 // ─── Parser principal ─────────────────────────────────────────────────────
-export function parseOdtXml(xmlContent: string, corrections?: ImportCorrections): ParsedResult {
-  const { flatNodes, meta, sectionsRencontrees, inventory } = buildFlatNodes(xmlContent)
+export function parseOdtXml(xmlContent: string, corrections?: ImportCorrections, stylesXml?: string): ParsedResult {
+  const { flatNodes, meta, sectionsRencontrees, inventory } = buildFlatNodes(xmlContent, stylesXml)
   return buildParsedResult(flatNodes, meta, sectionsRencontrees, corrections, inventory).result
 }
 
@@ -60,7 +62,11 @@ export function parseOdtXmlForPreview(xmlContent: string): PreviewParse {
 
 export async function parseOdtBuffer(buffer: Buffer, corrections?: ImportCorrections): Promise<OdtParseOutput> {
   const xmlContent = await readOdtContentXml(buffer)
-  const { flatNodes, meta, sectionsRencontrees, inventory } = buildFlatNodes(xmlContent)
+  // Le format de page et l'apparence des styles n'existent que là (cf.
+  // visual.ts). Toléré absent : un .odt sans styles.xml reste parsable pour sa
+  // structure, qui est l'essentiel.
+  const stylesXml = await readOdtStylesXml(buffer).catch(() => undefined)
+  const { flatNodes, meta, sectionsRencontrees, inventory } = buildFlatNodes(xmlContent, stylesXml)
   const { result, bookmarks } = buildParsedResult(flatNodes, meta, sectionsRencontrees, corrections, inventory)
   const { data, trame } = harmonize(result, bookmarks)
   return { result, data, trame }

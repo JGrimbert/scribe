@@ -156,4 +156,21 @@ describe('ventilateInventory — appelée directement', () => {
     )
     expect(inv.styles[0].byZone).toEqual({})
   })
+
+  it("préserve les champs qu'elle ne connaît pas (visuals, page)", () => {
+    // La ventilation n'AJOUTE que byZone. Elle reconstruisait un objet littéral
+    // { styles, highlights } : le jour où l'inventaire a gagné l'apparence des
+    // styles et le format de page, les deux disparaissaient ici en silence,
+    // tests au vert. Le passage par le vrai .odt l'a seul révélé.
+    const source: StyleInventory = {
+      ...inventory([['Paragraphes', 1]]),
+      visuals: { Paragraphes: { fontSize: '12pt' } },
+      page: { widthCm: 14.801, heightCm: 21.001, marginTopCm: 1, marginBottomCm: 1, marginLeftCm: 2, marginRightCm: 2 },
+    }
+
+    const inv = ventilateInventory(source, flat([P('a', { effectiveStyle: 'Paragraphes' })]), new Map())
+
+    expect(inv.visuals).toEqual({ Paragraphes: { fontSize: '12pt' } })
+    expect(inv.page?.heightCm).toBe(21.001)
+  })
 })

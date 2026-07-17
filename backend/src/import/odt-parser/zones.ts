@@ -80,7 +80,12 @@ export function ventilateInventory(
     }
   }
 
+  // `...inventory` d'abord : la ventilation n'ajoute que `byZone`, elle ne
+  // refait pas l'inventaire. Reconstruire un objet littéral jetait en silence
+  // tout champ qu'elle ne connaît pas — c'est arrivé à `visuals` et `page` le
+  // jour de leur ajout, sans qu'aucun test ne bronche.
   return {
+    ...inventory,
     styles: inventory.styles.map((s): StyleUsage => ({ ...s, byZone: styleZones.get(s.name) ?? {} })),
     highlights: inventory.highlights.map((h): HighlightUsage => ({ ...h, byZone: highlightZones.get(h.color) ?? {} })),
   }
