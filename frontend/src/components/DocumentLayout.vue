@@ -1,54 +1,74 @@
 <template>
-  <template v-if="trame && data">
-    <div class="document-layout-wrapper">
-      <!-- Hors flux : la zone de scroll occupe TOUTE la hauteur du wrapper et
-           démarre donc sous la barre, qui la recouvre en translucide (le
-           contenu défile derrière et s'y floute). `topOffset` fait démarrer les
-           tracks et le contenu sous la barre. -->
-      <div class="document-layout__bar">
-        <DocumentBar
-            ref="docBarEl"
-            :title="title"
-            :trame="trame"
-            :data="data"
-            :current-node-id="currentNodeId"
-            :sidebar-expanded="sidebarExpanded"
-            :scoped="!isEditor"
-            :validation-state="currentValidation"
-            :validating="validating"
-            @toggle-sidebar="sidebarExpanded = !sidebarExpanded"
-            @select="select"
-            @toggle-validation="toggleValidation"
-        />
+  <div class="document-layout-wrapper">
+    <!-- Hors flux : la zone de scroll occupe TOUTE la hauteur du wrapper et
+         démarre donc sous la barre, qui la recouvre en translucide (le
+         contenu défile derrière et s'y floute). `topOffset` fait démarrer les
+         tracks et le contenu sous la barre. -->
+    <div class="document-layout__bar">
+      <DocumentBar
+          v-if="trame && data"
+          ref="docBarEl"
+          :title="title"
+          :trame="trame"
+          :data="data"
+          :current-node-id="currentNodeId"
+          :sidebar-expanded="sidebarExpanded"
+          :aside-label="asideMode === 'registry' ? 'le registre' : 'la structure'"
+          :scoped="!isEditor"
+          :validation-state="currentValidation"
+          :validating="validating"
+          @toggle-sidebar="sidebarExpanded = !sidebarExpanded"
+          @select="select"
+          @toggle-validation="toggleValidation"
+      />
+    </div>
+
+    <div class="document-layout">
+      <!-- Aside CONTEXTUELLE : le registre là où l'arbre des nœuds ne sert à
+           rien (la config, qui peut le reconstruire), la structure partout où
+           on travaille dans le document. -->
+      <div
+          class="document-layout__sidebar"
+          :class="{ 'document-layout__sidebar--rail': !sidebarExpanded }"
+      >
+        <CustomScrollbar :top-offset="42">
+          <aside v-if="asideMode === 'registry'" class="registry-aside">
+            <template v-if="sidebarExpanded">
+              <DocumentList :active-id="route.params.id" @select="openDocument" />
+              <div class="registry-aside__foot">
+                <ImportButton />
+              </div>
+            </template>
+            <BaseButton
+                v-else
+                variant="ghost"
+                icon="pi-book"
+                title="Ouvrir le registre"
+                class="registry-aside__rail"
+                @click="sidebarExpanded = true"
+            />
+          </aside>
+
+          <StructureView
+              v-else-if="trame && data"
+              :trame="trame"
+              :data="data"
+              :expanded="sidebarExpanded"
+              :node-id="currentNodeId"
+              @select="select"
+          />
+        </CustomScrollbar>
       </div>
 
-      <div class="document-layout">
-        <!-- Sidebar avec CustomScrollbar -->
-        <div
-            class="document-layout__sidebar"
-            :class="{ 'document-layout__sidebar--rail': !sidebarExpanded }"
-        >
-          <CustomScrollbar :top-offset="42">
-            <StructureView
-                :trame="trame"
-                :data="data"
-                :expanded="sidebarExpanded"
-                :node-id="currentNodeId"
-                @select="select"
-            />
-          </CustomScrollbar>
-        </div>
-
-        <!-- Contenu principal avec CustomScrollbar -->
-        <div class="document-layout__content">
-          <CustomScrollbar :top-offset="42">
-            <router-view />
-          </CustomScrollbar>
-        </div>
+      <!-- Contenu principal avec CustomScrollbar -->
+      <div class="document-layout__content">
+        <CustomScrollbar :top-offset="42">
+          <router-view v-if="trame && data" />
+          <p v-else class="loading">Chargement du document…</p>
+        </CustomScrollbar>
       </div>
     </div>
-  </template>
-  <p v-else class="loading">Chargement du document...</p>
+  </div>
 </template>
 
 <script setup>
@@ -57,6 +77,9 @@ import { useRoute, useRouter } from 'vue-router'
 import StructureView from './StructureView.vue'
 import DocumentBar from './DocumentBar.vue'
 import CustomScrollbar from './CustomScrollbar.vue'
+import DocumentList from './DocumentList.vue'
+import ImportButton from './ImportButton.vue'
+import BaseButton from './ui/BaseButton.vue'
 import { provideAnalyse } from '../composables/useAnalyse'
 
 const route = useRoute()
@@ -90,6 +113,16 @@ const scopeNodeId = ref(null)
 provide('analyseScopeNodeId', scopeNodeId)
 
 const isEditor = computed(() => route.name === 'editor')
+
+// L'arbre des nœuds n'a rien à dire sur l'écran qui peut le reconstruire : la
+// config y cède la place au registre.
+const asideMode = computed(() => (route.name === 'styles' ? 'registry' : 'structure'))
+
+// Changer de document depuis le registre garde l'écran : on compare des
+// configurations, on ne repart pas dans le dashboard à chaque clic.
+function openDocument(id) {
+  if (id !== route.params.id) router.push(`/documents/${id}/styles`)
+}
 
 // Nud « courant » : en dition c'est l'article ouvert (URL), en analyse c'est
 // le scope choisi. Sert au surlignage sidebar et au fil d'Ariane.
@@ -228,6 +261,23 @@ onMounted(() => {
 /* Replié : le rail garde la largeur d'une barre, le contenu récupère le reste. */
 .document-layout__sidebar--rail {
   width: var(--bar-size);
+}
+
+/* Même décrochement que `.structure-panel` : la barre est en absolu au-dessus
+   de la zone de défilement, l'aside démarre sous elle. */
+.registry-aside {
+  margin-top: 42px;
+  padding: 0.6em 0.6em 1em;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  background-color: #f1f2e4;
+}
+
+/* Le rail est trop étroit pour une liste : il n'y reste que de quoi la
+   rouvrir. */
+.registry-aside__rail {
+  align-self: center;
 }
 
 .document-layout__content {

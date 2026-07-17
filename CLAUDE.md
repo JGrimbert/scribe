@@ -22,8 +22,10 @@ Monorepo npm workspaces réunissant :
   Tests : `.venv\Scripts\python -m pytest` (chargent le vrai modèle, ~10 s).
 
 Deux chemins de données coexistent actuellement, volontairement :
-- **Registre backend** (nouveau) — `RegistryView.vue` liste les documents
-  importés (`GET /documents`), upload d'un `.odt` en deux temps : `POST
+- **Registre backend** (nouveau) — la liste des documents importés (`GET
+  /documents`) n'a plus d'écran à elle : elle vit dans l'accueil (`HomeView`) et
+  dans l'aside de l'écran de config (`DocumentList` + `useRegistry`, voir
+  `frontend/CLAUDE.md`). Upload d'un `.odt` en deux temps : `POST
   /documents/preview` (parse + calibration manuelle du niveau des titres et
   du point de départ du liminaire, voir `backend/CLAUDE.md` et
   `frontend/CLAUDE.md`) puis `POST /documents/preview/:previewId/commit`

@@ -2,7 +2,7 @@
   <div class="doc-bar">
     <button
         class="doc-bar__chevron"
-        :title="sidebarExpanded ? 'Replier la structure' : 'Déplier la structure'"
+        :title="`${sidebarExpanded ? 'Replier' : 'Déplier'} ${asideLabel}`"
         @click="$emit('toggle-sidebar')"
     >
       <i class="pi" :class="sidebarExpanded ? 'pi-angle-left' : 'pi-angle-right'"></i>
@@ -80,6 +80,9 @@ const props = defineProps({
   data: Object,
   currentNodeId: String,
   sidebarExpanded: Boolean,
+  // Ce que le chevron replie — l'aside est contextuelle (structure ou registre),
+  // son libellé ne peut donc pas être en dur ici.
+  asideLabel: { type: String, default: 'la structure' },
   // true = mode analyse (le fil d'Ariane pilote le scope), false = édition.
   scoped: Boolean,
   // État de validation du chapitre courant : 'validé', 'périmé', ou null.

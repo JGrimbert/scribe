@@ -14,9 +14,9 @@
       <div class="menu-actions">
         <BaseButton
             variant="ghost"
-            icon="pi-book"
-            :active="route.name === 'registry'"
-            title="Registre des documents"
+            icon="pi-home"
+            :active="route.name === 'home'"
+            title="Accueil"
             @click="router.push('/')"
         />
         <BaseButton
