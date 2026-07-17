@@ -13,6 +13,19 @@ export interface PreviewResponse {
 
 export type CommitImportRequest = ImportCorrections
 
+// Ce qu'une recalibration a fait des validations manuelles existantes. Une
+// relecture perdue doit se dire : recalibrer peut légitimement faire
+// disparaître un chapitre (une borne qui le renvoie au liminaire), et
+// l'utilisateur est le seul à pouvoir juger si c'est ce qu'il voulait.
+export interface RecalibrationReport {
+  restoredValidations: number
+  droppedValidations: { slug: string; reason: 'disparu' | 'ambigu' }[]
+}
+
+// `recalibration` est absent d'un import initial : il n'y a alors aucune
+// validation à réapparier, et un rapport de zéro sur zéro ne dirait rien.
+export type CommitResponse = DocumentSummary & { recalibration?: RecalibrationReport }
+
 export interface DocumentSummary {
   id: string
   title: string

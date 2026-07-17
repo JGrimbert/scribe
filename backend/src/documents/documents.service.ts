@@ -17,8 +17,10 @@ import { nodeContentHash } from '../analyse/plain-text'
 import { collectShapes, StructureShapes } from '../analyse/structure-shapes'
 import { DocumentTypology, isTypologySettled, suggestTypology, typologyErrors } from './typology'
 import { DEFAULT_RULES, DocumentRules, normalizeRules, rulesErrors } from './rules'
+import { PreviousValidation, RebuiltNode, remapValidations } from './recalibration'
 import {
   CommitImportRequest,
+  CommitResponse,
   DocumentContent,
   DocumentSummary,
   NodeValidationResponse,
@@ -38,18 +40,35 @@ export class DocumentsService {
   // mono-instance, usage local) le temps que l'utilisateur valide/corrige
   // la structure détectée. Perdu si le serveur redémarre entre-temps —
   // acceptable pour cet usage, pas de file d'attente multi-utilisateurs.
-  private readonly pendingImports = new Map<string, { buffer: Buffer; originalFilename: string }>()
+  // `documentId` présent = recalibration d'un document déjà en base (le buffer
+  // vient de DocumentSource) plutôt qu'un premier import. Le commit s'y fie
+  // pour remplacer au lieu de créer — un seul flux de calibration, deux
+  // destinations.
+  private readonly pendingImports = new Map<string, { buffer: Buffer; originalFilename: string; documentId?: string }>()
 
   async previewUpload(buffer: Buffer, originalFilename: string): Promise<PreviewResponse> {
+    return this.openPreview(buffer, originalFilename)
+  }
+
+  // Rejouer la calibration d'un document existant, à partir du .odt conservé
+  // (cf. DocumentSource). Rend exactement le même PreviewResponse qu'un import
+  // neuf : côté frontend, c'est le même écran de calibration, avec les mêmes
+  // suggestions recalculées depuis le fichier d'origine.
+  async previewRecalibration(documentId: string): Promise<PreviewResponse> {
+    const { bytes, filename } = await this.getSource(documentId)
+    return this.openPreview(bytes, filename, documentId)
+  }
+
+  private async openPreview(buffer: Buffer, originalFilename: string, documentId?: string): Promise<PreviewResponse> {
     const { outline, suggestedStructureStartIndex, suggestedStructureEndIndex } =
       await parseOdtBufferForPreview(buffer)
     const previewId = randomUUID()
-    this.pendingImports.set(previewId, { buffer, originalFilename })
+    this.pendingImports.set(previewId, { buffer, originalFilename, documentId })
 
     return { previewId, outline, suggestedStructureStartIndex, suggestedStructureEndIndex }
   }
 
-  async commitImport(previewId: string, corrections: CommitImportRequest): Promise<DocumentSummary> {
+  async commitImport(previewId: string, corrections: CommitImportRequest): Promise<CommitResponse> {
     const pending = this.pendingImports.get(previewId)
     if (!pending) throw new NotFoundException(`Aperçu ${previewId} introuvable ou expiré`)
 
@@ -67,10 +86,117 @@ export class DocumentsService {
     this.pendingImports.delete(previewId)
 
     const { result, data, trame } = await parseOdtBuffer(pending.buffer, corrections as ImportCorrections)
-    return this.persist(result, data, trame, pending.originalFilename)
+    return pending.documentId
+      ? this.replace(pending.documentId, result, data, trame)
+      : this.persist(result, data, trame, pending.originalFilename, pending.buffer)
   }
 
-  private async persist(result: ParsedResult, data: DataMap, trame: Trame, originalFilename: string): Promise<DocumentSummary> {
+  /**
+   * Recalibrer : reconstruire l'arbre d'un document déjà en base, à partir du
+   * même .odt et de corrections différentes.
+   *
+   * Ce qui est REMPLACÉ : les nœuds, les paragraphes, les relevés d'import
+   * (inventaire, liminaire, final) et les totaux — c'est le parse qui les rend,
+   * et il vient de rejouer.
+   *
+   * Ce qui SURVIT : le .odt (c'est le même fichier), la typologie des styles et
+   * les règles d'éligibilité (des décisions de l'utilisateur, pas des
+   * propriétés du parse — et `settled` se recalcule tout seul contre le nouvel
+   * inventaire, cf. typology.ts), et les validations manuelles, réapposées par
+   * ré-appariement (cf. recalibration.ts).
+   *
+   * Ce qui est JETÉ : les analyses NLP. Elles indexent des nodeId, or
+   * `harmonize()` en regénère de neufs à chaque parse — les garder, ce serait
+   * afficher un dashboard qui parle de nœuds qui n'existent plus. Le cache
+   * d'embeddings étant adressé par contenu, le recalcul du volet sémantique ne
+   * revectorise rien de déjà vu.
+   */
+  private async replace(
+    documentId: string,
+    result: ParsedResult,
+    data: DataMap,
+    trame: Trame,
+  ): Promise<CommitResponse> {
+    // Relevé AVANT destruction : le hash courant identifie le nœud, le hash
+    // stocké porte l'état (validé/périmé) qu'on veut préserver.
+    const existing = await this.prisma.node.findMany({
+      where: { documentId, validation: { isNot: null } },
+      select: {
+        slug: true,
+        validation: { select: { contentHash: true, validatedAt: true } },
+        paragraphs: { orderBy: { position: 'asc' }, select: { type: true, ordered: true, content: true, styleName: true, highlight: true } },
+      },
+    })
+
+    const previous: PreviousValidation[] = existing.map((node) => ({
+      slug: node.slug,
+      currentHash: nodeContentHash(this.texteOf(node.paragraphs)),
+      storedHash: node.validation!.contentHash,
+      validatedAt: node.validation!.validatedAt,
+    }))
+
+    const { nodeRows, paragraphRows } = this.buildRows(data, trame, documentId)
+    const next: RebuiltNode[] = nodeRows.map((row) => ({
+      nodeId: row.id as string,
+      slug: row.slug,
+      currentHash: nodeContentHash(data[row.id as string].texte),
+    }))
+    const { restore, dropped } = remapValidations(previous, next)
+
+    const document = await this.prisma.$transaction(
+      async (tx) => {
+        // Cascade : les paragraphes ET les validations tombent avec les nœuds.
+        // C'est pourquoi `restore` a été calculé avant.
+        await tx.node.deleteMany({ where: { documentId } })
+
+        const doc = await tx.document.update({
+          where: { id: documentId },
+          data: {
+            title: result.meta.titreLivre || undefined,
+            totalAxes: result.meta.totalAxes,
+            totalBlocs: result.meta.totalBlocs,
+            totalArticles: result.meta.totalArticles,
+            totalMots: result.axes.reduce((s, a) => s + (a.stats?.mots || 0), 0),
+            totalCaracteres: result.axes.reduce((s, a) => s + (a.stats?.caracteres || 0), 0),
+            styleInventory: result.inventory as unknown as Prisma.InputJsonValue,
+            liminaire: result.liminaire as unknown as Prisma.InputJsonValue,
+            final: result.final as unknown as Prisma.InputJsonValue,
+          },
+        })
+
+        await tx.node.createMany({ data: nodeRows })
+        await tx.paragraph.createMany({ data: paragraphRows })
+        if (restore.length) {
+          await tx.nodeValidation.createMany({
+            data: restore.map((r) => ({ nodeId: r.nodeId, contentHash: r.contentHash, validatedAt: r.validatedAt })),
+          })
+        }
+
+        // Volets rendus caducs par les nouveaux ids. deleteMany et non un
+        // update à null : la ligne entière n'a plus rien de valide, et
+        // l'AnalyseService la recrée à la demande.
+        await tx.documentAnalysis.deleteMany({ where: { documentId } })
+
+        return doc
+      },
+      // Le défaut (5 s) ne suffit pas : un gros document, c'est ~900 nœuds et
+      // ~3000 paragraphes à supprimer puis réécrire dans la même transaction.
+      { timeout: 60_000 },
+    )
+
+    return {
+      ...this.toSummary(document),
+      recalibration: { restoredValidations: restore.length, droppedValidations: dropped },
+    }
+  }
+
+  private async persist(
+    result: ParsedResult,
+    data: DataMap,
+    trame: Trame,
+    originalFilename: string,
+    source: Buffer,
+  ): Promise<DocumentSummary> {
     const title = result.meta.titreLivre || originalFilename.replace(/\.odt$/i, '')
     const totalMots = result.axes.reduce((s, a) => s + (a.stats?.mots || 0), 0)
     const totalCaracteres = result.axes.reduce((s, a) => s + (a.stats?.caracteres || 0), 0)
@@ -85,55 +211,21 @@ export class DocumentsService {
           totalArticles: result.meta.totalArticles,
           totalMots,
           totalCaracteres,
-          // Le .odt source n'est pas conservé : si l'inventaire n'est pas
-          // capturé ici, il est irrécupérable sans réimport. Même raison pour
-          // le liminaire et le final, qui ne deviennent pas des Node.
+          // Relevés d'import, lus en bloc : l'inventaire, et les deux bouts du
+          // livre qui ne deviennent pas des Node. Le .odt est désormais
+          // conservé (cf. DocumentSource), donc reconstructibles — mais les
+          // recalculer à chaque lecture reviendrait à reparser le ZIP pour
+          // afficher un tableau.
           styleInventory: result.inventory as unknown as Prisma.InputJsonValue,
           liminaire: result.liminaire as unknown as Prisma.InputJsonValue,
           final: result.final as unknown as Prisma.InputJsonValue,
+          // Prisma rend les `Bytes` en Uint8Array, pas en Buffer (v6) : la
+          // conversion est un aller-retour de type, pas une transformation.
+          source: { create: { bytes: new Uint8Array(source), sizeBytes: source.length } },
         },
       })
 
-      // Ids déjà stables (harmonize), parentId/position en colonnes : on aplatit
-      // l'arbre en deux tableaux et on insère en deux createMany plutôt qu'un
-      // create par nœud. DFS pré-ordre → chaque parent précède ses enfants dans
-      // nodeRows, donc la FK auto-référente Node.parentId est satisfaite ligne à
-      // ligne. Évite la cascade d'allers-retours qui dépassait le timeout de
-      // transaction Prisma (5 s) sur un gros document.
-      const nodeRows: Prisma.NodeCreateManyInput[] = []
-      const paragraphRows: Prisma.ParagraphCreateManyInput[] = []
-
-      const collect = (node: TrameNode, parentId: string | null, position: number) => {
-        const item = data[node.id]
-        nodeRows.push({
-          id: item.id,
-          documentId: doc.id,
-          level: item.level,
-          parentId,
-          position,
-          titre: item.titre,
-          slug: item.slug,
-          indexGlobal: item.indexGlobal,
-          connexe: item.connexe ?? undefined,
-          mots: item.stats?.mots ?? null,
-          caracteres: item.stats?.caracteres ?? null,
-        })
-        item.texte.forEach((entry, i) =>
-          paragraphRows.push({
-            nodeId: item.id,
-            position: i,
-            styleName: entry.styleName ?? null,
-            highlight: entry.highlight ?? null,
-            ...(entry.type === 'list'
-              ? { type: 'LIST' as const, ordered: entry.ordered, content: JSON.stringify(entry.items) }
-              : { type: 'TEXT' as const, content: entry.text }),
-          }),
-        )
-        node.children.forEach((child, i) => collect(child, node.id, i))
-      }
-
-      trame.axes.forEach((axe, i) => collect(axe, null, i))
-
+      const { nodeRows, paragraphRows } = this.buildRows(data, trame, doc.id)
       await tx.node.createMany({ data: nodeRows })
       await tx.paragraph.createMany({ data: paragraphRows })
 
@@ -141,6 +233,57 @@ export class DocumentsService {
     })
 
     return this.toSummary(document)
+  }
+
+  // L'arbre → deux tableaux de lignes, prêts pour un createMany. Partagé par
+  // l'import initial et la recalibration : deux façons d'écrire les mêmes nœuds
+  // finiraient par diverger sur un détail (une colonne oubliée d'un côté).
+  //
+  // Ids déjà stables (harmonize), parentId/position en colonnes : on aplatit
+  // l'arbre plutôt que de faire un create par nœud. DFS pré-ordre → chaque
+  // parent précède ses enfants dans nodeRows, donc la FK auto-référente
+  // Node.parentId est satisfaite ligne à ligne. Évite la cascade d'allers-
+  // retours qui dépassait le timeout de transaction Prisma (5 s) sur un gros
+  // document.
+  private buildRows(
+    data: DataMap,
+    trame: Trame,
+    documentId: string,
+  ): { nodeRows: Prisma.NodeCreateManyInput[]; paragraphRows: Prisma.ParagraphCreateManyInput[] } {
+    const nodeRows: Prisma.NodeCreateManyInput[] = []
+    const paragraphRows: Prisma.ParagraphCreateManyInput[] = []
+
+    const collect = (node: TrameNode, parentId: string | null, position: number) => {
+      const item = data[node.id]
+      nodeRows.push({
+        id: item.id,
+        documentId,
+        level: item.level,
+        parentId,
+        position,
+        titre: item.titre,
+        slug: item.slug,
+        indexGlobal: item.indexGlobal,
+        connexe: item.connexe ?? undefined,
+        mots: item.stats?.mots ?? null,
+        caracteres: item.stats?.caracteres ?? null,
+      })
+      item.texte.forEach((entry, i) =>
+        paragraphRows.push({
+          nodeId: item.id,
+          position: i,
+          styleName: entry.styleName ?? null,
+          highlight: entry.highlight ?? null,
+          ...(entry.type === 'list'
+            ? { type: 'LIST' as const, ordered: entry.ordered, content: JSON.stringify(entry.items) }
+            : { type: 'TEXT' as const, content: entry.text }),
+        }),
+      )
+      node.children.forEach((child, i) => collect(child, node.id, i))
+    }
+
+    trame.axes.forEach((axe, i) => collect(axe, null, i))
+    return { nodeRows, paragraphRows }
   }
 
   async list(): Promise<DocumentSummary[]> {
@@ -275,20 +418,21 @@ export class DocumentsService {
       // taire (available: false) que rendre un verdict sur des styles non
       // arbitrés.
       typology: isTypologySettled(typology, inventory) ? typology : null,
-      // Règles jamais configurées = les défauts s'appliquent : le dashboard
-      // dit quelque chose d'utile sans qu'on ait rien eu à régler. Ne PAS
-      // passer par normalizeRules ici — elle rend des règles toutes vides
-      // pour une entrée nulle, ce qui déclarerait tout le monde conforme.
-      rules: document.validationRules
-        ? normalizeRules(document.validationRules as unknown as DocumentRules)
-        : DEFAULT_RULES,
+      // Règles jamais configurées = les défauts s'appliquent (normalizeRules
+      // rend les défauts pour un null) : le dashboard dit quelque chose d'utile
+      // sans qu'on ait rien eu à régler. La normalisation remonte aussi le
+      // format historique à plat.
+      rules: normalizeRules(document.validationRules),
     }
   }
 
   async getRules(id: string): Promise<DocumentRules> {
     const document = await this.prisma.document.findUnique({ where: { id }, select: { validationRules: true } })
     if (!document) throw new NotFoundException(`Document ${id} introuvable`)
-    return (document.validationRules as unknown as DocumentRules | null) ?? DEFAULT_RULES
+    // Normalisé et pas rendu brut : la colonne peut porter le format historique
+    // à plat (documents configurés avant les règles par profondeur), que le
+    // client ne sait plus lire. normalizeRules rend les défauts pour un null.
+    return normalizeRules(document.validationRules)
   }
 
   async saveRules(id: string, body: Partial<DocumentRules>): Promise<DocumentRules> {
@@ -339,6 +483,28 @@ export class DocumentsService {
     const node = await this.prisma.node.findFirst({ where: { id: nodeId, documentId } })
     if (!node) throw new NotFoundException(`Nœud ${nodeId} introuvable dans le document ${documentId}`)
     await this.prisma.nodeValidation.deleteMany({ where: { nodeId } })
+  }
+
+  // Le .odt d'origine. Le `select` explicite sur la relation est tout le
+  // propos de la table à part (cf. schema.prisma) : le blob ne remonte que
+  // quand on le demande.
+  async getSource(id: string): Promise<{ bytes: Buffer; filename: string }> {
+    const document = await this.prisma.document.findUnique({
+      where: { id },
+      select: { sourceFilename: true, source: { select: { bytes: true } } },
+    })
+    if (!document) throw new NotFoundException(`Document ${id} introuvable`)
+    // Distinct d'un document inexistant : celui-ci est bien là, c'est son
+    // source qui manque (importé avant que le .odt ne soit conservé). Seul un
+    // réimport le rattache — d'où un message qui le dit, plutôt qu'un 404 nu
+    // qui laisserait croire à une erreur d'id.
+    if (!document.source) {
+      throw new NotFoundException(
+        `Le .odt du document ${id} n'a pas été conservé (importé avant que le source ne le soit) : seul un réimport le rattache`,
+      )
+    }
+    // Buffer et non Uint8Array : c'est ce qu'attend le parseur (unzipper).
+    return { bytes: Buffer.from(document.source.bytes), filename: document.sourceFilename }
   }
 
   async remove(id: string): Promise<void> {

@@ -62,8 +62,8 @@ const semantic = () => ({
 // (>= 500 caractères, zéro annotation).
 const conformity = (available = true) => ({
   available,
-  rules: { minChars: 500, forbidAnnotations: true, requiresRoles: [], requiresTable: false },
-  leafCount: 824,
+  rules: { default: { minChars: 500, forbidAnnotations: true, requiresRoles: [], requiresTable: false }, byDepth: {} },
+  judgedCount: 824,
   conformCount: 361,
   criteria: available
     ? [

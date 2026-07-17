@@ -20,8 +20,9 @@ model Document {
   totalCaracteres Int
 
   // styleInventory : styles et surlignages relevés dans le .odt à l'import
-  // (StyleInventory). Capturé ici parce que le .odt source n'est pas conservé
-  // — sans ça, l'inventaire serait irrécupérable sans réimport.
+  // (StyleInventory). Reconstructible depuis DocumentSource, mais capturé ici
+  // parce que le recalculer à chaque lecture reviendrait à reparser le ZIP
+  // pour afficher un tableau.
   styleInventory  Json?
   // styleTypology : le rôle décidé pour chaque style (DocumentTypology).
   // NULL tant que l'utilisateur n'a pas tranché — les suggestions ne sont
@@ -46,15 +47,44 @@ model Document {
   // n'ont rien à faire. Même nature que styleInventory : un relevé d'import, lu
   // en bloc.
   //
-  // NULL = document importé avant ces colonnes. Le .odt n'étant pas conservé,
-  // seul un réimport les remplit.
+  // NULL = document importé avant ces colonnes : le remplir suppose de rejouer
+  // le parse (possible depuis DocumentSource, sauf pour les documents antérieurs
+  // à cette table — pour eux, seul un réimport).
   liminaire       Json?
   final           Json?
 
   nodes           Node[]
   analysis        DocumentAnalysis?
+  source          DocumentSource?
 
   @@map("documents")
+}
+
+// Le .odt d'origine, conservé tel quel. Une table à part et NON une colonne
+// `Bytes` sur Document : Prisma ramène toutes les colonnes scalaires quand le
+// `select` n'est pas explicite, et un blob sur Document ferait charger
+// plusieurs Mo à chaque findUnique — y compris ceux qui ne veulent qu'un
+// titre. Ici, il faut le demander pour l'avoir.
+//
+// Ce que ça débloque : la calibration d'import redevient rejouable (elle était
+// à sens unique, le buffer ne vivant que le temps d'une Map en mémoire), et
+// tout enrichissement futur du parseur s'applique rétroactivement au lieu
+// d'exiger un réimport manuel.
+//
+// NULL = document importé avant cette table : lui seul reste dans l'ancien
+// régime (pas de recalibration possible sans réimport).
+model DocumentSource {
+  id         String   @id @default(uuid())
+  documentId String   @unique
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  bytes      Bytes
+  // Dérivable de `bytes`, mais le lire supposerait justement de charger le
+  // blob qu'on cherche à ne pas charger.
+  sizeBytes  Int
+  storedAt   DateTime @default(now())
+
+  @@map("document_sources")
 }
 
 model Node {

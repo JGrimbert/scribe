@@ -54,9 +54,11 @@ vues. Routes (`src/router/index.js`) :
     l'inventaire mais jamais promus en nœuds (cf. `sum(byZone) <= count` dans
     `../backend/CLAUDE.md`) ;
   - **fallback plat** si `byZone` est absent — document importé avant la
-    ventilation. Le `.odt` n'étant pas conservé, seul un réimport le ventile ;
-    tout empiler dans « Non situés » serait un mensonge par omission (ces
-    styles ont une zone, on ne la connaît pas).
+    ventilation. Le `.odt` est désormais conservé (`DocumentSource`, cf.
+    `../backend/CLAUDE.md`), donc une **recalibration** le ventile ; seuls les
+    documents importés avant cette table exigent encore un réimport. Tout
+    empiler dans « Non situés » serait un mensonge par omission (ces styles ont
+    une zone, on ne la connaît pas).
 
   L'écran porte aussi les **modèles de structure** (`useStructureShapes.js` +
   `script/shapes.js`, alimentés par `GET /documents/:id/structure-shapes`) : les
@@ -79,7 +81,8 @@ vues. Routes (`src/router/index.js`) :
   l'utilisateur n'a pas enregistré (cf. `backend/CLAUDE.md`) : ce qu'il voit
   est une proposition, pas une décision qu'il n'a pas prise. Un document
   importé avant la colonne `styleInventory` affiche un état vide explicite —
-  le `.odt` n'étant pas conservé, seul un réimport le remplit.
+  une recalibration le remplit si son `.odt` a été conservé (`DocumentSource`),
+  un réimport sinon.
   `DocumentLayout` charge `settled` à part (`provide('typologySettled')`) ;
   `AnomaliesBlock` s'en sert pour renvoyer vers cet écran. Le défaut est
   `true` (« présumé arbitré ») pour ne pas faire clignoter un renvoi avant de
@@ -87,7 +90,24 @@ vues. Routes (`src/router/index.js`) :
   (`GET`/`PUT /documents/:id/rules`, second appel) : elles sont indicatives —
   le bouton « Valider » d'un chapitre reste actif quoi qu'il arrive, seul le
   compte de conformes du dashboard en dépend (voir `backend/CLAUDE.md` pour
-  le pourquoi chiffré).
+  le pourquoi chiffré). Un **onglet par niveau** (Défaut / Axes / Blocs /
+  Articles), le formulaire d'un jeu étant `RuleSetForm.vue`, réutilisé tel quel
+  par onglet :
+  - `RuleSetForm` **mute son `ruleSet` en place**, délibérément : le parent
+    détient l'objet réactif complet, et remonter chaque case par
+    `update:modelValue` recréerait des objets pour rien alors qu'il y a jusqu'à
+    quatre jeux vivants. Il porte aussi son propre brouillon de seuil — un
+    draft partagé afficherait le seuil d'un niveau dans le champ d'un autre ;
+  - cocher « des règles propres à ce niveau » part d'une **copie du défaut**, pas
+    d'un jeu vide : on règle par écart au défaut, et partir de rien ferait passer
+    le niveau pour « sans aucune exigence » le temps de tout recocher ;
+  - une **pastille** sur l'onglet signale un niveau réglé — sinon il faut ouvrir
+    les quatre pour savoir lesquels le sont ;
+  - `save()` sérialise par `JSON.parse(JSON.stringify(rules))` : `rules` est un
+    proxy réactif **imbriqué**, un spread de surface enverrait des proxies.
+  - Les vocabulaires fermés (`STYLE_ROLES`, `REQUIRABLE_ROLES`) et les onglets
+    vivent dans `src/script/typology.js` — partagés entre la vue et
+    `RuleSetForm`, alignés sur le backend qui refuse tout rôle hors liste.
 - `/documents/:id/axe/:axeId` — `EditorView.vue` → `FolioComposer`/`Scroll`
   (Scroll toujours désactivé, `v-if="false === true"`).
 

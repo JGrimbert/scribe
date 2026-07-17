@@ -142,44 +142,46 @@
       <section class="styles-section">
         <h3>Règles d'éligibilité</h3>
         <UiNote variant="hint">
-          Ce qu'un chapitre doit contenir pour être réputé prêt. <strong>Indicatif</strong> : le
-          tableau de bord compte les chapitres conformes, mais rien n'empêche de valider un
-          chapitre à la main. Les pourcentages sont ceux de votre document, à titre de repère.
+          Ce qu'un nœud doit contenir pour être réputé prêt, niveau par niveau — ce qu'on attend
+          d'un axe n'est pas ce qu'on attend d'un article. <strong>Indicatif</strong> : le tableau
+          de bord compte les nœuds conformes, mais rien n'empêche de valider un chapitre à la main.
         </UiNote>
 
-        <div class="rules">
-          <label class="rule">
-            <input v-model="rules.forbidAnnotations" type="checkbox" />
-            <span>Aucune annotation surlignée en attente</span>
-          </label>
+        <div class="rule-tabs" role="tablist">
+          <button
+              v-for="tab in DEPTH_TABS"
+              :key="tab.key"
+              class="rule-tab"
+              :class="{ 'rule-tab--active': activeTab === tab.key }"
+              type="button"
+              role="tab"
+              :aria-selected="activeTab === tab.key"
+              :title="tab.hint"
+              @click="activeTab = tab.key"
+          >
+            {{ tab.label }}
+            <span v-if="tab.key !== 'default' && rules.byDepth[tab.key]" class="rule-tab-dot" title="Règles propres à ce niveau"></span>
+          </button>
+        </div>
 
-          <label class="rule">
-            <input :checked="rules.minChars != null" type="checkbox" @change="toggleMinChars" />
-            <span>Au moins</span>
-            <input
-                v-model.number="minCharsDraft"
-                class="rule-number"
-                type="number"
-                min="0"
-                step="100"
-                :disabled="rules.minChars == null"
-            />
-            <span>caractères</span>
-          </label>
+        <div class="rule-panel">
+          <template v-if="activeTab === 'default'">
+            <p class="rule-scope">S'applique à tout niveau qui n'a pas ses propres règles.</p>
+            <RuleSetForm :rule-set="rules.default" />
+          </template>
 
-          <label class="rule">
-            <input v-model="rules.requiresTable" type="checkbox" />
-            <span>Un tableau des liens</span>
-          </label>
+          <template v-else>
+            <label class="rule rule-override">
+              <input type="checkbox" :checked="!!rules.byDepth[activeTab]" @change="toggleDepth(activeTab)" />
+              <span>Des règles propres à « {{ activeTabLabel }} »</span>
+            </label>
 
-          <label v-for="role in REQUIRABLE_ROLES" :key="role" class="rule">
-            <input
-                type="checkbox"
-                :checked="rules.requiresRoles.includes(role)"
-                @change="toggleRole(role)"
-            />
-            <span>Un paragraphe « {{ role }} »</span>
-          </label>
+            <RuleSetForm v-if="rules.byDepth[activeTab]" :rule-set="rules.byDepth[activeTab]" />
+            <p v-else class="rule-scope">
+              Ce niveau suit les règles par défaut. Cocher ci-dessus part d'une copie du défaut —
+              et fait juger ces nœuds même s'ils ne sont pas des chapitres.
+            </p>
+          </template>
         </div>
       </section>
 
@@ -205,21 +207,10 @@ import ScoreBar from './ui/ScoreBar.vue'
 import StackedBar from './ui/StackedBar.vue'
 import UiNote from './ui/UiNote.vue'
 import UiTable from './ui/UiTable.vue'
+import RuleSetForm from './RuleSetForm.vue'
 import { groupByZone, hasZones, totalOf, zoneSegments } from '../script/zones'
+import { DEPTH_TABS, emptyRuleSet, HIGHLIGHT_ROLES, STYLE_ROLES } from '../script/typology'
 import { useStructureShapes } from '../composables/useStructureShapes'
-
-// Vocabulaires fermés, alignés sur STYLE_ROLES/HIGHLIGHT_ROLES du backend
-// (typology.ts), qui refuse tout rôle hors liste.
-const STYLE_ROLES = [
-  'corps', 'titre', 'chapeau', 'citation', 'définition',
-  'renvoi', 'tableau', 'liste', 'ornement', 'liminaire', 'ignorer',
-]
-const HIGHLIGHT_ROLES = ['annotation', 'emphase', 'ignorer']
-
-// Sous-ensemble de STYLE_ROLES qu'il est sensé d'exiger d'un chapitre. Exiger
-// « corps » ou « ignorer » ne voudrait rien dire ; « tableau » a sa propre case
-// (le parseur range les tableaux à part, cf. rules.ts côté backend).
-const REQUIRABLE_ROLES = ['définition', 'chapeau', 'citation', 'renvoi']
 
 const route = useRoute()
 
@@ -248,28 +239,26 @@ const zoneSections = computed(() =>
 const styles = reactive({})
 const highlights = reactive({})
 
-const rules = reactive({ minChars: null, forbidAnnotations: false, requiresRoles: [], requiresTable: false })
+// `default` + un jeu optionnel par profondeur (cf. rules.ts côté backend). Un
+// byDepth vide = le cas nominal : un seul jeu, appliqué aux feuilles, comme
+// avant les règles par niveau.
+const rules = reactive({ default: emptyRuleSet(), byDepth: {} })
+
+const activeTab = ref('default')
+const activeTabLabel = computed(() => DEPTH_TABS.find((t) => t.key === activeTab.value)?.label ?? '')
+
+// Cocher part d'une COPIE du défaut plutôt que d'un jeu vide : on règle
+// presque toujours par écart au défaut, et partir de rien ferait passer le
+// niveau pour « sans aucune exigence » le temps de tout recocher.
+function toggleDepth(key) {
+  if (rules.byDepth[key]) delete rules.byDepth[key]
+  else rules.byDepth[key] = { ...rules.default, requiresRoles: [...rules.default.requiresRoles] }
+}
 
 // Les modèles se recalculent contre `styles` — la typologie en cours d'édition,
 // pas celle enregistrée : les motifs suivent les rôles à mesure qu'on les
 // attribue.
 const { groups: shapeGroups, error: shapesError, load: loadShapes } = useStructureShapes(styles)
-
-// Mémoire du seuil quand on décoche « au moins N caractères » : le décocher
-// puis le recocher ne doit pas effacer le chiffre saisi.
-const minCharsDraft = ref(500)
-
-function toggleMinChars(event) {
-  rules.minChars = event.target.checked ? (minCharsDraft.value ?? 0) : null
-}
-
-function toggleRole(role) {
-  const i = rules.requiresRoles.indexOf(role)
-  if (i === -1) rules.requiresRoles.push(role)
-  else rules.requiresRoles.splice(i, 1)
-}
-
-watch(minCharsDraft, (v) => { if (rules.minChars != null) rules.minChars = v ?? 0 })
 
 async function load() {
   loading.value = true
@@ -294,8 +283,12 @@ async function load() {
     Object.assign(styles, data.suggested.styles, data.typology?.styles ?? {})
     Object.assign(highlights, data.suggested.highlights, data.typology?.highlights ?? {})
 
-    Object.assign(rules, await rulesRes.json())
-    if (rules.minChars != null) minCharsDraft.value = rules.minChars
+    // Le backend normalise (défauts si jamais configuré, format historique à
+    // plat remonté en `default`) : ce qui arrive ici est toujours du format
+    // courant.
+    const loaded = await rulesRes.json()
+    rules.default = loaded.default
+    rules.byDepth = loaded.byDepth ?? {}
   } catch (e) {
     loadError.value = `Impossible de charger la configuration : ${e.message}`
   } finally {
@@ -308,9 +301,11 @@ async function save() {
   saveError.value = null
   saved.value = false
   try {
+    // Désérialisé en profondeur : `rules` est un proxy réactif imbriqué, et un
+    // spread de surface enverrait des proxies dans le JSON.
     const [typoBody] = await Promise.all([
       put('typology', { styles: { ...styles }, highlights: { ...highlights } }),
-      put('rules', { ...rules, requiresRoles: [...rules.requiresRoles] }),
+      put('rules', JSON.parse(JSON.stringify(rules))),
     ])
     settled.value = typoBody.settled
     saved.value = true
@@ -506,11 +501,52 @@ watch(() => route.params.id, load, { immediate: true })
   margin-top: var(--sp-6);
 }
 
-.rules {
+.rule-tabs {
   display: flex;
-  flex-direction: column;
-  gap: var(--sp-3);
+  gap: var(--sp-1);
   margin-top: var(--sp-4);
+  border-bottom: 1px solid var(--c-border);
+}
+
+.rule-tab {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: var(--fs-md);
+  cursor: pointer;
+  opacity: var(--op-muted);
+}
+
+.rule-tab--active {
+  border-bottom-color: var(--c-accent);
+  opacity: 1;
+  font-weight: 600;
+}
+
+/* Un niveau qui porte ses propres règles : sans ce repère, il faut ouvrir les
+   quatre onglets pour savoir lesquels sont réglés. */
+.rule-tab-dot {
+  width: 0.4em;
+  height: 0.4em;
+  border-radius: var(--radius-pill);
+  background: var(--c-accent);
+}
+
+.rule-panel {
+  padding-top: var(--sp-2);
+}
+
+.rule-scope {
+  margin: var(--sp-3) 0 0;
+  color: var(--c-ink2);
+  font-size: var(--fs-md);
+  max-width: 52ch;
 }
 
 .rule {
@@ -521,18 +557,8 @@ watch(() => route.params.id, load, { immediate: true })
   cursor: pointer;
 }
 
-.rule-number {
-  width: 5em;
-  padding: 0.25em 0.4em;
-  border: 1px solid var(--c-border);
-  border-radius: var(--radius-md);
-  background: var(--c-surface);
-  color: inherit;
-  font: inherit;
-  font-size: var(--fs-md);
-}
-
-.rule-number:disabled {
-  opacity: var(--op-faint);
+.rule-override {
+  margin-top: var(--sp-3);
+  font-weight: 500;
 }
 </style>

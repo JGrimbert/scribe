@@ -98,11 +98,14 @@ l'instant, ne pas retirer le middleware Vite sans en parler.
     « data-hl="#ffff00"> » comme des mots — le total du manuscrit témoin s'en
     trouvait gonflé de ~175 mots. Verrouillé par un test dans
     `hierarchy.spec.ts`.
-  - **Le `.odt` source n'est pas conservé** (buffer gardé en mémoire le temps
-    de la calibration seulement). Conséquence : tout enrichissement du parse
-    est **rétroactivement inapplicable** — il impose de réimporter les
-    documents existants. C'est pourquoi `styleInventory` est capturé sur
-    `Document` à l'import : sinon irrécupérable.
+  - **Le `.odt` source est conservé** (`DocumentSource`, table à part — cf.
+    « Modèle de données »). Un enrichissement du parse est donc applicable
+    rétroactivement, en rejouant le parse depuis le blob. Deux réserves :
+    - les documents importés **avant** cette table n'ont pas de source et
+      restent dans l'ancien régime (seul un réimport les rattache) ;
+    - `styleInventory`, `liminaire` et `final` restent capturés sur `Document`
+      à l'import — reconstructibles, mais les recalculer à chaque lecture
+      reviendrait à reparser un ZIP de 1,6 Mo pour afficher un tableau.
 - `src/documents/` — `DocumentsModule` : le registre + le flux d'import en
   deux temps (calibration avant écriture en base, cf. juste en dessous).
   - `GET /documents` — liste des documents avec stats agrégées, pour le
@@ -117,7 +120,10 @@ l'instant, ne pas retirer le middleware Vite sans en parler.
   - `POST /documents/preview/:previewId/commit` — reprend le buffer en
     attente, réapplique le parse avec les corrections (`ImportCorrections`
     : `structureStartIndex` + `levelOverrides` par titre), persiste en
-    transaction (`Document` + `Node`s + `Paragraph`s).
+    transaction (`Document` + `Node`s + `Paragraph`s + `DocumentSource`, le
+    `.odt` lui-même). La `Map` en mémoire ne couvre donc plus que la fenêtre
+    entre le preview et le commit : une fois le document en base, son source
+    ne dépend plus d'elle.
   - `GET`/`PUT /documents/:id/typology` — typologie des styles : quel rôle
     joue chaque style ODT dans CE document (`typology.ts`). Le GET sert d'un
     coup l'inventaire, ce qui a été décidé (`null` si rien), les suggestions,
@@ -132,6 +138,38 @@ l'instant, ne pas retirer le middleware Vite sans en parler.
       booléen « déjà configuré » : un style apparu depuis (réimport d'une
       version où l'auteur en a introduit un) repasse le document en « non
       arbitré ».
+  - `POST /documents/:id/recalibrate` — **rejouer la calibration** d'un
+    document déjà importé, depuis le `.odt` conservé (`DocumentSource`). Rend un
+    `PreviewResponse` ordinaire ; le commit repasse par
+    `POST /documents/preview/:previewId/commit`, qui reconnaît un remplacement
+    au `documentId` porté par l'entrée `pendingImports`. Un seul flux de
+    calibration, deux destinations — le frontend n'a pas à connaître la
+    différence.
+    - **Ce qui survit** : le `.odt`, la typologie des styles et les règles
+      d'éligibilité (des décisions utilisateur, pas des propriétés du parse ;
+      `settled` se recalcule seul contre le nouvel inventaire), et les
+      validations manuelles, réapposées par ré-appariement.
+    - **Ce qui est jeté** : les analyses (`DocumentAnalysis` supprimée). Elles
+      indexent des `nodeId`, or `harmonize()` en regénère de neufs à chaque
+      parse : les garder afficherait un dashboard parlant de nœuds disparus. Le
+      cache d'embeddings étant adressé par contenu, le volet sémantique se
+      recalcule sans revectoriser.
+    - **Le ré-appariement des validations** (`recalibration.ts`, `remapValidations`)
+      identifie un nœud par le couple **(slug, hash du texte courant)**. Ni l'id
+      (c'est ce qui change), ni le chemin de titres (recalibrer CONSISTE à le
+      changer), ni le slug seul (`makeUniqueSlug` n'assure l'unicité que par
+      parent — sur le témoin, deux nœuds « l-aube »), ni le texte seul (257
+      nœuds vides partagent le hash du vide). Couple ambigu des deux côtés →
+      validation **perdue**, jamais devinée : une relecture perdue se refait
+      d'un clic, une relecture posée au mauvais chapitre ment en silence. Le
+      commit rend le compte des reposées et des perdues (`RecalibrationReport`).
+    - ⚠️ **Une recalibration écrase le contenu en base par celui du `.odt`** —
+      c'est un reparse, pas une migration. Sans effet aujourd'hui (aucun
+      endpoint n'écrit `Paragraph.content` : le texte en base ne peut venir que
+      du parse), mais **le jour où l'édition sera persistée, recalibrer
+      détruira le texte écrit dans Scribe**. À traiter avant d'ouvrir
+      l'écriture : soit rejouer les éditions par-dessus, soit refuser de
+      recalibrer un document édité.
   - `POST`/`DELETE /documents/:id/nodes/:nodeId/validation` — validation
     manuelle d'un chapitre (« j'ai relu, c'est bon »). Rejouer le `POST`
     rafraîchit l'empreinte : c'est la revalidation d'un chapitre périmé. Le
@@ -219,9 +257,32 @@ l'instant, ne pas retirer le middleware Vite sans en parler.
     volontaire : `stubNodeIds` (exclusion du corpus thématique) ne doit
     dépendre que de la longueur du texte, pas d'une validation.
   - **conformity** — même nature que completeness (dérivé, sans NLP, calculé
-    au `GET`, jamais persisté) : ce qui manque à chaque chapitre pour être
+    au `GET`, jamais persisté) : ce qui manque à chaque nœud pour être
     réputé prêt, selon les règles du document (`documents/rules.ts`,
-    `GET`/`PUT /documents/:id/rules`). Ne juge que les feuilles.
+    `GET`/`PUT /documents/:id/rules`).
+    - **Règles par profondeur** : `DocumentRules = { default: RuleSet; byDepth:
+      Partial<Record<0|1|2, RuleSet>> }` — ce qu'on attend d'un axe, d'un bloc
+      et d'un article n'a rien de commun. La clé 2 vaut « 2 et au-delà », même
+      regroupement que `zoneOfDepth` et que les modèles de structure : un
+      « Article » doit désigner le même objet partout.
+    - `byDepth` **remplace** `default`, ne le complète pas. Fusionner rendrait
+      impossible de RETIRER un critère à une profondeur, et « quelles règles
+      s'appliquent ici ? » ne se lirait plus nulle part en entier.
+    - **Qui est jugé** : les feuilles, comme avant — un conteneur n'a pas à
+      porter une définition. MAIS un jeu explicite pour une profondeur veut dire
+      qu'on l'a décrété pour elle : ses nœuds sont alors jugés, feuilles ou non.
+      D'où `judgedCount` (et non plus `leafCount`) dans `ConformityAnalysis`.
+      Sans `byDepth`, ce sont exactement les feuilles.
+    - **Les critères ne sont étiquetés par niveau que s'il y a un réglage par
+      profondeur** (`hasPerDepthRules`) : sinon « au moins 500 caractères » à
+      deux niveaux se confondrait en une seule barre du graphe, avec des échecs
+      mélangés. Le backend compose le `label` final (« Articles — au moins
+      500 caractères ») parce que `ConformityChart` l'affiche tel quel.
+    - **`normalizeRules` accepte le format historique à plat** et le remonte en
+      `default` : des documents en base le portent, le casser effacerait des
+      réglages. `null` (jamais configuré) → les DÉFAUTS, pas des règles vides,
+      qui déclareraient tout le monde conforme. `getRules` doit donc normaliser
+      et non rendre la colonne brute. Verrouillé par `rules.spec.ts`.
     - **Indicatif, pas bloquant** : la conformité n'interdit pas la validation
       manuelle. Décision dictée par les chiffres du témoin — exiger définition
       + tableau des liens y rend 821 chapitres sur 824 non conformes (0,4 %).
@@ -325,6 +386,16 @@ la typologie), et ils sont persistés en colonnes `Json` sur `Document`, pas en
   et `highlight` (surlignage du paragraphe entier) sont nullables : les
   documents importés avant ces colonnes n'en ont pas, et le `.odt` n'étant pas
   conservé, seule une réimportation les remplit.
+- `DocumentSource` — le `.odt` d'origine, tel quel. **Table à part et non une
+  colonne `Bytes` sur `Document`** : Prisma ramène toutes les colonnes
+  scalaires quand le `select` n'est pas explicite, et un blob sur `Document`
+  ferait charger des centaines de Ko à chaque `findUnique` — y compris ceux qui
+  ne veulent qu'un titre. Ici il faut le demander (`select: { source: … }`,
+  cf. `getSource`) pour l'avoir. Sur le témoin : 376 Ko.
+  Ce que ça débloque : la calibration d'import redevient **rejouable** (elle
+  était à sens unique, le buffer ne vivant que le temps de `pendingImports`),
+  et le parseur peut être enrichi sans exiger un réimport manuel.
+  Nullable : les documents importés avant cette table n'en ont pas.
 - `NodeValidation` — la relecture manuelle d'un chapitre. Table à part, et
   pas une colonne de `Node` ni un volet de `DocumentAnalysis` : c'est un fait
   **utilisateur**, qu'un réimport ne doit pas charrier et qu'un recalcul

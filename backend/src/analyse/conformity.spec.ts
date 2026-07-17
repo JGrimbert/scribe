@@ -3,7 +3,7 @@ import { buildParsedResult } from '../import/odt-parser/hierarchy'
 import { harmonize } from '../import/odt-parser/harmonize'
 import { FlatNode } from '../import/odt-parser'
 import { DocumentTypology } from '../documents/typology'
-import { DEFAULT_RULES, DocumentRules } from '../documents/rules'
+import { DEFAULT_RULE_SET, DocumentRules, RuleSet } from '../documents/rules'
 import { assessConformity } from './conformity'
 
 function flat(nodes: Partial<FlatNode>[]): FlatNode[] {
@@ -35,7 +35,11 @@ const typology: DocumentTypology = {
   highlights: { '#ffff00': 'annotation', '#ffe994': 'emphase' },
 }
 
-const rules = (over: Partial<DocumentRules> = {}): DocumentRules => ({ ...DEFAULT_RULES, ...over })
+// Le cas nominal : un seul jeu de critères, aucun réglage par profondeur.
+const rules = (over: Partial<RuleSet> = {}): DocumentRules => ({
+  default: { ...DEFAULT_RULE_SET, ...over },
+  byDepth: {},
+})
 
 describe('assessConformity', () => {
   it('ne dit rien tant que la typologie n’est pas arbitrée', () => {
@@ -126,7 +130,7 @@ describe('assessConformity', () => {
   it('ne juge que les feuilles — un conteneur n’a pas à porter de définition', () => {
     const { trame, data } = build([H(1, 'Axe'), P('intro courte'), H(2, 'Chapitre'), P(long())])
     const r = assessConformity(trame, data, typology, rules())
-    expect(r.leafCount).toBe(1)
+    expect(r.judgedCount).toBe(1)
     expect(r.conformCount).toBe(1)
   })
 
@@ -135,5 +139,72 @@ describe('assessConformity', () => {
     const r = assessConformity(trame, data, typology, rules({ minChars: null, forbidAnnotations: false }))
     expect(r.criteria).toEqual([])
     expect(r.conformCount).toBe(1)
+  })
+})
+
+describe('assessConformity — règles par profondeur', () => {
+  const perDepth = (byDepth: DocumentRules['byDepth']): DocumentRules => ({
+    default: { ...DEFAULT_RULE_SET, minChars: null, forbidAnnotations: false },
+    byDepth,
+  })
+
+  it('applique à chaque niveau son propre jeu', () => {
+    // Un axe et un article n'ont pas à contenir la même chose : l'axe doit
+    // porter un chapeau, l'article être long.
+    const { trame, data } = build([
+      H(1, 'Axe'),
+      P('intro courte', { effectiveStyle: 'Definition' }),
+      H(2, 'Bloc'),
+      H(3, 'Article'),
+      P(long(), { effectiveStyle: 'Paragraphes' }),
+    ])
+    const r = assessConformity(trame, data, typology, perDepth({ 0: { ...DEFAULT_RULE_SET, minChars: null, forbidAnnotations: false, requiresRoles: ['définition'] }, 2: { ...DEFAULT_RULE_SET, forbidAnnotations: false } }))
+
+    // L'axe est jugé bien qu'il ne soit pas une feuille : on l'a décrété pour
+    // sa profondeur.
+    expect(r.judgedCount).toBe(2)
+    expect(r.conformCount).toBe(2)
+    expect(r.failures).toEqual([])
+  })
+
+  it('juge un conteneur dès qu’un jeu vise sa profondeur', () => {
+    const { trame, data } = build([H(1, 'Axe'), P('court'), H(2, 'Chapitre'), P(long())])
+    const r = assessConformity(trame, data, typology, perDepth({ 0: { ...DEFAULT_RULE_SET, forbidAnnotations: false } }))
+
+    expect(r.judgedCount).toBe(2) // l'axe (visé) + la feuille
+    expect(r.failures.map((f) => f.titre)).toEqual(['Axe']) // 'court' < 500 caractères
+  })
+
+  it('étiquette les critères par niveau — une même clé à deux niveaux fait deux barres', () => {
+    // Sans préfixe, « au moins 500 caractères » sur un axe et sur un article se
+    // confondraient en une seule barre du graphe, mélangeant les échecs.
+    const { trame, data } = build([H(1, 'Axe'), P('court'), H(2, 'Chapitre'), P('court aussi')])
+    const set = { ...DEFAULT_RULE_SET, forbidAnnotations: false }
+    const r = assessConformity(trame, data, typology, perDepth({ 0: set, 1: set }))
+
+    expect(r.criteria.map((c) => c.key)).toEqual(['0|minChars', '1|minChars'])
+    expect(r.criteria.map((c) => c.label)).toEqual([
+      'Axes — au moins 500 caractères',
+      'Blocs sémantiques — au moins 500 caractères',
+    ])
+    expect(r.criteria.every((c) => c.failing === 1)).toBe(true)
+  })
+
+  it('regroupe toutes les profondeurs ≥ 2 sous un seul jeu', () => {
+    const { trame, data } = build([H(1, 'A'), H(2, 'B'), H(3, 'C'), P('court'), H(4, 'D'), P('court')])
+    const r = assessConformity(trame, data, typology, perDepth({ 2: { ...DEFAULT_RULE_SET, forbidAnnotations: false } }))
+
+    expect(r.criteria.map((c) => c.key)).toEqual(['2|minChars'])
+    expect(r.criteria[0].label).toBe('Articles — au moins 500 caractères')
+    expect(r.criteria[0].failing).toBe(2) // C (depth 2) et D (depth 3)
+  })
+
+  it('n’étiquette PAS les critères sans réglage par profondeur', () => {
+    // Le graphe du dashboard doit garder exactement ses barres d'avant pour les
+    // documents qui n'ont rien réglé.
+    const { trame, data } = build([H(1, 'Axe'), H(2, 'Chapitre'), P('court')])
+    const r = assessConformity(trame, data, typology, rules({ forbidAnnotations: false }))
+    expect(r.criteria.map((c) => c.key)).toEqual(['minChars'])
+    expect(r.criteria[0].label).toBe('au moins 500 caractères')
   })
 })

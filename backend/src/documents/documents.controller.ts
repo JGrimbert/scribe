@@ -5,6 +5,7 @@ import { StructureShapes } from '../analyse/structure-shapes'
 import { DocumentRules } from './rules'
 import {
   CommitImportRequest,
+  CommitResponse,
   DocumentContent,
   DocumentSummary,
   NodeValidationResponse,
@@ -36,8 +37,17 @@ export class DocumentsController {
   }
 
   @Post('preview/:previewId/commit')
-  commit(@Param('previewId') previewId: string, @Body() corrections: CommitImportRequest): Promise<DocumentSummary> {
+  commit(@Param('previewId') previewId: string, @Body() corrections: CommitImportRequest): Promise<CommitResponse> {
     return this.documentsService.commitImport(previewId, corrections)
+  }
+
+  // Rejouer la calibration d'un document déjà importé, depuis le .odt conservé.
+  // Rend un PreviewResponse ordinaire : le commit passe par la route ci-dessus,
+  // c'est le previewId qui sait qu'il s'agit d'un remplacement. Un seul écran
+  // de calibration côté frontend, qui n'a pas à connaître la différence.
+  @Post(':id/recalibrate')
+  recalibrate(@Param('id') id: string): Promise<PreviewResponse> {
+    return this.documentsService.previewRecalibration(id)
   }
 
   @Delete(':id')
