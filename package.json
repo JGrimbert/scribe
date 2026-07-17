@@ -12,7 +12,7 @@
     "dev:nlp": "cd nlp-service && .venv\\Scripts\\python.exe -m uvicorn app.main:app --port 8001",
     "stop": "kill-port 5173 3000 8001",
     "build": "npm run build --workspace frontend && npm run build --workspace backend",
-    "test": "npm run test --workspace frontend"
+    "test": "npm run test --workspace frontend && npm run test --workspace backend"
   },
   "devDependencies": {
     "concurrently": "^9.0.0",

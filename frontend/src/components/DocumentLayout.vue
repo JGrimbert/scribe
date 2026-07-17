@@ -34,7 +34,11 @@
         <CustomScrollbar :top-offset="42">
           <aside v-if="asideMode === 'registry'" class="registry-aside">
             <template v-if="sidebarExpanded">
-              <DocumentList :active-id="route.params.id" @select="openDocument" />
+              <DocumentList
+                  :active-id="route.params.id"
+                  @select="openDocument"
+                  @deleted="onDocumentDeleted"
+              />
               <div class="registry-aside__foot">
                 <ImportButton />
               </div>
@@ -116,12 +120,18 @@ const isEditor = computed(() => route.name === 'editor')
 
 // L'arbre des nœuds n'a rien à dire sur l'écran qui peut le reconstruire : la
 // config y cède la place au registre.
-const asideMode = computed(() => (route.name === 'styles' ? 'registry' : 'structure'))
+const asideMode = computed(() => (route.name === 'config' ? 'registry' : 'structure'))
 
-// Changer de document depuis le registre garde l'écran : on compare des
-// configurations, on ne repart pas dans le dashboard à chaque clic.
+// Changer de document depuis le registre garde l'écran ET le volet : on compare
+// des configurations, on ne repart pas dans le dashboard à chaque clic.
 function openDocument(id) {
-  if (id !== route.params.id) router.push(`/documents/${id}/styles`)
+  if (id !== route.params.id) router.push({ name: 'config', params: { id }, query: route.query })
+}
+
+// Supprimer un AUTRE document ne fait que raccourcir la liste ; supprimer celui
+// qu'on étudie laisse l'écran sur un document qui n'existe plus.
+function onDocumentDeleted(id) {
+  if (id === route.params.id) router.push('/')
 }
 
 // Nud « courant » : en dition c'est l'article ouvert (URL), en analyse c'est
@@ -140,9 +150,16 @@ function select(nodeId) {
   }
 }
 
-async function loadDocument(id) {
-  trame.value = null
-  data.value = null
+// `silent` : recharge sans vider trame/data d'abord. Un rechargement en place
+// (après recalibration) ne doit PAS démonter le `<router-view>` — l'écran qui
+// l'a demandé y est monté, et il porte le rapport à lire. Le vidage reste le
+// défaut pour un vrai changement de document, où afficher l'ancien livre sous
+// le nouveau titre serait pire qu'un écran d'attente.
+async function loadDocument(id, { silent = false } = {}) {
+  if (!silent) {
+    trame.value = null
+    data.value = null
+  }
   scopeNodeId.value = null
   validations.value = {}
   const res = await fetch(`/api/documents/${id}`)
@@ -157,6 +174,12 @@ async function loadDocument(id) {
   validations.value = content.validations ?? {}
   loadTypology(id) // non-awaité : le document s'affiche sans attendre cette réponse
 }
+
+// Une recalibration reconstruit l'arbre et regénère tous les ids de nœuds :
+// sans ce rechargement, le fil d'Ariane et l'arbre resteraient sur des chapitres
+// qui n'existent plus. Fourni parce que c'est le volet Structure qui déclenche,
+// et DocumentLayout qui détient trame/data.
+provide('reloadDocument', () => loadDocument(route.params.id, { silent: true }))
 
 // Validations manuelles (nodeId → 'validé' | 'périmé'), résolues par le backend
 // au chargement — lui seul peut départager les deux (il rehache le texte).

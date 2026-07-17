@@ -73,7 +73,7 @@ docker compose up -d                        # démarre PostgreSQL (une fois, ava
 npm run prisma:migrate --workspace backend   # crée/applique les migrations (première fois ou après modif du schéma)
 npm run dev                                   # lance frontend (Vite) + backend (Nest, watch) en parallèle
 npm run build                                  # build frontend puis backend
-npm test                                        # vitest run (frontend uniquement pour l'instant)
+npm test                                        # vitest run sur les DEUX workspaces (frontend puis backend)
 ```
 
 Pour cibler un seul workspace : `npm run <script> --workspace frontend` ou

@@ -29,6 +29,8 @@ export type CommitResponse = DocumentSummary & { recalibration?: RecalibrationRe
 export interface DocumentSummary {
   id: string
   title: string
+  // Le NOM du fichier importé, toujours présent (colonne de Document). Ne dit
+  // RIEN sur la conservation du fichier lui-même : voir `hasSource`.
   sourceFilename: string
   importedAt: string
   totalAxes: number
@@ -36,6 +38,16 @@ export interface DocumentSummary {
   totalArticles: number
   totalMots: number
   totalCaracteres: number
+  // Le .odt d'origine est-il conservé (cf. DocumentSource) ? Faux pour les
+  // documents importés avant cette table : ni recalibrables, ni ré-enrichissables
+  // par un parseur amélioré — seul un réimport les rattache. Exposé parce que
+  // sans lui le frontend ne peut que PROPOSER une recalibration puis afficher
+  // l'échec ; un bouton qu'on sait voué à échouer ne doit pas être actif.
+  hasSource: boolean
+  // Taille du .odt conservé, `null` s'il n'y en a pas. Lu depuis la colonne
+  // `sizeBytes` de DocumentSource — la demander ne charge pas le blob, c'est
+  // tout l'intérêt de la table à part.
+  sourceSizeBytes: number | null
 }
 
 /**

@@ -109,7 +109,14 @@ l'instant, ne pas retirer le middleware Vite sans en parler.
 - `src/documents/` — `DocumentsModule` : le registre + le flux d'import en
   deux temps (calibration avant écriture en base, cf. juste en dessous).
   - `GET /documents` — liste des documents avec stats agrégées, pour le
-    tableau du registre côté frontend.
+    registre côté frontend (aside de la config + accueil).
+    Porte `hasSource`/`sourceSizeBytes` : le `.odt` est-il conservé, et gros
+    comment. Lus via `SOURCE_PRESENCE` (`select: { sizeBytes: true }`) —
+    **savoir si le blob est là sans le charger**, ce qui est très exactement la
+    raison d'être de la table à part (cf. « Modèle de données »). À ne pas
+    confondre avec `sourceFilename`, colonne de `Document`, toujours remplie :
+    elle donne le nom du fichier importé, jamais sa présence. Sans `hasSource`,
+    le frontend ne pouvait que tenter la recalibration et afficher le 404.
   - `GET /documents/:id` — reconstruit `{ trame, data }` depuis la DB
     (parcours récursif générique via `parentId`, pas 3 boucles figées).
   - `POST /documents/preview` — upload multipart d'un `.odt`, parse **sans
@@ -392,6 +399,9 @@ la typologie), et ils sont persistés en colonnes `Json` sur `Document`, pas en
   ferait charger des centaines de Ko à chaque `findUnique` — y compris ceux qui
   ne veulent qu'un titre. Ici il faut le demander (`select: { source: … }`,
   cf. `getSource`) pour l'avoir. Sur le témoin : 376 Ko.
+  `sizeBytes` est une colonne à part **exprès** : elle permet de répondre « le
+  fichier est là, il pèse tant » (`hasSource`, `SOURCE_PRESENCE`) sans charger
+  le blob — le dériver de `bytes` supposerait de lire ce qu'on veut éviter.
   Ce que ça débloque : la calibration d'import redevient **rejouable** (elle
   était à sens unique, le buffer ne vivant que le temps de `pendingImports`),
   et le parseur peut être enrichi sans exiger un réimport manuel.

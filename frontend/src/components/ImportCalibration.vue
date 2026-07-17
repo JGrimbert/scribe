@@ -1,7 +1,7 @@
 <template>
   <div class="calibration">
     <div class="calibration-header">
-      <h2>Calibrage de l'import</h2>
+      <h2 v-if="mode === 'import'">Calibrage de l'import</h2>
       <UiNote variant="hint">
         Posez les deux démarcations : là où le vrai contenu commence (ce qui
         précède part en liminaire) et, s'il y en a une, là où la partie finale
@@ -51,7 +51,7 @@
       <UiNote v-if="error" variant="error" class="footer-error">{{ error }}</UiNote>
       <BaseButton variant="outline" @click="$emit('cancel')">Annuler</BaseButton>
       <BaseButton variant="solid" :busy="committing" @click="onCommit">
-        {{ committing ? 'Import en cours…' : "Valider l'import" }}
+        {{ commitLabel }}
       </BaseButton>
     </div>
   </div>
@@ -70,6 +70,10 @@ const props = defineProps({
   // Absent = le backend n'a rien trouvé de probant. Pas d'erreur : le livre
   // n'a alors pas de partie finale tant que l'utilisateur n'en pose pas une.
   suggestedStructureEndIndex: { type: Number, default: null },
+  // Le flux est le même des deux côtés — c'est le previewId qui sait s'il
+  // s'agit d'un remplacement (cf. `backend/CLAUDE.md`). Seuls les mots
+  // changent : on ne « valide pas un import » quand on refait celui d'hier.
+  mode: { type: String, default: 'import', validator: (v) => ['import', 'recalibration'].includes(v) },
 })
 
 const emit = defineEmits(['committed', 'cancel'])
@@ -79,6 +83,13 @@ const structureEndIndex = ref(props.suggestedStructureEndIndex)
 const levelOverrides = reactive({})
 const committing = ref(false)
 const error = ref(null)
+
+const isRecalibration = computed(() => props.mode === 'recalibration')
+
+const commitLabel = computed(() => {
+  if (isRecalibration.value) return committing.value ? 'Reconstruction…' : 'Recalibrer et remplacer'
+  return committing.value ? 'Import en cours…' : "Valider l'import"
+})
 
 // Re-cliquer la démarcation posée la retire : la partie finale est facultative,
 // et une suggestion fausse doit pouvoir être annulée, pas seulement déplacée.
@@ -169,7 +180,7 @@ async function onCommit() {
     const summary = await res.json()
     emit('committed', summary)
   } catch (e) {
-    error.value = `Échec de l'import : ${e.message}`
+    error.value = `${isRecalibration.value ? 'Échec de la recalibration' : "Échec de l'import"} : ${e.message}`
   } finally {
     committing.value = false
   }
@@ -191,10 +202,11 @@ async function onCommit() {
   margin: 0 0 0.5em;
 }
 
+/* Pas d'`overflow-y: auto` ni de `max-height` ici : la liste défile avec la
+   page, dans la CustomScrollbar qui l'entoure (config) ou celle du navigateur
+   (/import). Une hauteur propre y ajouterait une seconde barre imbriquée. */
 .outline {
-  overflow-y: auto;
   flex: 1 1 auto;
-  max-height: 68vh;
   padding: 0.25em;
 }
 

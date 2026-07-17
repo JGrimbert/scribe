@@ -119,10 +119,6 @@ const statItems = computed(() => {
 })
 </script>
 
-<style>
-@import '../assets/analyse.css';
-</style>
-
 <style scoped>
 .analyse-view {
   padding: 1.25em;

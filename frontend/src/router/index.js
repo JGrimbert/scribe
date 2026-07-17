@@ -4,7 +4,7 @@ import ImportView from '../components/ImportView.vue'
 import DocumentLayout from '../components/DocumentLayout.vue'
 import AnalyseView from '../components/AnalyseView.vue'
 import EditorView from '../components/EditorView.vue'
-import StylesView from '../components/StylesView.vue'
+import ConfigView from '../components/ConfigView.vue'
 import { useRegistry } from '../composables/useRegistry'
 
 const routes = [
@@ -23,7 +23,14 @@ const routes = [
     component: DocumentLayout,
     children: [
       { path: '', name: 'document', component: AnalyseView },
-      { path: 'styles', name: 'styles', component: StylesView },
+      { path: 'config', name: 'config', component: ConfigView },
+      // L'écran de typologie est devenu un volet de la config. Redirection
+      // plutôt que suppression : les liens posés (dashboard, favoris) visent
+      // encore /styles, et ce qu'ils cherchaient est le second volet.
+      {
+        path: 'styles',
+        redirect: (to) => ({ name: 'config', params: to.params, query: { volet: 'styles' } }),
+      },
       { path: 'noeud/:nodeId', name: 'editor', component: EditorView },
     ],
   },

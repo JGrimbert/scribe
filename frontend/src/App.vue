@@ -38,10 +38,10 @@
         <BaseButton
             v-if="lastDocumentId"
             variant="ghost"
-            icon="pi-tags"
-            :active="route.name === 'styles'"
-            title="Typologie des styles"
-            @click="router.push(`/documents/${lastDocumentId}/styles`)"
+            icon="pi-sliders-h"
+            :active="route.name === 'config'"
+            title="Configuration du document"
+            @click="router.push(`/documents/${lastDocumentId}/config`)"
         />
         <BaseButton
             variant="ghost"

@@ -25,9 +25,9 @@ async function onCommitted(summary) {
   pendingPreview.value = null
   await fetchDocuments()
   startAnalyse(summary.id)
-  // Le document arrive sur sa configuration : ce qu'on vient de calibrer y est
-  // rejouable, et la typologie de ses styles reste à arbitrer.
-  router.push(`/documents/${summary.id}/styles`)
+  // Le document arrive sur le volet Styles de sa config : ce qu'on vient de
+  // calibrer est fait, l'étape suivante est d'arbitrer ses styles.
+  router.push({ name: 'config', params: { id: summary.id }, query: { volet: 'styles' } })
 }
 
 function cancel() {

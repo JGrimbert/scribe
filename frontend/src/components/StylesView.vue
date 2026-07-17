@@ -1,7 +1,6 @@
 <template>
   <div class="styles-view">
     <header class="styles-header">
-      <h2>Typologie des styles</h2>
       <UiNote variant="hint">
         Ce que chaque style de votre <code>.odt</code> veut dire dans ce livre. Les rôles proposés
         ci-dessous sont des suggestions déduites du nom du style — rien n'est enregistré tant que
@@ -16,174 +15,166 @@
     </header>
 
     <template v-if="inventory.styles.length">
-      <section class="styles-section">
-        <h3>Styles de paragraphe <span class="count">{{ inventory.styles.length }}</span></h3>
-        <UiNote v-if="zoned" variant="hint">
-          Rangés dans l'ordre du livre, chacun dans la zone où il pèse le plus. La barre montre sa
-          répartition réelle : un style d'une seule couleur signe sa zone, un style bariolé est
-          transverse.
-        </UiNote>
+      <!-- Rangée 1 — les rôles, et EN REGARD les motifs qu'ils composent : c'est
+           tout l'intérêt de la grille. Changer un rôle recompose les modèles dans
+           le même tick ; deux écrans plus bas, ce lien était invisible. -->
+      <AnalyseBlock aside="right">
+        <template #main>
+          <h3>Styles de paragraphe <span class="count">{{ inventory.styles.length }}</span></h3>
+          <UiNote v-if="zoned" variant="hint">
+            Rangés dans l'ordre du livre, chacun dans la zone où il pèse le plus. La barre montre sa
+            répartition réelle : un style d'une seule couleur signe sa zone, un style bariolé est
+            transverse.
+          </UiNote>
 
-        <template v-for="section in zoneSections" :key="section.zone.key">
-          <h4 class="zone-heading">
-            <span class="zone-swatch" :style="{ background: section.zone.color }"></span>
-            {{ section.zone.label }}
-            <span class="count">{{ section.styles.length }}</span>
-            <span class="zone-hint">{{ section.zone.hint }}</span>
-          </h4>
-          <UiTable>
-            <thead>
-              <tr>
-                <th class="num">usages</th>
-                <th>style</th>
-                <th v-if="zoned" class="zone-col">répartition</th>
-                <th>extrait</th>
-                <th class="role-col">rôle</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="style in section.styles" :key="style.name">
-                <td class="num">{{ style.count }}</td>
-                <td>
-                  <span class="style-name">{{ style.name }}</span>
-                  <BaseChip v-if="style.headings" class="heading-chip" :title="`${style.headings} usage(s) comme titre`">
-                    titre
-                  </BaseChip>
-                </td>
-                <td v-if="zoned" class="zone-col">
-                  <StackedBar v-if="totalOf(style.byZone)" :segments="zoneSegments(style.byZone)" />
-                  <span v-else class="zone-none" title="Aucun usage situé — paragraphes sans texte">—</span>
-                </td>
-                <td class="sample">{{ style.sample || '—' }}</td>
-                <td class="role-col">
-                  <BaseSelect v-model="styles[style.name]">
-                    <option v-for="role in STYLE_ROLES" :key="role" :value="role">{{ role }}</option>
-                  </BaseSelect>
-                </td>
-              </tr>
-            </tbody>
-          </UiTable>
+          <template v-for="section in zoneSections" :key="section.zone.key">
+            <h4 class="zone-heading">
+              <span class="zone-swatch" :style="{ background: section.zone.color }"></span>
+              {{ section.zone.label }}
+              <span class="count">{{ section.styles.length }}</span>
+              <span class="zone-hint">{{ section.zone.hint }}</span>
+            </h4>
+            <UiTable>
+              <thead>
+                <tr>
+                  <th class="num">usages</th>
+                  <th>style</th>
+                  <th v-if="zoned" class="zone-col">répartition</th>
+                  <th>extrait</th>
+                  <th class="role-col">rôle</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="style in section.styles" :key="style.name">
+                  <td class="num">{{ style.count }}</td>
+                  <td>
+                    <span class="style-name">{{ style.name }}</span>
+                    <BaseChip v-if="style.headings" class="heading-chip" :title="`${style.headings} usage(s) comme titre`">
+                      titre
+                    </BaseChip>
+                  </td>
+                  <td v-if="zoned" class="zone-col">
+                    <StackedBar v-if="totalOf(style.byZone)" :segments="zoneSegments(style.byZone)" />
+                    <span v-else class="zone-none" title="Aucun usage situé — paragraphes sans texte">—</span>
+                  </td>
+                  <td class="sample">{{ style.sample || '—' }}</td>
+                  <td class="role-col">
+                    <BaseSelect v-model="styles[style.name]">
+                      <option v-for="role in STYLE_ROLES" :key="role" :value="role">{{ role }}</option>
+                    </BaseSelect>
+                  </td>
+                </tr>
+              </tbody>
+            </UiTable>
+          </template>
         </template>
-      </section>
 
-      <section v-if="inventory.highlights.length" class="styles-section">
-        <h3>Surlignages <span class="count">{{ inventory.highlights.length }}</span></h3>
-        <UiNote variant="hint">
-          Un surlignage marque l'état du texte, pas sa structure. « Annotation » = du travail en
-          attente : un chapitre qui en contient ne pourra pas être validé.
-        </UiNote>
-        <UiTable>
-          <thead>
-            <tr>
-              <th>couleur</th>
-              <th class="num">paragraphes</th>
-              <th class="num">inline</th>
-              <th v-if="zoned" class="zone-col">répartition</th>
-              <th>extrait</th>
-              <th class="role-col">rôle</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="hl in inventory.highlights" :key="hl.color">
-              <td>
-                <span class="swatch" :style="{ background: hl.color }"></span>
-                <code>{{ hl.color }}</code>
-              </td>
-              <td class="num">{{ hl.paragraphs }}</td>
-              <td class="num">{{ hl.spans }}</td>
-              <td v-if="zoned" class="zone-col">
-                <StackedBar v-if="totalOf(hl.byZone)" :segments="zoneSegments(hl.byZone)" />
-                <span v-else class="zone-none">—</span>
-              </td>
-              <td class="sample">{{ hl.sample || '—' }}</td>
-              <td class="role-col">
+        <template #aside>
+          <UiCard title="Modèles de structure">
+            <p class="card-lead">Les formes qui reviennent, niveau par niveau.</p>
+            <UiNote v-if="shapesError" variant="error">{{ shapesError }}</UiNote>
+            <p v-else-if="!shapeGroups.length" class="signature-none">Aucun modèle à ce stade.</p>
+
+            <div v-for="group in shapeGroups" :key="group.zone.key" class="shape-group">
+              <h4 class="zone-heading">
+                <span class="zone-swatch" :style="{ background: group.zone.color }"></span>
+                {{ group.zone.label }}
+                <span class="zone-hint">{{ group.total - group.empty }}/{{ group.total }} rédigés</span>
+              </h4>
+
+              <ul v-if="group.signatures.length" class="signatures">
+                <!-- Empilé, pas en rangée : dans un tiers de largeur, une
+                     signature et sa barre côte à côte se marchent dessus. -->
+                <li v-for="signature in group.signatures.slice(0, 4)" :key="signature.key" class="signature">
+                  <code class="signature-label" :title="signature.nodes.map((n) => n.titre).join(', ')">
+                    {{ signature.label }}
+                  </code>
+                  <div class="signature-row">
+                    <ScoreBar :pct="signature.pct" :label="`${signature.pct} %`" track-width="3.5em" />
+                    <span class="signature-count">{{ signature.count }}</span>
+                  </div>
+                </li>
+              </ul>
+              <p v-else class="signature-none">Aucun nœud rédigé — rien à modéliser.</p>
+            </div>
+          </UiCard>
+        </template>
+      </AnalyseBlock>
+
+      <!-- Rangée 2 — les règles, et les surlignages dont elles se servent : le
+           rôle « annotation » est ce qui rend un chapitre non conforme. -->
+      <AnalyseBlock aside="right">
+        <template #main>
+          <h3>Règles d'éligibilité</h3>
+          <UiNote variant="hint">
+            Ce qu'un nœud doit contenir pour être réputé prêt, niveau par niveau — ce qu'on attend
+            d'un axe n'est pas ce qu'on attend d'un article. <strong>Indicatif</strong> : le tableau
+            de bord compte les nœuds conformes, mais rien n'empêche de valider un chapitre à la main.
+          </UiNote>
+
+          <div class="rule-tabs" role="tablist">
+            <button
+                v-for="tab in DEPTH_TABS"
+                :key="tab.key"
+                class="rule-tab"
+                :class="{ 'rule-tab--active': activeTab === tab.key }"
+                type="button"
+                role="tab"
+                :aria-selected="activeTab === tab.key"
+                :title="tab.hint"
+                @click="activeTab = tab.key"
+            >
+              {{ tab.label }}
+              <span v-if="tab.key !== 'default' && rules.byDepth[tab.key]" class="rule-tab-dot" title="Règles propres à ce niveau"></span>
+            </button>
+          </div>
+
+          <div class="rule-panel">
+            <template v-if="activeTab === 'default'">
+              <p class="rule-scope">S'applique à tout niveau qui n'a pas ses propres règles.</p>
+              <RuleSetForm :rule-set="rules.default" />
+            </template>
+
+            <template v-else>
+              <label class="rule rule-override">
+                <input type="checkbox" :checked="!!rules.byDepth[activeTab]" @change="toggleDepth(activeTab)" />
+                <span>Des règles propres à « {{ activeTabLabel }} »</span>
+              </label>
+
+              <RuleSetForm v-if="rules.byDepth[activeTab]" :rule-set="rules.byDepth[activeTab]" />
+              <p v-else class="rule-scope">
+                Ce niveau suit les règles par défaut. Cocher ci-dessus part d'une copie du défaut —
+                et fait juger ces nœuds même s'ils ne sont pas des chapitres.
+              </p>
+            </template>
+          </div>
+        </template>
+
+        <template #aside>
+          <UiCard :title="`Surlignages (${inventory.highlights.length})`">
+            <p class="card-lead">Un surlignage marque l'état du texte, pas sa structure.</p>
+            <p v-if="!inventory.highlights.length" class="signature-none">Aucun surlignage relevé.</p>
+
+            <!-- Liste empilée et non tableau : six colonnes ne tiennent pas dans
+                 un tiers de largeur, et « annotation » se décide couleur par
+                 couleur, pas en comparant des colonnes. -->
+            <ul v-else class="hl-list">
+              <li v-for="hl in inventory.highlights" :key="hl.color" class="hl">
+                <div class="hl-head">
+                  <span class="swatch" :style="{ background: hl.color }"></span>
+                  <code>{{ hl.color }}</code>
+                  <span class="hl-counts">{{ hl.paragraphs }} ¶ · {{ hl.spans }} inline</span>
+                </div>
+                <StackedBar v-if="zoned && totalOf(hl.byZone)" :segments="zoneSegments(hl.byZone)" />
+                <p v-if="hl.sample" class="hl-sample" :title="hl.sample">{{ hl.sample }}</p>
                 <BaseSelect v-model="highlights[hl.color]">
                   <option v-for="role in HIGHLIGHT_ROLES" :key="role" :value="role">{{ role }}</option>
                 </BaseSelect>
-              </td>
-            </tr>
-          </tbody>
-        </UiTable>
-      </section>
-
-      <section v-if="shapeGroups.length" class="styles-section">
-        <h3>Modèles de structure</h3>
-        <UiNote variant="hint">
-          Les formes qui reviennent, niveau par niveau, lues avec les rôles que vous êtes en train
-          d'attribuer — <strong>changez un rôle ci-dessus et ces motifs se recomposent</strong>. Les
-          pourcentages portent sur les nœuds déjà rédigés : un chapitre encore vide n'a pas de forme.
-        </UiNote>
-        <UiNote v-if="shapesError" variant="error">{{ shapesError }}</UiNote>
-
-        <div v-for="group in shapeGroups" :key="group.zone.key" class="shape-group">
-          <h4 class="zone-heading">
-            <span class="zone-swatch" :style="{ background: group.zone.color }"></span>
-            {{ group.zone.label }}
-            <span class="zone-hint">
-              {{ group.total - group.empty }} rédigé(s) sur {{ group.total
-              }}<template v-if="group.empty"> — {{ group.empty }} encore vide(s)</template>
-            </span>
-          </h4>
-
-          <ul v-if="group.signatures.length" class="signatures">
-            <li v-for="signature in group.signatures.slice(0, 6)" :key="signature.key" class="signature">
-              <ScoreBar :pct="signature.pct" :label="`${signature.pct} %`" track-width="5em" />
-              <span class="signature-count">{{ signature.count }}</span>
-              <code class="signature-label">{{ signature.label }}</code>
-              <span class="signature-example" :title="signature.nodes.map((n) => n.titre).join(', ')">
-                ex. {{ signature.nodes[0]?.titre }}
-              </span>
-            </li>
-          </ul>
-          <p v-else class="signature-none">Aucun nœud rédigé à ce niveau — rien à modéliser.</p>
-        </div>
-      </section>
-
-      <section class="styles-section">
-        <h3>Règles d'éligibilité</h3>
-        <UiNote variant="hint">
-          Ce qu'un nœud doit contenir pour être réputé prêt, niveau par niveau — ce qu'on attend
-          d'un axe n'est pas ce qu'on attend d'un article. <strong>Indicatif</strong> : le tableau
-          de bord compte les nœuds conformes, mais rien n'empêche de valider un chapitre à la main.
-        </UiNote>
-
-        <div class="rule-tabs" role="tablist">
-          <button
-              v-for="tab in DEPTH_TABS"
-              :key="tab.key"
-              class="rule-tab"
-              :class="{ 'rule-tab--active': activeTab === tab.key }"
-              type="button"
-              role="tab"
-              :aria-selected="activeTab === tab.key"
-              :title="tab.hint"
-              @click="activeTab = tab.key"
-          >
-            {{ tab.label }}
-            <span v-if="tab.key !== 'default' && rules.byDepth[tab.key]" class="rule-tab-dot" title="Règles propres à ce niveau"></span>
-          </button>
-        </div>
-
-        <div class="rule-panel">
-          <template v-if="activeTab === 'default'">
-            <p class="rule-scope">S'applique à tout niveau qui n'a pas ses propres règles.</p>
-            <RuleSetForm :rule-set="rules.default" />
-          </template>
-
-          <template v-else>
-            <label class="rule rule-override">
-              <input type="checkbox" :checked="!!rules.byDepth[activeTab]" @change="toggleDepth(activeTab)" />
-              <span>Des règles propres à « {{ activeTabLabel }} »</span>
-            </label>
-
-            <RuleSetForm v-if="rules.byDepth[activeTab]" :rule-set="rules.byDepth[activeTab]" />
-            <p v-else class="rule-scope">
-              Ce niveau suit les règles par défaut. Cocher ci-dessus part d'une copie du défaut —
-              et fait juger ces nœuds même s'ils ne sont pas des chapitres.
-            </p>
-          </template>
-        </div>
-      </section>
+              </li>
+            </ul>
+          </UiCard>
+        </template>
+      </AnalyseBlock>
 
       <footer class="styles-footer">
         <UiNote v-if="saveError" variant="error">{{ saveError }}</UiNote>
@@ -205,8 +196,10 @@ import BaseChip from './ui/BaseChip.vue'
 import BaseSelect from './ui/BaseSelect.vue'
 import ScoreBar from './ui/ScoreBar.vue'
 import StackedBar from './ui/StackedBar.vue'
+import UiCard from './ui/UiCard.vue'
 import UiNote from './ui/UiNote.vue'
 import UiTable from './ui/UiTable.vue'
+import AnalyseBlock from './analyse/AnalyseBlock.vue'
 import RuleSetForm from './RuleSetForm.vue'
 import { groupByZone, hasZones, totalOf, zoneSegments } from '../script/zones'
 import { DEPTH_TABS, emptyRuleSet, HIGHLIGHT_ROLES, STYLE_ROLES } from '../script/typology'
@@ -338,19 +331,19 @@ watch(() => route.params.id, load, { immediate: true })
 </script>
 
 <style scoped>
-.styles-view {
-  padding: 1.25em;
-  /* La DocumentBar est en position absolue AU-DESSUS de la zone de défilement
-     (translucide, le contenu défile derrière) : sans réserver sa hauteur, le
-     titre se lit à travers la barre. --bar-size est la même variable qui donne
-     sa hauteur à la barre — pas un nombre magique à resynchroniser. */
-  padding-top: calc(var(--bar-size) + 1.25em);
-  max-width: 70em;
-}
+/* Volet de ConfigView, plus une page : le padding et le décrochement sous la
+   DocumentBar appartiennent à l'hôte. */
 
-.styles-header h2 {
-  margin: 0 0 var(--sp-2);
-  font-size: var(--fs-lg);
+/* `analyse.css` étire la dernière card d'une colonne étroite pour aligner son
+   bas sur la viz — pertinent pour une viz de hauteur comparable, absurde ici :
+   le tableau des styles fait 2000+ px, la card en ferait autant pour 850 px de
+   contenu, et les modèles quitteraient l'écran dès la deuxième zone. On la
+   décolle donc du flux vertical et on la colle en haut : le point de la grille
+   est de VOIR les motifs se recomposer pendant qu'on attribue les rôles. */
+.styles-view :deep(.split-right > .ui-card) {
+  flex: 0 0 auto;
+  position: sticky;
+  top: calc(var(--bar-size) + var(--sp-2));
 }
 
 .styles-section {
@@ -421,20 +414,29 @@ watch(() => route.params.id, load, { immediate: true })
   gap: var(--sp-2);
 }
 
+/* Empilée (label puis barre) : en colonne étroite, la mettre en rangée
+   écraserait le label, qui est l'information. */
 .signature {
   display: flex;
+  flex-direction: column;
+  gap: 0.15em;
+  font-size: var(--fs-sm);
+  min-width: 0;
+}
+
+.signature-row {
+  display: flex;
   align-items: center;
-  gap: var(--sp-3);
-  font-size: var(--fs-md);
+  gap: var(--sp-2);
 }
 
 .signature-count {
-  min-width: 3em;
-  text-align: right;
   font-variant-numeric: tabular-nums;
   opacity: var(--op-muted);
 }
 
+/* Le motif complet ne tient pas toujours : il se coupe, l'infobulle porte les
+   chapitres qui l'illustrent. */
 .signature-label {
   font-family: var(--font-ui);
   padding: 0.1em 0.5em;
@@ -442,16 +444,8 @@ watch(() => route.params.id, load, { immediate: true })
   background: var(--c-surface);
   border: 1px solid var(--c-border);
   white-space: nowrap;
-}
-
-/* L'exemple sert à raccrocher la signature à du réel ; il cède la place. */
-.signature-example {
-  color: var(--c-ink2);
-  font-style: italic;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
-  min-width: 0;
 }
 
 .signature-none {
@@ -488,10 +482,52 @@ watch(() => route.params.id, load, { immediate: true })
   display: inline-block;
   width: 1em;
   height: 1em;
+  flex: 0 0 auto;
   border: 1px solid var(--c-border);
   border-radius: var(--radius-sm);
   vertical-align: -0.15em;
-  margin-right: var(--sp-2);
+}
+
+/* ── Surlignages en colonne étroite ── */
+.hl-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+.hl {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.hl-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-sm);
+}
+
+.hl-counts {
+  margin-left: auto;
+  color: var(--c-ink2);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.hl-sample {
+  margin: 0;
+  color: var(--c-ink2);
+  font-family: var(--font-serif);
+  font-size: var(--fs-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .styles-footer {

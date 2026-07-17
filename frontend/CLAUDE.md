@@ -39,9 +39,12 @@ vues. Routes (`src/router/index.js`) :
   L'ancien écran "Chapitrage"
   (`DocumentIndex.vue`) a été supprimé — ses stats (sous-titres, mots)
   vivent dans l'infobulle des nœuds de `StructureView`.
-- `/documents/:id/styles` — `StylesView.vue` : la configuration du document.
-  Voir « Typologie des styles » plus bas — l'écran a sa propre section, il n'a
-  rien à faire dans du routing.
+- `/documents/:id/config` — `ConfigView.vue` : la configuration, en **deux
+  volets** (`?volet=structure|styles`, `structure` par défaut). Voir
+  « Configuration du document » plus bas — l'écran a sa propre section, il n'a
+  rien à faire dans du routing. `/documents/:id/styles` **redirige** ici sur le
+  volet `styles` : l'ancien écran de typologie en est devenu le second volet, et
+  les liens posés visent encore l'ancienne URL.
 - `/documents/:id/axe/:axeId` — `EditorView.vue` → `FolioComposer`/`Scroll`
   (Scroll toujours désactivé, `v-if="false === true"`).
 
@@ -76,16 +79,111 @@ peut pas dire « Replier la structure » sur un écran où il replie le registre
 - `DocumentLayout` ne bloque plus son rendu entier sur `v-if="trame && data"` —
   seuls `DocumentBar` et le `<router-view>` attendent. Sinon changer de document
   depuis l'aside ferait disparaître l'aside elle-même, le temps du fetch.
-- Les stats du document (axes/blocs/articles/mots) et sa suppression ne sont
-  PAS dans la liste : elles ont suivi vers la config. Une action irréversible
-  au survol d'une ligne, c'est une suppression par inadvertance.
+  **Corollaire, et le piège s'est déjà refermé une fois** : ce `v-if` fait que
+  vider `trame`/`data` DÉMONTE la vue enfant. `loadDocument(id, { silent })`
+  existe pour ça — un rechargement en place (après recalibration) ne vide rien,
+  sans quoi il détruit l'écran qui l'a demandé, et avec lui le rapport qu'on
+  venait afficher. Le vidage reste le défaut pour un vrai changement de
+  document.
+- Une ligne = **deux boutons frères**, poubelle à gauche puis titre + méta
+  (« 17 juillet 2026 · 376 Ko », la taille seulement si le `.odt` est là).
+  Imbriquer la poubelle dans le bouton de sélection serait un bouton dans un
+  bouton — HTML invalide, et le clic remonterait au parent.
+- **La suppression est offerte à deux endroits** (la ligne, et le volet
+  Structure) : `confirmAndDelete` vit donc dans `useRegistry`, pas dans les
+  vues — deux formulations du même avertissement divergeraient, ou l'une
+  s'oublierait. La poubelle est discrète au repos et rouge au survol : une
+  colonne de poubelles contrastées ferait de la suppression l'objet de la liste.
+- `DocumentList` supprime et **émet `deleted`** ; c'est le parent qui décide de
+  la suite — supprimer le document qu'on étudie doit quitter l'écran, supprimer
+  un autre ne fait que raccourcir la liste. La liste ne sait pas sur quel écran
+  elle est montée.
+- Les stats du document (axes/blocs/articles/mots) restent hors de la liste :
+  elles sont dans le volet Structure, qui parle du document courant.
 
-## Typologie des styles — `StylesView.vue`
+## Configuration du document — `ConfigView.vue`
 
-`/documents/:id/styles`. Liste les styles relevés dans le `.odt` (usages,
-extrait, rôle) et les couleurs de surlignage, un appel unique à
-`GET /documents/:id/typology` servant inventaire + suggestions + décisions
-déjà prises.
+`/documents/:id/config`, deux volets : **1. Structure du livre**
+(`StructureConfig.vue`) puis **2. Styles & règles** (`StylesView.vue`). Ils sont
+numérotés, et l'ordre n'est pas cosmétique — c'est la chaîne de dépendance :
+bornes + niveaux → zones → répartition des styles par zone → zone dominante →
+ordre du tableau des rôles → modèles de structure → règles → conformité. **Tout
+va du volet 1 vers le volet 2, rien ne remonte.**
+
+Le volet vit dans l'URL (`?volet=`) et non en état local : `/styles` y redirige,
+et le renvoi du dashboard (`AnomaliesBlock`) doit pouvoir viser le second volet.
+`router.replace` — changer de volet n'est pas un pas de navigation à empiler.
+
+### Volet Structure — rejouer la calibration
+
+`POST /documents/:id/recalibrate` rend un `PreviewResponse` ordinaire ;
+`StructureConfig` monte alors le MÊME `ImportCalibration` qu'à l'import, en
+`mode="recalibration"` (seuls les mots changent : « Recalibrer et remplacer »,
+pas de `<h2>` — l'hôte porte déjà le titre). C'est le `previewId` qui sait qu'il
+s'agit d'un remplacement, le commit repasse par la route de commit normale.
+- **`hasSource` (+ `sourceSizeBytes`) sur `DocumentSummary`** dit si le `.odt`
+  est conservé : sans lui, on ne pouvait que proposer une recalibration puis
+  afficher son échec. Le bouton est donc **barré d'avance** sur un document
+  importé avant `DocumentSource`, avec la note qui dit pourquoi, et la taille
+  s'affiche en tuile (« 376 Ko · .odt conservé », `—` s'il n'y en a pas). Ne pas
+  confondre avec `sourceFilename`, qui est le NOM du fichier et vaut toujours
+  quelque chose — c'est le piège qui a fait croire un temps que le témoin était
+  recalibrable. Le 404 explicite du backend reste le filet en dessous : tant que
+  le registre n'est pas chargé, `recalibratable` vaut `true` (on ne fait pas
+  clignoter un bouton d'inactif à actif à chaque arrivée sur l'écran).
+- **Le rapport (`RecalibrationReport`) reste affiché**, il ne passe pas en toast :
+  une relecture perdue doit pouvoir se lire et se refaire. Ton `error` s'il y a
+  des perdues, `info` sinon. Le backend le rend à CHAQUE `replace` (jamais sur un
+  import initial, où il n'y aurait rien à réapparier).
+- Les **stats se lisent dans `useRegistry`**, pas dans un appel dédié :
+  `GET /documents/:id` ne les porte pas, et la liste est déjà chargée pour
+  l'aside de cet écran.
+- Après commit, `reloadDocument` (injecté, cf. « Registre et aside
+  contextuelle ») rafraîchit `trame`/`data` : une recalibration regénère TOUS les
+  ids de nœuds. Le store d'analyse, lui, n'est pas touché — `AnalyseView` refait
+  son `fetchAnalysis` au montage, et le forcer d'ici relancerait des minutes de
+  NLP sans qu'on l'ait demandé.
+
+### Volet Styles & règles — `StylesView.vue`
+
+Liste les styles relevés dans le `.odt` (usages, extrait, rôle) et les couleurs
+de surlignage, un appel unique à `GET /documents/:id/typology` servant
+inventaire + suggestions + décisions déjà prises.
+
+**Une grille de deux `AnalyseBlock`**, pas un flux vertical — et l'appariement
+n'est pas cosmétique :
+- **Styles de paragraphe (2/3) · Modèles de structure (1/3)** — les modèles sont
+  EN REGARD du tableau des rôles parce qu'ils en dépendent : changer un rôle
+  recompose les motifs dans le même tick. Deux sections plus bas, ce lien était
+  invisible ; c'est toute la raison de la grille.
+- **Règles d'éligibilité (2/3) · Surlignages (1/3)** — le rôle « annotation »
+  d'un surlignage est ce qui rend un chapitre non conforme : la décision et sa
+  conséquence se lisent côte à côte.
+
+`AnalyseBlock` sert de cadre **hors dashboard** : avec `step: null` + `needs:
+null` il est du pur layout 2/3 · 1/3 (pas d'état vide, pas de révélation). Il
+consomme `useAnalyse()`, fourni par `DocumentLayout` — donc disponible sur la
+config sans rien câbler.
+
+Deux conséquences de la colonne étroite, à ne pas défaire :
+- **La card latérale est `sticky`, et pas étirée.** `analyse.css` étire la
+  dernière card d'une colonne pour aligner son bas sur la viz — bon pour deux
+  colonnes de hauteur comparable, absurde ici : le tableau des 31 styles fait
+  2000+ px, la card en ferait autant pour 850 px de contenu, et les modèles
+  quitteraient l'écran dès la deuxième zone. `StylesView` la repasse donc en
+  `flex: 0 0 auto` + `position: sticky` sous la `DocumentBar`. Elle se décolle
+  normalement quand son propre bloc sort de l'écran.
+- **Surlignages et modèles sont des LISTES EMPILÉES, plus des tableaux.** Six
+  colonnes ne tiennent pas dans un tiers de largeur. Un surlignage se décide
+  couleur par couleur, pas en comparant des colonnes ; une signature est une
+  phrase. L'exemple de chapitre d'une signature est passé en infobulle, faute de
+  place — il servait à raccrocher au réel, pas à être lu.
+
+`analyse.css` (le primitif `.split`) est importé **globalement par `main.js`** :
+il ne servait qu'au dashboard, il sert maintenant aussi ici. Il ne tenait avant
+que parce que `AnalyseView` est importé statiquement par le routeur — passer
+cette route en lazy aurait décoiffé la config sans que rien ne relie la cause à
+l'effet.
 
 **Les suggestions pré-remplissent le formulaire mais ne sont pas persistées**
 tant que l'utilisateur n'a pas enregistré (cf. `backend/CLAUDE.md`) : ce qu'il
@@ -215,10 +313,16 @@ dépendent :
 
 ## Calibration d'import
 
-`ImportCalibration.vue` (montée par `ImportView.vue` sur `/import`, après le
-`POST /api/documents/preview` déclenché par `ImportButton`) : liste tous les
-titres détectés dans l'ordre du
-document, en accordéon (`CalibrationNode.vue`, récursif, replié par défaut,
+`ImportCalibration.vue` — **montée à deux endroits, tel quel** : par
+`ImportView.vue` sur `/import` (après le `POST /api/documents/preview` déclenché
+par `ImportButton`), et par `StructureConfig.vue` en `mode="recalibration"` (cf.
+« Volet Structure »). Elle ne connaît pas la différence : le `previewId` la
+porte. Elle **n'a pas de hauteur propre** (ni `max-height`, ni `overflow-y`) —
+elle défile avec la page, dans la `CustomScrollbar` de la config ou celle du
+navigateur sur `/import` ; s'en donner une remettrait la scrollbar imbriquée que
+le design system proscrit.
+
+Elle liste tous les titres détectés dans l'ordre du document, en accordéon (`CalibrationNode.vue`, récursif, replié par défaut,
 liseret de couleur par niveau). Deux corrections manuelles avant validation
 (`POST /api/documents/preview/:previewId/commit`) :
 - **Les deux bornes du livre** : chaque ligne de démarcation entre deux titres

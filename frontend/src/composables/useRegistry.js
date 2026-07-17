@@ -30,6 +30,14 @@ async function fetchDocuments() {
   }
 }
 
+// Pour les consommateurs qui ont besoin de la liste sans être celui qui la
+// charge (l'écran de config lit les stats du document courant dedans). Le
+// `loading` étant posé avant tout await, deux appels dans le même tick ne font
+// qu'un seul fetch.
+function ensureLoaded() {
+  if (!documents.value.length && !loading.value) return fetchDocuments()
+}
+
 // Rend true si le preview est prêt — l'appelant navigue alors vers /import.
 async function createPreview(file) {
   uploading.value = true
@@ -68,6 +76,14 @@ async function deleteDocument(id) {
   }
 }
 
+// La confirmation vit ici et non dans les vues : la suppression est offerte à
+// deux endroits (la ligne du registre, le volet Structure) et deux formulations
+// du même avertissement finiraient par diverger — ou par en oublier une.
+async function confirmAndDelete(doc) {
+  if (!window.confirm(`Supprimer définitivement « ${doc.title} » ? Cette action est irréversible.`)) return false
+  return deleteDocument(doc.id)
+}
+
 // Tâche de fond, erreur avalée : l'analyse se relance à la main depuis le
 // dashboard, son échec ne doit pas retenir l'affichage du document importé.
 function startAnalyse(id) {
@@ -83,8 +99,10 @@ export function useRegistry() {
     error,
     pendingPreview,
     fetchDocuments,
+    ensureLoaded,
     createPreview,
     deleteDocument,
+    confirmAndDelete,
     startAnalyse,
   }
 }

@@ -1,6 +1,8 @@
 /* ── Résidus partagés du dashboard d'analyse ───────────────────────
-   Importé (non scopé) par AnalyseView.vue. Ne garder ici que ce qui est
-   commun à plusieurs cards ET impossible à porter par un composant ui/
+   Importé globalement par main.js (et par les stories qui en ont besoin).
+   Global et non scopé À DESSEIN : `.split` n'est plus propre au dashboard, le
+   volet Styles de la config s'en sert aussi. Ne garder ici que ce qui est
+   commun à plusieurs écrans/cards ET impossible à porter par un composant ui/
    (cadres SVG, largeur de colonne de score). Tout le reste vit dans
    src/components/ui/. */
 

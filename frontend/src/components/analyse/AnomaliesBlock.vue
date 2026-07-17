@@ -24,7 +24,11 @@
         <UiNote variant="hint">
           Les styles de ce document ne sont pas encore typés : impossible de dire ce qu'un chapitre
           doit contenir pour être validable.
-          <RouterLink :to="`/documents/${route.params.id}/styles`">Configurer la typologie</RouterLink>
+          <!-- Chemin littéral et non route nommée : le routeur en mémoire des
+               stories est un attrape-tout, sans noms (cf. .storybook/preview.js). -->
+          <RouterLink :to="`/documents/${route.params.id}/config?volet=styles`">
+            Configurer la typologie
+          </RouterLink>
         </UiNote>
       </UiCard>
 

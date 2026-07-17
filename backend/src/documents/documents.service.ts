@@ -46,6 +46,11 @@ export class DocumentsService {
   // destinations.
   private readonly pendingImports = new Map<string, { buffer: Buffer; originalFilename: string; documentId?: string }>()
 
+  // Savoir SI le .odt est là, et sa taille, sans charger le blob : `sizeBytes`
+  // est une colonne scalaire de DocumentSource, `bytes` n'est jamais demandé.
+  // Toute lecture qui construit un DocumentSummary passe par là.
+  private static readonly SOURCE_PRESENCE = { select: { sizeBytes: true } } as const
+
   async previewUpload(buffer: Buffer, originalFilename: string): Promise<PreviewResponse> {
     return this.openPreview(buffer, originalFilename)
   }
@@ -162,6 +167,7 @@ export class DocumentsService {
             liminaire: result.liminaire as unknown as Prisma.InputJsonValue,
             final: result.final as unknown as Prisma.InputJsonValue,
           },
+          include: { source: DocumentsService.SOURCE_PRESENCE },
         })
 
         await tx.node.createMany({ data: nodeRows })
@@ -223,6 +229,7 @@ export class DocumentsService {
           // conversion est un aller-retour de type, pas une transformation.
           source: { create: { bytes: new Uint8Array(source), sizeBytes: source.length } },
         },
+        include: { source: DocumentsService.SOURCE_PRESENCE },
       })
 
       const { nodeRows, paragraphRows } = this.buildRows(data, trame, doc.id)
@@ -287,7 +294,10 @@ export class DocumentsService {
   }
 
   async list(): Promise<DocumentSummary[]> {
-    const documents = await this.prisma.document.findMany({ orderBy: { importedAt: 'desc' } })
+    const documents = await this.prisma.document.findMany({
+      orderBy: { importedAt: 'desc' },
+      include: { source: DocumentsService.SOURCE_PRESENCE },
+    })
     return documents.map((d) => this.toSummary(d))
   }
 
@@ -517,6 +527,9 @@ export class DocumentsService {
     await this.prisma.document.delete({ where: { id } })
   }
 
+  // `source` : la relation, sélectionnée SANS ses `bytes` (cf. SOURCE_PRESENCE).
+  // Attendue à chaque appel — l'omettre ferait passer un document parfaitement
+  // recalibrable pour un document sans source.
   private toSummary(document: {
     id: string
     title: string
@@ -527,6 +540,7 @@ export class DocumentsService {
     totalArticles: number
     totalMots: number
     totalCaracteres: number
+    source: { sizeBytes: number } | null
   }): DocumentSummary {
     return {
       id: document.id,
@@ -538,6 +552,8 @@ export class DocumentsService {
       totalArticles: document.totalArticles,
       totalMots: document.totalMots,
       totalCaracteres: document.totalCaracteres,
+      hasSource: !!document.source,
+      sourceSizeBytes: document.source?.sizeBytes ?? null,
     }
   }
 }
