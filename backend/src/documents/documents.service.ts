@@ -17,6 +17,7 @@ import { nodeContentHash } from '../analyse/plain-text'
 import { collectShapes, StructureShapes } from '../analyse/structure-shapes'
 import { DocumentTypology, isTypologySettled, suggestTypology, typologyErrors } from './typology'
 import { DEFAULT_RULES, DocumentRules, normalizeRules, rulesErrors } from './rules'
+import { LiminaireConfig, liminaireConfigErrors, normalizeLiminaireConfig } from './liminaire-config'
 import { PreviousValidation, RebuiltNode, remapValidations } from './recalibration'
 import {
   CommitImportRequest,
@@ -338,6 +339,12 @@ export class DocumentsService {
 
     const axes = (childrenByParent.get(null) ?? []).map((axe) => buildTree(axe.id))
 
+    // Liminaire/final : colonnes Json sur Document, relues telles quelles (elles
+    // portent styleName/highlight/pageStart). `null` = document importé avant ces
+    // colonnes → tableau vide.
+    const liminaire = (document.liminaire as unknown as Trame['liminaire']) ?? []
+    const final = (document.final as unknown as Trame['final']) ?? []
+
     const validations: Record<string, NodeValidationState> = {}
     for (const [nodeId, hash] of await this.getValidations(id)) {
       const item = data[nodeId]
@@ -345,7 +352,7 @@ export class DocumentsService {
       validations[nodeId] = hash === nodeContentHash(item.texte) ? 'validé' : 'périmé'
     }
 
-    return { title: document.title, trame: { axes }, data, validations }
+    return { title: document.title, trame: { axes, liminaire, final }, data, validations }
   }
 
   // Paragraphes en base → `texte[]` du modèle. Partagé par getContent et la
@@ -458,6 +465,27 @@ export class DocumentsService {
       data: { validationRules: rules as unknown as Prisma.InputJsonValue },
     })
     return rules
+  }
+
+  async getLiminaireConfig(id: string): Promise<LiminaireConfig> {
+    const document = await this.prisma.document.findUnique({ where: { id }, select: { liminaireConfig: true } })
+    if (!document) throw new NotFoundException(`Document ${id} introuvable`)
+    return normalizeLiminaireConfig(document.liminaireConfig)
+  }
+
+  async saveLiminaireConfig(id: string, body: unknown): Promise<LiminaireConfig> {
+    const document = await this.prisma.document.findUnique({ where: { id }, select: { id: true } })
+    if (!document) throw new NotFoundException(`Document ${id} introuvable`)
+
+    const errors = liminaireConfigErrors(body)
+    if (errors.length) throw new BadRequestException(errors)
+
+    const config = normalizeLiminaireConfig(body)
+    await this.prisma.document.update({
+      where: { id },
+      data: { liminaireConfig: config as unknown as Prisma.InputJsonValue },
+    })
+    return config
   }
 
   // nodeId → contentHash au moment de la validation. Consommé aussi par

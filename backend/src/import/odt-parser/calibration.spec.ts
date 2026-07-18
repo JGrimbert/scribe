@@ -11,7 +11,7 @@ function flat(nodes: Partial<FlatNode>[]): FlatNode[] {
     styleName: '',
     effectiveStyle: '',
     highlight: null,
-    hasPageBreak: false,
+    pageStart: null,
     ...n,
   })) as FlatNode[]
 }
@@ -20,7 +20,7 @@ describe('buildOutline', () => {
   it('ne garde que les titres non vides et reporte niveau/index/saut de page', () => {
     const outline = buildOutline(
       flat([
-        { kind: 'heading', level: 1, text: 'Axe', hasPageBreak: true },
+        { kind: 'heading', level: 1, text: 'Axe', pageStart: 'page' },
         { kind: 'paragraph', text: 'du texte' }, // exclu
         { kind: 'heading', level: 2, text: '' }, // exclu (titre vide)
         { kind: 'heading', level: 2, text: 'Bloc' },

@@ -3,6 +3,7 @@ import { FileInterceptor } from '@nestjs/platform-express'
 import { DocumentsService } from './documents.service'
 import { StructureShapes } from '../analyse/structure-shapes'
 import { DocumentRules } from './rules'
+import { LiminaireConfig } from './liminaire-config'
 import {
   CommitImportRequest,
   CommitResponse,
@@ -89,6 +90,19 @@ export class DocumentsController {
   @Put(':id/rules')
   saveRules(@Param('id') id: string, @Body() body: Partial<DocumentRules>): Promise<DocumentRules> {
     return this.documentsService.saveRules(id, body)
+  }
+
+  // Tagging des pages liminaires (type + côté recto/verso), keyé par page.
+  // Séparé de la typologie : décision par PAGE, pas par style (cf.
+  // liminaire-config.ts).
+  @Get(':id/liminaire-config')
+  getLiminaireConfig(@Param('id') id: string): Promise<LiminaireConfig> {
+    return this.documentsService.getLiminaireConfig(id)
+  }
+
+  @Put(':id/liminaire-config')
+  saveLiminaireConfig(@Param('id') id: string, @Body() body: unknown): Promise<LiminaireConfig> {
+    return this.documentsService.saveLiminaireConfig(id, body)
   }
 
   // Validation manuelle d'un chapitre (cf. NodeValidation, schema.prisma).

@@ -7,7 +7,7 @@ import {
   nodeText,
   nodeTextWithLinks,
   headingLevel,
-  buildPageBreakStyles,
+  buildPageStarts,
   buildListStyles,
   buildStyleTable,
   effectiveStyleName,
@@ -54,7 +54,7 @@ export function buildFlatNodes(xmlContent: string, stylesXml?: string): {
 
   if (!body) throw new Error('Impossible de trouver le corps du document ODT')
 
-  const pageBreakStyles = buildPageBreakStyles(doc)
+  const pageStarts = buildPageStarts(doc, stylesDoc)
   const listStyles = buildListStyles(doc)
   const styleTable = buildStyleTable(doc)
   const tocTexts = extractTocTexts(doc)
@@ -99,7 +99,7 @@ export function buildFlatNodes(xmlContent: string, stylesXml?: string): {
           styleName,
           effectiveStyle: effectiveStyleName(styleName, styleTable),
           highlight: styleBackground(styleName, styleTable),
-          hasPageBreak: false,
+          pageStart: null,
           listItems: items,
           listOrdered: listStyles.get(styleName) ?? false,
           // Le style du <text:list> est un style de LISTE (« L5 ») ; celui qui
@@ -125,7 +125,7 @@ export function buildFlatNodes(xmlContent: string, stylesXml?: string): {
       }
 
       const level = headingLevel(node)
-      const hasPageBreak = pageBreakStyles.has(styleName)
+      const pageStart = pageStarts.get(styleName) ?? null
       const effectiveStyle = effectiveStyleName(styleName, styleTable)
       const highlight = styleBackground(styleName, styleTable)
 
@@ -144,7 +144,7 @@ export function buildFlatNodes(xmlContent: string, stylesXml?: string): {
           styleName,
           effectiveStyle,
           highlight,
-          hasPageBreak,
+          pageStart,
           ...(bookmarkNames.length ? { bookmarkNames } : {}),
         })
       } else {
@@ -158,7 +158,7 @@ export function buildFlatNodes(xmlContent: string, stylesXml?: string): {
             styleName,
             effectiveStyle,
             highlight,
-            hasPageBreak,
+            pageStart,
           })
         }
       }
@@ -174,7 +174,7 @@ export function buildFlatNodes(xmlContent: string, stylesXml?: string): {
         styleName: '',
         effectiveStyle: '',
         highlight: null,
-        hasPageBreak: false,
+        pageStart: null,
         tableData: extractTable(node, styleTable),
         innerStyles: extractInnerStyles(node, styleTable),
       })

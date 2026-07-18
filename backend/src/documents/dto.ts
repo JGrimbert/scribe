@@ -51,13 +51,13 @@ export interface DocumentSummary {
 }
 
 /**
- * Sous-ensemble de Trame réellement consommé par FolioComposer (sections
- * computed, cf. FolioComposer.vue) : meta/liminaire/final ne sont pas utilisés
- * côté frontend, inutile de les reconstruire depuis la DB.
+ * Sous-ensemble de Trame reconstruit depuis la DB : `axes` pour FolioComposer,
+ * `liminaire`/`final` pour le composer de pages liminaires de la config
+ * (LiminaireComposer). `meta` reste inutile côté frontend.
  */
 export interface DocumentContent {
   title: string
-  trame: { axes: Trame['axes'] }
+  trame: { axes: Trame['axes']; liminaire: Trame['liminaire']; final: Trame['final'] }
   data: DataMap
   // État de validation résolu, par nœud — seuls les nœuds validés y figurent.
   // Résolu ici et pas côté client : départager « validé » de « périmé »

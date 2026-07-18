@@ -4,7 +4,7 @@ import { FlatNode, OutlineEntry } from './types'
 export function buildOutline(flatNodes: FlatNode[]): OutlineEntry[] {
   return flatNodes
     .filter((n) => n.kind === 'heading' && n.text)
-    .map((n) => ({ index: n.index, level: n.level, text: n.text, empty: !n.text, hasPageBreak: n.hasPageBreak }))
+    .map((n) => ({ index: n.index, level: n.level, text: n.text, empty: !n.text, hasPageBreak: n.pageStart != null }))
 }
 
 // ─── Suggestion du point de départ de la structure ────────────────────────

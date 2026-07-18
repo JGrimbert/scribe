@@ -1,6 +1,6 @@
 import * as unzipper from 'unzipper'
 import * as xpath from 'xpath'
-import { ListItemEntry } from './types'
+import { ListItemEntry, PageStart } from './types'
 
 export const NS = {
   text: 'urn:oasis:names:tc:opendocument:xmlns:text:1.0',
@@ -179,25 +179,102 @@ export function headingLevel(paraNode: any): number {
   return 0
 }
 
-// Styles dont la propriété de paragraphe force un saut de page (fo:break-before,
-// valeur "page"/"left"/"right"/"even"/"odd" — tout sauf absent/"auto"). Un
-// titre dont le style porte cette surcharge démarre visuellement comme un
-// axe, même si son niveau sémantique (outline-level) dit autre chose —
-// signal utile pour repérer un titre probablement mal classé.
-export function buildPageBreakStyles(doc: any): Set<string> {
-  const styleNodes = select('//*[local-name()="automatic-styles"]/*[local-name()="style"]', doc) as any[]
-  const styles = new Set<string>()
-  for (const styleNode of styleNodes) {
+// Un fo:break-before directionnel impose un côté (page paire/impaire), pas un
+// simple saut. Rare dans les .odt LibreOffice (qui passent par master-page,
+// cf. plus bas) mais valide en XSL-FO — on le gère pour ne pas dépendre d'un
+// seul encodage.
+const BREAK_SIDE: Record<string, PageStart> = {
+  right: 'recto', odd: 'recto', 'odd-page': 'recto',
+  left: 'verso', even: 'verso', 'even-page': 'verso',
+}
+
+// Côté imposé par chaque master-page, via sa page-layout (style:page-usage) :
+// right = recto (page impaire), left = verso (page paire). « mirrored »/« all »/
+// absent n'imposent aucun côté. Vit dans styles.xml (master-styles + les
+// page-layouts « Mpm* » des automatic-styles).
+function buildMasterPageSides(stylesDoc: any): Map<string, PageStart> {
+  const layoutUsage = new Map<string, string>()
+  for (const layout of select('//*[local-name()="page-layout"]', stylesDoc) as any[]) {
+    const name = layout.getAttribute('style:name')
+    const usage = layout.getAttribute('style:page-usage')
+    if (name && usage) layoutUsage.set(name, usage)
+  }
+  const sides = new Map<string, PageStart>()
+  for (const master of select('//*[local-name()="master-page"]', stylesDoc) as any[]) {
+    const name = master.getAttribute('style:name')
+    const layout = master.getAttribute('style:page-layout-name')
+    const usage = layout ? layoutUsage.get(layout) : undefined
+    const side: PageStart | null = usage === 'right' ? 'recto' : usage === 'left' ? 'verso' : null
+    if (name && side) sides.set(name, side)
+  }
+  return sides
+}
+
+interface RawBreak {
+  parent: string | null
+  // Présent (même chaîne vide) = le style change/impose la page — le null
+  // signifie « attribut absent », distinct d'une valeur vide (« saut sans
+  // changement de style » d'OpenOffice, qui doit arrêter la remontée).
+  masterPage: string | null
+  breakBefore: string | null
+}
+
+// Signal de composition BRUT porté par un style (sans résolution d'héritage).
+function collectRawBreaks(doc: any, into: Map<string, RawBreak>) {
+  for (const styleNode of select('//*[local-name()="style"]', doc) as any[]) {
     const name = styleNode.getAttribute('style:name')
     if (!name) continue
-    const propsNodes = select('*[local-name()="paragraph-properties"]', styleNode) as any[]
-    const hasBreak = propsNodes.some((p: any) => {
-      const v = p.getAttribute('fo:break-before')
-      return v && v !== 'auto'
+    const props = (select('*[local-name()="paragraph-properties"]', styleNode) as any[])[0]
+    into.set(name, {
+      parent: styleNode.getAttribute('style:parent-style-name') || null,
+      masterPage: styleNode.hasAttribute('style:master-page-name')
+        ? styleNode.getAttribute('style:master-page-name')
+        : null,
+      breakBefore: props?.getAttribute('fo:break-before') || null,
     })
-    if (hasBreak) styles.add(name)
   }
-  return styles
+}
+
+// Composition de page effective PAR STYLE, résolue par héritage — couvre les
+// styles automatiques (content.xml) ET nommés (styles.xml), car l'un hérite de
+// l'autre (« P247 » → « Heading 1 ») et c'est sur le style nommé que vit la
+// contrainte recto des axes. Ne retient que les styles à composition non nulle,
+// comme l'ancien Set : un `styleName` absent de la Map = aucune contrainte.
+//
+// Précédence : une contrainte de CÔTÉ (recto/verso) prime un simple saut, où
+// qu'elle soit dans la chaîne — un axe qui porte en plus un fo:break-before
+// « page » reste recto. Un master-page-name explicite (même vide) fait autorité
+// et arrête la remontée. Validé sur le manuscrit témoin : axes/blocs → recto,
+// « Page paire » → verso, sauts nus → page.
+export function buildPageStarts(contentDoc: any, stylesDoc: any | null): Map<string, PageStart> {
+  const masterSides = stylesDoc ? buildMasterPageSides(stylesDoc) : new Map<string, PageStart>()
+  const raw = new Map<string, RawBreak>()
+  if (stylesDoc) collectRawBreaks(stylesDoc, raw)
+  collectRawBreaks(contentDoc, raw) // les automatiques l'emportent sur un homonyme nommé
+
+  function resolve(name: string): PageStart | null {
+    const seen = new Set<string>()
+    let plainPage = false
+    let cur: string | null = name
+    while (cur && !seen.has(cur)) {
+      seen.add(cur)
+      const st = raw.get(cur)
+      if (!st) break
+      if (st.masterPage !== null) return masterSides.get(st.masterPage) ?? 'page'
+      const b = st.breakBefore
+      if (b && BREAK_SIDE[b]) return BREAK_SIDE[b]
+      if (b === 'page') plainPage = true // faible : on continue à grimper chercher un côté
+      cur = st.parent
+    }
+    return plainPage ? 'page' : null
+  }
+
+  const result = new Map<string, PageStart>()
+  for (const name of raw.keys()) {
+    const start = resolve(name)
+    if (start) result.set(name, start)
+  }
+  return result
 }
 
 // Styles de liste (text:list-style, dans automatic-styles ET styles — un

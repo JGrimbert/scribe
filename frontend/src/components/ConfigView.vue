@@ -71,6 +71,10 @@
             :default-rule-set="rules.default"
             @toggle-rules="toggleDepth"
         >
+          <template v-if="section.zone.key === 'liminaire'" #body>
+            <LiminaireComposer :pages="liminairePages" :config="liminaireConfig" />
+          </template>
+
           <template v-if="section.zone.key === 'liminaire'" #lead>
             <div class="borders">
               <UiNote variant="hint">
@@ -174,10 +178,12 @@ import ImportCalibration from './ImportCalibration.vue'
 import RuleSetForm from './RuleSetForm.vue'
 import StyleRolesTable from './StyleRolesTable.vue'
 import TypologySection from './TypologySection.vue'
+import LiminaireComposer from './LiminaireComposer.vue'
 import { useRegistry } from '../composables/useRegistry'
 import { useTypologyConfig } from '../composables/useTypologyConfig'
 import { HIGHLIGHT_ROLES } from '../script/typology'
 import { totalOf, zoneSegments } from '../script/zones'
+import { groupLiminairePages } from '../script/liminaire'
 
 const route = useRoute()
 const router = useRouter()
@@ -185,9 +191,15 @@ const router = useRouter()
 const { documents, ensureLoaded, fetchDocuments, confirmAndDelete, deletingId } = useRegistry()
 const {
   loading, loadError, saveError, saving, saved, settled,
-  inventory, styles, highlights, rules, zoned,
+  inventory, styles, highlights, rules, liminaireConfig, zoned,
   sections, unzonedStyles, shapesError, load, save, toggleDepth,
 } = useTypologyConfig()
+
+// Les entrées liminaire viennent de la trame (fournie par DocumentLayout), pas
+// de l'endpoint typologie : c'est du contenu, pas de l'inventaire. Regroupées en
+// pages pour le composer.
+const trame = inject('documentTrame', null)
+const liminairePages = computed(() => groupLiminairePages(trame?.value?.liminaire ?? []))
 
 // Les stats se lisent dans le registre, déjà chargé pour l'aside de cet écran :
 // `GET /documents/:id` ne les porte pas.

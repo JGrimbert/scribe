@@ -25,9 +25,13 @@ export interface ListItemEntry {
 // permet à la typologie de dire ce qu'est ce paragraphe. Optionnels — les
 // documents importés avant leur introduction n'en ont pas, et le .odt n'étant
 // pas conservé, seule une réimportation les remplit.
+// `pageStart` voyage aussi jusqu'en base (Json liminaire/final) : c'est la
+// contrainte de composition — recto/verso, ou simple saut — lue du .odt. Le
+// bloc éligibilité du liminaire s'en sert pour découper les pages et calculer
+// le vis-à-vis. Omis (comme highlight) quand il n'y a rien à dire.
 export type TexteEntry =
-  | { type: 'paragraph'; text: string; styleName?: string; highlight?: string | null }
-  | { type: 'list'; ordered: boolean; items: ListItemEntry[]; styleName?: string; highlight?: string | null }
+  | { type: 'paragraph'; text: string; styleName?: string; highlight?: string | null; pageStart?: PageStart | null }
+  | { type: 'list'; ordered: boolean; items: ListItemEntry[]; styleName?: string; highlight?: string | null; pageStart?: PageStart | null }
 
 // Un nœud de titre, à n'importe quelle profondeur (remplace les anciens
 // ParsedAxe/ParsedBloc/ParsedArticle distincts). `texte` est le contenu
@@ -114,6 +118,10 @@ export interface OdtParseOutput {
 // fois) de la construction de la structure imbriquée, pour permettre de
 // rejouer cette dernière avec des corrections manuelles sans re-parser le
 // fichier.
+// Composition de page d'un nœud : simple saut, ou contrainte de côté (page
+// impaire = recto / paire = verso) — voir FlatNode.pageStart.
+export type PageStart = 'page' | 'recto' | 'verso'
+
 export interface FlatNode {
   index: number
   kind: 'heading' | 'paragraph' | 'table' | 'list'
@@ -130,7 +138,19 @@ export interface FlatNode {
   // Surlignage portant sur le paragraphe ENTIER (fo:background-color du style).
   // Distinct des <mark data-hl> inline, qui vivent dans `text`.
   highlight: string | null
-  hasPageBreak: boolean // fo:break-before forcé sur le style de ce nœud
+  // Composition de page imposée par le style du nœud, résolue par HÉRITAGE :
+  //  - 'recto'/'verso' : démarre forcément sur une page impaire/paire
+  //    (style:master-page-name → page-usage right/left). C'est le mécanisme
+  //    « page vide » d'OpenOffice : le traitement de texte insère une page
+  //    blanche pour tenir la parité, il ne la stocke pas comme contenu. Le
+  //    signal vit sur le style NOMMÉ (« Heading 1 » → recto) autant que sur un
+  //    style automatique, d'où la résolution par la chaîne de parents.
+  //  - 'page' : simple saut de page (fo:break-before "page", ou un
+  //    master-page-name vide — le saut « sans changement de style » d'OpenOffice).
+  //  - null : rien.
+  // Une contrainte de CÔTÉ prime un simple saut où qu'elle soit dans la chaîne
+  // (un axe qui porte aussi un fo:break-before "page" reste recto).
+  pageStart: PageStart | null
   tableData?: string[][]
   // Styles effectifs des paragraphes que ce nœud APLATIT : les cellules d'un
   // tableau, les items d'une liste. Un par paragraphe, répétitions comprises

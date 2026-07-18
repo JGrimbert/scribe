@@ -61,10 +61,13 @@
       </AnalyseBlock>
     </template>
 
-    <!-- Liminaire, partie finale : styles seuls (ni nœuds, ni modèles, ni
-         règles — à venir si le liminaire devient une vue à part entière). -->
+    <!-- Liminaire, partie finale : pas de nœuds/modèles/règles. Par défaut les
+         styles seuls ; le liminaire injecte son composer de pages via #body
+         (le parent le fournit, il a besoin de `trame.liminaire`). -->
     <template v-else>
-      <StyleRolesTable :styles="styles" :style-roles="styleRoles" />
+      <slot name="body">
+        <StyleRolesTable :styles="styles" :style-roles="styleRoles" />
+      </slot>
     </template>
   </section>
 </template>

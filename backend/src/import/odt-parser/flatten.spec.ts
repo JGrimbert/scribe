@@ -75,14 +75,56 @@ describe('buildFlatNodes — signets, saut de page, ToC', () => {
     expect(flatNodes[0].bookmarkNames).toEqual(['sig1'])
   })
 
-  it('marque hasPageBreak sur un style à fo:break-before', () => {
+  it('marque pageStart « page » sur un style à fo:break-before', () => {
     const { flatNodes } = buildFlatNodes(
       odt(
         '<text:h text:outline-level="1" text:style-name="Pbreak">Axe</text:h>',
         '<style:style style:name="Pbreak"><style:paragraph-properties fo:break-before="page"/></style:style>',
       ),
     )
-    expect(flatNodes[0].hasPageBreak).toBe(true)
+    expect(flatNodes[0].pageStart).toBe('page')
+  })
+
+  it('laisse pageStart null sans saut ni contrainte', () => {
+    const { flatNodes } = buildFlatNodes(odt('<text:p text:style-name="Standard">Rien.</text:p>'))
+    expect(flatNodes[0].pageStart).toBeNull()
+  })
+
+  // Le recto-verso n'est PAS encodé par fo:break-before dans les .odt
+  // LibreOffice, mais par un style:master-page-name → page-usage (validé sur le
+  // manuscrit témoin). La contrainte vit sur le style NOMMÉ (« Heading 1 »),
+  // héritée par les styles automatiques des axes.
+  const stylesXml = (namedStyles: string) => `<?xml version="1.0" encoding="UTF-8"?>
+<office:document-styles
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+  xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0">
+  <office:styles>${namedStyles}</office:styles>
+  <office:automatic-styles>
+    <style:page-layout style:name="LR" style:page-usage="right"/>
+    <style:page-layout style:name="LL" style:page-usage="left"/>
+  </office:automatic-styles>
+  <office:master-styles>
+    <style:master-page style:name="Recto" style:page-layout-name="LR"/>
+    <style:master-page style:name="Verso" style:page-layout-name="LL"/>
+  </office:master-styles>
+</office:document-styles>`
+
+  it('résout recto/verso via master-page, et le côté prime un simple saut hérité', () => {
+    const { flatNodes } = buildFlatNodes(
+      odt(
+        // Axe : style auto héritant de « Heading 1 » (recto), qui porte EN PLUS
+        // son propre fo:break-before « page » — le côté doit l'emporter.
+        '<text:h text:outline-level="1" text:style-name="Pax">Axe</text:h>' +
+          '<text:p text:style-name="Pv">verso</text:p>' +
+          '<text:p text:style-name="Pc">contents</text:p>',
+        '<style:style style:name="Pax" style:parent-style-name="Heading_20_1"><style:paragraph-properties fo:break-before="page"/></style:style>' +
+          '<style:style style:name="Pv" style:master-page-name="Verso"/>' +
+          '<style:style style:name="Pc" style:master-page-name=""/>',
+      ),
+      stylesXml('<style:style style:name="Heading_20_1" style:family="paragraph" style:master-page-name="Recto"/>'),
+    )
+    expect(flatNodes.map((n) => n.pageStart)).toEqual(['recto', 'verso', 'page'])
   })
 
   it('exclut la table des matières du flux mais en extrait les textes', () => {

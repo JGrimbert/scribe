@@ -1,4 +1,4 @@
-import { FlatNode, ImportCorrections, ParsedNode, ParsedResult, StyleInventory, TexteEntry, ZoneKey } from './types'
+import { FlatNode, ImportCorrections, PageStart, ParsedNode, ParsedResult, StyleInventory, TexteEntry, ZoneKey } from './types'
 import { makeUniqueSlug, extractRomain, computeStats, stripHtmlTags } from './text-utils'
 import { ventilateInventory, zoneOfDepth } from './zones'
 
@@ -7,7 +7,7 @@ const EMPTY_INVENTORY: StyleInventory = { styles: [], highlights: [] }
 // N'émet que ce qui existe : un `styleName: ''` / `highlight: null` sur chacun
 // des ~1800 paragraphes d'un manuscrit, c'est autant de clés vides persistées
 // pour ne rien dire.
-function styleOf(node: FlatNode): { styleName?: string; highlight?: string } {
+function styleOf(node: FlatNode): { styleName?: string; highlight?: string; pageStart?: PageStart } {
   // Le style porté par un <text:list> est un style de LISTE (« L1 ») : il ne
   // dit rien de ce qu'est ce texte, et n'existe pas dans l'inventaire — qui ne
   // compte que les paragraphes et les titres. Ce qui a un sens, c'est le style
@@ -18,6 +18,7 @@ function styleOf(node: FlatNode): { styleName?: string; highlight?: string } {
   return {
     ...(styleName ? { styleName } : {}),
     ...(node.highlight ? { highlight: node.highlight } : {}),
+    ...(node.pageStart ? { pageStart: node.pageStart } : {}),
   }
 }
 

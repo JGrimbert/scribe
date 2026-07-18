@@ -53,6 +53,13 @@ model Document {
   liminaire       Json?
   final           Json?
 
+  // liminaireConfig : le tagging des pages liminaires décidé par l'utilisateur
+  // — { [pageKey]: { type, side } }, cf. documents/liminaire-config.ts et
+  // frontend script/liminaire. Séparé des entrées `liminaire` (qu'un reparse
+  // régénère) : c'est une DÉCISION, pas un relevé. Keyé par le hash du texte de
+  // la page pour survivre au recalibrage. NULL = rien tagué.
+  liminaireConfig Json?
+
   nodes           Node[]
   analysis        DocumentAnalysis?
   source          DocumentSource?

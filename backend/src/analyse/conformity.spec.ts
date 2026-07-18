@@ -15,7 +15,7 @@ function flat(nodes: Partial<FlatNode>[]): FlatNode[] {
     styleName: '',
     effectiveStyle: '',
     highlight: null,
-    hasPageBreak: false,
+    pageStart: null,
     ...n,
   })) as FlatNode[]
 }

@@ -30,6 +30,11 @@ export function useTypologyConfig() {
   const highlights = reactive({})
   // `default` + un jeu optionnel par profondeur. byDepth vide = cas nominal.
   const rules = reactive({ default: emptyRuleSet(), byDepth: {} })
+  // Tagging des pages liminaires, keyé par `page.key` (cf. script/liminaire) :
+  // { [key]: { type, side } }. Décision utilisateur, séparée des entrées (qu'un
+  // reparse régénère) — persistée à part (colonne `liminaireConfig`), branchée
+  // au save/load à l'étape suivante.
+  const liminaireConfig = reactive({})
 
   // Les modèles se recomposent contre `styles` (la typologie EN COURS
   // d'édition) : changer un rôle recompose les motifs dans le même tick.
@@ -95,12 +100,14 @@ export function useTypologyConfig() {
     loadShapes(id)
 
     try {
-      const [typoRes, rulesRes] = await Promise.all([
+      const [typoRes, rulesRes, limRes] = await Promise.all([
         fetch(`/api/documents/${id}/typology`),
         fetch(`/api/documents/${id}/rules`),
+        fetch(`/api/documents/${id}/liminaire-config`),
       ])
       if (!typoRes.ok) throw new Error(`HTTP ${typoRes.status}`)
       if (!rulesRes.ok) throw new Error(`HTTP ${rulesRes.status}`)
+      if (!limRes.ok) throw new Error(`HTTP ${limRes.status}`)
 
       const data = await typoRes.json()
       inventory.value = data.inventory
@@ -111,6 +118,12 @@ export function useTypologyConfig() {
       const loaded = await rulesRes.json()
       rules.default = loaded.default
       rules.byDepth = loaded.byDepth ?? {}
+
+      // Remplacé, pas fusionné : un rechargement (après recalibrage) doit
+      // repartir de la config en base, pas empiler sur des clés de pages qui
+      // n'existent peut-être plus.
+      for (const k of Object.keys(liminaireConfig)) delete liminaireConfig[k]
+      Object.assign(liminaireConfig, await limRes.json())
     } catch (e) {
       loadError.value = `Impossible de charger la configuration : ${e.message}`
     } finally {
@@ -128,6 +141,9 @@ export function useTypologyConfig() {
       const [typoBody] = await Promise.all([
         put(id, 'typology', { styles: { ...styles }, highlights: { ...highlights } }),
         put(id, 'rules', JSON.parse(JSON.stringify(rules))),
+        // `liminaireConfig` est un proxy réactif imbriqué : désérialisé en
+        // profondeur comme `rules`. Le backend normalise (jette 'auto'/vides).
+        put(id, 'liminaire-config', JSON.parse(JSON.stringify(liminaireConfig))),
       ])
       settled.value = typoBody.settled
       saved.value = true
@@ -153,11 +169,11 @@ export function useTypologyConfig() {
 
   // Toute modification efface l'accusé d'enregistrement : sinon il resterait
   // affiché au-dessus de changements qui, eux, ne le sont pas.
-  watch([styles, highlights, rules], () => { saved.value = false })
+  watch([styles, highlights, rules, liminaireConfig], () => { saved.value = false })
 
   return {
     loading, loadError, saveError, saving, saved, settled,
-    inventory, styles, highlights, rules, zoned,
+    inventory, styles, highlights, rules, liminaireConfig, zoned,
     sections, unzonedStyles, shapeGroups, shapesError,
     load, save, toggleDepth,
   }
