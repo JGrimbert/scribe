@@ -72,7 +72,7 @@
             @toggle-rules="toggleDepth"
         >
           <template v-if="section.zone.key === 'liminaire'" #body>
-            <LiminaireComposer :pages="liminairePages" :config="liminaireConfig" />
+            <LiminaireComposer :pages="liminairePages" :config="liminaireConfig" :title="doc?.title ?? ''" />
           </template>
 
           <template v-if="section.zone.key === 'liminaire'" #lead>
@@ -199,7 +199,9 @@ const {
 // de l'endpoint typologie : c'est du contenu, pas de l'inventaire. Regroupées en
 // pages pour le composer.
 const trame = inject('documentTrame', null)
-const liminairePages = computed(() => groupLiminairePages(trame?.value?.liminaire ?? []))
+// Dépend de liminaireConfig : fusionner/scinder une page recompose le découpage
+// dans le même tick.
+const liminairePages = computed(() => groupLiminairePages(trame?.value?.liminaire ?? [], liminaireConfig))
 
 // Les stats se lisent dans le registre, déjà chargé pour l'aside de cet écran :
 // `GET /documents/:id` ne les porte pas.

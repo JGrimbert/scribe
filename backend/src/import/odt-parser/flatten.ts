@@ -1,6 +1,6 @@
 import { DOMParser } from 'xmldom'
 import * as xpath from 'xpath'
-import { FlatNode, ListItemEntry, StyleInventory } from './types'
+import { FlatNode, ListItemEntry, PageStart, StyleInventory } from './types'
 import {
   NS,
   select,
@@ -83,6 +83,17 @@ export function buildFlatNodes(xmlContent: string, stylesXml?: string): {
   const flatNodes: FlatNode[] = []
   const meta: { auteur?: string; titreLivre?: string } = {}
 
+  // Pages blanches (paragraphes vides à pageStart) en attente : elles ne
+  // deviennent pas des nœuds, elles se rattachent au prochain nœud émis. Voir
+  // FlatNode.blanksBefore.
+  let pendingBlanks: PageStart[] = []
+  const flushBlanks = (): { blanksBefore?: PageStart[] } => {
+    if (!pendingBlanks.length) return {}
+    const blanksBefore = pendingBlanks
+    pendingBlanks = []
+    return { blanksBefore }
+  }
+
   for (const node of rawNodes) {
     const localName = node.localName
 
@@ -100,6 +111,7 @@ export function buildFlatNodes(xmlContent: string, stylesXml?: string): {
           effectiveStyle: effectiveStyleName(styleName, styleTable),
           highlight: styleBackground(styleName, styleTable),
           pageStart: null,
+          ...flushBlanks(),
           listItems: items,
           listOrdered: listStyles.get(styleName) ?? false,
           // Le style du <text:list> est un style de LISTE (« L5 ») ; celui qui
@@ -145,6 +157,7 @@ export function buildFlatNodes(xmlContent: string, stylesXml?: string): {
           effectiveStyle,
           highlight,
           pageStart,
+          ...flushBlanks(),
           ...(bookmarkNames.length ? { bookmarkNames } : {}),
         })
       } else {
@@ -159,7 +172,12 @@ export function buildFlatNodes(xmlContent: string, stylesXml?: string): {
             effectiveStyle,
             highlight,
             pageStart,
+            ...flushBlanks(),
           })
+        } else if (pageStart) {
+          // Paragraphe VIDE porteur d'un saut : une page blanche (verso/recto).
+          // Pas un nœud — un marqueur rattaché au prochain nœud émis.
+          pendingBlanks.push(pageStart)
         }
       }
       continue
@@ -175,6 +193,7 @@ export function buildFlatNodes(xmlContent: string, stylesXml?: string): {
         effectiveStyle: '',
         highlight: null,
         pageStart: null,
+        ...flushBlanks(),
         tableData: extractTable(node, styleTable),
         innerStyles: extractInnerStyles(node, styleTable),
       })

@@ -1,45 +1,87 @@
 <template>
-  <!-- Split calqué sur le chapitrage : main = les pages du liminaire à typer,
-       aside = le verdict d'éligibilité. Cadre effacé (bare), l'aside porte sa
-       bordure. -->
+  <!-- Split : main = les pages du liminaire (frontières éditables), aside = le
+       verdict d'éligibilité. Cadre effacé (bare), l'aside porte sa bordure. -->
   <AnalyseBlock aside="right" bare>
     <template #main>
-      <table v-if="pages.length" class="pages">
-        <thead>
-          <tr>
-            <th class="c-num">Page</th>
-            <th class="c-odt" title="Côté imposé par le .odt d'origine">.odt</th>
-            <th>Aperçu</th>
-            <th>Type</th>
-            <th>Côté</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="page in pages" :key="page.key">
-            <td class="c-num">{{ page.ordinal + 1 }}</td>
-            <td class="c-odt"><span class="side" :class="`side--${page.sideFromOdt}`">{{ sideGlyph(page.sideFromOdt) }}</span></td>
-            <td class="preview" :title="page.preview">{{ page.preview || '—' }}</td>
-            <td>
-              <BaseSelect :model-value="typeOf(page)" @update:model-value="setType(page, $event)">
-                <option value="">— non défini —</option>
+      <p class="hint">
+        Le découpage vient du <code>.odt</code> mais ses sauts sont trompeurs : <strong>rattachez</strong> les
+        bouts d'une même page (page de titre…), <strong>scindez</strong> là où un type change sans saut
+        (mentions ‖ dédicace…). Les pages blanches (verso) donnent la parité.
+      </p>
+
+      <div v-if="pages.length" class="toolbar">
+        <button
+            class="suggest-all"
+            type="button"
+            :disabled="!suggestableCount"
+            @click="applyAllSuggestions"
+        >
+          <i class="pi pi-sparkles"></i>
+          Suggérer les types<span v-if="suggestableCount"> ({{ suggestableCount }})</span>
+        </button>
+      </div>
+
+      <ol v-if="pages.length" class="pages">
+        <li v-for="page in pages" :key="page.key" class="page" :class="{ 'page--blank': page.isBlank }">
+          <div class="page-head">
+            <span class="pnum">{{ page.ordinal + 1 }}</span>
+            <span class="side" :class="`side--${page.sideFromOdt}`" title="Côté imposé par le .odt">{{ sideGlyph(page.sideFromOdt) }}</span>
+
+            <template v-if="page.isBlank">
+              <span class="blank-label">page blanche</span>
+            </template>
+            <template v-else>
+              <BaseSelect class="type" :model-value="typeOf(page)" @update:model-value="setType(page, $event)">
+                <option value="">— type non défini —</option>
                 <option v-for="t in LIMINAIRE_PAGES" :key="t.key" :value="t.key">{{ t.label }}</option>
               </BaseSelect>
-            </td>
-            <td class="c-side">
-              <BaseSelect :model-value="sideOf(page)" @update:model-value="setSide(page, $event)">
+              <BaseSelect class="pside" :model-value="sideOf(page)" @update:model-value="setSide(page, $event)">
                 <option v-for="s in PAGE_SIDES" :key="s" :value="s">{{ s }}</option>
               </BaseSelect>
-              <span v-if="expectedSide(page)" class="expected" :class="{ conflict: conflicting(page) }">
-                {{ expectedSide(page) }} attendu
-              </span>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+              <span v-if="expectedSide(page)" class="expected" :class="{ conflict: conflicting(page) }">{{ expectedSide(page) }} attendu</span>
+              <button
+                  v-if="!typeOf(page) && suggestionFor(page)"
+                  class="suggest"
+                  type="button"
+                  :title="suggestionFor(page).why"
+                  @click="applySuggestion(page)"
+              >
+                <i class="pi pi-sparkles"></i> {{ labelOf(suggestionFor(page).key) }} ?
+              </button>
+            </template>
+
+            <button
+                v-if="page.ordinal > 0"
+                class="op"
+                :class="{ 'op--active': breakOf(page.key) === 'joined' }"
+                type="button"
+                title="Rattacher cette page à la précédente"
+                @click="toggleBreak(page.key, 'joined')"
+            >
+              <i class="pi pi-arrow-up"></i> rattacher
+            </button>
+          </div>
+
+          <ul class="entries">
+            <li v-for="(entry, ei) in page.entries" :key="entry.key" class="entry">
+              <button
+                  v-if="ei > 0"
+                  class="op op--split"
+                  :class="{ 'op--active': breakOf(entry.key) === 'start' }"
+                  type="button"
+                  title="Démarrer une nouvelle page ici"
+                  @click="toggleBreak(entry.key, 'start')"
+              >
+                <i class="pi pi-arrow-down"></i> scinder ici
+              </button>
+              <span class="etext" :class="{ 'etext--empty': entry.isBlank }">{{ entryPlainText(entry) || '(vide)' }}</span>
+            </li>
+          </ul>
+        </li>
+      </ol>
 
       <p v-else class="empty">
-        Aucune entrée liminaire. Si le liminaire de votre livre manque, reprenez les bornes ci-dessus —
-        tout ce qui précède le début du contenu part ici.
+        Aucune entrée liminaire. Si le liminaire de votre livre manque, reprenez les bornes ci-dessus.
       </p>
     </template>
 
@@ -59,9 +101,7 @@
 
         <div class="elig-group">
           <span class="elig-label">Composition recto-verso</span>
-          <p v-if="!elig.conflicts.length && !elig.duplicates.length" class="elig-ok">
-            Aucun conflit.
-          </p>
+          <p v-if="!elig.conflicts.length && !elig.duplicates.length" class="elig-ok">Aucun conflit.</p>
           <ul v-else class="elig-list">
             <li v-for="c in elig.conflicts" :key="`c-${c.key}`" class="ko">
               <i class="pi pi-exclamation-triangle"></i>
@@ -82,17 +122,49 @@
 import { computed } from 'vue'
 import AnalyseBlock from './analyse/AnalyseBlock.vue'
 import BaseSelect from './ui/BaseSelect.vue'
-import { LIMINAIRE_PAGES, LIMINAIRE_BY_KEY, PAGE_SIDES, deriveEligibility } from '../script/liminaire'
+import { LIMINAIRE_PAGES, LIMINAIRE_BY_KEY, PAGE_SIDES, deriveEligibility, entryPlainText } from '../script/liminaire'
+import { suggestAll } from '../script/liminaire-suggest'
 
 const props = defineProps({
   pages: { type: Array, required: true },
-  // Muté EN PLACE (comme RuleSetForm mute son ruleSet) : le parent détient
-  // l'objet réactif, keyé par `page.key`. Remonter chaque cellule par
-  // `update:modelValue` recréerait l'objet à chaque frappe.
+  // Muté EN PLACE (comme RuleSetForm) : le parent détient l'objet réactif, keyé
+  // par ENTRÉE. `type`/`side` = tag de la page ancrée ; `break` = frontière.
   config: { type: Object, required: true },
+  // Titre du livre : départage faux-titre (titre seul) et page de titre.
+  title: { type: String, default: '' },
 })
 
 const elig = computed(() => deriveEligibility(props.pages, props.config))
+
+// Suggestions déterministes par page (style-name + mots-clés + titre). Ne sont
+// PAS persistées tant que l'utilisateur ne les applique pas — une proposition,
+// pas une décision (même philosophie que la typologie des styles).
+const suggestions = computed(() => suggestAll(props.pages, { title: props.title }))
+
+// Pages non taggées pour lesquelles on a une suggestion (compteur du bouton).
+const suggestableCount = computed(
+  () => props.pages.filter((p) => !typeOf(p) && suggestions.value[p.key]).length,
+)
+
+function suggestionFor(page) {
+  return suggestions.value[page.key] ?? null
+}
+
+function labelOf(key) {
+  return LIMINAIRE_BY_KEY.get(key)?.label ?? key
+}
+
+function applySuggestion(page) {
+  const s = suggestionFor(page)
+  if (s) setType(page, s.key)
+}
+
+// Ne touche QUE les pages non taggées : on ne réécrit pas un choix déjà posé.
+function applyAllSuggestions() {
+  for (const page of props.pages) {
+    if (!typeOf(page) && suggestions.value[page.key]) setType(page, suggestions.value[page.key].key)
+  }
+}
 
 function typeOf(page) {
   return props.config[page.key]?.type ?? ''
@@ -102,22 +174,34 @@ function sideOf(page) {
   return props.config[page.key]?.side ?? 'auto'
 }
 
-// Crée l'entrée réactive à la volée : une page qu'on n'a pas encore touchée n'a
-// pas de clé dans la config.
-function entryFor(page) {
-  return (props.config[page.key] ??= {})
+function breakOf(key) {
+  return props.config[key]?.break
+}
+
+function entryFor(key) {
+  return (props.config[key] ??= {})
 }
 
 function setType(page, value) {
-  entryFor(page).type = value || undefined
+  entryFor(page.key).type = value || undefined
 }
 
 function setSide(page, value) {
-  entryFor(page).side = value
+  entryFor(page.key).side = value === 'auto' ? undefined : value
 }
 
-// Le côté que la convention attend pour le type choisi (null si le type n'impose
-// rien, ou si aucun type n'est posé).
+// Toggle : re-cliquer une frontière posée la retire (retour au signal du .odt).
+// On nettoie l'entrée devenue vide pour ne pas laisser d'objet mort.
+function toggleBreak(key, value) {
+  const entry = entryFor(key)
+  if (entry.break === value) {
+    delete entry.break
+    if (!entry.type && !entry.side) delete props.config[key]
+  } else {
+    entry.break = value
+  }
+}
+
 function expectedSide(page) {
   const type = props.config[page.key]?.type
   return type ? (LIMINAIRE_BY_KEY.get(type)?.side ?? null) : null
@@ -125,8 +209,7 @@ function expectedSide(page) {
 
 function conflicting(page) {
   const expected = expectedSide(page)
-  const chosen = sideOf(page)
-  return !!expected && chosen !== 'auto' && chosen !== expected
+  return !!expected && sideOf(page) !== 'auto' && sideOf(page) !== expected
 }
 
 function sideGlyph(side) {
@@ -135,44 +218,100 @@ function sideGlyph(side) {
 </script>
 
 <style scoped>
-.pages {
-  width: 100%;
-  border-collapse: collapse;
+.hint {
+  margin: 0 0 var(--sp-3);
+  color: var(--c-ink2);
   font-size: var(--fs-sm);
 }
 
-.pages th {
-  text-align: left;
-  font-weight: 600;
-  color: var(--c-ink2);
-  padding: 0 var(--sp-2) var(--sp-2);
-  border-bottom: 1px solid var(--c-border);
-  white-space: nowrap;
+.toolbar {
+  margin-bottom: var(--sp-3);
 }
 
-.pages td {
-  padding: var(--sp-2);
-  border-bottom: 1px solid var(--c-border);
-  vertical-align: middle;
+.suggest-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-md);
+  background: var(--c-surface);
+  color: inherit;
+  font: inherit;
+  font-size: var(--fs-sm);
+  padding: 0.35em 0.8em;
+  cursor: pointer;
 }
 
-.c-num {
-  width: 3em;
+.suggest-all:hover:not(:disabled) {
+  border-color: var(--c-accent);
+  color: var(--c-accent);
+}
+
+.suggest-all:disabled {
+  opacity: var(--op-faint);
+  cursor: default;
+}
+
+/* Indice inline : une proposition à un clic, en teinte d'accent discrète. */
+.suggest {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+  border: 1px dashed var(--c-accent);
+  border-radius: 1em;
+  background: none;
+  color: var(--c-accent);
+  font: inherit;
+  font-size: var(--fs-xs);
+  padding: 0.1em 0.6em;
+  cursor: pointer;
+  opacity: var(--op-muted);
+}
+
+.suggest:hover {
+  opacity: 1;
+}
+
+.pages {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.page {
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-md);
+  padding: var(--sp-2) var(--sp-3);
+}
+
+/* Page blanche : structurante, pas du contenu — atténuée, en pointillés. */
+.page--blank {
+  border-style: dashed;
+  opacity: var(--op-muted);
+}
+
+.page-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+.pnum {
+  min-width: 1.6em;
   text-align: center;
   font-variant-numeric: tabular-nums;
+  font-size: var(--fs-sm);
   color: var(--c-ink2);
 }
 
-.c-odt {
-  width: 3em;
-  text-align: center;
-}
-
-/* Le côté imposé par le .odt : discret, informatif — pas une décision, un
-   constat. */
 .side {
   display: inline-block;
   min-width: 1.4em;
+  text-align: center;
   padding: 0.05em 0.35em;
   border-radius: var(--radius-sm);
   font-size: var(--fs-xs);
@@ -183,23 +322,17 @@ function sideGlyph(side) {
 }
 
 .side--recto { color: var(--c-accent); }
-.side--verso { color: var(--c-ink2); }
 .side--auto { opacity: var(--op-faint); border-style: dashed; }
 
-.preview {
-  max-width: 22em;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-family: var(--font-serif);
+.blank-label {
+  font-size: var(--fs-sm);
+  font-style: italic;
+  color: var(--c-ink2);
 }
 
-.c-side {
-  white-space: nowrap;
-}
+.type { min-width: 12em; }
 
 .expected {
-  margin-left: var(--sp-2);
   font-size: var(--fs-xs);
   color: var(--c-ink2);
   opacity: var(--op-muted);
@@ -211,16 +344,72 @@ function sideGlyph(side) {
   font-weight: 600;
 }
 
+/* Opérations de frontière : discrètes, révélées à l'usage. */
+.op {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+  border: 1px solid var(--c-border);
+  border-radius: 1em;
+  background: none;
+  color: var(--c-ink2);
+  font: inherit;
+  font-size: var(--fs-xs);
+  padding: 0.1em 0.7em;
+  cursor: pointer;
+  opacity: var(--op-muted);
+}
+
+.op:hover { opacity: 1; }
+
+.op--active {
+  opacity: 1;
+  color: var(--c-accent);
+  border-color: var(--c-accent);
+}
+
+.op--split {
+  margin-left: 0;
+  flex: 0 0 auto;
+}
+
+.entries {
+  list-style: none;
+  margin: var(--sp-2) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.entry {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+}
+
+.etext {
+  font-family: var(--font-serif);
+  font-size: var(--fs-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.etext--empty {
+  font-style: italic;
+  opacity: var(--op-faint);
+}
+
 .empty {
   margin: 0;
   color: var(--c-ink2);
   font-size: var(--fs-sm);
 }
 
-/* Aside : le verdict. Porte sa propre respiration (mode bare). */
-.elig {
-  padding: var(--split-pad-aside, var(--sp-4));
-}
+/* Aside : le verdict. */
+.elig { padding: var(--split-pad-aside, var(--sp-4)); }
 
 .elig-title {
   margin: 0 0 var(--sp-3);
@@ -228,9 +417,7 @@ function sideGlyph(side) {
   font-weight: 600;
 }
 
-.elig-group {
-  margin-bottom: var(--sp-4);
-}
+.elig-group { margin-bottom: var(--sp-4); }
 
 .elig-label {
   display: block;
@@ -255,21 +442,11 @@ function sideGlyph(side) {
   gap: var(--sp-2);
 }
 
-.elig-list .pi {
-  font-size: 0.85em;
-}
+.elig-list .pi { font-size: 0.85em; }
 
-.ok {
-  color: var(--c-ink2);
-}
-
-.ok .pi {
-  color: var(--c-accent);
-}
-
-.ko {
-  color: var(--c-danger);
-}
+.ok { color: var(--c-ink2); }
+.ok .pi { color: var(--c-accent); }
+.ko { color: var(--c-danger); }
 
 .elig-ok {
   margin: 0;

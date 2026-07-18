@@ -164,6 +164,14 @@ export interface FlatNode {
   listItems?: ListItemEntry[] // pertinent si kind === 'list'
   listOrdered?: boolean // pertinent si kind === 'list'
   bookmarkNames?: string[] // signets ODT rattachés à ce titre ; pertinent si kind === 'heading'
+  // Pages BLANCHES qui précèdent immédiatement ce nœud : des paragraphes VIDES
+  // porteurs d'un pageStart (la « page vide » verso d'OpenOffice, l'intérieur de
+  // couverture…). On ne les promeut pas en nœuds (ils casseraient l'invariant
+  // `sum(byZone) <= count` et décaleraient les index de calibration), mais on ne
+  // les jette plus : dans le liminaire/final ils deviennent des entrées « page
+  // blanche » (le signal recto/verso le plus fiable du liminaire) ; dans le
+  // corps ils sont ignorés.
+  blanksBefore?: PageStart[]
 }
 
 // ─── Inventaire des styles — matière première de la typologie ─────────────

@@ -22,6 +22,11 @@ describe('liminaireConfigErrors', () => {
     expect(liminaireConfigErrors({ lp_x: 'faux-titre' })[0]).toContain('invalide')
   })
 
+  it('accepte break start/joined, rejette une frontière inconnue', () => {
+    expect(liminaireConfigErrors({ le_a: { break: 'joined' }, le_b: { break: 'start' } })).toEqual([])
+    expect(liminaireConfigErrors({ le_a: { break: 'middle' } })[0]).toContain('frontière inconnue')
+  })
+
   it('rejette un corps non-objet', () => {
     expect(liminaireConfigErrors([])).toEqual(['liminaireConfig doit être un objet'])
   })
@@ -45,5 +50,10 @@ describe('normalizeLiminaireConfig', () => {
       lp_a: { type: 'mentions-legales', side: 'verso', bogus: 1 },
       lp_b: { type: 'xxx' },
     })).toEqual({ lp_a: { type: 'mentions-legales', side: 'verso' } })
+  })
+
+  it('garde une entrée qui n’a qu’un break', () => {
+    expect(normalizeLiminaireConfig({ le_a: { break: 'joined' }, le_b: { break: 'bogus' } }))
+      .toEqual({ le_a: { break: 'joined' } })
   })
 })

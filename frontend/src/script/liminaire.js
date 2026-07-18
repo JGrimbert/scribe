@@ -54,35 +54,67 @@ export function entryPlainText(entry) {
   return stripTags(entry.text)
 }
 
-// Regroupe les entrées liminaire en PAGES : une entrée qui porte un `pageStart`
-// ouvre une nouvelle page ; les suivantes sans saut s'y rattachent. La toute
-// première entrée ouvre la page 1 même sans saut (la première page n'a pas de
-// « saut avant »). Chaque page porte le côté RÉEL imposé par son .odt
-// (`sideFromOdt`), son aperçu, et une clé stable (cf. pageKey).
-export function groupLiminairePages(entries) {
+// Hash djb2 stable (sans dépendance crypto) — assez pour distinguer une poignée
+// d'entrées liminaires.
+function hashText(s) {
+  let h = 5381
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0
+  return (h >>> 0).toString(36)
+}
+
+// Clé STABLE d'une entrée : hash de son texte + son rang d'occurrence. Deux
+// « JŌHĀNĀN & MARVĀRĪD » (faux-titre puis page de titre) ne doivent pas partager
+// la même clé ; les pages blanches, toutes vides, non plus. Stable sous
+// fusion/scission (les entrées ne bougent pas, seul leur regroupement change) —
+// c'est ce qui laisse la config, keyée par entrée, survivre à un changement de
+// frontières comme à un reparse.
+export function withEntryKeys(entries) {
+  const seen = new Map()
+  return (entries ?? []).map((entry) => {
+    const text = entryPlainText(entry)
+    const occ = seen.get(text) ?? 0
+    seen.set(text, occ + 1)
+    return { ...entry, key: `le_${hashText(`${text}#${occ}`)}`, isBlank: text === '' }
+  })
+}
+
+// Regroupe les entrées en PAGES. Une entrée ouvre une page si :
+//  - c'est la première ; ou
+//  - la config force `break: 'start'` (scission manuelle) ; ou
+//  - elle porte un `pageStart` du .odt ET la config ne force pas `'joined'`
+//    (fusion manuelle avec la page précédente).
+// Le côté RÉEL (`sideFromOdt`) et le tag (type/côté) sont ancrés sur la PREMIÈRE
+// entrée de la page (`key`). Une page dont toutes les entrées sont vides est une
+// page blanche (`isBlank`), non taggable.
+export function groupLiminairePages(entries, config = {}) {
+  const keyed = withEntryKeys(entries)
   const pages = []
-  for (const entry of entries ?? []) {
-    if (!pages.length || entry.pageStart) {
-      pages.push({ ordinal: pages.length, sideFromOdt: sideOfPageStart(entry.pageStart), entries: [] })
+  keyed.forEach((entry, i) => {
+    const brk = config?.[entry.key]?.break
+    const starts = i === 0 || brk === 'start' || (brk !== 'joined' && entry.pageStart != null)
+    if (starts || !pages.length) {
+      pages.push({ ordinal: pages.length, key: entry.key, sideFromOdt: sideOfPageStart(entry.pageStart), entries: [] })
     }
     pages[pages.length - 1].entries.push(entry)
-  }
+  })
   for (const page of pages) {
-    page.preview = page.entries.map(entryPlainText).find((t) => t) ?? ''
-    page.key = pageKey(page)
+    const content = page.entries.filter((e) => !e.isBlank)
+    page.isBlank = content.length === 0
+    page.preview = content.map(entryPlainText).find((t) => t) ?? ''
   }
   return pages
 }
 
-// L'éligibilité du liminaire, dérivée du tagging (pas une saisie à part) :
+// L'éligibilité du liminaire, dérivée du tagging (pas une saisie à part) —
 //  - `obligatoires` : les trois pages minimales, avec leur présence.
 //  - `presentTypes` : tous les types assignés (pour cocher les optionnels).
 //  - `conflicts` : une page dont le côté CHOISI contredit le côté conventionnel
 //    de son type (mentions légales en recto, p. ex.). 'auto' ne contredit rien.
 //  - `duplicates` : un type conventionnel assigné à plusieurs pages (une page de
 //    titre en double n'est pas une page de titre plus sûre).
+// Les pages blanches sont hors jeu (elles ne portent pas de type).
 export function deriveEligibility(pages, config) {
-  const assigned = (pages ?? []).map((page) => ({
+  const assigned = (pages ?? []).filter((p) => !p.isBlank).map((page) => ({
     page,
     type: config?.[page.key]?.type ?? null,
     side: config?.[page.key]?.side ?? 'auto',
@@ -114,16 +146,4 @@ export function deriveEligibility(pages, config) {
     .map(([type, n]) => ({ type, label: LIMINAIRE_BY_KEY.get(type)?.label ?? type, count: n }))
 
   return { assigned, presentTypes, obligatoires, conflicts, duplicates }
-}
-
-// Clé stable d'une page, pour rattacher la config utilisateur (type + côté) à
-// travers un reparse : le hash du texte brut concaténé de ses entrées. Ni
-// l'ordinal (le découpage bouge), ni l'aperçu seul (deux pages peuvent le
-// partager). Un hash djb2, suffisant pour distinguer des pages liminaires (une
-// poignée par livre) sans dépendance crypto.
-export function pageKey(page) {
-  const text = (page.entries ?? []).map(entryPlainText).join('')
-  let h = 5381
-  for (let i = 0; i < text.length; i++) h = ((h << 5) + h + text.charCodeAt(i)) | 0
-  return `lp_${(h >>> 0).toString(36)}`
 }

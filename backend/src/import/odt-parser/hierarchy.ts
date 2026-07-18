@@ -128,6 +128,9 @@ export function buildParsedResult(
   for (const node of flatNodes) {
     if (node.index < structureStartIndex) {
       zones.set(node.index, 'liminaire')
+      // Pages blanches précédant ce nœud : entrées structurantes, pas du contenu
+      // — on ne les compte donc pas dans paragraphesLiminaire.
+      for (const side of node.blanksBefore ?? []) result.liminaire.push({ type: 'paragraph', text: '', pageStart: side })
       const entry = matterEntryOf(node)
       if (entry) {
         paragraphesLiminaire++
@@ -138,6 +141,7 @@ export function buildParsedResult(
 
     if (structureEndIndex != null && node.index >= structureEndIndex) {
       zones.set(node.index, 'final')
+      for (const side of node.blanksBefore ?? []) result.final.push({ type: 'paragraph', text: '', pageStart: side })
       const entry = matterEntryOf(node)
       if (entry) {
         paragraphesFinal++

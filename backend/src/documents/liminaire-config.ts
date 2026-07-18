@@ -19,12 +19,22 @@ export type LiminairePageType = (typeof LIMINAIRE_PAGE_TYPES)[number]
 export const PAGE_SIDES = ['auto', 'recto', 'verso'] as const
 export type PageSide = (typeof PAGE_SIDES)[number]
 
+// Surcharge de frontière de page décidée par l'utilisateur : 'start' force une
+// nouvelle page à cette entrée (scission), 'joined' la rattache à la précédente
+// (fusion). Absent = on suit le signal du .odt (pageStart). Voir
+// frontend/script/liminaire (groupLiminairePages).
+export const PAGE_BREAKS = ['start', 'joined'] as const
+export type PageBreak = (typeof PAGE_BREAKS)[number]
+
 export interface LiminairePageTag {
   type?: LiminairePageType
   side?: PageSide
+  break?: PageBreak
 }
 
-// { [pageKey]: { type?, side? } }
+// Keyé par ENTRÉE (le_… : hash texte+occurrence, cf. frontend/script/liminaire) :
+// { [entryKey]: { type?, side?, break? } }. `type`/`side` sont le tag de la page
+// ancrée sur cette entrée ; `break` déplace la frontière.
 export type LiminaireConfig = Record<string, LiminairePageTag>
 
 function isObject(v: unknown): v is Record<string, unknown> {
@@ -49,6 +59,9 @@ export function liminaireConfigErrors(body: unknown): string[] {
     if (tag.side != null && !PAGE_SIDES.includes(tag.side as PageSide)) {
       errors.push(`Page ${key} : côté inconnu « ${String(tag.side)} »`)
     }
+    if (tag.break != null && !PAGE_BREAKS.includes(tag.break as PageBreak)) {
+      errors.push(`Page ${key} : frontière inconnue « ${String(tag.break)} »`)
+    }
   }
   return errors
 }
@@ -64,9 +77,10 @@ export function normalizeLiminaireConfig(raw: unknown): LiminaireConfig {
     const tag: LiminairePageTag = {}
     if (LIMINAIRE_PAGE_TYPES.includes(value.type as LiminairePageType)) tag.type = value.type as LiminairePageType
     if (PAGE_SIDES.includes(value.side as PageSide) && value.side !== 'auto') tag.side = value.side as PageSide
-    // 'auto' est le défaut : ne pas le stocker (bruit). Une entrée sans type ni
-    // côté explicite ne mérite pas d'exister.
-    if (tag.type || tag.side) out[key] = tag
+    if (PAGE_BREAKS.includes(value.break as PageBreak)) tag.break = value.break as PageBreak
+    // 'auto'/défaut ne se stockent pas (bruit). Une entrée sans type, côté ni
+    // frontière explicite ne mérite pas d'exister.
+    if (tag.type || tag.side || tag.break) out[key] = tag
   }
   return out
 }

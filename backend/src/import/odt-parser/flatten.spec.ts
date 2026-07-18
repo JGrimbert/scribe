@@ -90,6 +90,18 @@ describe('buildFlatNodes — signets, saut de page, ToC', () => {
     expect(flatNodes[0].pageStart).toBeNull()
   })
 
+  it('ne promeut pas un paragraphe vide à saut, mais le rattache en blanksBefore', () => {
+    const { flatNodes } = buildFlatNodes(
+      odt(
+        '<text:p text:style-name="Blank"></text:p><text:p text:style-name="Standard">Contenu</text:p>',
+        '<style:style style:name="Blank"><style:paragraph-properties fo:break-before="page"/></style:style>',
+      ),
+    )
+    // Le vide n'est pas un nœud ; sa page blanche voyage sur le nœud suivant.
+    expect(flatNodes).toHaveLength(1)
+    expect(flatNodes[0]).toMatchObject({ text: 'Contenu', blanksBefore: ['page'] })
+  })
+
   // Le recto-verso n'est PAS encodé par fo:break-before dans les .odt
   // LibreOffice, mais par un style:master-page-name → page-usage (validé sur le
   // manuscrit témoin). La contrainte vit sur le style NOMMÉ (« Heading 1 »),
