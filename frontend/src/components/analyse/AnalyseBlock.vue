@@ -3,7 +3,7 @@
        vide/erreur/lancement et colonnes 2/3 · 1/3. Les cards n'apportent que
        leur contenu (#main = la viz, #aside = la colonne étroite). -->
   <Transition name="reveal" :appear="!!step">
-    <div v-if="!step || isRevealed(step)" class="split">
+    <div v-if="!step || isRevealed(step)" class="split" :class="{ 'split--bare': bare }">
       <i v-if="busy" class="pi pi-spin pi-spinner split-busy"></i>
 
       <!-- Rien à montrer : message pleine largeur, pas de colonnes. -->
@@ -62,6 +62,11 @@ const props = defineProps({
   // Le contenu est-il affichable ? (données présentes ET viz calculable)
   ready: { type: Boolean, default: true },
   aside: { type: String, default: 'right', validator: (v) => ['left', 'right'].includes(v) },
+  // Cadre effacé : la viz principale (main) perd fond et bordure et n'est plus
+  // centrée verticalement ; seule la colonne étroite garde une bordure propre
+  // (card autonome). Pour un split posé dans un écran qui porte déjà sa mise en
+  // page, sans le cadre-card du dashboard.
+  bare: { type: Boolean, default: false },
   runLabel: { type: String, default: null },
   // Fin de la phrase du message « pas encore calculée » (durée attendue…).
   runHint: { type: String, default: null },

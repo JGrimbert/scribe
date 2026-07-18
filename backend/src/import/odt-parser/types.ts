@@ -171,6 +171,7 @@ export interface StyleUsage {
   count: number
   headings: number // combien de ces occurrences sont des titres — un style à cheval est suspect
   sample: string // extrait du premier usage non vide, pour reconnaître le style sans rouvrir l'ODT
+  firstIndex?: number // rang de première apparition dans le document (ordre de lecture) — l'écran de config trie dessus ; optionnel : absent des inventaires persistés avant son ajout
   byZone?: ZoneCounts
 }
 

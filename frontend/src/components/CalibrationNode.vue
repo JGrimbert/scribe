@@ -16,7 +16,10 @@
           sous-titres
         </BaseChip>
 
-        <div class="level-control" @click.stop>
+        <!-- Réglage manuel du niveau : démoté derrière les « réglages avancés »
+             de l'hôte. Les niveaux viennent du document ; on ne les reprend que
+             pour rattraper un .odt mal stylé. -->
+        <div v-if="showLevels" class="level-control" @click.stop>
           <button class="step" @click="$emit('level-change', node.entry.index, node.entry.effectiveLevel - 1)">−</button>
           <span class="level-badge">{{ levelLabel(node.entry.effectiveLevel) }}</span>
           <button class="step" @click="$emit('level-change', node.entry.index, node.entry.effectiveLevel + 1)">+</button>
@@ -29,6 +32,7 @@
           v-for="child in node.children"
           :key="child.entry.index"
           :node="child"
+          :show-levels="showLevels"
           @level-change="(...args) => $emit('level-change', ...args)"
       />
     </div>
@@ -42,6 +46,9 @@ import BaseChip from './ui/BaseChip.vue'
 
 defineProps({
   node: { type: Object, required: true },
+  // Le réglage −/+ du niveau est masqué par défaut (cf. ImportCalibration) :
+  // on ne le montre que sous les réglages avancés.
+  showLevels: { type: Boolean, default: false },
 })
 
 defineEmits(['level-change'])

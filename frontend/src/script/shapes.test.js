@@ -23,7 +23,9 @@ describe('toRoleRuns', () => {
 
 describe('signatureLabel', () => {
   it('n’affiche le multiplicateur qu’au-delà de 1', () => {
-    expect(signatureLabel([['définition', 1], ['corps', 4]])).toBe('définition · corps×4')
+    // Le corps ne porte pas son ×N (bruit) ; les autres rôles, oui.
+    expect(signatureLabel([['définition', 1], ['corps', 4]])).toBe('définition · corps')
+    expect(signatureLabel([['chapeau', 2], ['corps', 3]])).toBe('chapeau×2 · corps')
   })
 
   it('nomme la forme vide', () => {
@@ -37,8 +39,12 @@ describe('aggregateByDepth', () => {
       [shape('a', 0, [['Paragraphes', 1]]), shape('b', 1, [['Paragraphes', 1]]), shape('c', 3, [['Paragraphes', 1]])],
       roleOf,
     )
-    expect(groups.map((g) => g.zone.label)).toEqual(['Axes', 'Blocs sémantiques', 'Articles'])
-    // Profondeur 3 → « Articles » : au-delà de 2, tout est article.
+    expect(groups.map((g) => g.zone.label)).toEqual([
+      'Chapitrage — niveau 1',
+      'Chapitrage — niveau 2',
+      'Chapitrage — niveau 3+',
+    ])
+    // Profondeur 3 → « niveau 3+ » : au-delà de 2, tout est regroupé.
     expect(groups[2].total).toBe(1)
   })
 
@@ -47,7 +53,7 @@ describe('aggregateByDepth', () => {
     const groups = aggregateByDepth([shape('a', 2, runs), shape('b', 2, runs), shape('c', 2, [['Paragraphes', 1]])], roleOf)
 
     const [dominant, autre] = groups[0].signatures
-    expect(dominant).toMatchObject({ label: 'définition · corps×2', count: 2, pct: 67 })
+    expect(dominant).toMatchObject({ label: 'définition · corps', count: 2, pct: 67 })
     expect(autre).toMatchObject({ label: 'corps', count: 1 })
     expect(dominant.nodes.map((n) => n.nodeId)).toEqual(['a', 'b'])
   })

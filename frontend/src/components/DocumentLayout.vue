@@ -177,7 +177,7 @@ async function loadDocument(id, { silent = false } = {}) {
 
 // Une recalibration reconstruit l'arbre et regénère tous les ids de nœuds :
 // sans ce rechargement, le fil d'Ariane et l'arbre resteraient sur des chapitres
-// qui n'existent plus. Fourni parce que c'est le volet Structure qui déclenche,
+// qui n'existent plus. Fourni parce que c'est l'écran de config qui déclenche,
 // et DocumentLayout qui détient trame/data.
 provide('reloadDocument', () => loadDocument(route.params.id, { silent: true }))
 

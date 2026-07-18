@@ -5,13 +5,21 @@
     <ul v-if="documents.length" class="doc-list__items">
       <!-- Deux boutons FRÈRES, pas imbriqués : la poubelle dans le bouton de
            sélection serait un bouton dans un bouton (HTML invalide, et le clic
-           remonterait au parent). -->
+           remonterait au parent). Poubelle à DROITE, révélée au survol. -->
       <li
           v-for="doc in documents"
           :key="doc.id"
           class="doc-list__item"
           :class="{ 'doc-list__item--active': doc.id === activeId }"
       >
+        <button class="doc" type="button" @click="$emit('select', doc.id)">
+          <span class="doc__title">{{ doc.title }}</span>
+          <span class="doc__meta">
+            {{ formatDay(doc.importedAt) }}
+            <template v-if="doc.hasSource"> · {{ formatBytes(doc.sourceSizeBytes) }}</template>
+          </span>
+        </button>
+
         <button
             class="doc__delete"
             type="button"
@@ -20,14 +28,6 @@
             @click="onDelete(doc)"
         >
           <i class="pi" :class="deletingId === doc.id ? 'pi-spin pi-spinner' : 'pi-trash'"></i>
-        </button>
-
-        <button class="doc" type="button" @click="$emit('select', doc.id)">
-          <span class="doc__title">{{ doc.title }}</span>
-          <span class="doc__meta">
-            {{ formatDay(doc.importedAt) }}
-            <template v-if="doc.hasSource"> · {{ formatBytes(doc.sourceSizeBytes) }}</template>
-          </span>
         </button>
       </li>
     </ul>
@@ -87,8 +87,9 @@ onMounted(ensureLoaded)
   font-weight: 600;
 }
 
-/* Discrète au repos : une colonne de poubelles pleinement contrastées ferait
-   de la suppression l'objet de la liste. Rouge seulement quand on la vise. */
+/* Absente au repos, révélée au survol de la ligne : une colonne de poubelles
+   ferait de la suppression l'objet de la liste. Rouge seulement quand on la
+   vise. Reste visible pendant la suppression (spinner) et au focus clavier. */
 .doc__delete {
   flex: 0 0 auto;
   display: flex;
@@ -99,10 +100,18 @@ onMounted(ensureLoaded)
   color: inherit;
   font-size: var(--fs-sm);
   cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.1s ease;
+}
+
+.doc-list__item:hover .doc__delete,
+.doc__delete:focus-visible,
+.doc__delete:disabled {
   opacity: var(--op-faint);
 }
 
-.doc__delete:hover:not(:disabled) {
+.doc__delete:hover:not(:disabled),
+.doc__delete:focus-visible {
   opacity: 1;
   color: var(--c-danger);
 }
@@ -117,7 +126,7 @@ onMounted(ensureLoaded)
   display: flex;
   flex-direction: column;
   gap: 0.1em;
-  padding: var(--sp-2) var(--sp-3) var(--sp-2) var(--sp-1);
+  padding: var(--sp-2) var(--sp-1) var(--sp-2) var(--sp-3);
   border: 0;
   background: none;
   color: inherit;

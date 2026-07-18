@@ -12,9 +12,9 @@
 // est faux.
 export const ZONES = [
   { key: 'liminaire', label: 'Liminaire', hint: 'Page de titre, auteur, dédicace, mentions légales', color: 'var(--c-cat-1)' },
-  { key: 'depth-0', label: 'Axes', hint: 'Titres de premier niveau et leur contenu propre', color: 'var(--c-cat-2)' },
-  { key: 'depth-1', label: 'Blocs sémantiques', hint: 'Deuxième niveau de titre', color: 'var(--c-cat-3)' },
-  { key: 'depth-2+', label: 'Articles', hint: 'Troisième niveau et au-delà — le gros du texte', color: 'var(--c-cat-4)' },
+  { key: 'depth-0', label: 'Chapitrage — niveau 1', hint: 'Titres de premier niveau et leur contenu propre', color: 'var(--c-cat-2)' },
+  { key: 'depth-1', label: 'Chapitrage — niveau 2', hint: 'Deuxième niveau de titre', color: 'var(--c-cat-3)' },
+  { key: 'depth-2+', label: 'Chapitrage — niveau 3+', hint: 'Troisième niveau et au-delà — le gros du texte', color: 'var(--c-cat-4)' },
   { key: 'final', label: 'Partie finale', hint: 'Index, glossaire, bibliographie écrits à la main', color: 'var(--c-cat-5)' },
 ]
 
@@ -80,6 +80,11 @@ export function groupByZone(styles) {
 
   for (const section of sections) {
     section.styles.sort((a, b) => {
+      // Ordre d'apparition dans le document quand l'inventaire le porte
+      // (`firstIndex`, ajouté côté backend) : un style se lit dans l'ordre où on
+      // le rencontre, pas par fréquence. Repli sur le poids dans la zone puis le
+      // count global pour les documents importés avant `firstIndex`.
+      if (a.firstIndex != null && b.firstIndex != null) return a.firstIndex - b.firstIndex
       const inZone = (s) => s.byZone?.[section.zone.key] ?? 0
       return inZone(b) - inZone(a) || b.count - a.count
     })

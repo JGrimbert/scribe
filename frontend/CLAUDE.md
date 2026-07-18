@@ -39,12 +39,12 @@ vues. Routes (`src/router/index.js`) :
   L'ancien écran "Chapitrage"
   (`DocumentIndex.vue`) a été supprimé — ses stats (sous-titres, mots)
   vivent dans l'infobulle des nœuds de `StructureView`.
-- `/documents/:id/config` — `ConfigView.vue` : la configuration, en **deux
-  volets** (`?volet=structure|styles`, `structure` par défaut). Voir
+- `/documents/:id/config` — `ConfigView.vue` : la configuration, **un seul
+  écran** organisé par typologie de contenu (plus de volets). Voir
   « Configuration du document » plus bas — l'écran a sa propre section, il n'a
-  rien à faire dans du routing. `/documents/:id/styles` **redirige** ici sur le
-  volet `styles` : l'ancien écran de typologie en est devenu le second volet, et
-  les liens posés visent encore l'ancienne URL.
+  rien à faire dans du routing. `/documents/:id/styles` **redirige** ici :
+  l'ancien écran de typologie a fondu dans la config, et les liens posés visent
+  encore l'ancienne URL.
 - `/documents/:id/axe/:axeId` — `EditorView.vue` → `FolioComposer`/`Scroll`
   (Scroll toujours désactivé, `v-if="false === true"`).
 
@@ -85,112 +85,120 @@ peut pas dire « Replier la structure » sur un écran où il replie le registre
   sans quoi il détruit l'écran qui l'a demandé, et avec lui le rapport qu'on
   venait afficher. Le vidage reste le défaut pour un vrai changement de
   document.
-- Une ligne = **deux boutons frères**, poubelle à gauche puis titre + méta
+- Une ligne = **deux boutons frères**, titre + méta puis poubelle **à droite**
   (« 17 juillet 2026 · 376 Ko », la taille seulement si le `.odt` est là).
   Imbriquer la poubelle dans le bouton de sélection serait un bouton dans un
   bouton — HTML invalide, et le clic remonterait au parent.
-- **La suppression est offerte à deux endroits** (la ligne, et le volet
-  Structure) : `confirmAndDelete` vit donc dans `useRegistry`, pas dans les
+- **La suppression est offerte à deux endroits** (la ligne, et l'écran de
+  config) : `confirmAndDelete` vit donc dans `useRegistry`, pas dans les
   vues — deux formulations du même avertissement divergeraient, ou l'une
-  s'oublierait. La poubelle est discrète au repos et rouge au survol : une
-  colonne de poubelles contrastées ferait de la suppression l'objet de la liste.
+  s'oublierait. La poubelle est **absente au repos, révélée au survol de la
+  ligne** puis rouge quand on la vise : une colonne de poubelles contrastées
+  ferait de la suppression l'objet de la liste.
 - `DocumentList` supprime et **émet `deleted`** ; c'est le parent qui décide de
   la suite — supprimer le document qu'on étudie doit quitter l'écran, supprimer
   un autre ne fait que raccourcir la liste. La liste ne sait pas sur quel écran
   elle est montée.
-- Les stats du document (axes/blocs/articles/mots) restent hors de la liste :
-  elles sont dans le volet Structure, qui parle du document courant.
+- Les stats du document (niveaux 1/2/3+, mots) restent hors de la liste :
+  elles sont dans l'en-tête de la config, qui parle du document courant.
 
 ## Configuration du document — `ConfigView.vue`
 
-`/documents/:id/config`, deux volets : **1. Structure du livre**
-(`StructureConfig.vue`) puis **2. Styles & règles** (`StylesView.vue`). Ils sont
-numérotés, et l'ordre n'est pas cosmétique — c'est la chaîne de dépendance :
-bornes + niveaux → zones → répartition des styles par zone → zone dominante →
-ordre du tableau des rôles → modèles de structure → règles → conformité. **Tout
-va du volet 1 vers le volet 2, rien ne remonte.**
+`/documents/:id/config`, **un seul écran** (plus de volets) organisé par
+**typologie de contenu**, dans l'ordre de lecture : Liminaire → Chapitrage
+niveau 1/2/3+ → Partie finale, puis un socle « Règles par défaut » et une section
+Surlignages globale. Chaque section de chapitrage porte SES styles, SES modèles
+et SES règles côte à côte — l'axe n'est plus « type de réglage » (structure vs
+styles) mais « type de contenu ». Le vocabulaire par défaut n'est plus
+« Axes/Blocs/Articles » (nommage métier Marvarid) mais le **niveau de
+chapitrage** (`zones.js`, `typology.js`, et `DEPTH_LABELS` côté backend, alignés).
 
-Le volet vit dans l'URL (`?volet=`) et non en état local : `/styles` y redirige,
-et le renvoi du dashboard (`AnomaliesBlock`) doit pouvoir viser le second volet.
-`router.replace` — changer de volet n'est pas un pas de navigation à empiler.
+Découpage :
+- **`ConfigView.vue`** orchestre : en-tête (stats du document + suppression),
+  boucle de `TypologySection`, socle « Règles par défaut », section Surlignages,
+  footer d'enregistrement. Il héberge aussi le flux de recalibration (quand un
+  `preview` est posé, la calibration prend tout l'écran).
+- **`useTypologyConfig.js`** porte les données : inventaire, `styles`,
+  `highlights`, `rules` (`{ default, byDepth }`), `settled`, les modèles
+  (`useStructureShapes`), et le calcul des `sections` (une par zone, `groupByZone`
+  + `shapeGroups` + profondeur des règles). `load(id)`/`save(id)`.
+- **`TypologySection.vue`** rend une typologie : styles (2/3) ‖ modèles (1/3) via
+  `AnalyseBlock aside="right"` pour les zones de chapitrage, puis les règles
+  dessous ; styles seuls pour liminaire/final (ni nœuds, ni modèles, ni règles —
+  à venir). Un slot `#lead` reçoit la reprise des bornes dans le liminaire.
+- **`StyleRolesTable.vue`** est la table usages/style/répartition/extrait/rôle,
+  scopée à une zone, réutilisée dans les deux cas. `styleRoles` est muté en place
+  (comme `RuleSetForm` mute son `ruleSet`).
 
-### Volet Structure — rejouer la calibration
+### Recalibration — réduite aux bornes, dans le liminaire
 
 `POST /documents/:id/recalibrate` rend un `PreviewResponse` ordinaire ;
-`StructureConfig` monte alors le MÊME `ImportCalibration` qu'à l'import, en
-`mode="recalibration"` (seuls les mots changent : « Recalibrer et remplacer »,
-pas de `<h2>` — l'hôte porte déjà le titre). C'est le `previewId` qui sait qu'il
-s'agit d'un remplacement, le commit repasse par la route de commit normale.
-- **`hasSource` (+ `sourceSizeBytes`) sur `DocumentSummary`** dit si le `.odt`
-  est conservé : sans lui, on ne pouvait que proposer une recalibration puis
-  afficher son échec. Le bouton est donc **barré d'avance** sur un document
-  importé avant `DocumentSource`, avec la note qui dit pourquoi, et la taille
-  s'affiche en tuile (« 376 Ko · .odt conservé », `—` s'il n'y en a pas). Ne pas
+`ConfigView` monte alors le MÊME `ImportCalibration` qu'à l'import, en
+`mode="recalibration"`. C'est le `previewId` qui sait qu'il s'agit d'un
+remplacement, le commit repasse par la route de commit normale. Le déclencheur
+(« Reprendre les bornes du livre ») vit dans la section **Liminaire** : c'est
+elle qui définit où le liminaire s'arrête.
+- **Les niveaux de titre sont démotés** : la calibration ne différencie plus par
+  défaut que liminaire / contenu / partie finale. Le réglage manuel −/+ (qui
+  rattrape un `.odt` mal stylé) reste disponible mais **replié** sous « réglages
+  avancés » (`showLevels` dans `ImportCalibration`, propagé à `CalibrationNode`) ;
+  les profondeurs viennent sinon telles quelles des niveaux ODT.
+- **`hasSource` (+ `sourceSizeBytes`)** dit si le `.odt` est conservé : le bouton
+  est **barré d'avance** sur un document importé avant `DocumentSource`. Ne pas
   confondre avec `sourceFilename`, qui est le NOM du fichier et vaut toujours
-  quelque chose — c'est le piège qui a fait croire un temps que le témoin était
-  recalibrable. Le 404 explicite du backend reste le filet en dessous : tant que
-  le registre n'est pas chargé, `recalibratable` vaut `true` (on ne fait pas
-  clignoter un bouton d'inactif à actif à chaque arrivée sur l'écran).
-- **Le rapport (`RecalibrationReport`) reste affiché**, il ne passe pas en toast :
+  quelque chose. Le 404 du backend reste le filet : tant que le registre n'est
+  pas chargé, `recalibratable` vaut `true` (pas de clignotement).
+- **Le rapport (`RecalibrationReport`) reste affiché** en en-tête, pas en toast :
   une relecture perdue doit pouvoir se lire et se refaire. Ton `error` s'il y a
-  des perdues, `info` sinon. Le backend le rend à CHAQUE `replace` (jamais sur un
-  import initial, où il n'y aurait rien à réapparier).
+  des perdues, `info` sinon. Le backend le rend à CHAQUE `replace`.
+- Après commit : `reloadDocument` (injecté) rafraîchit `trame`/`data` (les ids de
+  nœuds sont regénérés) ET `load(id)` recharge la typologie (la ventilation par
+  zone change). Le store d'analyse n'est pas touché — `AnalyseView` refait son
+  `fetchAnalysis` au montage.
 - Les **stats se lisent dans `useRegistry`**, pas dans un appel dédié :
   `GET /documents/:id` ne les porte pas, et la liste est déjà chargée pour
   l'aside de cet écran.
-- Après commit, `reloadDocument` (injecté, cf. « Registre et aside
-  contextuelle ») rafraîchit `trame`/`data` : une recalibration regénère TOUS les
-  ids de nœuds. Le store d'analyse, lui, n'est pas touché — `AnalyseView` refait
-  son `fetchAnalysis` au montage, et le forcer d'ici relancerait des minutes de
-  NLP sans qu'on l'ait demandé.
 
-### Volet Styles & règles — `StylesView.vue`
+### Styles, modèles, règles par section
 
-Liste les styles relevés dans le `.odt` (usages, extrait, rôle) et les couleurs
-de surlignage, un appel unique à `GET /documents/:id/typology` servant
-inventaire + suggestions + décisions déjà prises.
+Un appel unique à `GET /documents/:id/typology` sert inventaire + suggestions +
+décisions déjà prises ; `GET /rules` les règles. **Les suggestions
+pré-remplissent le formulaire mais ne sont persistées qu'à l'enregistrement** :
+ce qu'on voit est une proposition, pas une décision qu'on n'a pas prise.
 
-**Une grille de deux `AnalyseBlock`**, pas un flux vertical — et l'appariement
-n'est pas cosmétique :
-- **Styles de paragraphe (2/3) · Modèles de structure (1/3)** — les modèles sont
-  EN REGARD du tableau des rôles parce qu'ils en dépendent : changer un rôle
-  recompose les motifs dans le même tick. Deux sections plus bas, ce lien était
-  invisible ; c'est toute la raison de la grille.
-- **Règles d'éligibilité (2/3) · Surlignages (1/3)** — le rôle « annotation »
-  d'un surlignage est ce qui rend un chapitre non conforme : la décision et sa
-  conséquence se lisent côte à côte.
-
-`AnalyseBlock` sert de cadre **hors dashboard** : avec `step: null` + `needs:
-null` il est du pur layout 2/3 · 1/3 (pas d'état vide, pas de révélation). Il
-consomme `useAnalyse()`, fourni par `DocumentLayout` — donc disponible sur la
-config sans rien câbler.
-
-Deux conséquences de la colonne étroite, à ne pas défaire :
-- **La card latérale est `sticky`, et pas étirée.** `analyse.css` étire la
-  dernière card d'une colonne pour aligner son bas sur la viz — bon pour deux
-  colonnes de hauteur comparable, absurde ici : le tableau des 31 styles fait
-  2000+ px, la card en ferait autant pour 850 px de contenu, et les modèles
-  quitteraient l'écran dès la deuxième zone. `StylesView` la repasse donc en
-  `flex: 0 0 auto` + `position: sticky` sous la `DocumentBar`. Elle se décolle
-  normalement quand son propre bloc sort de l'écran.
-- **Surlignages et modèles sont des LISTES EMPILÉES, plus des tableaux.** Six
-  colonnes ne tiennent pas dans un tiers de largeur. Un surlignage se décide
-  couleur par couleur, pas en comparant des colonnes ; une signature est une
-  phrase. L'exemple de chapitre d'une signature est passé en infobulle, faute de
-  place — il servait à raccrocher au réel, pas à être lu.
-
-`analyse.css` (le primitif `.split`) est importé **globalement par `main.js`** :
-il ne servait qu'au dashboard, il sert maintenant aussi ici. Il ne tenait avant
-que parce que `AnalyseView` est importé statiquement par le routeur — passer
-cette route en lazy aurait décoiffé la config sans que rien ne relie la cause à
-l'effet.
-
-**Les suggestions pré-remplissent le formulaire mais ne sont pas persistées**
-tant que l'utilisateur n'a pas enregistré (cf. `backend/CLAUDE.md`) : ce qu'il
-voit est une proposition, pas une décision qu'il n'a pas prise. Un document
-importé avant la colonne `styleInventory` affiche un état vide explicite — une
-recalibration le remplit si son `.odt` a été conservé (`DocumentSource`), un
-réimport sinon.
+- **`AnalyseBlock` en mode `bare`** (`TypologySection`) : la prop `bare` pose
+  `.split--bare` (`analyse.css`) — le `main` perd fond et cadre et n'est plus
+  centré verticalement, c'est la colonne étroite qui porte SA bordure (card
+  autonome). Le mode normal veut l'inverse (asides sans bordure propre, sinon
+  double trait avec le cadre + le séparateur) : c'est le travers qu'on évitait ici
+  en collant une `UiCard` bordée dans l'aside. `AnalyseBlock` sert de cadre hors
+  dashboard (`step: null`) ; il consomme `useAnalyse()` fourni par
+  `DocumentLayout`. `analyse.css` (le primitif `.split`) est importé
+  **globalement par `main.js`**.
+- **Répartition main/aside** : le `main` porte la **table des styles** (colonnes
+  réduites à style · extrait · rôle) PUIS les **modèles inlinés**, discrets (une
+  ligne de signatures, pas une card). L'aside porte les **règles d'éligibilité**.
+  Changer un rôle recompose les modèles dans le même tick — d'où leur présence à
+  côté des styles, dans le même bloc.
+- **Ordre des styles = ordre d'apparition** (`firstIndex`, cf.
+  `backend/inventory.ts`), pas par fréquence — un style se lit dans l'ordre où on
+  le rencontre. Repli sur le poids/count pour les documents importés avant
+  `firstIndex` (leur styleInventory est figé : un recalibrage le repeuple).
+- **Modèles inlinés** : le rôle `corps` ne porte jamais son `×N`
+  (`script/shapes.js`) — c'est le remplissage attendu, son décompte est du bruit ;
+  ce qui distingue une forme, ce sont les rôles saillants.
+- **Règles toujours affichées** : chaque niveau montre le toggle « des règles
+  propres à ce niveau » + `RuleSetForm` (émet `toggle-rules`, `ConfigView` appelle
+  `toggleDepth`). Quand le niveau suit le défaut, le formulaire montre les
+  **valeurs du défaut en grisé** (`RuleSetForm disabled`) plutôt qu'un vide. Le
+  jeu `default` a son propre bloc « Règles par défaut ». Cocher un niveau part
+  d'une **copie du défaut**.
+- **Surlignages + Non situés en bas** : section globale des surlignages (par
+  couleur, `HIGHLIGHT_ROLES`, point d'extension pour de vraies annotations) ; les
+  styles « Non situés » (paragraphes vides : filets, ornements — ni nœuds, ni
+  modèles, ni règles) vivent juste dessous, à typer eux aussi. Ils sortent donc
+  de la boucle des sections (`useTypologyConfig.unzonedStyles`). Pas de ligne de
+  stats en tête — elle vivait dans l'ancien volet Structure.
 
 `DocumentLayout` charge `settled` à part (`provide('typologySettled')`) ;
 `AnomaliesBlock` s'en sert pour renvoyer vers cet écran. Le défaut est `true`
@@ -198,14 +206,18 @@ réimport sinon.
 
 ### Le tableau des styles
 
-Rangé **dans l'ordre du livre** (`src/script/zones.js`) — Liminaire, Axes,
-Blocs sémantiques, Articles, Partie finale — et non par fréquence brute : un
-style se lit d'abord par où il vit (« Dédicace » n'est pas rare, il est
-liminaire ; « Voir » n'est pas fréquent, il est d'article). Trois points :
+Rangé **dans l'ordre du livre** (`src/script/zones.js`) — Liminaire, Chapitrage
+niveau 1/2/3+, Partie finale — et non par fréquence brute : un style se lit
+d'abord par où il vit (« Dédicace » n'est pas rare, il est liminaire ; « Voir »
+n'est pas fréquent, il est de dernier niveau). Chaque zone est désormais SA
+section (`TypologySection`), mais l'ordre et le regroupement viennent toujours de
+`zones.js`. Trois points :
 - chaque style n'apparaît **qu'une fois**, dans sa zone dominante — la ligne
   porte le `v-model` du rôle, un style dupliqué donnerait deux contrôles pour
-  une seule décision. Sa répartition réelle se lit dans la barre
-  (`StackedBar`), pas dans la duplication ;
+  une seule décision. Dans la zone, les styles sont dans l'**ordre d'apparition**
+  (`firstIndex`) et non par fréquence. La table est réduite à style · extrait ·
+  rôle : les colonnes usages et répartition (`StackedBar`) ont été retirées,
+  c'était du bruit face à la décision (le rôle) ;
 - section **« Non situés »** pour les styles que la ventilation ne place nulle
   part : ce sont les paragraphes vides (filets, ornements), comptés par
   l'inventaire mais jamais promus en nœuds (cf. `sum(byZone) <= count` dans
@@ -241,9 +253,10 @@ même tick, sans aller-retour (c'est la raison d'être de ce partage ; voir
 `GET`/`PUT /documents/:id/rules`, second appel de l'écran. Elles sont
 indicatives — le bouton « Valider » d'un chapitre reste actif quoi qu'il
 arrive, seul le compte de conformes du dashboard en dépend (voir
-`backend/CLAUDE.md` pour le pourquoi chiffré). Un **onglet par niveau** (Défaut
-/ Axes / Blocs / Articles), le formulaire d'un jeu étant `RuleSetForm.vue`,
-réutilisé tel quel par onglet :
+`backend/CLAUDE.md` pour le pourquoi chiffré). Un **jeu par niveau** : le jeu
+`default` a son bloc « Règles par défaut », et chaque section de chapitrage porte
+le sien via le toggle « des règles propres à ce niveau ». Le formulaire d'un jeu
+est `RuleSetForm.vue`, réutilisé tel quel :
 - `RuleSetForm` **mute son `ruleSet` en place**, délibérément : le parent
   détient l'objet réactif complet, et remonter chaque case par
   `update:modelValue` recréerait des objets pour rien alors qu'il y a jusqu'à
@@ -252,13 +265,13 @@ réutilisé tel quel par onglet :
 - cocher « des règles propres à ce niveau » part d'une **copie du défaut**, pas
   d'un jeu vide : on règle par écart au défaut, et partir de rien ferait passer
   le niveau pour « sans aucune exigence » le temps de tout recocher ;
-- une **pastille** sur l'onglet signale un niveau réglé — sinon il faut ouvrir
-  les quatre pour savoir lesquels le sont ;
+- toutes les sections étant visibles à la fois (plus d'onglets), la case cochée
+  d'un niveau suffit à savoir lequel est réglé ;
 - `save()` sérialise par `JSON.parse(JSON.stringify(rules))` : `rules` est un
   proxy réactif **imbriqué**, un spread de surface enverrait des proxies ;
-- les vocabulaires fermés (`STYLE_ROLES`, `REQUIRABLE_ROLES`) et les onglets
-  vivent dans `src/script/typology.js` — partagés entre la vue et
-  `RuleSetForm`, alignés sur le backend qui refuse tout rôle hors liste.
+- les vocabulaires fermés (`STYLE_ROLES`, `REQUIRABLE_ROLES`) et les libellés de
+  niveau (`DEPTH_TABS`) vivent dans `src/script/typology.js` — partagés, alignés
+  sur le backend qui refuse tout rôle hors liste.
 
 ## Hiérarchie à profondeur arbitraire
 

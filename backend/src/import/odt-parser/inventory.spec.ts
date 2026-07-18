@@ -62,8 +62,8 @@ describe('inventaire des styles', () => {
       ),
     )
     expect(inventory.styles).toEqual([
-      { name: 'Paragraphes', count: 2, headings: 0, sample: 'Premier paragraphe.' },
-      { name: 'Heading 1', count: 1, headings: 1, sample: 'Un titre' },
+      { name: 'Paragraphes', count: 2, headings: 0, sample: 'Premier paragraphe.', firstIndex: 0 },
+      { name: 'Heading 1', count: 1, headings: 1, sample: 'Un titre', firstIndex: 1 },
     ])
   })
 
@@ -83,6 +83,7 @@ describe('inventaire des styles', () => {
       count: 1,
       headings: 0,
       sample: 'Super-héros : Zorro',
+      firstIndex: 0,
     })
   })
 
@@ -104,7 +105,7 @@ describe('inventaire des styles', () => {
         `<text:p text:style-name="Vide"></text:p><text:p text:style-name="Vide">Enfin du texte.</text:p>`,
       ),
     )
-    expect(inventory.styles[0]).toEqual({ name: 'Vide', count: 2, headings: 0, sample: 'Enfin du texte.' })
+    expect(inventory.styles[0]).toEqual({ name: 'Vide', count: 2, headings: 0, sample: 'Enfin du texte.', firstIndex: 0 })
   })
 })
 

@@ -31,10 +31,13 @@ export function toRoleRuns(runs, roleOf) {
   return out
 }
 
-// La signature lisible d'une forme : « chapeau · corps×4 · renvoi ».
+// La signature lisible d'une forme : « chapeau · corps · renvoi ». Le rôle
+// « corps » ne porte jamais son ×N : c'est le remplissage attendu, son décompte
+// est du bruit — ce qui distingue une forme, ce sont les rôles saillants
+// (chapeau, définition, renvoi…), pas combien de paragraphes de corps suivent.
 export function signatureLabel(roleRuns) {
   if (!roleRuns.length) return EMPTY_SIGNATURE
-  return roleRuns.map(([role, n]) => (n > 1 ? `${role}×${n}` : role)).join(' · ')
+  return roleRuns.map(([role, n]) => (n > 1 && role !== 'corps' ? `${role}×${n}` : role)).join(' · ')
 }
 
 /**

@@ -184,8 +184,8 @@ describe('assessConformity — règles par profondeur', () => {
 
     expect(r.criteria.map((c) => c.key)).toEqual(['0|minChars', '1|minChars'])
     expect(r.criteria.map((c) => c.label)).toEqual([
-      'Axes — au moins 500 caractères',
-      'Blocs sémantiques — au moins 500 caractères',
+      'Niveau 1 — au moins 500 caractères',
+      'Niveau 2 — au moins 500 caractères',
     ])
     expect(r.criteria.every((c) => c.failing === 1)).toBe(true)
   })
@@ -195,7 +195,7 @@ describe('assessConformity — règles par profondeur', () => {
     const r = assessConformity(trame, data, typology, perDepth({ 2: { ...DEFAULT_RULE_SET, forbidAnnotations: false } }))
 
     expect(r.criteria.map((c) => c.key)).toEqual(['2|minChars'])
-    expect(r.criteria[0].label).toBe('Articles — au moins 500 caractères')
+    expect(r.criteria[0].label).toBe('Niveau 3+ — au moins 500 caractères')
     expect(r.criteria[0].failing).toBe(2) // C (depth 2) et D (depth 3)
   })
 

@@ -9,9 +9,9 @@ export default {
 // catégorielle (--c-cat-*), jamais la rampe ordinale.
 const zones = (liminaire, axes, blocs, articles, final) => [
   { key: 'liminaire', value: liminaire, color: 'var(--c-cat-1)', label: 'Liminaire' },
-  { key: 'depth-0', value: axes, color: 'var(--c-cat-2)', label: 'Axes' },
-  { key: 'depth-1', value: blocs, color: 'var(--c-cat-3)', label: 'Blocs sémantiques' },
-  { key: 'depth-2+', value: articles, color: 'var(--c-cat-4)', label: 'Articles' },
+  { key: 'depth-0', value: axes, color: 'var(--c-cat-2)', label: 'Chapitrage — niveau 1' },
+  { key: 'depth-1', value: blocs, color: 'var(--c-cat-3)', label: 'Chapitrage — niveau 2' },
+  { key: 'depth-2+', value: articles, color: 'var(--c-cat-4)', label: 'Chapitrage — niveau 3+' },
   { key: 'final', value: final, color: 'var(--c-cat-5)', label: 'Partie finale' },
 ]
 

@@ -20,9 +20,9 @@ export const REQUIRABLE_ROLES = ['définition', 'chapeau', 'citation', 'renvoi']
 // partout dans l'écran.
 export const DEPTH_TABS = [
   { key: 'default', label: 'Défaut', hint: "S'applique à tout niveau sans règles propres" },
-  { key: 0, label: 'Axes', hint: 'Titres de premier niveau' },
-  { key: 1, label: 'Blocs sémantiques', hint: 'Deuxième niveau de titre' },
-  { key: 2, label: 'Articles', hint: 'Troisième niveau et au-delà' },
+  { key: 0, label: 'Chapitrage — niveau 1', hint: 'Titres de premier niveau' },
+  { key: 1, label: 'Chapitrage — niveau 2', hint: 'Deuxième niveau de titre' },
+  { key: 2, label: 'Chapitrage — niveau 3+', hint: 'Troisième niveau et au-delà' },
 ]
 
 export function emptyRuleSet() {

@@ -77,7 +77,7 @@ async function deleteDocument(id) {
 }
 
 // La confirmation vit ici et non dans les vues : la suppression est offerte à
-// deux endroits (la ligne du registre, le volet Structure) et deux formulations
+// deux endroits (la ligne du registre, l'écran de config) et deux formulations
 // du même avertissement finiraient par diverger — ou par en oublier une.
 async function confirmAndDelete(doc) {
   if (!window.confirm(`Supprimer définitivement « ${doc.title} » ? Cette action est irréversible.`)) return false

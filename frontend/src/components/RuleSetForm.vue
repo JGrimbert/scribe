@@ -1,12 +1,12 @@
 <template>
-  <div class="rules">
+  <div class="rules" :class="{ 'rules--disabled': disabled }">
     <label class="rule">
-      <input v-model="ruleSet.forbidAnnotations" type="checkbox" />
+      <input v-model="ruleSet.forbidAnnotations" type="checkbox" :disabled="disabled" />
       <span>Aucune annotation surlignée en attente</span>
     </label>
 
     <label class="rule">
-      <input :checked="ruleSet.minChars != null" type="checkbox" @change="toggleMinChars" />
+      <input :checked="ruleSet.minChars != null" type="checkbox" :disabled="disabled" @change="toggleMinChars" />
       <span>Au moins</span>
       <input
           v-model.number="minCharsDraft"
@@ -14,18 +14,18 @@
           type="number"
           min="0"
           step="100"
-          :disabled="ruleSet.minChars == null"
+          :disabled="disabled || ruleSet.minChars == null"
       />
       <span>caractères</span>
     </label>
 
     <label class="rule">
-      <input v-model="ruleSet.requiresTable" type="checkbox" />
+      <input v-model="ruleSet.requiresTable" type="checkbox" :disabled="disabled" />
       <span>Un tableau des liens</span>
     </label>
 
     <label v-for="role in REQUIRABLE_ROLES" :key="role" class="rule">
-      <input type="checkbox" :checked="ruleSet.requiresRoles.includes(role)" @change="toggleRole(role)" />
+      <input type="checkbox" :checked="ruleSet.requiresRoles.includes(role)" :disabled="disabled" @change="toggleRole(role)" />
       <span>Un paragraphe « {{ role }} »</span>
     </label>
   </div>
@@ -41,6 +41,9 @@ import { REQUIRABLE_ROLES } from '../script/typology'
 // alors qu'il y a jusqu'à quatre jeux vivants à l'écran.
 const props = defineProps({
   ruleSet: { type: Object, required: true },
+  // Lecture seule : les cases sont affichées mais grisées (un niveau qui suit le
+  // défaut montre les valeurs du défaut sans pouvoir les toucher).
+  disabled: { type: Boolean, default: false },
 })
 
 // Mémoire du seuil quand on décoche « au moins N caractères » : le décocher
@@ -77,6 +80,13 @@ watch(
   flex-direction: column;
   gap: var(--sp-3);
   margin-top: var(--sp-4);
+}
+
+/* Grisé mais lisible : on montre ce que le défaut impose, sans laisser croire
+   qu'on l'édite ici. */
+.rules--disabled {
+  opacity: var(--op-muted);
+  cursor: not-allowed;
 }
 
 .rule {

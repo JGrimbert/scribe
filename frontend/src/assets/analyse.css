@@ -24,6 +24,40 @@
     border-radius: var(--radius-md);
 }
 
+/* Mode « bare » : pas de cadre-card commun. Le main s'efface (fond transparent,
+   pas de bordure, aligné en haut et non centré) ; c'est la colonne étroite qui
+   porte SA bordure — l'inverse du mode normal, où l'aside ne doit jamais avoir
+   de bordure propre (sinon double trait avec le cadre + le séparateur). Les
+   colonnes s'alignent en haut et ne s'étirent plus l'une sur l'autre. */
+.split--bare {
+    background: transparent;
+    backdrop-filter: none;
+    border: none;
+    border-radius: 0;
+    align-items: flex-start;
+    gap: var(--sp-4);
+}
+
+.split--bare > .split-main {
+    background: transparent;
+    justify-content: flex-start;
+    padding: 0;
+}
+
+.split--bare > .split-left,
+.split--bare > .split-right {
+    border: 1px solid var(--c-border);
+    border-radius: var(--radius-md);
+    background: var(--c-surface);
+}
+
+/* Plus d'étirement de la dernière card sur la hauteur du main en bare : la
+   colonne se dimensionne sur son contenu (et peut coller en haut). */
+.split--bare > .split-left > *:last-child,
+.split--bare > .split-right > *:last-child {
+    flex: 0 0 auto;
+}
+
 /* Viz principale (2/3). Une viz brute (réseau, carte) se centre dans sa
    respiration ; une viz qui remplit (nuage) se donne `flex: 1` et l'emporte. */
 .split-main {

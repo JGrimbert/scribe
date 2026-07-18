@@ -24,12 +24,12 @@ const routes = [
     children: [
       { path: '', name: 'document', component: AnalyseView },
       { path: 'config', name: 'config', component: ConfigView },
-      // L'écran de typologie est devenu un volet de la config. Redirection
-      // plutôt que suppression : les liens posés (dashboard, favoris) visent
-      // encore /styles, et ce qu'ils cherchaient est le second volet.
+      // L'ancien écran de typologie a fondu dans la config (plus de volets).
+      // Redirection plutôt que suppression : les liens posés (dashboard,
+      // favoris) visent encore /styles.
       {
         path: 'styles',
-        redirect: (to) => ({ name: 'config', params: to.params, query: { volet: 'styles' } }),
+        redirect: (to) => ({ name: 'config', params: to.params }),
       },
       { path: 'noeud/:nodeId', name: 'editor', component: EditorView },
     ],

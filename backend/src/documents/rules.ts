@@ -36,10 +36,13 @@ export type DepthKey = 0 | 1 | 2
 
 export const DEPTH_KEYS: DepthKey[] = [0, 1, 2]
 
+// Libellés par niveau de chapitrage (profondeur), volontairement neutres : le
+// vocabulaire métier « axe/bloc/article » n'est plus le défaut. Composés dans
+// le graphe de conformité en « Niveau 1 — au moins 500 caractères ».
 export const DEPTH_LABELS: Record<DepthKey, string> = {
-  0: 'Axes',
-  1: 'Blocs sémantiques',
-  2: 'Articles',
+  0: 'Niveau 1',
+  1: 'Niveau 2',
+  2: 'Niveau 3+',
 }
 
 // Ce qu'on attend d'un axe, d'un bloc et d'un article n'a rien de commun : d'où

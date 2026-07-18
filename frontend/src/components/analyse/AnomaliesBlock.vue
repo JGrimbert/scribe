@@ -26,7 +26,7 @@
           doit contenir pour être validable.
           <!-- Chemin littéral et non route nommée : le routeur en mémoire des
                stories est un attrape-tout, sans noms (cf. .storybook/preview.js). -->
-          <RouterLink :to="`/documents/${route.params.id}/config?volet=styles`">
+          <RouterLink :to="`/documents/${route.params.id}/config`">
             Configurer la typologie
           </RouterLink>
         </UiNote>

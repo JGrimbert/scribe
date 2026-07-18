@@ -67,6 +67,14 @@ describe('groupByZone', () => {
     const sections = groupByZone([style('B', { liminaire: 1 }, 3), style('A', { liminaire: 1 }, 9)])
     expect(sections[0].styles.map((s) => s.name)).toEqual(['A', 'B'])
   })
+
+  it('trie par ordre d’apparition quand firstIndex est présent', () => {
+    const s = (name, byZone, firstIndex) => ({ name, byZone, count: totalOf(byZone), headings: 0, sample: '', firstIndex })
+    // « Tard » pèse plus lourd mais apparaît après « Tôt » : l'ordre d'apparition
+    // l'emporte sur la fréquence.
+    const sections = groupByZone([s('Tard', { 'depth-2+': 100 }, 5), s('Tôt', { 'depth-2+': 2 }, 1)])
+    expect(sections[0].styles.map((x) => x.name)).toEqual(['Tôt', 'Tard'])
+  })
 })
 
 describe('hasZones', () => {

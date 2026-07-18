@@ -7,9 +7,14 @@
         précède part en liminaire) et, s'il y en a une, là où la partie finale
         commence — table des matières, index, glossaire. Ce sont les deux bouts
         qui ne sont pas de la structure du livre. Dépliez un titre pour voir ses
-        sous-titres ; +/− change son niveau. Le repère ⤓ signale un saut de page
-        forcé — souvent (pas toujours) un signe de niveau supérieur.
+        sous-titres. Les niveaux de titre viennent du document : on ne les
+        reprend qu'au besoin, via les réglages avancés ci-dessous.
       </UiNote>
+
+      <button class="advanced-toggle" type="button" :aria-expanded="showLevels" @click="showLevels = !showLevels">
+        <i class="pi" :class="showLevels ? 'pi-chevron-down' : 'pi-chevron-right'"></i>
+        Réglages avancés — niveaux de titre
+      </button>
     </div>
 
     <div class="outline">
@@ -42,7 +47,7 @@
           </div>
         </div>
 
-        <CalibrationNode v-if="item.type === 'node'" :node="item.node" @level-change="onLevelChange" />
+        <CalibrationNode v-if="item.type === 'node'" :node="item.node" :show-levels="showLevels" @level-change="onLevelChange" />
         <div v-else class="matter-row">{{ item.entry.text }}</div>
       </template>
     </div>
@@ -80,6 +85,10 @@ const emit = defineEmits(['committed', 'cancel'])
 
 const structureStartIndex = ref(props.suggestedStructureStartIndex)
 const structureEndIndex = ref(props.suggestedStructureEndIndex)
+// Niveaux masqués par défaut : la calibration ne différencie plus que
+// liminaire / contenu / partie finale. Le réglage manuel reste dispo (rattrape
+// un .odt mal stylé) mais sous ce pli, replié à l'ouverture.
+const showLevels = ref(false)
 const levelOverrides = reactive({})
 const committing = ref(false)
 const error = ref(null)
@@ -200,6 +209,26 @@ async function onCommit() {
 
 .calibration-header h2 {
   margin: 0 0 0.5em;
+}
+
+/* Pli discret : le réglage des niveaux est l'exception, pas la règle. */
+.advanced-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-top: var(--sp-2);
+  padding: var(--sp-1) 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+  opacity: var(--op-muted);
+}
+
+.advanced-toggle:hover {
+  opacity: 1;
 }
 
 /* Pas d'`overflow-y: auto` ni de `max-height` ici : la liste défile avec la

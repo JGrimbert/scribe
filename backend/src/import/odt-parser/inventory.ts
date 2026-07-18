@@ -46,7 +46,10 @@ function collectStyles(doc: any, table: StyleTable): StyleUsage[] {
     if (!name) continue
     let usage = byName.get(name)
     if (!usage) {
-      usage = { name, count: 0, headings: 0, sample: '' }
+      // `byName.size` avant insertion = rang de première apparition : le XPath
+      // rend les paragraphes dans l'ordre du document, la Map préserve l'ordre
+      // d'insertion.
+      usage = { name, count: 0, headings: 0, sample: '', firstIndex: byName.size }
       byName.set(name, usage)
     }
     usage.count++

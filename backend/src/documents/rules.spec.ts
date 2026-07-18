@@ -99,7 +99,7 @@ describe('rulesErrors', () => {
 
   it('refuse un minChars non entier, dans le défaut comme par profondeur', () => {
     expect(rulesErrors({ default: { minChars: -1 } })).toHaveLength(1)
-    expect(rulesErrors({ default: {}, byDepth: { 2: { minChars: 1.5 } } })[0]).toContain('Articles')
+    expect(rulesErrors({ default: {}, byDepth: { 2: { minChars: 1.5 } } })[0]).toContain('Niveau 3+')
   })
 
   it('refuse un rôle hors vocabulaire', () => {
@@ -113,6 +113,6 @@ describe('rulesErrors', () => {
   })
 
   it('nomme la profondeur fautive pour que l’erreur soit actionnable', () => {
-    expect(rulesErrors({ default: {}, byDepth: { 0: { requiresRoles: ['nope'] } } })[0]).toContain('Axes')
+    expect(rulesErrors({ default: {}, byDepth: { 0: { requiresRoles: ['nope'] } } })[0]).toContain('Niveau 1')
   })
 })
