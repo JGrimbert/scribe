@@ -7,7 +7,7 @@
        NLP pour montrer un graphe déjà calculable. -->
   <AnalyseBlock
       step="completude"
-      aside="right"
+      aside="left"
       :ready="!!distribution.length"
       unavailable="Aucun chapitre à situer dans ce document."
   >
@@ -33,12 +33,6 @@
       </UiCard>
 
       <AnomaliesTable />
-      <SemanticPairsCard
-          bare
-          title="Textes identiques ou quasi identiques"
-          mode="duplicates"
-          hint="Ces articles partagent un texte (presque) mot pour mot — doublons ou gabarits recopiés en attente de rédaction."
-      />
     </template>
   </AnalyseBlock>
 </template>

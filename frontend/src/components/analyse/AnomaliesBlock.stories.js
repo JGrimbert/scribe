@@ -1,5 +1,5 @@
 import { provide, reactive, ref } from 'vue'
-import AnomaliesBlock from './AnomaliesBlock.vue'
+import AnomaliesBlock from './AnomaliesCard.vue'
 import { ANALYSE_KEY } from '../../composables/useAnalyse'
 import '../../assets/base.css'
 import '../../assets/analyse.css'

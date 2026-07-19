@@ -22,17 +22,8 @@
       <VocabulaireCard />
       <LexicalCard />
       <ThemesCard />
-      <AnomaliesBlock />
-
-      <div class="split">
-        <Transition name="reveal" appear>
-          <SemanticPairsCard
-              v-if="isRevealed('pairs')"
-              title="Paires d’articles les plus proches"
-              mode="closest"
-          />
-        </Transition>
-      </div>
+      <AnomaliesCard />
+      <SemanticCard/>
 
       <!-- Bas de page : cards en lecture seule, « à trier plus tard ». Le
            tableau par article (sorti du bloc Analyse linguistique) et les
@@ -54,9 +45,9 @@ import VocabulaireCard from './analyse/VocabulaireCard.vue'
 import EntitiesLeftoverCard from './analyse/EntitiesLeftoverCard.vue'
 import LexicalCard from './analyse/LexicalCard.vue'
 import LexicalUnitsCard from './analyse/LexicalUnitsCard.vue'
-import SemanticPairsCard from './analyse/SemanticPairsCard.vue'
-import AnomaliesBlock from './analyse/AnomaliesBlock.vue'
 import ThemesCard from './analyse/ThemesCard.vue'
+import AnomaliesCard from "./analyse/AnomaliesCard.vue";
+import SemanticCard from "./analyse/SemanticCard.vue";
 
 const route = useRoute()
 const { error, analysis, isRevealed, fetchAnalysis } = useAnalyse()
