@@ -11,6 +11,14 @@ import { assessConformity } from './conformity'
 import { NlpClientService, NlpTopicsResult } from './nlp-client.service'
 import { dot, meanNormalized } from './vector-math'
 import {
+  LIMINAIRE_TYPE_DESCRIPTIONS,
+  SEMANTIC_MIN_WORDS,
+  SEMANTIC_THRESHOLD,
+  SemanticPick,
+  pickBestTypes,
+  wordCount,
+} from './liminaire-semantic'
+import {
   DocumentAnalysisResponse,
   LexicalAnalysis,
   SemanticAnalysis,
@@ -294,6 +302,32 @@ export class AnalyseService {
     }
     const res = await this.nlpClient.similarity(texts.map((t) => t.trim()))
     return { model: res.model, score: res.matrix[0][1] }
+  }
+
+  // Suggestion SÉMANTIQUE de type pour des pages liminaires non résolues par le
+  // déterministe (frontend). Compare chaque texte de page aux descriptions de
+  // référence des 16 types, retient le plus proche au-dessus du seuil. Keyé par
+  // la clé de page transmise. Les pages trop courtes (peu fiables) sont
+  // ignorées — c'est le domaine du déterministe.
+  async suggestLiminaire(
+    pages: { key: string; text: string }[],
+    threshold = SEMANTIC_THRESHOLD,
+  ): Promise<Record<string, SemanticPick>> {
+    const valid = (pages ?? []).filter(
+      (p) => p && typeof p.key === 'string' && typeof p.text === 'string' && wordCount(p.text) >= SEMANTIC_MIN_WORDS,
+    )
+    if (!valid.length) return {}
+
+    const texts = [...valid.map((p) => p.text.trim()), ...LIMINAIRE_TYPE_DESCRIPTIONS.map((d) => d.description)]
+    const { matrix } = await this.nlpClient.similarity(texts)
+    const picks = pickBestTypes(matrix, valid.length, LIMINAIRE_TYPE_DESCRIPTIONS, threshold)
+
+    const out: Record<string, SemanticPick> = {}
+    valid.forEach((p, i) => {
+      const pick = picks[i]
+      if (pick) out[p.key] = pick
+    })
+    return out
   }
 
   async embeddingCacheStats(): Promise<{ entries: number }> {

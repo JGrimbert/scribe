@@ -16,9 +16,20 @@
             :disabled="!suggestableCount"
             @click="applyAllSuggestions"
         >
-          <i class="pi pi-sparkles"></i>
+          <i class="pi pi-bolt"></i>
           Suggérer les types<span v-if="suggestableCount"> ({{ suggestableCount }})</span>
         </button>
+        <button
+            class="suggest-all"
+            type="button"
+            :disabled="!unresolved.length || fetchingSemantic"
+            title="Deviner par similarité sémantique (service NLP) les pages que les règles ne résolvent pas"
+            @click="fetchSemantic"
+        >
+          <i class="pi" :class="fetchingSemantic ? 'pi-spin pi-spinner' : 'pi-sparkles'"></i>
+          Deviner par le sens<span v-if="unresolved.length"> ({{ unresolved.length }})</span>
+        </button>
+        <span v-if="semanticError" class="sem-error">{{ semanticError }}</span>
       </div>
 
       <ol v-if="pages.length" class="pages">
@@ -42,11 +53,13 @@
               <button
                   v-if="!typeOf(page) && suggestionFor(page)"
                   class="suggest"
+                  :class="`suggest--${suggestionFor(page).source}`"
                   type="button"
                   :title="suggestionFor(page).why"
                   @click="applySuggestion(page)"
               >
-                <i class="pi pi-sparkles"></i> {{ labelOf(suggestionFor(page).key) }} ?
+                <i class="pi" :class="suggestionFor(page).source === 'flou' ? 'pi-sparkles' : 'pi-bolt'"></i>
+                <span v-if="suggestionFor(page).source === 'flou'">≈ </span>{{ labelOf(suggestionFor(page).key) }} ?
               </button>
             </template>
 
@@ -119,7 +132,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import AnalyseBlock from './analyse/AnalyseBlock.vue'
 import BaseSelect from './ui/BaseSelect.vue'
 import { LIMINAIRE_PAGES, LIMINAIRE_BY_KEY, PAGE_SIDES, deriveEligibility, entryPlainText } from '../script/liminaire'
@@ -136,18 +149,35 @@ const props = defineProps({
 
 const elig = computed(() => deriveEligibility(props.pages, props.config))
 
-// Suggestions déterministes par page (style-name + mots-clés + titre). Ne sont
-// PAS persistées tant que l'utilisateur ne les applique pas — une proposition,
-// pas une décision (même philosophie que la typologie des styles).
-const suggestions = computed(() => suggestAll(props.pages, { title: props.title }))
+// Suggestions DÉTERMINISTES (style-name + mots-clés + titre), instantanées. Une
+// proposition, pas une décision : rien n'est persisté tant que l'utilisateur ne
+// l'applique pas (même philosophie que la typologie des styles).
+const deterministic = computed(() => suggestAll(props.pages, { title: props.title }))
 
-// Pages non taggées pour lesquelles on a une suggestion (compteur du bouton).
+// Suggestions SÉMANTIQUES (NLP), remplies à la demande par fetchSemantic().
+// { [pageKey]: { type, score } }.
+const semantic = ref({})
+const fetchingSemantic = ref(false)
+const semanticError = ref(null)
+
+// Pages non taguées que le déterministe RÉSOUT (compteur du bouton d'application).
 const suggestableCount = computed(
-  () => props.pages.filter((p) => !typeOf(p) && suggestions.value[p.key]).length,
+  () => props.pages.filter((p) => !typeOf(p) && deterministic.value[p.key]).length,
 )
 
+// Pages non taguées que le déterministe NE résout PAS — candidates au NLP.
+const unresolved = computed(
+  () => props.pages.filter((p) => !p.isBlank && !typeOf(p) && !deterministic.value[p.key]),
+)
+
+// Fusion : le déterministe l'emporte (sûr), le sémantique complète (flou). La
+// `source` distingue les deux à l'affichage.
 function suggestionFor(page) {
-  return suggestions.value[page.key] ?? null
+  const det = deterministic.value[page.key]
+  if (det) return { key: det.key, why: det.why, source: 'sur' }
+  const sem = semantic.value[page.key]
+  if (sem) return { key: sem.type, why: `proche sémantiquement (${Math.round(sem.score * 100)} %)`, source: 'flou' }
+  return null
 }
 
 function labelOf(key) {
@@ -159,10 +189,33 @@ function applySuggestion(page) {
   if (s) setType(page, s.key)
 }
 
-// Ne touche QUE les pages non taggées : on ne réécrit pas un choix déjà posé.
+// N'applique QUE le déterministe (haute confiance). Le sémantique reste cliquable
+// page par page — un flou se valide, il ne s'impose pas en masse.
 function applyAllSuggestions() {
   for (const page of props.pages) {
-    if (!typeOf(page) && suggestions.value[page.key]) setType(page, suggestions.value[page.key].key)
+    if (!typeOf(page) && deterministic.value[page.key]) setType(page, deterministic.value[page.key].key)
+  }
+}
+
+async function fetchSemantic() {
+  fetchingSemantic.value = true
+  semanticError.value = null
+  try {
+    const pages = unresolved.value.map((p) => ({ key: p.key, text: p.entries.map(entryPlainText).join(' ') }))
+    const res = await fetch('/api/analyse/liminaire-suggest', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pages }),
+    })
+    if (!res.ok) {
+      const body = await res.json().catch(() => null)
+      throw new Error(body?.message || `HTTP ${res.status}`)
+    }
+    semantic.value = { ...semantic.value, ...(await res.json()) }
+  } catch (e) {
+    semanticError.value = `Suggestion sémantique indisponible : ${e.message}`
+  } finally {
+    fetchingSemantic.value = false
   }
 }
 
@@ -226,6 +279,15 @@ function sideGlyph(side) {
 
 .toolbar {
   margin-bottom: var(--sp-3);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+.sem-error {
+  color: var(--c-danger);
+  font-size: var(--fs-sm);
 }
 
 .suggest-all {
@@ -270,6 +332,13 @@ function sideGlyph(side) {
 
 .suggest:hover {
   opacity: 1;
+}
+
+/* Suggestion sémantique (floue) : ton distinct de l'accent (déterministe, sûr)
+   pour que « deviné » ne se confonde pas avec « déduit ». */
+.suggest--flou {
+  border-color: var(--c-ink2);
+  color: var(--c-ink2);
 }
 
 .pages {
