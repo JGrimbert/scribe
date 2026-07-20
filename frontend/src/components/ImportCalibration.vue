@@ -13,17 +13,14 @@
         sous-titres. Les niveaux de titre viennent du document : on ne les
         reprend qu'au besoin, via les réglages avancés ci-dessous.
       </UiNote>
-      <p v-else class="calibration-lead">
-        Posez le début du contenu et, s'il y en a une, la partie finale.
-      </p>
-
-      <button class="advanced-toggle" type="button" :aria-expanded="showLevels" @click="showLevels = !showLevels">
-        <i class="pi" :class="showLevels ? 'pi-chevron-down' : 'pi-chevron-right'"></i>
-        Réglages avancés — niveaux de titre
-      </button>
     </div>
 
-    <div class="outline">
+    <!-- En modale, la liste défile dans la scrollbar maison (teal + flèches),
+         comme partout ailleurs dans l'app. Sur /import elle n'a pas de hauteur
+         propre et défile avec la page : `component :is` évite de dupliquer tout
+         le contenu de la liste pour cette seule différence d'enveloppe. -->
+    <div class="outline-wrap">
+    <component :is="isRecalibration ? CustomScrollbar : 'div'" class="outline">
       <template v-for="item in topLevelItems" :key="item.entry.index">
         <div
             class="divider"
@@ -53,17 +50,26 @@
           </div>
         </div>
 
-        <CalibrationNode v-if="item.type === 'node'" :node="item.node" :show-levels="showLevels" @level-change="onLevelChange" />
+        <CalibrationNode v-if="item.type === 'node'" :node="item.node" @level-change="onLevelChange" />
         <div v-else class="matter-row">{{ item.entry.text }}</div>
       </template>
+    </component>
     </div>
 
     <div class="calibration-footer">
       <UiNote v-if="error" variant="error" class="footer-error">{{ error }}</UiNote>
       <BaseButton variant="outline" @click="$emit('cancel')">Annuler</BaseButton>
-      <BaseButton variant="solid" :busy="committing" @click="onCommit">
-        {{ commitLabel }}
-      </BaseButton>
+      <!-- L'avertissement ne s'affiche QUE si les bornes ont bougé : rouvrir la
+           calibration puis la valider à l'identique reconstruit certes l'arbre,
+           mais retrouve les mêmes nœuds — brandir « vos analyses seront à
+           relancer » à chaque ouverture aurait usé la mise en garde.
+           `component :is` plutôt qu'un `v-if` en double : le bouton s'écrit une
+           fois, seule son enveloppe change. -->
+      <component :is="bornesChanged ? UiHint : 'span'" v-bind="bornesChanged ? { text: BORNES_WARNING } : {}">
+        <BaseButton variant="solid" :busy="committing" @click="onCommit">
+          {{ commitLabel }}
+        </BaseButton>
+      </component>
     </div>
   </div>
 </template>
@@ -71,8 +77,10 @@
 <script setup>
 import { computed, reactive, ref } from 'vue'
 import BaseButton from './ui/BaseButton.vue'
+import UiHint from './ui/UiHint.vue'
 import UiNote from './ui/UiNote.vue'
 import CalibrationNode from './CalibrationNode.vue'
+import CustomScrollbar from './CustomScrollbar.vue'
 
 const props = defineProps({
   previewId: { type: String, required: true },
@@ -99,10 +107,6 @@ const emit = defineEmits(['committed', 'cancel'])
 // est une borne parfaitement légitime (un livre sans liminaire).
 const structureStartIndex = ref(props.currentStructureStartIndex ?? props.suggestedStructureStartIndex)
 const structureEndIndex = ref(props.currentStructureEndIndex ?? props.suggestedStructureEndIndex)
-// Niveaux masqués par défaut : la calibration ne différencie plus que
-// liminaire / contenu / partie finale. Le réglage manuel reste dispo (rattrape
-// un .odt mal stylé) mais sous ce pli, replié à l'ouverture.
-const showLevels = ref(false)
 const levelOverrides = reactive({})
 const committing = ref(false)
 const error = ref(null)
@@ -110,8 +114,23 @@ const error = ref(null)
 const isRecalibration = computed(() => props.mode === 'recalibration')
 
 const commitLabel = computed(() => {
-  if (isRecalibration.value) return committing.value ? 'Reconstruction…' : 'Recalibrer et remplacer'
+  if (isRecalibration.value) return committing.value ? 'Reconstruction…' : 'Recalibrer'
   return committing.value ? 'Import en cours…' : "Valider l'import"
+})
+
+const BORNES_WARNING =
+    "Les bornes ont changé : l'arbre du livre est reconstruit, les analyses seront à relancer."
+
+// Les bornes ont-elles VRAIMENT bougé depuis celles du document ? Comparé aux
+// bornes courantes, pas aux suggestions — c'est le réglage en base qui fait foi.
+// `currentStructureStartIndex` est nul à l'import et sur un document antérieur
+// à ces colonnes : on ne peut alors rien comparer, donc rien à avertir.
+const bornesChanged = computed(() => {
+  if (!isRecalibration.value || props.currentStructureStartIndex == null) return false
+  return (
+      structureStartIndex.value !== props.currentStructureStartIndex ||
+      structureEndIndex.value !== props.currentStructureEndIndex
+  )
 })
 
 // Re-cliquer la démarcation posée la retire : la partie finale est facultative,
@@ -228,15 +247,48 @@ async function onCommit() {
    la calibration défile avec la page — lui en donner une là-bas remettrait la
    scrollbar imbriquée que le design system proscrit. La dérogation est donc
    bornée au mode, pas généralisée. */
+/* PAS de `height: 100%` ici : la calibration est un item flex du panneau, et
+   une hauteur en pourcentage l'empêchait de se comprimer — elle prenait la
+   taille de sa liste et faisait déborder la modale. On la laisse flexer
+   (`.recal-calibration` côté hôte), on ne fait qu'ôter ses marges d'écran. */
 .calibration--boxed {
-  height: 100%;
   padding: 0;
   max-width: none;
 }
 
-.calibration--boxed .outline {
-  overflow-y: auto;
+.calibration--boxed .calibration-header {
+  flex: 0 0 auto;
+}
+
+/* Le conteneur flexe, la scrollbar s'y pose en ABSOLU. Ce n'est pas un détour :
+   `CustomScrollbar` se dimensionne en `height: 100%` (elle et son contenu
+   interne), or un pourcentage ne se résout pas contre une hauteur obtenue par
+   `flex-grow` sur l'axe principal — elle retombait sur `auto` et reprenait la
+   hauteur de la liste (722 px pour 420 disponibles), sans jamais rien avoir à
+   faire défiler. En absolu, le conteneur positionné lui donne enfin une
+   hauteur définie.
+   (`DocumentLayout` n'a pas ce souci : sa scrollbar est un item flex en
+   direction RANGÉE, dont la hauteur est un `stretch` de l'axe transverse — et
+   celle-là est bien définie.) */
+.calibration--boxed .outline-wrap {
+  flex: 1 1 auto;
   min-height: 0;
+  position: relative;
+}
+
+/* La CustomScrollbar porte elle-même le défilement : pas d'`overflow-y` ici,
+   qui en ferait une seconde. */
+.calibration--boxed .outline {
+  position: absolute;
+  inset: 0;
+  flex: none;
+}
+
+/* Gouttière à droite du texte : la largeur de la track (12 px, cf. `TRACK` dans
+   CustomScrollbar) PLUS le même retrait que celui qui sépare la track du bord de
+   la modale. Sans elle, les titres venaient toucher le rail. */
+.calibration--boxed .outline :deep(.custom-scrollbar__content) {
+  padding-right: calc(12px + var(--sp-4));
 }
 
 .calibration--boxed .calibration-footer {
@@ -282,6 +334,22 @@ async function onCommit() {
 .outline {
   flex: 1 1 auto;
   padding: 0.25em;
+}
+
+/* Les lignes de titre portent `--c-surface4` (blanc à 20 %), pensé pour se
+   poser sur le fond sable de l'application. Dans la modale, dont le corps est
+   déjà blanc translucide, ce blanc-sur-blanc ne détachait plus rien : les
+   niveaux se confondaient avec le fond. On leur donne ici une surface franche
+   et un filet — c'est la lisibilité de la hiérarchie qui est en jeu. */
+.outline :deep(.tree-row--card) {
+  background: var(--c-surface0);
+  border: 1px solid var(--c-border);
+  border-left-width: 4px;
+}
+
+.outline :deep(.tree-row--card:hover) {
+  border-color: var(--c-accent-alt);
+  filter: none;
 }
 
 /* Liminaire et final : hors structure, donc en retrait — ils se lisent pour se

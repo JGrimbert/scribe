@@ -56,9 +56,13 @@ defineProps({
   pointer-events: none;
 }
 
+/* Le teal (`--c-accent-alt`) est la couleur d'ACTION de l'application ; le brun
+   (`--c-accent`) reste celle du texte et des surfaces. Les deux variantes
+   pleines sont donc identiques — `solid-alt` est conservée parce qu'elle est
+   posée un peu partout, mais elle n'a plus rien d'« alternatif ». */
 .base-button--accent {
-  border-color: var(--c-accent);
-  color: var(--c-accent);
+  border-color: var(--c-accent-alt);
+  color: var(--c-accent-alt);
 }
 
 .base-button--accent:hover:not(:disabled) {
@@ -66,9 +70,9 @@ defineProps({
 }
 
 .base-button--solid {
-  background: var(--c-accent);
-  border-color: var(--c-accent);
-  color: #fff;
+  background: var(--c-accent-alt);
+  border-color: var(--c-accent-alt);
+  color: var(--c-accent-alt-ink);
 }
 
 .base-button--solid:hover:not(:disabled) {
@@ -90,8 +94,8 @@ defineProps({
 }
 
 .base-button--outline:hover:not(:disabled) {
-  border-color: var(--c-accent);
-  color: var(--c-accent);
+  border-color: var(--c-accent-alt);
+  color: var(--c-accent-alt);
 }
 
 .base-button--ghost {

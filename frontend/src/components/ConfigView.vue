@@ -11,18 +11,13 @@
       <div class="recal-panel">
         <header class="recal-head">
           <h3>Redéfinir les bornes</h3>
+          <!-- Le mode d'emploi passe en pastille : il se consulte, il n'a pas à
+               occuper une ligne à chaque ouverture. -->
+          <UiHint text="Posez le début du contenu (ce qui précède part en liminaire) et, s'il y en a une, la partie finale — table des matières, index, glossaire. Dépliez un titre pour voir ses sous-titres." />
           <button type="button" class="recal-close" title="Fermer" @click="closeRecal">
             <i class="pi pi-times"></i>
           </button>
         </header>
-
-        <!-- Réduit à l'essentiel : ce qu'on PERD. Le détail (typologie, règles
-             et .odt conservés, validations réapposées) rassurait sur ce qui ne
-             bouge pas — ce n'est pas ce qu'on a besoin de lire avant d'agir. -->
-        <p v-if="preview" class="recal-warn">
-          <i class="pi pi-exclamation-triangle"></i>
-          L'arbre du livre est reconstruit : les analyses seront à relancer.
-        </p>
 
         <p v-if="starting" class="recal-wait">
           <i class="pi pi-spin pi-spinner"></i> Relecture du fichier d'origine…
@@ -47,7 +42,9 @@
     </div>
 
     <header class="config-header">
-      <h2>Configuration</h2>
+      <!-- Même icône que l'entrée « Configuration » de la topbar : l'écran se
+           reconnaît au même signe que le bouton qui y mène. -->
+      <h2><i class="pi pi-sliders-h" aria-hidden="true"></i>Configuration</h2>
       <UiNote variant="hint">
         Ce que chaque style de votre <code>.odt</code> veut dire, typologie par typologie : le
         liminaire, chaque niveau de chapitrage, la partie finale. Les rôles proposés sont des
@@ -200,6 +197,7 @@ import BaseButton from './ui/BaseButton.vue'
 import BaseSelect from './ui/BaseSelect.vue'
 import StackedBar from './ui/StackedBar.vue'
 import UiCallout from './ui/UiCallout.vue'
+import UiHint from './ui/UiHint.vue'
 import UiNote from './ui/UiNote.vue'
 import ImportCalibration from './ImportCalibration.vue'
 import RuleSetForm from './RuleSetForm.vue'
@@ -365,10 +363,15 @@ async function onDelete() {
   padding: calc(var(--bar-size) * 2 + var(--sp-4)) var(--sp-4) var(--sp-4);
 }
 
+/* Voile CLAIR, pas un assombrissement : le panneau floute ce qu'il a derrière
+   lui, donc un overlay noir se retrouvait mélangé dans sa propre teinte et
+   salissait le blanc de la modale. Un blanc très dilué + un flou léger
+   détachent l'arrière-plan sans le teindre. */
 .recal-backdrop {
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.45);
+  background: rgba(255, 255, 255, 0.25);
+  backdrop-filter: blur(2px);
 }
 
 /* Hauteur PLAFONNÉE, et pas seulement bornée au viewport : la calibration est
@@ -379,25 +382,41 @@ async function onDelete() {
   display: flex;
   flex-direction: column;
   width: min(100%, 62em);
-  max-height: min(100%, 34em);
-  background: var(--c-bg);
+  /* `height` et non `max-height` : la liste étant posée en absolu dans son
+     conteneur (cf. ImportCalibration), elle ne « pousse » plus le panneau — sans
+     hauteur à distribuer, tout s'effondrait à quelques pixels. La modale a donc
+     une taille de travail stable, que la liste soit longue ou courte. */
+  height: min(100%, 34em);
+  /* Le panneau ne peint AUCUN fond : il ne porte que le flou, le cadre et
+     l'ombre. Ses deux sections (header, corps) posent chacune le leur, côte à
+     côte. Un fond sur le panneau se serait ajouté au leur — deux couches
+     translucides superposées, dont la teinte n'est plus celle qu'on a écrite.
+     `overflow: hidden` fait suivre au fond des sections l'arrondi du cadre. */
+  backdrop-filter: blur(10px);
   border: 1px solid var(--c-border);
   border-radius: var(--radius-md);
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
-  /* Un seul niveau de padding, porté par le panneau : les sections internes
-     n'apportent que leur gouttière verticale. Deux paddings imbriqués mangeaient
-     la largeur et décalaient le chapeau par rapport à la liste. */
-  padding: 0 var(--sp-4) var(--sp-4);
+  overflow: hidden;
 }
 
+/* Reprend la signature exacte de la doc-bar (fond, encre, flou, filet) : c'est
+   la même famille de surface. Les tokens `--c-doc-bar-*` sont posés par
+   `base.css` sur `.doc-bar` via `[data-bar-theme]` — d'où leur reprise ici, avec
+   le repli teal si aucun thème n'a été appliqué.
+   Le padding négatif ramène la barre aux bords du panneau, dont le padding
+   latéral vaut pour le contenu, pas pour elle. */
 .recal-head {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--sp-3);
-  padding: var(--sp-3) 0;
-  border-bottom: 1px solid var(--c-border);
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-4);
+  /* Teinté (signature de la doc-bar), là où le corps est blanc : c'est ce
+     contraste qui sépare le bandeau du contenu. Pas de `backdrop-filter` ici —
+     le panneau floute déjà, un second flou n'ajouterait rien et empilerait une
+     couche de plus. */
+  background: var(--c-doc-bar-bck, rgba(142, 212, 225, 0.3));
+  border-bottom: var(--c-doc-bar-border, 1px solid var(--c-accent-alt));
 }
 
 .recal-head h3 {
@@ -405,6 +424,9 @@ async function onDelete() {
   font-size: var(--fs-md);
   font-weight: 600;
 }
+
+/* Pousse la croix à droite — le `?` doit rester collé au titre qu'il explique. */
+.recal-close { margin-left: auto; }
 
 .recal-close {
   border: 0;
@@ -416,36 +438,33 @@ async function onDelete() {
 
 .recal-close:hover { color: var(--c-accent); }
 
-/* Avertissement d'une ligne, hors du flux défilant : il doit rester lisible
-   quand on est descendu dans la liste. */
-.recal-warn {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  margin: var(--sp-3) 0 0;
-  font-size: var(--fs-xs);
-  color: var(--c-danger);
+/* Le CORPS : blanc translucide, distinct du bandeau teinté. C'est lui qui porte
+   le padding du contenu (le panneau n'en a plus, sinon le bandeau ne pourrait
+   pas aller d'un bord à l'autre). */
+.recal-wait,
+.recal-fail,
+.recal-calibration {
+  flex: 1 1 auto;
+  min-height: 0;
+  /* 0,45 et non 0,62 : au-delà, le corps composite à ~(254,251,245) sur le fond
+     sable, soit un blanc que les lignes de titre (blanches, elles) ne peuvent
+     plus quitter. En laissant passer davantage de sable, le fond se réchauffe
+     et les lignes s'en détachent pour de bon. */
+  background: rgba(255, 255, 255, 0.45);
+  padding: var(--sp-4);
 }
 
-/* Attente et échec : même gabarit que le contenu qu'ils remplacent, pour que le
-   panneau ne saute pas de taille quand la calibration arrive. */
+/* Attente et échec : centrés dans la place que prendra la calibration, pour que
+   le panneau ne saute pas de composition quand elle arrive. */
 .recal-wait,
 .recal-fail {
-  margin: var(--sp-6) 0;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: var(--sp-2);
+  margin: 0;
   color: var(--c-ink2);
   font-size: var(--fs-sm);
-}
-
-/* C'est la calibration qui se partage la hauteur restante — voir son propre
-   style en mode recalibration (liste défilante, pied fixe). */
-.recal-calibration {
-  flex: 1 1 auto;
-  min-height: 0;
 }
 
 .config-view {
@@ -458,9 +477,15 @@ async function onDelete() {
      ont besoin de place — l'ancien cap à 70em les étranglait. */
 }
 
+/* Teal profond : la teinte de la topbar (`--c-accent-alt-darker`), celle qui
+   identifie l'application — pas le brun du corps de texte. */
 .config-header h2 {
   margin: 0 0 var(--sp-2);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
   font-size: var(--fs-lg);
+  color: var(--c-accent-alt-darker);
 }
 
 .report {

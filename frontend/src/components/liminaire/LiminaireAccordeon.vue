@@ -103,8 +103,26 @@
 
     <!-- La réglette AU-DESSUS de la zone d'inputs : elle ferme la scène, et
          c'est elle qui coupe le halo radial (centré juste dessous). -->
-    <div class="acc-rail" title="Situation dans le liminaire" @click="scrubTo">
-      <div class="acc-rail-thumb" :style="railThumbStyle"></div>
+    <!-- La réglette EST la barre de défilement du liminaire : elle en reprend
+         la facture complète, triangles de bout compris. -->
+    <div class="acc-rail" title="Situation dans le liminaire">
+      <button
+          type="button"
+          class="acc-rail-arrow acc-rail-arrow--left"
+          title="Vis-à-vis précédent"
+          :disabled="focused === 0"
+          @click.stop="$emit('update:focused', focused - 1)"
+      ></button>
+      <div class="acc-rail-track" @click="scrubTo">
+        <div class="acc-rail-thumb" :style="railThumbStyle"></div>
+      </div>
+      <button
+          type="button"
+          class="acc-rail-arrow acc-rail-arrow--right"
+          title="Vis-à-vis suivant"
+          :disabled="focused >= spreads.length"
+          @click.stop="$emit('update:focused', focused + 1)"
+      ></button>
     </div>
 
     <!-- Entre les flèches : le(s) type(s) du vis-à-vis au premier plan. Un
@@ -542,23 +560,75 @@ function labelOf(key) {
 /* Réglette de situation : où l'on est dans le liminaire. Pas un vrai scroll —
    la navigation est par vis-à-vis, pas au pixel. Elle sépare la scène des
    contrôles, et borne le halo. */
+/* Rangée : triangle · piste · triangle. Les flèches encadrent la piste au lieu
+   de flotter dessus — c'est la disposition d'une scrollbar. */
 .acc-rail {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-4);
+}
+
+.acc-rail-track {
   position: relative;
+  flex: 1 1 auto;
   height: 6px;
   border-radius: 3px;
   background: var(--c-border);
   cursor: pointer;
-  margin-bottom: var(--sp-4);
 }
 
+/* Mêmes triangles pleins que CustomScrollbar : 12 px de boîte, bordure de 4 px,
+   teal — orientés à l'horizontale puisque le liminaire se parcourt en largeur. */
+.acc-rail-arrow {
+  position: relative;
+  flex: 0 0 auto;
+  width: 12px;
+  height: 12px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  opacity: var(--op-soft);
+}
+
+.acc-rail-arrow:hover:not(:disabled) { opacity: 1; }
+.acc-rail-arrow:disabled { opacity: var(--op-faint); cursor: default; }
+
+.acc-rail-arrow::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border: 4px solid transparent;
+}
+
+.acc-rail-arrow--left::before {
+  transform: translate(-75%, -50%);
+  border-right-color: var(--c-accent-alt);
+}
+
+.acc-rail-arrow--right::before {
+  transform: translate(-25%, -50%);
+  border-left-color: var(--c-accent-alt);
+}
+
+/* Teal, comme le pouce des CustomScrollbar de l'app : la réglette EST une
+   barre de défilement (celle du liminaire), elle doit s'en réclamer. */
 .acc-rail-thumb {
   position: absolute;
   top: 0;
   height: 100%;
   min-width: 12px;
   border-radius: 3px;
-  background: var(--c-accent);
+  background: var(--c-accent-alt);
   transition: left 0.35s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.acc-rail-track:hover .acc-rail-thumb {
+  background: var(--c-accent-alt-darker);
 }
 
 /* Zone d'inputs, SOUS la réglette : flèche · type(s) · flèche. */

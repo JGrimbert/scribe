@@ -2,15 +2,20 @@
   <span
       ref="trigger"
       class="ui-hint"
-      tabindex="0"
-      role="note"
-      :aria-label="text"
+      :tabindex="hasTrigger ? undefined : 0"
+      :role="hasTrigger ? undefined : 'note'"
+      :aria-label="hasTrigger ? undefined : text"
       @mouseenter="show"
       @mouseleave="hide"
-      @focus="show"
-      @blur="hide"
+      @focusin="show"
+      @focusout="hide"
   >
-    <span class="ui-hint__dot" aria-hidden="true">?</span>
+    <!-- Avec un slot, c'est le contenu fourni qui déclenche la bulle (un bouton,
+         par exemple) ; sans lui, la pastille « ? » habituelle. On ne rend alors
+         PAS la enveloppe focusable — ce serait un second arrêt de tabulation
+         devant un élément qui en est déjà un. -->
+    <slot />
+    <span v-if="!hasTrigger" class="ui-hint__dot" aria-hidden="true">?</span>
     <!-- Téléportée dans <body> + position: fixed : la bulle échappe à tout
          contexte d'empilement / overflow parent (sinon elle passe sous les
          surfaces translucides voisines qui la refloutent). -->
@@ -23,13 +28,19 @@
 </template>
 
 <script setup>
-import { nextTick, ref } from 'vue'
+import { computed, nextTick, ref, useSlots } from 'vue'
 
-// Pastille « ? » + bulle au survol/focus. Réutilisable seul (ex : à la suite
-// d'une liste de chips) ; StatItem s'appuie dessus aussi.
+// Bulle au survol/focus. Deux emplois :
+//  - SANS slot : la pastille « ? » habituelle (chips, en-têtes) ;
+//  - AVEC slot : le contenu fourni devient le déclencheur — c'est ainsi qu'un
+//    bouton porte son explication sans recourir à l'attribut `title` natif,
+//    dont ni le délai ni l'apparence ne se règlent.
 defineProps({
   text: { type: String, required: true },
 })
+
+const slots = useSlots()
+const hasTrigger = computed(() => !!slots.default)
 
 const trigger = ref(null)
 const tip = ref(null)

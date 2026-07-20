@@ -154,6 +154,7 @@ body {
 
 .app[data-bar-theme="teal"] .menu,
 .app[data-bar-theme="teal"] .structure-panel,
+.app[data-bar-theme="teal"] .recal-head,
 .app[data-bar-theme="teal"] .doc-bar {
     --c-bar-accent: var(--c-accent-alt-darker);
     --c-bar-accent-color: #fff;
