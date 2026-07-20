@@ -9,6 +9,10 @@ import {
   effectiveSide,
   computeImposition,
   toSpreads,
+  toggleBreak,
+  setPageSide,
+  isConflicting,
+  pagesOfSpread,
 } from './liminaire'
 
 const P = (text, pageStart) => ({ type: 'paragraph', text, ...(pageStart ? { pageStart } : {}) })
@@ -230,5 +234,63 @@ describe('deriveEligibility', () => {
     const withBlank = groupLiminairePages([P('', 'verso'), P('Faux-titre', 'page')])
     const { assigned } = deriveEligibility(withBlank, {})
     expect(assigned).toHaveLength(1) // la page blanche est écartée
+  })
+})
+
+describe('accès à la config de tagging', () => {
+  it('retire une frontière déjà posée et nettoie une entrée devenue vide', () => {
+    const config = { le_a: { break: 'joined' } }
+    toggleBreak(config, 'le_a', 'joined')
+    expect(config.le_a).toBeUndefined()
+  })
+
+  it('garde l’entrée si elle porte encore un type ou un côté', () => {
+    const config = { le_a: { break: 'start', type: 'dedicace' } }
+    toggleBreak(config, 'le_a', 'start')
+    expect(config.le_a).toEqual({ type: 'dedicace' })
+  })
+
+  it('remplace une frontière par l’autre plutôt que de la retirer', () => {
+    const config = {}
+    toggleBreak(config, 'le_a', 'start')
+    toggleBreak(config, 'le_a', 'joined')
+    expect(config.le_a.break).toBe('joined')
+  })
+
+  it('efface le côté quand il repasse à auto, sans effacer le type', () => {
+    const config = { le_a: { type: 'dedicace', side: 'verso' } }
+    setPageSide(config, { key: 'le_a' }, 'auto')
+    expect(config.le_a).toEqual({ type: 'dedicace', side: undefined })
+  })
+
+  it('signale un conflit seulement quand un côté choisi contredit la convention', () => {
+    const page = { key: 'le_a' }
+    // Mentions légales : verso par convention.
+    expect(isConflicting({ le_a: { type: 'mentions-legales', side: 'recto' } }, page)).toBe(true)
+    expect(isConflicting({ le_a: { type: 'mentions-legales', side: 'auto' } }, page)).toBe(false)
+    expect(isConflicting({ le_a: { side: 'recto' } }, page)).toBe(false)
+  })
+})
+
+describe('pagesOfSpread', () => {
+  const page = (key) => ({ key })
+
+  it('rend les deux pages réelles, verso puis recto', () => {
+    const spread = { left: { page: page('a') }, right: { page: page('b') } }
+    expect(pagesOfSpread(spread).map((p) => p.key)).toEqual(['a', 'b'])
+  })
+
+  it('écarte la couverture et les blanches implicites — elles ne se découpent pas', () => {
+    const spread = { left: { cover: true, blank: true }, right: { blank: true, implicit: true } }
+    expect(pagesOfSpread(spread)).toEqual([])
+  })
+
+  it('garde une blanche EXPLICITE, qui vient bien d’une entrée du .odt', () => {
+    const spread = { left: { blank: true, page: page('vide') }, right: null }
+    expect(pagesOfSpread(spread).map((p) => p.key)).toEqual(['vide'])
+  })
+
+  it('rend une liste vide sur le cran terminal (aucun vis-à-vis)', () => {
+    expect(pagesOfSpread(undefined)).toEqual([])
   })
 })
