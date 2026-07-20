@@ -92,6 +92,7 @@
     --fs-xs: 0.75rem;
     --fs-sm: 0.85rem;
     --fs-md: 0.9rem;
+    --fs-h3: 1rem;
     --fs-lg: 1.3rem;
 
     /* Rythme */
@@ -125,6 +126,8 @@
     --op-soft: 0.75;
 
     --acc-dim: 0;
+
+    --acc-brightness: calc(1 + var(--acc-dim, 0) * 0.022);
 }
 
 /* ── Body ────────────────────────────────────────────── */

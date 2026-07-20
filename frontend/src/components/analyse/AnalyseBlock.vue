@@ -36,9 +36,9 @@
       </div>
 
       <template v-else>
-        <div v-if="aside === 'left'" class="split-left"><slot name="aside" /></div>
+        <div v-if="aside === 'left'" :class="{ 'split-left': true, [borderAside]: true }"><slot name="aside" /></div>
         <div class="split-main"><slot name="main" /></div>
-        <div v-if="aside === 'right'" class="split-right"><slot name="aside" /></div>
+        <div v-if="aside === 'right'" :class="{ 'split-right': true, [borderAside]: true }"><slot name="aside" /></div>
       </template>
     </div>
   </Transition>
@@ -72,6 +72,7 @@ const props = defineProps({
   runHint: { type: String, default: null },
   // Note affichée quand l'analyse existe mais pas cette viz-là.
   unavailable: { type: String, default: null },
+  borderAside: { type: String, default: "default" },
 })
 
 const { analysis, running, stepErrors, topicsProgress, isRevealed, settle, runStep } = useAnalyse()
@@ -93,29 +94,34 @@ watch(
 )
 </script>
 
-<style scoped>
+<style scoped lang="scss">
 .split {
   position: relative;
+
+  &-busy {
+    position: absolute;
+    top: 0.7em;
+    right: 0.9em;
+    font-size: 0.85em;
+    color: var(--c-accent);
+  }
+
+  &-message {
+    flex: 1;
+    padding: var(--split-pad);
+  }
+
+  &-progress {
+    padding: 0.5em 0;
+  }
+
+  &-run {
+    margin-top: 0.75em;
+  }
+
+  .fat {
+    background-color: floralwhite;
+  }
 }
 
-.split-busy {
-  position: absolute;
-  top: 0.7em;
-  right: 0.9em;
-  font-size: 0.85em;
-  color: var(--c-accent);
-}
-
-.split-message {
-  flex: 1;
-  padding: var(--split-pad);
-}
-
-.split-progress {
-  padding: 0.5em 0;
-}
-
-.split-run {
-  margin-top: 0.75em;
-}
 </style>

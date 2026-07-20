@@ -109,7 +109,7 @@ defineEmits(['toggle-rules'])
   align-items: baseline;
   gap: var(--sp-2);
   margin: 0;
-  font-size: var(--fs-md);
+  font-size: var(--fs-h3);
   font-weight: 600;
 }
 

@@ -4,7 +4,7 @@
        (bare), l'aside porte sa bordure.
        Cet orchestrateur ne rend rien lui-même : il détient l'état partagé
        (config mutée en place, focus) et le distribue. -->
-  <AnalyseBlock aside="right" bare>
+  <AnalyseBlock aside="right" bare border-aside="fat">
     <template #main>
       <!-- Un décalage de borne n'est qu'une PRÉVISUALISATION : les entrées
            absorbées ne sont dans aucune base tant que le recalibrage n'a pas
@@ -212,7 +212,9 @@ const emptyLabel = computed(() =>
   flex-wrap: wrap;
 }
 
-.lim-aside { padding: var(--split-pad-aside, var(--sp-4)); }
+.lim-aside {
+  padding: var(--split-pad-aside, var(--sp-4));
+}
 
 /* Deux registres, et c'est le propos de les séparer visuellement : le Découpage
    est une SURFACE DE TRAVAIL (on y clique, on y scinde), l'Éligibilité un

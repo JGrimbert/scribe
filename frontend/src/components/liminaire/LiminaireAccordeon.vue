@@ -60,7 +60,7 @@
            distinct (pas de folios, un cadre en pointillés) pour qu'on ne le
            compte pas comme une page du livre. -->
       <div
-          class="acc-spread acc-spread--extend"
+          class="acc-spread acc-spread--final"
           :class="{ 'is-focused': focused === spreads.length }"
           :style="accStyle(spreads.length)"
           @click="$emit('update:focused', spreads.length)"
@@ -355,7 +355,7 @@ function labelOf(key) {
 }
 </script>
 
-<style scoped>
+<style scoped lang="scss">
 /* Une planche = un livre ouvert : deux folios se rejoignant au centre. */
 .spread {
   display: grid;
@@ -376,133 +376,176 @@ function labelOf(key) {
 .accordeon {
   display: flex;
   flex-direction: column;
-}
-
-.acc-stage {
-  position: relative;
-  /* Calée sur la hauteur du vis-à-vis au focus (le plus haut) PLUS la rangée
-     d'action que le dernier vis-à-vis pose sous lui : `overflow: hidden` coupe
-     net ce qui dépasse, et le bouton « Exclure » y laissait sa moitié basse.
-     Le vide résiduel sur les autres crans est le prix d'une scène qui ne saute
-     pas de hauteur au changement de focus. */
-  height: 22em;
-  /* Coupe le halo net sur le bas de la scène — c'est-à-dire pile sur la
-     réglette. */
-  overflow: hidden;
-}
-
-/* Profondeur SANS gris : une ellipse TEINTÉE (accent), centrée sous la scène,
-   qui monte derrière les pages et que la réglette tranche net.
-   `saturate()` seul ne suffisait pas — sur un fond quasi neutre il n'a rien à
-   amplifier, d'où l'effet quasi invisible. C'est la teinte qui porte l'effet,
-   le filtre ne fait que la densifier. */
-.acc-backdrop {
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(
-      ellipse 75% 25% at 50% 100%,
-      color-mix(in srgb, var(--c-accent-alt-darker) 1%, transparent),
-      color-mix(in srgb, var(--c-accent-alt-darker) 1%, transparent) 45%,
-      transparent 72%
-  );
-  pointer-events: none;
-}
-
-.acc-spread {
-  position: absolute;
-  /* Laisse juste la place à la mention Verso/Recto, posée hors flux au-dessus. */
-  top: 1.7em;
-  /* Plafonné à la largeur de la scène : à 26em fixes, une colonne étroite (main
-     du split sur petit écran) faisait couper le vis-à-vis au premier plan par
-     l'`overflow: hidden` de la scène. */
-  width: min(26em, 100%);
-  cursor: pointer;
-  /* Compositor-only. `left` ne dépend que du rang, seul `transform` est animé. */
-  transition: transform 0.35s cubic-bezier(0.22, 0.61, 0.36, 1), filter 0.35s ease;
-
-  /* TOUS les folios portent leur ombre — elle dit « du papier posé », pas
-     « sélectionné ». Ce qui distingue les crans, c'est la PROFONDEUR : plus on
-     s'éloigne du focus (--acc-dim, 0 à 3), plus l'ombre se resserre et plus la
-     teinte se retire (désaturation + voile clair), comme un objet qui recule
-     dans la brume. Une seule déclaration `filter` : les fonctions s'y
-     composent, deux règles séparées s'écraseraient. */
-  filter:
-      drop-shadow(0 2px 5px rgba(0, 0, 0, calc(0.13 - var(--acc-dim, 0) * 0.025)))
-      saturate(calc(1 - var(--acc-dim, 0) * 0.18))
-      brightness(calc(1 + var(--acc-dim, 0) * 0.022));
-}
-
-.acc-spread.is-focused {
-  cursor: default;
-}
-
-/* Mention Verso | Recto : mêmes colonnes que .spread, donc chaque mot tombe
-   centré sur SA page. Hors flux pour ne pas décaler les folios. */
-.acc-legend {
-  position: absolute;
-  bottom: 100%;
-  left: 0;
-  right: 0;
-  margin-bottom: var(--sp-1);
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 2px;
-  text-align: center;
-  font-size: var(--fs-xs);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  /* Sourde par la COULEUR, pas par l'opacité : rien ne doit être translucide
-     sur le vis-à-vis au premier plan. */
-  color: var(--c-ink2);
-}
-
-/* Action du dernier vis-à-vis : elle FLOTTE au-dessus du papier, dans le haut
-   de la planche. Sous les folios (`top: 100%`) elle sortait du champ et se
-   faisait couper par l'`overflow` de la scène.
-   `pointer-events: none` sur la rampe : seul le bouton intercepte le clic, le
-   reste de la surface continue de sélectionner le vis-à-vis. */
-.acc-spread-action {
-  position: absolute;
-  top: var(--sp-4);
-  left: 0;
-  right: 0;
-  z-index: 2;
-  display: flex;
-  justify-content: center;
-  pointer-events: none;
-}
-
-/* Posé SUR le papier : il lui faut un fond opaque et une ombre, sinon le texte
-   de la page transparaît sous le libellé. */
-.acc-spread-action .lim-border-btn {
-  pointer-events: auto;
-  background: var(--c-surface0);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
-}
-
-/* Le cran terminal : une carte d'action, pas une page. Fond crème et trait
-   discontinu — assez présent pour ne plus flotter dans le vide, assez distinct
-   du papier (--c-paper, blanc à peine crème) pour ne pas se compter comme une
-   page du livre. */
-.acc-spread--extend .extend-card {
-  background: var(--c-paper-cream);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: var(--sp-2);
-  /* Même gabarit qu'un vis-à-vis : sinon le cran terminal saute d'échelle. */
-  height: 18.4em;
-  padding: var(--sp-4);
-  border: 1px dashed var(--c-border);
+  background-color: var(--c-aside-bck);
+  padding: 1em 2em;
   border-radius: var(--radius-md);
-  text-align: center;
-  color: var(--c-ink2);
 }
 
-.acc-spread--extend .pi-plus-circle {
-  font-size: 1.4em;
-  opacity: var(--op-muted);
+.acc {
+
+  &-stage {
+    position: relative;
+    height: 22em;
+    overflow: hidden;
+  }
+
+  &-backdrop {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(
+            ellipse 66% 35% at 50% 99%,
+            color-mix(in srgb, var(--c-accent-alt-darker) 6%, transparent),
+            color-mix(in srgb, var(--c-accent-alt-darker) 6%, transparent) 45%,
+            transparent 72%
+    );
+    pointer-events: none;
+  }
+
+  &-spread {
+    position: absolute;
+    top: 1.7em;
+    width: min(26em, 100%);
+    cursor: pointer;
+    transition: transform 0.35s cubic-bezier(0.22, 0.61, 0.36, 1), filter 0.35s ease;
+    filter:
+        drop-shadow(0 2px 5px rgba(0, 0, 0, calc(0.13 - var(--acc-dim, 0) * 0.025)))
+        saturate(calc(1 - var(--acc-dim, 0) * 0.18))
+        brightness(var(--acc-brightness));
+
+      &.is-focused {
+        cursor: default;
+      }
+
+      &-action {
+        position: absolute;
+        top: var(--sp-4);
+        left: 0;
+        right: 0;
+        z-index: 2;
+        display: flex;
+        justify-content: center;
+        pointer-events: none;
+
+        .lim-border-btn {
+          pointer-events: auto;
+          background: var(--c-surface0);
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+        }
+
+      }
+
+    &--final {
+
+      width: min(13em, 100%);
+
+      .extend-card {
+        background: var(--c-paper-cream);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: var(--sp-2);
+        /* Même gabarit qu'un vis-à-vis : sinon le cran terminal saute d'échelle. */
+        height: 18.4em;
+        padding: var(--sp-4);
+        border: 1px dashed var(--c-border);
+        border-radius: var(--radius-md);
+        text-align: center;
+        color: var(--c-ink2);
+      }
+
+      .pi-plus-circle {
+        font-size: 1.4em;
+        opacity: var(--op-muted);
+      }
+    }
+
+  }
+
+  &-rail {
+    display: flex;
+    align-items: center;
+    margin-bottom: var(--sp-4);
+
+    &-track {
+      position: relative;
+      flex: 1 1 auto;
+      height: 6px;
+      border-radius: 3px;
+      background: var(--c-border);
+      cursor: pointer;
+    }
+
+    /* Mêmes triangles pleins que CustomScrollbar : 12 px de boîte, bordure de 4 px,
+       teal — orientés à l'horizontale puisque le liminaire se parcourt en largeur. */
+    &-arrow {
+      position: relative;
+      flex: 0 0 auto;
+      width: 12px;
+      height: 12px;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      cursor: pointer;
+      opacity: var(--op-soft);
+    }
+
+    &-arrow:hover:not(:disabled) { opacity: 1; }
+    &-arrow:disabled { opacity: var(--op-faint); cursor: default; }
+
+    &-arrow::before {
+      content: "";
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 0;
+      height: 0;
+      border: 4px solid transparent;
+    }
+
+    &-arrow--left::before {
+      transform: translate(-75%, -50%);
+      border-right-color: var(--c-accent-alt);
+    }
+
+    &-arrow--right::before {
+      transform: translate(-25%, -50%);
+      border-left-color: var(--c-accent-alt);
+    }
+
+    /* Teal, comme le pouce des CustomScrollbar de l'app : la réglette EST une
+       barre de défilement (celle du liminaire), elle doit s'en réclamer. */
+    &-thumb {
+      position: absolute;
+      top: 0;
+      height: 100%;
+      min-width: 12px;
+      border-radius: 3px;
+      background: var(--c-accent-alt);
+      transition: left 0.35s cubic-bezier(0.22, 0.61, 0.36, 1);
+    }
+
+    &-track:hover .acc-rail-thumb {
+      background: var(--c-accent-alt-darker);
+    }
+  }
+
+  &-legend {
+    position: absolute;
+    bottom: 100%;
+    left: 0;
+    right: 0;
+    margin-bottom: var(--sp-1);
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2px;
+    text-align: center;
+    font-size: var(--fs-xs);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--c-ink2);
+  }
+
 }
 
 .extend-lead {
@@ -555,80 +598,6 @@ function labelOf(key) {
   background: none;
   font-size: var(--fs-xs);
   text-decoration: underline;
-}
-
-/* Réglette de situation : où l'on est dans le liminaire. Pas un vrai scroll —
-   la navigation est par vis-à-vis, pas au pixel. Elle sépare la scène des
-   contrôles, et borne le halo. */
-/* Rangée : triangle · piste · triangle. Les flèches encadrent la piste au lieu
-   de flotter dessus — c'est la disposition d'une scrollbar. */
-.acc-rail {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  margin-bottom: var(--sp-4);
-}
-
-.acc-rail-track {
-  position: relative;
-  flex: 1 1 auto;
-  height: 6px;
-  border-radius: 3px;
-  background: var(--c-border);
-  cursor: pointer;
-}
-
-/* Mêmes triangles pleins que CustomScrollbar : 12 px de boîte, bordure de 4 px,
-   teal — orientés à l'horizontale puisque le liminaire se parcourt en largeur. */
-.acc-rail-arrow {
-  position: relative;
-  flex: 0 0 auto;
-  width: 12px;
-  height: 12px;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  cursor: pointer;
-  opacity: var(--op-soft);
-}
-
-.acc-rail-arrow:hover:not(:disabled) { opacity: 1; }
-.acc-rail-arrow:disabled { opacity: var(--op-faint); cursor: default; }
-
-.acc-rail-arrow::before {
-  content: "";
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 0;
-  height: 0;
-  border: 4px solid transparent;
-}
-
-.acc-rail-arrow--left::before {
-  transform: translate(-75%, -50%);
-  border-right-color: var(--c-accent-alt);
-}
-
-.acc-rail-arrow--right::before {
-  transform: translate(-25%, -50%);
-  border-left-color: var(--c-accent-alt);
-}
-
-/* Teal, comme le pouce des CustomScrollbar de l'app : la réglette EST une
-   barre de défilement (celle du liminaire), elle doit s'en réclamer. */
-.acc-rail-thumb {
-  position: absolute;
-  top: 0;
-  height: 100%;
-  min-width: 12px;
-  border-radius: 3px;
-  background: var(--c-accent-alt);
-  transition: left 0.35s cubic-bezier(0.22, 0.61, 0.36, 1);
-}
-
-.acc-rail-track:hover .acc-rail-thumb {
-  background: var(--c-accent-alt-darker);
 }
 
 /* Zone d'inputs, SOUS la réglette : flèche · type(s) · flèche. */
