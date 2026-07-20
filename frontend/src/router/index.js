@@ -31,7 +31,10 @@ const routes = [
         path: 'styles',
         redirect: (to) => ({ name: 'config', params: to.params }),
       },
-      { path: 'noeud/:nodeId', name: 'editor', component: EditorView },
+      // `:nodeId` OPTIONNEL : le menu doit pouvoir ouvrir l'éditeur sans savoir
+      // sur quel chapitre (il n'a pas la trame). Sans chapitre, EditorView
+      // retombe sur le premier du livre.
+      { path: 'noeud/:nodeId?', name: 'editor', component: EditorView },
     ],
   },
 ]

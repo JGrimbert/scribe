@@ -1,7 +1,15 @@
 <template>
   <div class="app" :data-bar-theme="barTheme">
     <div class="menu">
-      <span class="brand">
+      <!-- Le wordmark EST le lien d'accueil : une icône « maison » à côté de lui
+           offrait deux fois la même destination. -->
+      <button
+          type="button"
+          class="brand"
+          :class="{ 'brand--active': route.name === 'home' }"
+          title="Accueil"
+          @click="router.push('/')"
+      >
         <span class="brand__mark">
           <svg class="brand__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -10,38 +18,34 @@
           </svg>
         </span>
         <span class="brand__name">Scribe</span>
-      </span>
+      </button>
       <div class="menu-actions">
+        <!-- Les trois vues d'un document sont TOUJOURS là : leur apparition au
+             gré de l'historique faisait sauter la barre. Sans document au
+             registre, elles s'éteignent sur place plutôt que de disparaître. -->
         <BaseButton
-            variant="ghost"
-            icon="pi-home"
-            :active="route.name === 'home'"
-            title="Accueil"
-            @click="router.push('/')"
-        />
-        <BaseButton
-            v-if="lastDocumentId"
             variant="ghost"
             icon="pi-chart-bar"
             :active="route.name === 'document'"
+            :disabled="!targetDocId"
             title="Analyse"
-            @click="router.push(`/documents/${lastDocumentId}`)"
+            @click="router.push(`/documents/${targetDocId}`)"
         />
         <BaseButton
-            v-if="lastDocumentPath"
             variant="ghost"
             icon="pi-file-edit"
-            :active="isDocumentRoute"
+            :active="route.name === 'editor'"
+            :disabled="!targetDocId"
             title="Éditeur"
-            @click="router.push(lastDocumentPath)"
+            @click="router.push(lastEditorPath ?? `/documents/${targetDocId}/noeud`)"
         />
         <BaseButton
-            v-if="lastDocumentId"
             variant="ghost"
             icon="pi-sliders-h"
             :active="route.name === 'config'"
+            :disabled="!targetDocId"
             title="Configuration du document"
-            @click="router.push(`/documents/${lastDocumentId}/config`)"
+            @click="router.push(`/documents/${targetDocId}/config`)"
         />
         <BaseButton
             variant="ghost"
@@ -81,9 +85,10 @@
 </template>
 
 <script setup>
-import { ref, computed, provide, watch, onBeforeUnmount } from 'vue'
+import { ref, computed, provide, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import BaseButton from './components/ui/BaseButton.vue'
+import { useRegistry } from './composables/useRegistry'
 
 const route = useRoute()
 const router = useRouter()
@@ -120,18 +125,24 @@ function onDocClick(e) {
 document.addEventListener('click', onDocClick)
 onBeforeUnmount(() => document.removeEventListener('click', onDocClick))
 
-const isDocumentRoute = computed(() => route.matched.some(r => r.name === 'document-layout'))
-
-// Mémorise la dernière route document visitée pour le bouton "Éditeur"
-// (équivalent de l'ancien `documentId` : montrer/retrouver le document en cours).
-const lastDocumentPath = ref(null)
+// Deux mémoires distinctes, et pas une seule : `lastDocumentId` sert les boutons
+// qui RECONSTRUISENT une URL (analyse, config), tandis qu'« Éditeur » doit
+// rouvrir un CHEMIN d'édition précis — le chapitre où l'on était. Les confondre
+// allumait le bouton dès qu'on avait vu un document, et le renvoyait sur la
+// dernière route quelconque (l'analyse, la config) au lieu de l'éditeur.
+const lastEditorPath = ref(null)
 const lastDocumentId = ref(null)
 router.afterEach((to) => {
-  if (to.params.id) {
-    lastDocumentPath.value = to.fullPath
-    lastDocumentId.value = to.params.id
-  }
+  if (to.params.id) lastDocumentId.value = to.params.id
+  if (to.name === 'editor') lastEditorPath.value = to.fullPath
 })
+
+// À défaut d'historique, le premier du registre : sur l'accueil (jamais ouvert
+// de document) les trois boutons doivent quand même mener quelque part. Ils ne
+// s'éteignent que si le registre est VIDE — plus rien à ouvrir alors.
+const { documents, ensureLoaded } = useRegistry()
+const targetDocId = computed(() => lastDocumentId.value ?? documents.value[0]?.id ?? null)
+onMounted(ensureLoaded)
 </script>
 
 <style lang="scss">
@@ -196,6 +207,24 @@ router.afterEach((to) => {
   .brand {
     display: flex;
     align-items: center;
+    /* Reset de bouton : il porte désormais le lien d'accueil, mais doit rester
+       lu comme un wordmark — ni cadre, ni fond, ni métrique de contrôle. */
+    border: 0;
+    padding: 0;
+    background: none;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+  }
+
+  /* Sur l'accueil, il est à pleine opacité ; ailleurs, très légèrement en
+     retrait. Pas de fond ni de cadre : ce serait en faire un onglet. */
+  .brand:not(.brand--active) {
+    opacity: var(--op-soft);
+  }
+
+  .brand:hover {
+    opacity: 1;
   }
 
   .brand__mark {
@@ -227,6 +256,13 @@ router.afterEach((to) => {
   align-items: center;
   gap: 0.6em;
   padding-right: 0.6em;
+
+  /* Registre vide : les vues de document restent en place mais s'effacent
+     franchement. Le 0.55 par défaut de BaseButton se lit encore comme
+     « cliquable » sur l'aplat coloré de la topbar. */
+  .base-button:disabled {
+    opacity: var(--op-faint);
+  }
 }
 
 
