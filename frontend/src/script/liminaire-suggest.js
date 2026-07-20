@@ -1,4 +1,4 @@
-import { entryPlainText } from './liminaire'
+import { entryPlainText, typeOfStyleName } from './liminaire'
 
 // Devine le type d'une page liminaire à partir de signaux DÉTERMINISTES, du plus
 // fiable au plus faible :
@@ -20,11 +20,17 @@ export function suggestLiminaireType(page, ctx = {}) {
   const low = text.toLowerCase()
   const title = (ctx.title || '').trim().toLowerCase()
 
-  // 1. Nom de style (le plus fiable).
-  if (/mention/.test(styles)) return { key: 'mentions-legales', why: 'style « mentions »' }
-  if (/d[eé]dicace/.test(styles)) return { key: 'dedicace', why: 'style « dédicace »' }
-  if (/[eé]pigraphe/.test(styles)) return { key: 'epigraphe', why: 'style « épigraphe »' }
-  if (/faux[-\s]?titre/.test(styles)) return { key: 'faux-titre', why: 'style « faux-titre »' }
+  // 1. Nom de style (le plus fiable) — MÊME table que la segmentation
+  // (`typeOfStyleName`, liminaire.js) : un style qui ouvre une page doit nommer
+  // le même type que celui qu'on suggère pour elle.
+  for (const entry of page.entries ?? []) {
+    const key = typeOfStyleName(entry.styleName)
+    if (key) return { key, why: `style « ${entry.styleName} »` }
+  }
+  // Page de titre : la page réunit un style AUTEUR et un style TITRE (le
+  // faux-titre n'a que le titre). « Du même auteur » / « à propos » n'ont pas de
+  // style titre → pas de collision.
+  if (/auteur/.test(styles) && /titre|title/.test(styles)) return { key: 'page-de-titre', why: 'styles auteur + titre' }
 
   // 2. Mots-clés francs du contenu.
   if (/isbn|tous droits r[eé]serv|d[eé]p[oô]t l[eé]gal|propri[eé]t[eé] intellectuelle/.test(low)) {
@@ -63,5 +69,10 @@ export function suggestAll(pages, ctx = {}) {
     const s = suggestLiminaireType(page, ctx)
     if (s) out[page.key] = s
   }
+  // Prior structurel : la PREMIÈRE page non blanche d'un livre est son
+  // faux-titre — quasi-invariant. On ne le pose que si aucun autre signal n'a
+  // parlé pour elle (ne pas écraser une page de titre détectée en tête).
+  const first = (pages ?? []).find((p) => !p.isBlank)
+  if (first && !out[first.key]) out[first.key] = { key: 'faux-titre', why: 'première page du livre' }
   return out
 }

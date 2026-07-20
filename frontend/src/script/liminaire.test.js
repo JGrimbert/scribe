@@ -6,6 +6,9 @@ import {
   entryPlainText,
   sideOfPageStart,
   deriveEligibility,
+  effectiveSide,
+  computeImposition,
+  toSpreads,
 } from './liminaire'
 
 const P = (text, pageStart) => ({ type: 'paragraph', text, ...(pageStart ? { pageStart } : {}) })
@@ -83,9 +86,113 @@ describe('groupLiminairePages', () => {
     expect(split.map((p) => p.preview)).toEqual(['Mentions', 'Pour Margot'])
   })
 
+  it('SCINDE sur un changement de type de style, sans saut .odt (mentions → dédicace)', () => {
+    // Le cas du témoin : le copyright et « Pour Margot » se suivent SANS saut de
+    // page, mais leurs styles nomment deux types différents.
+    const entries = [
+      { type: 'paragraph', text: 'Tous droits réservés', styleName: 'mentions légales' },
+      { type: 'paragraph', text: 'ISBN : 888', styleName: 'mentions légales' },
+      { type: 'paragraph', text: 'Pour Margot', styleName: 'Dédicace' },
+    ]
+    const pages = groupLiminairePages(entries)
+    expect(pages).toHaveLength(2)
+    expect(pages[0].entries).toHaveLength(2)
+    expect(pages[1].preview).toBe('Pour Margot')
+  })
+
+  it('un style ANONYME ne scinde rien (la page de titre reste groupée)', () => {
+    // Auteur / Title / « mention sous titre » / ornement : aucun ne nomme un type
+    // liminaire → une seule page, comme dans le .odt témoin.
+    const entries = [
+      { type: 'paragraph', text: 'Jean Grimbert', styleName: 'Auteur' },
+      { type: 'paragraph', text: 'JŌHĀNĀN & MARVĀRĪD', styleName: 'Title' },
+      { type: 'paragraph', text: 'Essai', styleName: 'mention sous titre' },
+      { type: 'paragraph', text: 'a', styleName: 'Ornementation page titre' },
+    ]
+    expect(groupLiminairePages(entries)).toHaveLength(1)
+  })
+
+  it('la fusion manuelle (joined) désarme la scission par style', () => {
+    const entries = [
+      { type: 'paragraph', text: 'Tous droits réservés', styleName: 'mentions légales' },
+      { type: 'paragraph', text: 'Pour Margot', styleName: 'Dédicace' },
+    ]
+    const keyed = withEntryKeys(entries)
+    const merged = groupLiminairePages(entries, { [keyed[1].key]: { break: 'joined' } })
+    expect(merged).toHaveLength(1)
+  })
+
   it('rend une liste vide sur une entrée absente', () => {
     expect(groupLiminairePages([])).toEqual([])
     expect(groupLiminairePages(undefined)).toEqual([])
+  })
+})
+
+describe('computeImposition / toSpreads', () => {
+  const pg = (side = 'auto', sideFromOdt = 'auto', isBlank = false) => ({ side, sideFromOdt, isBlank })
+
+  it('numérote séquentiellement recto/verso sans contrainte', () => {
+    const slots = computeImposition([pg(), pg(), pg()])
+    expect(slots.map((s) => [s.number, s.parity, s.blank])).toEqual([
+      [1, 'recto', false],
+      [2, 'verso', false],
+      [3, 'recto', false],
+    ])
+  })
+
+  it('insère une blanche implicite pour tenir une contrainte recto', () => {
+    // page 2 veut recto mais tomberait en verso (n°2) → blanche implicite, page en n°3.
+    const slots = computeImposition([pg('auto'), pg('recto')])
+    expect(slots.map((s) => [s.number, s.blank, s.implicit || false])).toEqual([
+      [1, false, false],
+      [2, true, true],
+      [3, false, false],
+    ])
+  })
+
+  it('une blanche de tête devient couverture ; le contenu commence page 1 recto', () => {
+    const slots = computeImposition([pg('auto', 'verso', true), pg('auto')])
+    expect(slots.find((s) => s.cover)).toBeTruthy()
+    const content = slots.find((s) => !s.blank)
+    expect([content.number, content.parity]).toEqual([1, 'recto'])
+  })
+
+  it('ABSORBE une blanche mal placée plutôt que d’en doubler une', () => {
+    // contenu(n1 recto), blanche(n2), page voulant verso : n3 serait recto. La
+    // blanche qui précède est mal placée → absorbée, la page reprend n2 = verso.
+    // « La convention l’emporte sur les blanches du .odt. »
+    const slots = computeImposition([pg(), pg('auto', 'auto', true), pg('verso')])
+    expect(slots.filter((s) => s.blank).length).toBe(0)
+    const last = slots[slots.length - 1]
+    expect([last.number, last.parity]).toEqual([2, 'verso'])
+  })
+
+  it('la convention du type (typeSide) sert d’ancre quand aucun côté n’est choisi', () => {
+    // page 2 est taguée page-de-titre (typeSide recto) mais tomberait en verso →
+    // blanche implicite, la page de titre repasse recto.
+    const slots = computeImposition([pg(), { side: 'auto', sideFromOdt: 'auto', isBlank: false, typeSide: 'recto' }])
+    expect(slots.map((s) => [s.number, s.blank, s.implicit || false])).toEqual([
+      [1, false, false],
+      [2, true, true],
+      [3, false, false],
+    ])
+  })
+
+  it('le côté choisi et le .odt priment sur la convention du type', () => {
+    // typeSide recto, mais côté CHOISI verso → verso l’emporte (pas de blanche).
+    expect(effectiveSide({ side: 'verso', typeSide: 'recto' })).toBe('verso')
+    // typeSide recto, .odt réel verso → le .odt l’emporte.
+    expect(effectiveSide({ side: 'auto', sideFromOdt: 'verso', typeSide: 'recto' })).toBe('verso')
+    // rien de choisi ni .odt → la convention du type parle.
+    expect(effectiveSide({ side: 'auto', sideFromOdt: 'auto', typeSide: 'recto' })).toBe('recto')
+  })
+
+  it('planches : recto seul en tête, puis paires verso|recto', () => {
+    const sp = toSpreads(computeImposition([pg(), pg(), pg()]))
+    expect(sp[0].left).toBeNull()
+    expect(sp[0].right.number).toBe(1)
+    expect(sp[1].left.number).toBe(2)
+    expect(sp[1].right.number).toBe(3)
   })
 })
 

@@ -15,8 +15,11 @@ export const LIMINAIRE_PAGES = [
   { key: 'page-de-titre', label: 'Page de titre', obligatoire: true, side: 'recto', position: 'avant' },
   { key: 'mentions-legales', label: 'Mentions légales', obligatoire: true, side: 'verso', position: 'avant' },
   { key: 'a-propos-auteur', label: "À propos de l'auteur", obligatoire: false, side: null, position: 'avant' },
-  { key: 'epigraphe', label: 'Épigraphe', obligatoire: false, side: null, position: 'avant' },
-  { key: 'dedicace', label: 'Dédicace', obligatoire: false, side: null, position: 'avant' },
+  // Dédicace et épigraphe vont sur une belle page (recto), verso blanc avant :
+  // ce sont des ANCRES de parité, pas des pages libres — sans côté imposé elles
+  // dérivent et décalent toute la suite du liminaire.
+  { key: 'epigraphe', label: 'Épigraphe', obligatoire: false, side: 'recto', position: 'avant' },
+  { key: 'dedicace', label: 'Dédicace', obligatoire: false, side: 'recto', position: 'avant' },
   { key: 'table-des-matieres', label: 'Table des matières', obligatoire: false, side: null, position: 'avant' },
   { key: 'preface', label: 'Préface', obligatoire: false, side: null, position: 'avant' },
   { key: 'avant-propos', label: 'Avant-propos', obligatoire: false, side: null, position: 'avant' },
@@ -29,6 +32,36 @@ export const LIMINAIRE_PAGES = [
 ]
 
 export const LIMINAIRE_BY_KEY = new Map(LIMINAIRE_PAGES.map((p) => [p.key, p]))
+
+// Nom de style → type liminaire, quand l'auteur a NOMMÉ son style (« mentions
+// légales », « Dédicace », « Citation liminaire »…). C'est le signal le plus
+// fiable du document, et il sert deux fois : à suggérer un type
+// (liminaire-suggest) ET à poser une frontière de page (groupLiminairePages) —
+// deux styles de types différents ne peuvent pas cohabiter sur une page.
+// Vit ici, avec le vocabulaire, pour que les deux usages ne divergent pas.
+// « mentions LÉGALES » exige « légal » : un style « mention sous titre » (le
+// sous-titre de la page de titre) est un sous-titre, pas un copyright.
+const STYLE_TYPE_PATTERNS = [
+  [/mentions?\s+l[eé]gal/, 'mentions-legales'],
+  [/d[eé]dicace/, 'dedicace'],
+  [/[eé]pigraphe|citation/, 'epigraphe'],
+  [/faux[-\s]?titre/, 'faux-titre'],
+  [/du m[eê]me auteur/, 'du-meme-auteur'],
+  [/table des mati|sommaire/, 'table-des-matieres'],
+  [/avant[-\s]propos/, 'avant-propos'],
+  [/pr[eé]face/, 'preface'],
+  [/postface/, 'postface'],
+  [/remerciement/, 'remerciements'],
+  [/avertissement/, 'avertissement'],
+  [/colophon|achev[eé] d.?imprimer/, 'imprimeur'],
+]
+
+export function typeOfStyleName(styleName) {
+  const s = (styleName || '').toLowerCase()
+  if (!s) return null
+  for (const [re, key] of STYLE_TYPE_PATTERNS) if (re.test(s)) return key
+  return null
+}
 
 // Côtés qu'une page peut imposer. 'auto' = pas de contrainte (le composer
 // laisse la parité couler). Séparé du pageStart brut du .odt, qui peut valoir
@@ -82,20 +115,32 @@ export function withEntryKeys(entries) {
 //  - c'est la première ; ou
 //  - la config force `break: 'start'` (scission manuelle) ; ou
 //  - elle porte un `pageStart` du .odt ET la config ne force pas `'joined'`
-//    (fusion manuelle avec la page précédente).
+//    (fusion manuelle avec la page précédente) ; ou
+//  - son NOM DE STYLE désigne un type liminaire DIFFÉRENT de celui qui ancre la
+//    page en cours (mentions légales → Dédicace) : le .odt ne met pas toujours
+//    un saut entre deux pages liminaires, mais deux types ne partagent jamais
+//    une page. On exige les DEUX types non nuls — un style anonyme (ornement,
+//    ligne vide) ne scinde rien, sans quoi la page de titre exploserait.
 // Le côté RÉEL (`sideFromOdt`) et le tag (type/côté) sont ancrés sur la PREMIÈRE
 // entrée de la page (`key`). Une page dont toutes les entrées sont vides est une
 // page blanche (`isBlank`), non taggable.
 export function groupLiminairePages(entries, config = {}) {
   const keyed = withEntryKeys(entries)
   const pages = []
+  // Type de style qui ANCRE la page en cours (le premier rencontré) : c'est lui
+  // qu'un style de type différent vient contredire.
+  let anchorType = null
   keyed.forEach((entry, i) => {
     const brk = config?.[entry.key]?.break
-    const starts = i === 0 || brk === 'start' || (brk !== 'joined' && entry.pageStart != null)
+    const styleType = typeOfStyleName(entry.styleName)
+    const styleSplit = brk !== 'joined' && styleType != null && anchorType != null && styleType !== anchorType
+    const starts = i === 0 || brk === 'start' || (brk !== 'joined' && entry.pageStart != null) || styleSplit
     if (starts || !pages.length) {
       pages.push({ ordinal: pages.length, key: entry.key, sideFromOdt: sideOfPageStart(entry.pageStart), entries: [] })
+      anchorType = null
     }
     pages[pages.length - 1].entries.push(entry)
+    if (anchorType == null && styleType != null) anchorType = styleType
   })
   for (const page of pages) {
     const content = page.entries.filter((e) => !e.isBlank)
@@ -103,6 +148,81 @@ export function groupLiminairePages(entries, config = {}) {
     page.preview = content.map(entryPlainText).find((t) => t) ?? ''
   }
   return pages
+}
+
+// Le côté EFFECTIF d'une page pour la composition, par ordre d'autorité :
+//  1. `side` CHOISI par l'utilisateur (config.side) — il tranche ;
+//  2. `sideFromOdt` — le côté RÉEL lu du .odt (ground truth de CE document) ;
+//  3. `typeSide` — la CONVENTION du type tagué (faux-titre=recto, mentions=verso…),
+//     l'ancre de parité : sans elle, taguer une page ne la place nulle part et le
+//     liminaire dérive. Le composer la fournit depuis LIMINAIRE_PAGES[].side.
+// 'auto' = libre (la parité coule).
+export function effectiveSide(page) {
+  if (page?.side && page.side !== 'auto') return page.side
+  if (page?.sideFromOdt && page.sideFromOdt !== 'auto') return page.sideFromOdt
+  return page?.typeSide && page.typeSide !== 'auto' ? page.typeSide : 'auto'
+}
+
+// Numérotation PHYSIQUE des pages, façon imposition : chaque page occupe un
+// folio ; une page contrainte à un côté (recto = impair / verso = pair) qui
+// tomberait du mauvais côté fait insérer une page blanche IMPLICITE avant elle
+// pour rétablir la parité — sauf si la précédente est déjà blanche (règle
+// « deux sauts consécutifs → une seule blanche »). Les pages doivent porter un
+// `side` effectif (cf. effectiveSide).
+export function computeImposition(pages) {
+  const slots = []
+  let n = 1
+  let started = false
+  const parity = (num) => (num % 2 === 1 ? 'recto' : 'verso')
+  for (const page of pages ?? []) {
+    if (page.isBlank) {
+      // Blanche AVANT le premier contenu = intérieur de couverture (non
+      // numérotée) : sans quoi elle prendrait la page 1 et pousserait le
+      // faux-titre en verso, alors qu'il doit être recto.
+      if (!started) {
+        slots.push({ number: 0, parity: 'verso', blank: true, cover: true, page })
+        continue
+      }
+      slots.push({ number: n, parity: parity(n), blank: true, page })
+      n++
+      continue
+    }
+    started = true
+    const want = effectiveSide(page)
+    if (want !== 'auto' && parity(n) !== want) {
+      const prev = slots[slots.length - 1]
+      if (prev && prev.blank && !prev.cover) {
+        // Une blanche précède ET la parité est fausse : elle est mal placée. On
+        // l'ABSORBE (au lieu d'en ajouter une seconde, ce qui ferait deux
+        // blanches d'affilée) — la page reprend son numéro et retombe sur son
+        // côté conventionnel. C'est « la convention l'emporte sur les blanches
+        // du .odt » : Writer pose des blanches sans connaître nos types.
+        slots.pop()
+        n--
+      } else {
+        slots.push({ number: n, parity: parity(n), blank: true, implicit: true })
+        n++
+      }
+    }
+    slots.push({ number: n, parity: parity(n), blank: false, page })
+    n++
+  }
+  return slots
+}
+
+// Regroupe les folios en PLANCHES telles qu'on les voit dans un livre ouvert :
+// la page 1 (recto) est seule à droite, face à l'intérieur de couverture (la
+// dernière blanche de tête, si présente) ; ensuite des paires (verso pair à
+// gauche | recto impair à droite).
+export function toSpreads(slots) {
+  const byNum = new Map(slots.filter((s) => !s.cover).map((s) => [s.number, s]))
+  const covers = slots.filter((s) => s.cover)
+  const cover = covers.length ? covers[covers.length - 1] : null
+  const max = byNum.size ? Math.max(...byNum.keys()) : 0
+  const spreads = []
+  if (max >= 1 || cover) spreads.push({ left: cover, right: byNum.get(1) ?? null })
+  for (let e = 2; e <= max; e += 2) spreads.push({ left: byNum.get(e) ?? null, right: byNum.get(e + 1) ?? null })
+  return spreads
 }
 
 // L'éligibilité du liminaire, dérivée du tagging (pas une saisie à part) —

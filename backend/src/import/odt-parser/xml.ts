@@ -215,6 +215,11 @@ interface RawBreak {
   // Présent (même chaîne vide) = le style change/impose la page — le null
   // signifie « attribut absent », distinct d'une valeur vide (« saut sans
   // changement de style » d'OpenOffice, qui doit arrêter la remontée).
+  // Nom de la master-page. `null` = attribut absent. Chaîne VIDE = attribut
+  // présent mais vide : ce n'est PAS un saut — c'est un défaut hérité que
+  // LibreOffice pose sur des styles de base (« Paragraphes », utilisé par 846
+  // paragraphes sur le témoin). Le traiter comme un saut faisait démarrer une
+  // page à chaque paragraphe du corps. Seule une valeur NON VIDE force une page.
   masterPage: string | null
   breakBefore: string | null
 }
@@ -243,9 +248,10 @@ function collectRawBreaks(doc: any, into: Map<string, RawBreak>) {
 //
 // Précédence : une contrainte de CÔTÉ (recto/verso) prime un simple saut, où
 // qu'elle soit dans la chaîne — un axe qui porte en plus un fo:break-before
-// « page » reste recto. Un master-page-name explicite (même vide) fait autorité
-// et arrête la remontée. Validé sur le manuscrit témoin : axes/blocs → recto,
-// « Page paire » → verso, sauts nus → page.
+// « page » reste recto. Un master-page-name NON VIDE fait autorité et arrête la
+// remontée ; vide, il est transparent (cf. RawBreak.masterPage). Validé sur le
+// témoin : axes/blocs → recto, « Page paire » → verso, vrais sauts → page (19,
+// pas 220 — sans quoi les 846 paragraphes du corps démarraient chacun une page).
 export function buildPageStarts(contentDoc: any, stylesDoc: any | null): Map<string, PageStart> {
   const masterSides = stylesDoc ? buildMasterPageSides(stylesDoc) : new Map<string, PageStart>()
   const raw = new Map<string, RawBreak>()
@@ -260,7 +266,9 @@ export function buildPageStarts(contentDoc: any, stylesDoc: any | null): Map<str
       seen.add(cur)
       const st = raw.get(cur)
       if (!st) break
-      if (st.masterPage !== null) return masterSides.get(st.masterPage) ?? 'page'
+      // Seule une master-page NON VIDE fait autorité (recto/verso, ou saut nu si
+      // non mappée). Vide = pas un signal → on continue la remontée.
+      if (st.masterPage) return masterSides.get(st.masterPage) ?? 'page'
       const b = st.breakBefore
       if (b && BREAK_SIDE[b]) return BREAK_SIDE[b]
       if (b === 'page') plainPage = true // faible : on continue à grimper chercher un côté

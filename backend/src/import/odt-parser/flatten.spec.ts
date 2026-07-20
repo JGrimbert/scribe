@@ -129,14 +129,19 @@ describe('buildFlatNodes — signets, saut de page, ToC', () => {
         // son propre fo:break-before « page » — le côté doit l'emporter.
         '<text:h text:outline-level="1" text:style-name="Pax">Axe</text:h>' +
           '<text:p text:style-name="Pv">verso</text:p>' +
-          '<text:p text:style-name="Pc">contents</text:p>',
+          '<text:p text:style-name="Pc">corps</text:p>',
         '<style:style style:name="Pax" style:parent-style-name="Heading_20_1"><style:paragraph-properties fo:break-before="page"/></style:style>' +
           '<style:style style:name="Pv" style:master-page-name="Verso"/>' +
-          '<style:style style:name="Pc" style:master-page-name=""/>',
+          // Pc hérite d'un style de base à master-page VIDE : ce n'est pas un
+          // saut (le piège « Paragraphes » du témoin, 846 paragraphes).
+          '<style:style style:name="Pc" style:parent-style-name="Corps"/>',
       ),
-      stylesXml('<style:style style:name="Heading_20_1" style:family="paragraph" style:master-page-name="Recto"/>'),
+      stylesXml(
+        '<style:style style:name="Heading_20_1" style:family="paragraph" style:master-page-name="Recto"/>' +
+          '<style:style style:name="Corps" style:family="paragraph" style:master-page-name=""/>',
+      ),
     )
-    expect(flatNodes.map((n) => n.pageStart)).toEqual(['recto', 'verso', 'page'])
+    expect(flatNodes.map((n) => n.pageStart)).toEqual(['recto', 'verso', null])
   })
 
   it('exclut la table des matières du flux mais en extrait les textes', () => {
