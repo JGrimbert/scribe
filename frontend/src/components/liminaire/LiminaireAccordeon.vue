@@ -6,7 +6,7 @@
        Le DERNIER cran n'est pas un vis-à-vis mais l'action d'étendre le
        liminaire — d'où `slideCount = spreads + 1` dans toute la mécanique. -->
   <div class="accordeon">
-    <div class="acc-stage">
+    <div class="acc-stage" @wheel.prevent="onWheel">
       <div class="acc-backdrop" aria-hidden="true"></div>
       <div
           v-for="(spread, si) in spreads"
@@ -119,8 +119,21 @@
           <!-- Slot inerte (blanche / couverture) : même gabarit, même liseré,
                pour que la barre garde exactement la même largeur. -->
           <span v-if="ctl.kind === 'inert'" class="acc-inert">{{ ctl.label }}</span>
+          <!-- Le côté se pose CONTRE le type qui le conditionne : la convention
+               du type propose un côté, ce bouton l'arbitre. Cyclable plutôt que
+               déroulant — trois valeurs, c'est un geste, pas une liste. Il vit
+               DANS le slot du type pour que la largeur du bloc ne change pas :
+               un contrôle de plus ferait bouger les flèches. -->
+          <button
+              v-if="ctl.kind === 'page'"
+              type="button"
+              class="acc-side"
+              :class="{ 'is-conflict': ctl.conflict, 'is-auto': ctl.chosenSide === 'auto' }"
+              :title="sideTitle(ctl)"
+              @click.stop="cycleSide(ctl)"
+          >{{ SIDE_MARKS[ctl.chosenSide] }}</button>
           <BaseSelect
-              v-else
+              v-if="ctl.kind === 'page'"
               class="acc-select"
               :class="{ 'has-suggestion': ctl.pending }"
               :title="ctl.pending ? ctl.pending.why : ''"
@@ -150,10 +163,10 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
 import BaseSelect from '../ui/BaseSelect.vue'
 import LiminaireFolio from '../LiminaireFolio.vue'
-import { LIMINAIRE_PAGES, LIMINAIRE_BY_KEY } from '../../script/liminaire'
+import { LIMINAIRE_PAGES, LIMINAIRE_BY_KEY, PAGE_SIDES } from '../../script/liminaire'
 
 const props = defineProps({
   // Les vis-à-vis d'imposition (cf. toSpreads). Purement présentationnel : les
@@ -163,6 +176,12 @@ const props = defineProps({
   // page.key → type posé, et page.key → suggestion en attente.
   types: { type: Object, required: true },
   suggestions: { type: Object, required: true },
+  // page.key → côté choisi ('auto'|'recto'|'verso'), côté attendu par la
+  // convention du type (ou null), et conflit entre les deux. Résolus par le
+  // composer : ce composant ne lit pas la config.
+  sides: { type: Object, default: () => ({}) },
+  expectedSides: { type: Object, default: () => ({}) },
+  conflicts: { type: Object, default: () => ({}) },
   recalibratable: { type: Boolean, default: true },
   starting: { type: Boolean, default: false },
   recalError: { type: String, default: null },
@@ -171,7 +190,23 @@ const props = defineProps({
   nextTitle: { type: String, default: null },
 })
 
-const emit = defineEmits(['update:focused', 'set-type', 'extend', 'exclude', 'redefine'])
+const emit = defineEmits(['update:focused', 'set-type', 'set-side', 'extend', 'exclude', 'redefine'])
+
+// Marques d'un caractère : le bouton doit tenir dans le slot du type sans le
+// rogner. « · » = auto (personne n'a tranché), R/V = imposé à la main.
+const SIDE_MARKS = { auto: '·', recto: 'R', verso: 'V' }
+
+function cycleSide(ctl) {
+  const next = PAGE_SIDES[(PAGE_SIDES.indexOf(ctl.chosenSide) + 1) % PAGE_SIDES.length]
+  emit('set-side', ctl.page, next)
+}
+
+function sideTitle(ctl) {
+  const pose = ctl.chosenSide === 'auto' ? 'Côté libre' : `Forcé en ${ctl.chosenSide}`
+  if (ctl.conflict) return `${pose} — mais le type appelle un ${ctl.expected}`
+  if (ctl.expected) return `${pose} · le type appelle un ${ctl.expected}`
+  return `${pose} (cliquer pour changer)`
+}
 
 function typeOfCell(cell) {
   return cell?.page ? (props.types[cell.page.key] ?? '') : ''
@@ -196,6 +231,10 @@ const slideCount = computed(() => props.spreads.length + 1)
 // qui, alignées, se confondraient sous le chevauchement.
 const ACC_DROP = 11
 
+// Au-delà de ce rang, l'atténuation ne se creuse plus : sans plafond, les crans
+// lointains d'un long liminaire finiraient délavés jusqu'à l'illisible.
+const ACC_DIM_MAX = 3
+
 function accStyle(i) {
   const n = slideCount.value
   const t = n > 1 ? i / (n - 1) : 0.5
@@ -205,7 +244,38 @@ function accStyle(i) {
     left: `${t * 100}%`,
     transform: `translateX(-${t * 100}%) translateY(${dist * ACC_DROP}px) scale(${scale})`,
     zIndex: String(n - dist),
+    // Consommé par le CSS (teinte + ombre) : l'éloignement est une donnée de
+    // rang, le rendu qu'on en tire reste une affaire de feuille de style.
+    '--acc-dim': String(Math.min(dist, ACC_DIM_MAX)),
   }
+}
+
+// ─── Molette : le liminaire se parcourt à l'horizontale ──────────────────────
+// Un pavé tactile émet ~40 événements/s ; sans seuil d'accumulation, un seul
+// geste traverserait tout le liminaire. On avance d'UN cran par palier franchi.
+const WHEEL_STEP = 60
+let wheelAcc = 0
+
+// Cran visé par le dernier `emit` non encore répercuté. Sans lui, plusieurs
+// événements du MÊME tick liraient tous le `props.focused` d'avant — un geste
+// vif de pavé tactile n'avancerait que d'un cran au lieu de plusieurs. Remis à
+// zéro dès que la prop rattrape, ce qui le rend auto-réparant si le parent
+// refuse le déplacement.
+let wheelTarget = null
+watch(() => props.focused, () => { wheelTarget = null })
+
+function onWheel(event) {
+  // `deltaX` autant que `deltaY` : molette verticale classique comme geste
+  // horizontal du pavé tactile, les deux disent « au suivant ».
+  wheelAcc += Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY
+  if (Math.abs(wheelAcc) < WHEEL_STEP) return
+  const dir = Math.sign(wheelAcc)
+  wheelAcc = 0
+  const from = wheelTarget ?? props.focused
+  const next = Math.min(slideCount.value - 1, Math.max(0, from + dir))
+  if (next === from) return
+  wheelTarget = next
+  emit('update:focused', next)
 }
 
 // Les pages taguables du vis-à-vis au premier plan — jusqu'à DEUX (le verso et
@@ -229,12 +299,18 @@ const focusedControls = computed(() => {
     if (!cell || cell.cover) return { side, kind: 'inert', label: 'Page de garde' }
     if (cell.blank) return { side, kind: 'inert', label: 'Page blanche' }
     const type = typeOfCell(cell)
+    const key = cell.page.key
     return {
       side,
       kind: 'page',
-      key: cell.page.key,
+      key,
       page: cell.page,
       type,
+      // `side` du contrôle = le côté CHOISI (auto par défaut), à ne pas
+      // confondre avec `side` du slot, qui dit verso/recto dans la planche.
+      chosenSide: props.sides[key] ?? 'auto',
+      expected: props.expectedSides[key] ?? null,
+      conflict: !!props.conflicts[key],
       // `pending` = une suggestion NON encore décidée. Un type déjà posé
       // referme la question : le select redevient un select ordinaire.
       pending: type ? null : suggestionOfCell(cell),
@@ -273,9 +349,6 @@ function labelOf(key) {
 .folio-slot {
   display: flex;
 }
-
-.folio-slot.is-left { justify-content: flex-end; }
-.folio-slot.is-right { justify-content: flex-start; }
 
 /* La reliure : le bord intérieur (droite du verso, gauche du recto) plus
    marqué. Le folio est la racine d'un composant enfant → :deep(). */
@@ -327,24 +400,22 @@ function labelOf(key) {
   width: min(26em, 100%);
   cursor: pointer;
   /* Compositor-only. `left` ne dépend que du rang, seul `transform` est animé. */
-  transition: transform 0.35s cubic-bezier(0.22, 0.61, 0.36, 1);
+  transition: transform 0.35s cubic-bezier(0.22, 0.61, 0.36, 1), filter 0.35s ease;
+
+  /* TOUS les folios portent leur ombre — elle dit « du papier posé », pas
+     « sélectionné ». Ce qui distingue les crans, c'est la PROFONDEUR : plus on
+     s'éloigne du focus (--acc-dim, 0 à 3), plus l'ombre se resserre et plus la
+     teinte se retire (désaturation + voile clair), comme un objet qui recule
+     dans la brume. Une seule déclaration `filter` : les fonctions s'y
+     composent, deux règles séparées s'écraseraient. */
+  filter:
+      drop-shadow(0 2px 5px rgba(0, 0, 0, calc(0.13 - var(--acc-dim, 0) * 0.025)))
+      saturate(calc(1 - var(--acc-dim, 0) * 0.18))
+      brightness(calc(1 + var(--acc-dim, 0) * 0.022));
 }
 
 .acc-spread.is-focused {
   cursor: default;
-  /* Ombre courte et pâle : elle doit décoller la page, pas la souligner — et
-     rester dans la scène, qui la couperait si elle portait loin. */
-  filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.12));
-}
-
-/* ZÉRO transparence sur le vis-à-vis au premier plan : c'est du papier, il doit
-   être franc. Les atténuations (numéro de folio, type non posé) laissaient
-   l'ellipse transparaître au travers et le délavaient.
-   La trame oblique des blanches/gardes est exclue de la règle : c'est elle qui
-   les distingue d'une page pleine, la rendre opaque les banaliserait. */
-.acc-spread.is-focused :deep(.folio:not(.folio--blank):not(.folio--cover)),
-.acc-spread.is-focused :deep(.folio:not(.folio--blank):not(.folio--cover) *) {
-  opacity: 1;
 }
 
 /* Mention Verso | Recto : mêmes colonnes que .spread, donc chaque mot tombe
@@ -367,21 +438,36 @@ function labelOf(key) {
   color: var(--c-ink2);
 }
 
-/* Action du dernier vis-à-vis, hors flux SOUS lui (même raison que la mention
-   Verso/Recto : elle ne doit pas décaler les folios). */
+/* Action du dernier vis-à-vis : elle FLOTTE au-dessus du papier, dans le haut
+   de la planche. Sous les folios (`top: 100%`) elle sortait du champ et se
+   faisait couper par l'`overflow` de la scène.
+   `pointer-events: none` sur la rampe : seul le bouton intercepte le clic, le
+   reste de la surface continue de sélectionner le vis-à-vis. */
 .acc-spread-action {
   position: absolute;
-  top: 100%;
+  top: var(--sp-4);
   left: 0;
   right: 0;
-  margin-top: var(--sp-2);
+  z-index: 2;
   display: flex;
   justify-content: center;
+  pointer-events: none;
 }
 
-/* Le cran terminal : une carte d'action, pas une page. Pointillés et fond
-   effacé — rien ici ne doit se lire comme du papier. */
+/* Posé SUR le papier : il lui faut un fond opaque et une ombre, sinon le texte
+   de la page transparaît sous le libellé. */
+.acc-spread-action .lim-border-btn {
+  pointer-events: auto;
+  background: var(--c-surface0);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+}
+
+/* Le cran terminal : une carte d'action, pas une page. Fond crème et trait
+   discontinu — assez présent pour ne plus flotter dans le vide, assez distinct
+   du papier (--c-paper, blanc à peine crème) pour ne pas se compter comme une
+   page du livre. */
 .acc-spread--extend .extend-card {
+  background: var(--c-paper-cream);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -506,19 +592,77 @@ function labelOf(key) {
   align-items: center;
   justify-content: center;
   gap: var(--sp-3);
-  flex-wrap: wrap;
-  min-height: 2em;
+  /* `nowrap` + hauteur FIXE : c'est ce qui rend la barre insensible à son
+     contenu. En `wrap`, deux slots de 13em plus le bouton de côté frôlaient la
+     largeur disponible et basculaient sur deux lignes — la barre grandissait
+     alors en hauteur selon le vis-à-vis regardé. */
+  flex-wrap: nowrap;
+  height: 2.2em;
   width: calc(26em + var(--sp-3));
 }
 
 /* Gabarit FIXE : les deux slots font la même largeur quoi qu'ils contiennent,
    donc les flèches ne bougent jamais d'un vis-à-vis à l'autre. */
+/* Grille et non flex : les DEUX colonnes existent toujours, que le slot porte
+   un bouton de côté ou non. Un slot inerte (blanche, couverture, cran terminal)
+   laisse la seconde colonne vide mais RÉSERVÉE — sans quoi son select
+   s'élargirait de 2em et les libellés ne s'aligneraient plus d'un vis-à-vis à
+   l'autre. */
 .acc-control {
   flex: 0 0 13em;
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr 2em;
+  gap: var(--sp-1);
+  /* Le slot occupe TOUTE la hauteur de la barre et ses enfants s'y étirent :
+     un select, un liseré inerte et une pastille de côté font alors exactement
+     la même hauteur. Laissé à leur taille naturelle, le bloc inerte tombait
+     2 px sous le select. */
+  height: 100%;
+  align-items: stretch;
 }
 
-.acc-select { width: 100%; }
+/* `grid-row: 1` EXPLICITE sur les deux : le bouton de côté précède le select
+   dans le DOM, et le placement automatique, une fois passé en colonne 2, aurait
+   renvoyé le select à la ligne suivante — la barre montait alors sur deux
+   rangées. */
+.acc-select,
+.acc-inert {
+  grid-column: 1;
+  grid-row: 1;
+  min-width: 0;
+}
+
+/* Pastille d'un caractère, dans la colonne qui lui est réservée. */
+.acc-side {
+  grid-column: 2;
+  grid-row: 1;
+  /* Épouse la hauteur du select plutôt qu'une valeur en dur : si la métrique du
+     select bouge, les deux restent d'aplomb. */
+  align-self: stretch;
+  width: 2em;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-md);
+  background: var(--c-surface0);
+  color: var(--c-ink2);
+  font: inherit;
+  font-size: var(--fs-md);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.acc-side:hover { border-color: var(--c-accent); color: var(--c-accent); }
+
+/* Personne n'a tranché : le point se fait discret, sinon « · » se lit comme une
+   décision au même titre que R ou V. */
+.acc-side.is-auto { color: var(--c-ink2); opacity: var(--op-muted); }
+
+/* Le côté forcé contredit la convention du type — c'est le seul état qui
+   réclame l'œil. */
+.acc-side.is-conflict {
+  border-color: var(--c-danger);
+  color: var(--c-danger);
+  opacity: 1;
+}
 
 /* Slot inerte : le liseré du select à l'identique (mêmes padding, bordure,
    rayon, taille) — mais discontinu et sourd, pour dire « rien à décider ici ». */

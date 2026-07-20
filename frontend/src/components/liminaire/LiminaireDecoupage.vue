@@ -8,44 +8,32 @@
 
     <ol v-else class="pages">
       <li v-for="page in pages" :key="page.key" class="page" :class="{ 'page--blank': page.isBlank }">
-        <div class="page-head">
-          <span class="pnum">{{ page.ordinal + 1 }}</span>
-
-          <template v-if="page.isBlank">
-            <span class="blank-label">page blanche</span>
-          </template>
-          <template v-else>
-            <BaseSelect
-                class="pside"
-                :model-value="sideOfPage(config, page)"
-                @update:model-value="setPageSide(config, page, $event)"
-            >
-              <option v-for="s in PAGE_SIDES" :key="s" :value="s">{{ s }}</option>
-            </BaseSelect>
-            <span
-                v-if="expectedSideOf(config, page)"
-                class="expected"
-                :class="{ conflict: isConflicting(config, page) }"
-            >{{ expectedSideOf(config, page) }} attendu</span>
-          </template>
-
-          <button
-              v-if="page.ordinal > 0"
-              class="op"
-              :class="{ 'op--active': breakOfKey(config, page.key) === 'joined' }"
-              type="button"
-              title="Rattacher cette page à la précédente"
-              @click="toggleBreak(config, page.key, 'joined')"
-          >
-            <i class="pi pi-arrow-up"></i> rattacher
-          </button>
-        </div>
+        <!-- Le numéro flotte à droite, en pastille : c'est un repère, pas la
+             première chose à lire. La tête ne porte plus que lui — le côté se
+             pose désormais dans l'accordéon, contre le type. -->
+        <span class="pnum">{{ page.ordinal + 1 }}</span>
+        <span v-if="page.isBlank" class="blank-label">page blanche</span>
 
         <ul class="entries">
+          <!-- « rattacher » ouvre la liste, dans la MÊME gouttière que
+               « scinder » : les deux gestes déplacent une frontière, ils se
+               lisent dans une seule colonne. -->
+          <li v-if="page.ordinal > 0" class="entry entry--op">
+            <button
+                class="op"
+                :class="{ 'op--active': breakOfKey(config, page.key) === 'joined' }"
+                type="button"
+                title="Rattacher cette page à la précédente"
+                @click="toggleBreak(config, page.key, 'joined')"
+            >
+              <i class="pi pi-arrow-up"></i> rattacher
+            </button>
+          </li>
+
           <li v-for="(entry, ei) in page.entries" :key="entry.key" class="entry">
             <button
                 v-if="ei > 0"
-                class="op op--split"
+                class="op"
                 :class="{ 'op--active': breakOfKey(config, entry.key) === 'start' }"
                 type="button"
                 title="Démarrer une nouvelle page ici"
@@ -62,17 +50,7 @@
 </template>
 
 <script setup>
-import BaseSelect from '../ui/BaseSelect.vue'
-import {
-  PAGE_SIDES,
-  breakOfKey,
-  entryPlainText,
-  expectedSideOf,
-  isConflicting,
-  setPageSide,
-  sideOfPage,
-  toggleBreak,
-} from '../../script/liminaire'
+import { breakOfKey, entryPlainText, toggleBreak } from '../../script/liminaire'
 
 defineProps({
   // Les pages du vis-à-vis focusé (cf. pagesOfSpread) — pas tout le liminaire.
@@ -110,22 +88,21 @@ defineProps({
   opacity: var(--op-muted);
 }
 
-.page-head {
+/* `float` et non un item flex : le numéro doit se ranger dans le coin et
+   laisser le texte des entrées passer dessous, pas occuper une colonne à lui. */
+.pnum {
+  float: right;
+  width: 1.7em;
+  height: 1.7em;
   display: flex;
   align-items: center;
-  gap: var(--sp-2);
-  flex-wrap: wrap;
-}
-
-.pnum {
-  min-width: 1.6em;
-  text-align: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--c-hover);
   font-variant-numeric: tabular-nums;
-  font-size: var(--fs-sm);
+  font-size: var(--fs-xs);
   color: var(--c-ink2);
 }
-
-.pside { font-size: var(--fs-sm); }
 
 .blank-label {
   font-size: var(--fs-sm);
@@ -133,21 +110,11 @@ defineProps({
   color: var(--c-ink2);
 }
 
-.expected {
-  font-size: var(--fs-xs);
-  color: var(--c-ink2);
-  opacity: var(--op-muted);
-}
-
-.expected.conflict {
-  color: var(--c-danger);
-  opacity: 1;
-  font-weight: 600;
-}
-
-/* Opérations de frontière : discrètes, révélées à l'usage. */
+/* Opérations de frontière : discrètes, révélées à l'usage. Plus de
+   `margin-left: auto` — « rattacher » et « scinder » partagent la gouttière de
+   gauche, c'est ce qui les donne à lire comme un même geste. */
 .op {
-  margin-left: auto;
+  flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
   gap: 0.3em;
@@ -170,14 +137,9 @@ defineProps({
   border-color: var(--c-accent);
 }
 
-.op--split {
-  margin-left: 0;
-  flex: 0 0 auto;
-}
-
 .entries {
   list-style: none;
-  margin: var(--sp-2) 0 0;
+  margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;

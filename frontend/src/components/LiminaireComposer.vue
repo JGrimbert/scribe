@@ -27,6 +27,9 @@
           :focused="focused"
           :types="types"
           :suggestions="suggestions"
+          :sides="sides"
+          :expected-sides="expectedSides"
+          :conflicts="conflicts"
           :recalibratable="recalibratable"
           :starting="starting"
           :recal-error="recalError"
@@ -35,6 +38,7 @@
           :next-title="nextTitle"
           @update:focused="focused = $event"
           @set-type="onSetType"
+          @set-side="onSetSide"
           @extend="$emit('extend')"
           @exclude="$emit('exclude')"
           @redefine="$emit('redefine')"
@@ -43,7 +47,7 @@
 
     <template #aside>
       <div class="lim-aside">
-        <section class="lim-group">
+        <section class="lim-group lim-group--edit">
           <!-- Le découpage suit le FOCUS : dérouler tout le liminaire à côté
                d'un vis-à-vis unique obligeait à chercher, dans une liste de
                dix pages, les deux qu'on a sous les yeux. -->
@@ -52,7 +56,7 @@
           <LiminaireDecoupage :pages="focusedPages" :config="config" :empty-label="emptyLabel" />
         </section>
 
-        <section class="lim-group">
+        <section class="lim-group lim-group--verdict">
           <h4 class="lim-title">Éligibilité</h4>
           <LiminaireEligibilite :elig="elig" />
         </section>
@@ -73,7 +77,10 @@ import {
   LIMINAIRE_BY_KEY,
   computeImposition,
   deriveEligibility,
+  expectedSideOf,
+  isConflicting,
   pagesOfSpread,
+  setPageSide,
   setPageType,
   sideOfPage,
   toSpreads,
@@ -139,10 +146,28 @@ const suggestions = computed(() =>
   ),
 )
 
-// Un handler nommé, pas un appel inline : l'événement porte DEUX arguments
+// Le côté vit désormais dans l'accordéon, contre le type qui le conditionne —
+// il n'a plus sa place dans le découpage, qui ne parle que de frontières.
+const sides = computed(() =>
+  Object.fromEntries(props.pages.map((p) => [p.key, sideOfPage(props.config, p)])),
+)
+
+const expectedSides = computed(() =>
+  Object.fromEntries(props.pages.map((p) => [p.key, expectedSideOf(props.config, p)])),
+)
+
+const conflicts = computed(() =>
+  Object.fromEntries(props.pages.map((p) => [p.key, isConflicting(props.config, p)])),
+)
+
+// Des handlers nommés, pas des appels inline : l'événement porte DEUX arguments
 // (page, valeur) et un template n'expose que le premier via `$event`.
 function onSetType(page, value) {
   setPageType(props.config, page, value)
+}
+
+function onSetSide(page, value) {
+  setPageSide(props.config, page, value)
 }
 
 // ─── Focus : partagé entre l'accordéon et le découpage ───────────────────────
@@ -189,7 +214,31 @@ const emptyLabel = computed(() =>
 
 .lim-aside { padding: var(--split-pad-aside, var(--sp-4)); }
 
-.lim-group + .lim-group { margin-top: var(--sp-5); }
+/* Deux registres, et c'est le propos de les séparer visuellement : le Découpage
+   est une SURFACE DE TRAVAIL (on y clique, on y scinde), l'Éligibilité un
+   VERDICT (on le lit, on n'y touche pas). Identiques, on cherchait dans l'un
+   les contrôles de l'autre. */
+.lim-group {
+  padding: var(--sp-3);
+  border-radius: var(--radius-md);
+}
+
+.lim-group + .lim-group { margin-top: var(--sp-4); }
+
+/* Surface de travail : posée en relief, cadre plein. */
+.lim-group--edit {
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+}
+
+/* Verdict : pas de fond, pas de cadre — un simple filet en tête, qui le
+   rattache à ce qui précède sans lui donner l'air d'un formulaire. */
+.lim-group--verdict {
+  padding-left: 0;
+  padding-right: 0;
+  border-top: 1px solid var(--c-border);
+  border-radius: 0;
+}
 
 .lim-title {
   margin: 0;

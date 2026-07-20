@@ -25,6 +25,7 @@
 
     --c-paper: #fffdf8; /* fond de lecture opaque (tables) — blanc à peine crème */
     --c-aside-bck: #f1f2e4; /* colonne latérale (registre) — vert sourd */
+    --c-paper-cream: #f7f1e3; /* crème franc — ce qui n'est PAS une page du livre */
 
 
     --c-ink: #1a1612;
@@ -122,6 +123,8 @@
     --op-faint: 0.35;
     --op-muted: 0.6;
     --op-soft: 0.75;
+
+    --acc-dim: 0;
 }
 
 /* ── Body ────────────────────────────────────────────── */
