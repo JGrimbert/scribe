@@ -2,42 +2,47 @@
   <div class="config-view">
     <!-- Recalibration : en MODALE, plus en plein écran — on y entre depuis le
          composer du liminaire, et on doit pouvoir en ressortir sans avoir perdu
-         de vue l'écran qu'on configurait. `ImportCalibration` n'a pas de hauteur
-         propre : c'est la modale qui défile, pas lui (pas de scrollbar
-         imbriquée). -->
-    <div v-if="preview" class="recal-modal" role="dialog" aria-modal="true" aria-label="Redéfinir les bornes du livre">
-      <div class="recal-backdrop" @click="preview = null"></div>
+         de vue l'écran qu'on configurait.
+         `recalOpen` est DISTINCT de `preview` : la modale s'ouvre d'abord, et
+         attend son contenu dedans. Conditionner l'ouverture aux données faisait
+         patienter sur un écran inchangé, sans rien dire. -->
+    <div v-if="recalOpen" class="recal-modal" role="dialog" aria-modal="true" aria-label="Redéfinir les bornes du livre">
+      <div class="recal-backdrop" @click="closeRecal"></div>
       <div class="recal-panel">
         <header class="recal-head">
-          <h3>Redéfinir les bornes du livre</h3>
-          <button type="button" class="recal-close" title="Fermer" @click="preview = null">
+          <h3>Redéfinir les bornes</h3>
+          <button type="button" class="recal-close" title="Fermer" @click="closeRecal">
             <i class="pi pi-times"></i>
           </button>
         </header>
 
-        <div class="recal-body">
-          <UiCallout tone="error" title="Avant de valider">
-            <div>
-              Recalibrer <strong>reconstruit l'arbre du livre</strong> depuis le <code>.odt</code>
-              d'origine : tous les chapitres sont recréés. Vos <strong>analyses seront à
-              recalculer</strong> (elles désignent des nœuds qui n'existeront plus). La typologie, les
-              règles et le <code>.odt</code> sont conservés ; les validations manuelles sont réapposées
-              quand le chapitre se retrouve.
-            </div>
-          </UiCallout>
+        <!-- Réduit à l'essentiel : ce qu'on PERD. Le détail (typologie, règles
+             et .odt conservés, validations réapposées) rassurait sur ce qui ne
+             bouge pas — ce n'est pas ce qu'on a besoin de lire avant d'agir. -->
+        <p v-if="preview" class="recal-warn">
+          <i class="pi pi-exclamation-triangle"></i>
+          L'arbre du livre est reconstruit : les analyses seront à relancer.
+        </p>
 
-          <ImportCalibration
-              mode="recalibration"
-              :preview-id="preview.previewId"
-              :outline="preview.outline"
-              :suggested-structure-start-index="preview.suggestedStructureStartIndex"
-              :suggested-structure-end-index="preview.suggestedStructureEndIndex ?? null"
-              :current-structure-start-index="shiftedStartIndex"
-              :current-structure-end-index="preview.currentStructureEndIndex ?? null"
-              @committed="onCommitted"
-              @cancel="preview = null"
-          />
-        </div>
+        <p v-if="starting" class="recal-wait">
+          <i class="pi pi-spin pi-spinner"></i> Relecture du fichier d'origine…
+        </p>
+
+        <UiNote v-else-if="recalError" variant="error" class="recal-fail">{{ recalError }}</UiNote>
+
+        <ImportCalibration
+            v-else-if="preview"
+            class="recal-calibration"
+            mode="recalibration"
+            :preview-id="preview.previewId"
+            :outline="preview.outline"
+            :suggested-structure-start-index="preview.suggestedStructureStartIndex"
+            :suggested-structure-end-index="preview.suggestedStructureEndIndex ?? null"
+            :current-structure-start-index="shiftedStartIndex"
+            :current-structure-end-index="preview.currentStructureEndIndex ?? null"
+            @committed="onCommitted"
+            @cancel="closeRecal"
+        />
       </div>
     </div>
 
@@ -262,6 +267,17 @@ const recalibratable = computed(() => doc.value?.hasSource !== false)
 const preview = ref(null)
 const report = ref(null)
 
+// L'OUVERTURE de la modale, distincte de son contenu : elle s'affiche dès le
+// clic et porte elle-même l'attente. Sans ça, le clic restait sans effet visible
+// le temps que le backend relise le `.odt`.
+const recalOpen = ref(false)
+
+function closeRecal() {
+  recalOpen.value = false
+  preview.value = null
+  recalError.value = null
+}
+
 // La borne à proposer dans la calibration : celle du document, AVANCÉE du
 // décalage prévisualisé dans le composer. C'est ce qui relie l'aperçu au
 // recalibrage — sans la borne courante rendue par le backend, on ne pouvait
@@ -276,7 +292,7 @@ const shiftedStartIndex = computed(() => {
 // panneau : le focus peut être n'importe où dans la calibration (un accordéon
 // entier), un handler local ne verrait pas la touche.
 function onEscape(event) {
-  if (event.key === 'Escape' && preview.value) preview.value = null
+  if (event.key === 'Escape' && recalOpen.value) closeRecal()
 }
 onMounted(() => window.addEventListener('keydown', onEscape))
 onUnmounted(() => window.removeEventListener('keydown', onEscape))
@@ -292,6 +308,10 @@ onMounted(ensureLoaded)
 watch(() => route.params.id, (id) => id && load(id), { immediate: true })
 
 async function startRecalibration() {
+  // La modale s'ouvre AVANT l'appel : elle est le lieu de l'attente, pas sa
+  // récompense.
+  recalOpen.value = true
+  preview.value = null
   starting.value = true
   recalError.value = null
   report.value = null
@@ -310,7 +330,7 @@ async function startRecalibration() {
 }
 
 async function onCommitted(summary) {
-  preview.value = null
+  closeRecal()
   report.value = summary.recalibration ?? null
   await fetchDocuments()
   reloadDocument?.()
@@ -328,18 +348,21 @@ async function onDelete() {
   margin-top: var(--sp-2);
 }
 
-/* Modale de recalibration. Elle DÉFILE elle-même (`overflow-y` sur le panneau)
-   parce qu'`ImportCalibration` n'a délibérément pas de hauteur propre : lui en
-   donner une remettrait la scrollbar imbriquée que le design system proscrit.
-   C'est donc le panneau, et lui seul, qui porte le défilement. */
+/* Modale de recalibration.
+   `z-index` AU-DESSUS de la doc-bar (99) : l'overlay doit la recouvrir, elle et
+   son bouton « Relancer l'analyse » — un bouton d'analyse encore vif pendant
+   qu'on reconstruit l'arbre du livre invite à une opération contradictoire.
+   Le panneau, lui, reste calé SOUS la barre (padding-top), qui garde ainsi son
+   fil d'Ariane lisible à travers le voile. */
 .recal-modal {
   position: fixed;
   inset: 0;
-  z-index: 50;
+  z-index: 200;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: var(--sp-4);
+  /* Deux barres à dégager en haut (topbar + doc-bar), d'où le facteur 2. */
+  padding: calc(var(--bar-size) * 2 + var(--sp-4)) var(--sp-4) var(--sp-4);
 }
 
 .recal-backdrop {
@@ -348,24 +371,32 @@ async function onDelete() {
   background: rgba(0, 0, 0, 0.45);
 }
 
+/* Hauteur PLAFONNÉE, et pas seulement bornée au viewport : la calibration est
+   une liste longue, un panneau à sa mesure remplissait tout l'écran et
+   redevenait le plein écran qu'on venait de quitter. */
 .recal-panel {
   position: relative;
   display: flex;
   flex-direction: column;
   width: min(100%, 62em);
-  max-height: 100%;
+  max-height: min(100%, 34em);
   background: var(--c-bg);
   border: 1px solid var(--c-border);
   border-radius: var(--radius-md);
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
+  /* Un seul niveau de padding, porté par le panneau : les sections internes
+     n'apportent que leur gouttière verticale. Deux paddings imbriqués mangeaient
+     la largeur et décalaient le chapeau par rapport à la liste. */
+  padding: 0 var(--sp-4) var(--sp-4);
 }
 
 .recal-head {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--sp-3);
-  padding: var(--sp-3) var(--sp-4);
+  padding: var(--sp-3) 0;
   border-bottom: 1px solid var(--c-border);
 }
 
@@ -385,9 +416,36 @@ async function onDelete() {
 
 .recal-close:hover { color: var(--c-accent); }
 
-.recal-body {
-  padding: var(--sp-4);
-  overflow-y: auto;
+/* Avertissement d'une ligne, hors du flux défilant : il doit rester lisible
+   quand on est descendu dans la liste. */
+.recal-warn {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: var(--sp-3) 0 0;
+  font-size: var(--fs-xs);
+  color: var(--c-danger);
+}
+
+/* Attente et échec : même gabarit que le contenu qu'ils remplacent, pour que le
+   panneau ne saute pas de taille quand la calibration arrive. */
+.recal-wait,
+.recal-fail {
+  margin: var(--sp-6) 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  color: var(--c-ink2);
+  font-size: var(--fs-sm);
+}
+
+/* C'est la calibration qui se partage la hauteur restante — voir son propre
+   style en mode recalibration (liste défilante, pied fixe). */
+.recal-calibration {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .config-view {

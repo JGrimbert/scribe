@@ -1,8 +1,11 @@
 <template>
-  <div class="calibration">
+  <div class="calibration" :class="{ 'calibration--boxed': mode === 'recalibration' }">
     <div class="calibration-header">
       <h2 v-if="mode === 'import'">Calibrage de l'import</h2>
-      <UiNote variant="hint">
+      <!-- À l'import, on découvre l'écran : le mode d'emploi complet a sa place.
+           En recalibrage, on y revient pour déplacer une borne qu'on a déjà
+           posée — le rappeler en huit lignes, c'est faire relire ce qu'on sait. -->
+      <UiNote v-if="mode === 'import'" variant="hint">
         Posez les deux démarcations : là où le vrai contenu commence (ce qui
         précède part en liminaire) et, s'il y en a une, là où la partie finale
         commence — table des matières, index, glossaire. Ce sont les deux bouts
@@ -10,6 +13,9 @@
         sous-titres. Les niveaux de titre viennent du document : on ne les
         reprend qu'au besoin, via les réglages avancés ci-dessous.
       </UiNote>
+      <p v-else class="calibration-lead">
+        Posez le début du contenu et, s'il y en a une, la partie finale.
+      </p>
 
       <button class="advanced-toggle" type="button" :aria-expanded="showLevels" @click="showLevels = !showLevels">
         <i class="pi" :class="showLevels ? 'pi-chevron-down' : 'pi-chevron-right'"></i>
@@ -215,8 +221,39 @@ async function onCommit() {
   min-height: 0;
 }
 
+/* Mode RECALIBRAGE seulement : là, le composant vit dans une modale à hauteur
+   plafonnée, et c'est sa LISTE qui doit défiler pour que le pied (Annuler /
+   Valider) reste toujours sous la main.
+   Ce mode déroge à la règle « pas de hauteur propre » qui vaut sur /import, où
+   la calibration défile avec la page — lui en donner une là-bas remettrait la
+   scrollbar imbriquée que le design system proscrit. La dérogation est donc
+   bornée au mode, pas généralisée. */
+.calibration--boxed {
+  height: 100%;
+  padding: 0;
+  max-width: none;
+}
+
+.calibration--boxed .outline {
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.calibration--boxed .calibration-footer {
+  flex: 0 0 auto;
+  border-top: 1px solid var(--c-border);
+  padding-top: var(--sp-3);
+}
+
 .calibration-header h2 {
   margin: 0 0 0.5em;
+}
+
+/* Chapeau du recalibrage : une ligne, alignée sur la gouttière de la liste. */
+.calibration-lead {
+  margin: 0 0 var(--sp-3);
+  font-size: var(--fs-sm);
+  color: var(--c-ink2);
 }
 
 /* Pli discret : le réglage des niveaux est l'exception, pas la règle. */

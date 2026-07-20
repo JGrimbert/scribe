@@ -326,14 +326,33 @@ dépendent :
 
 ## Calibration d'import
 
-`ImportCalibration.vue` — **montée à deux endroits, tel quel** : par
-`ImportView.vue` sur `/import` (après le `POST /api/documents/preview` déclenché
-par `ImportButton`), et par `StructureConfig.vue` en `mode="recalibration"` (cf.
-« Volet Structure »). Elle ne connaît pas la différence : le `previewId` la
-porte. Elle **n'a pas de hauteur propre** (ni `max-height`, ni `overflow-y`) —
-elle défile avec la page, dans la `CustomScrollbar` de la config ou celle du
-navigateur sur `/import` ; s'en donner une remettrait la scrollbar imbriquée que
-le design system proscrit.
+`ImportCalibration.vue` — **montée à deux endroits** : par `ImportView.vue` sur
+`/import` (après le `POST /api/documents/preview` déclenché par `ImportButton`),
+et par `ConfigView.vue` en `mode="recalibration"`, dans une modale. Le
+`previewId` porte la différence de destination ; le `mode`, lui, arbitre
+désormais **deux choses de présentation** :
+
+- **Le chapeau** : mode d'emploi complet à l'import (on découvre l'écran), une
+  seule phrase en recalibrage (on revient déplacer une borne déjà posée).
+- **La hauteur**, et c'est une exception assumée. Sur `/import`, la calibration
+  **n'a pas de hauteur propre** : elle défile avec la page, dans la
+  `CustomScrollbar` environnante — s'en donner une y remettrait la scrollbar
+  imbriquée que le design system proscrit. En **recalibrage**, la classe
+  `.calibration--boxed` lui donne `height: 100%`, fait défiler **sa seule
+  liste** (`.outline`) et fixe son pied : elle vit dans une modale à hauteur
+  plafonnée (`max-height: min(100%, 34em)`), où « Annuler / Recalibrer et
+  remplacer » doit rester sous la main sans qu'on ait à dérouler toute
+  l'`outline`. Il n'y a toujours qu'UNE barre de défilement à l'écran — c'est la
+  règle qui compte ; ce qui change, c'est seulement qui la porte.
+
+La modale elle-même (`ConfigView`) : `recalOpen` est **distinct de `preview`** —
+elle s'ouvre au clic et porte l'attente (spinner) pendant que le backend relit
+le `.odt`, au lieu de laisser l'écran inchangé. Son `z-index` (200) passe
+**au-dessus de la doc-bar** (99) : l'overlay doit recouvrir la barre et son
+bouton « Relancer l'analyse » — proposer une analyse pendant qu'on reconstruit
+l'arbre du livre serait contradictoire. Le panneau, lui, reste calé sous les
+deux barres (`padding-top: calc(var(--bar-size) * 2 + var(--sp-4))`), qui
+gardent leur fil d'Ariane lisible à travers le voile.
 
 Elle liste tous les titres détectés dans l'ordre du document, en accordéon (`CalibrationNode.vue`, récursif, replié par défaut,
 liseret de couleur par niveau). Deux corrections manuelles avant validation
