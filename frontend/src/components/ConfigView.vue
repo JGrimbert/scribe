@@ -32,6 +32,8 @@
               :outline="preview.outline"
               :suggested-structure-start-index="preview.suggestedStructureStartIndex"
               :suggested-structure-end-index="preview.suggestedStructureEndIndex ?? null"
+              :current-structure-start-index="shiftedStartIndex"
+              :current-structure-end-index="preview.currentStructureEndIndex ?? null"
               @committed="onCommitted"
               @cancel="preview = null"
           />
@@ -64,6 +66,21 @@
               {{ report.droppedValidations.map((d) => `${d.slug} (${d.reason})`).join(', ') }}
             </span>
           </template><template v-else>, aucune perdue.</template>
+        </div>
+
+        <!-- Le sort des analyses : elles survivent désormais au recalibrage
+             (les ids des chapitres retrouvés sont conservés). Ce qu'il faut
+             dire, c'est ce qui a BOUGÉ — les chapitres qu'on n'a pas su
+             rattacher, dont les analyses ne parlent plus. -->
+        <div v-if="report.analysesKept === false" class="report-analyses">
+          Analyses supprimées : aucun chapitre n'a pu être rattaché à sa version précédente.
+        </div>
+        <div v-else-if="report.orphanedNodes" class="report-analyses">
+          Analyses conservées ({{ report.reusedNodes }} chapitres rattachés), mais
+          {{ report.orphanedNodes }} n'ont pas été retrouvés : leurs résultats sont à recalculer.
+        </div>
+        <div v-else-if="report.reusedNodes" class="report-analyses">
+          Analyses conservées — les {{ report.reusedNodes }} chapitres ont tous été rattachés.
         </div>
       </UiCallout>
     </header>
@@ -245,6 +262,16 @@ const recalibratable = computed(() => doc.value?.hasSource !== false)
 const preview = ref(null)
 const report = ref(null)
 
+// La borne à proposer dans la calibration : celle du document, AVANCÉE du
+// décalage prévisualisé dans le composer. C'est ce qui relie l'aperçu au
+// recalibrage — sans la borne courante rendue par le backend, on ne pouvait
+// qu'ouvrir la calibration sur une suggestion sans rapport avec le geste.
+const shiftedStartIndex = computed(() => {
+  const current = preview.value?.currentStructureStartIndex
+  if (current == null) return null
+  return current + borderShift.value
+})
+
 // Échap ferme la modale de recalibration. Posé sur `window` et non sur le
 // panneau : le focus peut être n'importe où dans la calibration (un accordéon
 // entier), un handler local ne verrait pas la touche.
@@ -297,6 +324,10 @@ async function onDelete() {
 </script>
 
 <style scoped>
+.report-analyses {
+  margin-top: var(--sp-2);
+}
+
 /* Modale de recalibration. Elle DÉFILE elle-même (`overflow-y` sur le panneau)
    parce qu'`ImportCalibration` n'a délibérément pas de hauteur propre : lui en
    donner une remettrait la scrollbar imbriquée que le design system proscrit.

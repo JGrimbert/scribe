@@ -18,7 +18,7 @@ import { collectShapes, StructureShapes } from '../analyse/structure-shapes'
 import { DocumentTypology, isTypologySettled, suggestTypology, typologyErrors } from './typology'
 import { DEFAULT_RULES, DocumentRules, normalizeRules, rulesErrors } from './rules'
 import { LiminaireConfig, liminaireConfigErrors, normalizeLiminaireConfig } from './liminaire-config'
-import { PreviousValidation, RebuiltNode, remapValidations } from './recalibration'
+import { PreviousValidation, RebuiltNode, remapNodeIds, remapValidations } from './recalibration'
 import {
   CommitImportRequest,
   CommitResponse,
@@ -32,6 +32,12 @@ import {
 } from './dto'
 
 const EMPTY_INVENTORY: StyleInventory = { styles: [], highlights: [] }
+
+// Les bornes du livre telles que l'utilisateur vient de les valider.
+interface StructureBounds {
+  structureStartIndex: number
+  structureEndIndex: number | null
+}
 
 @Injectable()
 export class DocumentsService {
@@ -62,16 +68,40 @@ export class DocumentsService {
   // suggestions recalculées depuis le fichier d'origine.
   async previewRecalibration(documentId: string): Promise<PreviewResponse> {
     const { bytes, filename } = await this.getSource(documentId)
-    return this.openPreview(bytes, filename, documentId)
+    // Les bornes DÉJÀ validées, à ne pas confondre avec les `suggested*` que le
+    // parse recalcule : rouvrir la calibration sur une suggestion ferait
+    // repartir l'utilisateur d'un réglage qu'il avait justement corrigé.
+    // Nulles pour un document importé avant que ces colonnes n'existent — la
+    // calibration retombe alors sur les suggestions, comme avant.
+    const document = await this.prisma.document.findUnique({
+      where: { id: documentId },
+      select: { structureStartIndex: true, structureEndIndex: true },
+    })
+    return this.openPreview(bytes, filename, documentId, {
+      structureStartIndex: document?.structureStartIndex ?? null,
+      structureEndIndex: document?.structureEndIndex ?? null,
+    })
   }
 
-  private async openPreview(buffer: Buffer, originalFilename: string, documentId?: string): Promise<PreviewResponse> {
+  private async openPreview(
+    buffer: Buffer,
+    originalFilename: string,
+    documentId?: string,
+    current?: { structureStartIndex: number | null; structureEndIndex: number | null },
+  ): Promise<PreviewResponse> {
     const { outline, suggestedStructureStartIndex, suggestedStructureEndIndex } =
       await parseOdtBufferForPreview(buffer)
     const previewId = randomUUID()
     this.pendingImports.set(previewId, { buffer, originalFilename, documentId })
 
-    return { previewId, outline, suggestedStructureStartIndex, suggestedStructureEndIndex }
+    return {
+      previewId,
+      outline,
+      suggestedStructureStartIndex,
+      suggestedStructureEndIndex,
+      currentStructureStartIndex: current?.structureStartIndex ?? null,
+      currentStructureEndIndex: current?.structureEndIndex ?? null,
+    }
   }
 
   async commitImport(previewId: string, corrections: CommitImportRequest): Promise<CommitResponse> {
@@ -92,9 +122,12 @@ export class DocumentsService {
     this.pendingImports.delete(previewId)
 
     const { result, data, trame } = await parseOdtBuffer(pending.buffer, corrections as ImportCorrections)
+    // Les bornes validées sont persistées avec le document : sans elles, on ne
+    // peut pas rouvrir la calibration là où l'utilisateur l'a laissée.
+    const bounds = { structureStartIndex, structureEndIndex: structureEndIndex ?? null }
     return pending.documentId
-      ? this.replace(pending.documentId, result, data, trame)
-      : this.persist(result, data, trame, pending.originalFilename, pending.buffer)
+      ? this.replace(pending.documentId, result, data, trame, bounds)
+      : this.persist(result, data, trame, pending.originalFilename, pending.buffer, bounds)
   }
 
   /**
@@ -108,45 +141,83 @@ export class DocumentsService {
    * Ce qui SURVIT : le .odt (c'est le même fichier), la typologie des styles et
    * les règles d'éligibilité (des décisions de l'utilisateur, pas des
    * propriétés du parse — et `settled` se recalcule tout seul contre le nouvel
-   * inventaire, cf. typology.ts), et les validations manuelles, réapposées par
-   * ré-appariement (cf. recalibration.ts).
+   * inventaire, cf. typology.ts), les validations manuelles, et désormais
+   * **les analyses NLP**.
    *
-   * Ce qui est JETÉ : les analyses NLP. Elles indexent des nodeId, or
-   * `harmonize()` en regénère de neufs à chaque parse — les garder, ce serait
-   * afficher un dashboard qui parle de nœuds qui n'existent plus. Le cache
-   * d'embeddings étant adressé par contenu, le recalcul du volet sémantique ne
-   * revectorise rien de déjà vu.
+   * Les analyses étaient jetées jusqu'ici pour une raison purement technique :
+   * elles indexent des `nodeId`, et `harmonize()` en regénérait de neufs à
+   * chaque parse. Déplacer une borne du liminaire coûtait donc un recalcul
+   * sémantique complet (des minutes) et un job BERTopic. `remapNodeIds`
+   * (recalibration.ts) rend leur id aux nœuds qu'on sait reconnaître, ce qui
+   * retire ce prix — et fait au passage survivre les validations par la FK
+   * plutôt que par ré-appariement.
+   *
+   * Restent les nœuds AMBIGUS (mêmes slug et texte : les centaines de chapitres
+   * vides du témoin), qui reçoivent un id neuf. Les analyses qui les
+   * référençaient pointent alors dans le vide : on les conserve quand même, en
+   * remontant le compte (`orphanedNodes`) — un décalage partiel se voit et se
+   * corrige d'un recalcul, alors que tout jeter détruit à coup sûr du travail
+   * encore valable. Elles ne sont supprimées que si PLUS RIEN ne s'apparie.
    */
   private async replace(
     documentId: string,
     result: ParsedResult,
     data: DataMap,
     trame: Trame,
+    bounds: StructureBounds,
   ): Promise<CommitResponse> {
-    // Relevé AVANT destruction : le hash courant identifie le nœud, le hash
-    // stocké porte l'état (validé/périmé) qu'on veut préserver.
+    // Relevé AVANT destruction. TOUS les nœuds, pas seulement les validés : le
+    // ré-appariement sert désormais aussi à conserver les ids (cf. plus bas),
+    // ce qui concerne le document entier.
     const existing = await this.prisma.node.findMany({
-      where: { documentId, validation: { isNot: null } },
+      where: { documentId },
       select: {
+        id: true,
         slug: true,
         validation: { select: { contentHash: true, validatedAt: true } },
         paragraphs: { orderBy: { position: 'asc' }, select: { type: true, ordered: true, content: true, styleName: true, highlight: true } },
       },
     })
 
-    const previous: PreviousValidation[] = existing.map((node) => ({
-      slug: node.slug,
-      currentHash: nodeContentHash(this.texteOf(node.paragraphs)),
-      storedHash: node.validation!.contentHash,
-      validatedAt: node.validation!.validatedAt,
-    }))
+    // Hash calculé une seule fois par nœud : il sert aux deux appariements.
+    const hashed = existing.map((node) => ({ ...node, currentHash: nodeContentHash(this.texteOf(node.paragraphs)) }))
 
-    const { nodeRows, paragraphRows } = this.buildRows(data, trame, documentId)
+    const previous: PreviousValidation[] = hashed
+      .filter((node) => node.validation)
+      .map((node) => ({
+        slug: node.slug,
+        currentHash: node.currentHash,
+        storedHash: node.validation!.contentHash,
+        validatedAt: node.validation!.validatedAt,
+      }))
+
+    let { nodeRows, paragraphRows } = this.buildRows(data, trame, documentId)
     const next: RebuiltNode[] = nodeRows.map((row) => ({
       nodeId: row.id as string,
       slug: row.slug,
       currentHash: nodeContentHash(data[row.id as string].texte),
     }))
+
+    // Les ids d'abord : `harmonize()` en a généré de neufs, on rend aux nœuds
+    // qu'on sait reconnaître celui qu'ils avaient. C'est ce qui permet aux
+    // analyses (qui indexent des nodeId) de survivre à un recalibrage.
+    const ids = remapNodeIds(
+      hashed.map((node) => ({ nodeId: node.id, slug: node.slug, currentHash: node.currentHash })),
+      next,
+    )
+    if (ids.reuse.size) {
+      const to = (id: string) => ids.reuse.get(id) ?? id
+      nodeRows = nodeRows.map((row) => ({
+        ...row,
+        id: to(row.id as string),
+        parentId: row.parentId ? to(row.parentId as string) : row.parentId,
+      }))
+      paragraphRows = paragraphRows.map((row) => ({ ...row, nodeId: to(row.nodeId as string) }))
+      // Les validations se reposent sur les ids FINAUX : remapValidations
+      // travaille sur `next`, qui porte encore les ids d'origine du parse.
+      for (const node of next) node.nodeId = to(node.nodeId)
+    }
+
     const { restore, dropped } = remapValidations(previous, next)
 
     const document = await this.prisma.$transaction(
@@ -167,6 +238,8 @@ export class DocumentsService {
             styleInventory: result.inventory as unknown as Prisma.InputJsonValue,
             liminaire: result.liminaire as unknown as Prisma.InputJsonValue,
             final: result.final as unknown as Prisma.InputJsonValue,
+            structureStartIndex: bounds.structureStartIndex,
+            structureEndIndex: bounds.structureEndIndex,
           },
           include: { source: DocumentsService.SOURCE_PRESENCE },
         })
@@ -179,10 +252,20 @@ export class DocumentsService {
           })
         }
 
-        // Volets rendus caducs par les nouveaux ids. deleteMany et non un
-        // update à null : la ligne entière n'a plus rien de valide, et
-        // l'AnalyseService la recrée à la demande.
-        await tx.documentAnalysis.deleteMany({ where: { documentId } })
+        // Les analyses SURVIVENT désormais : les ids des nœuds retrouvés sont
+        // conservés (cf. remapNodeIds), donc lexical/semantic/topics continuent
+        // de désigner les bons chapitres. Elles n'étaient jetées que parce que
+        // `harmonize()` regénérait tous les ids — refaire des minutes de calcul
+        // NLP pour un déplacement de borne était le prix de ce détail.
+        //
+        // Elles ne sont supprimées que si PLUS RIEN ne s'apparie : le document
+        // a alors changé au point que ses analyses ne parlent plus de lui.
+        // Entre les deux, les nœuds orphelins sont comptés et remontés
+        // (`orphanedNodes`) plutôt que devinés — l'utilisateur décide s'il
+        // relance un calcul.
+        if (ids.reuse.size === 0 && existing.length > 0) {
+          await tx.documentAnalysis.deleteMany({ where: { documentId } })
+        }
 
         return doc
       },
@@ -193,7 +276,13 @@ export class DocumentsService {
 
     return {
       ...this.toSummary(document),
-      recalibration: { restoredValidations: restore.length, droppedValidations: dropped },
+      recalibration: {
+        restoredValidations: restore.length,
+        droppedValidations: dropped,
+        reusedNodes: ids.reuse.size,
+        orphanedNodes: ids.orphaned,
+        analysesKept: !(ids.reuse.size === 0 && existing.length > 0),
+      },
     }
   }
 
@@ -203,6 +292,7 @@ export class DocumentsService {
     trame: Trame,
     originalFilename: string,
     source: Buffer,
+    bounds: StructureBounds,
   ): Promise<DocumentSummary> {
     const title = result.meta.titreLivre || originalFilename.replace(/\.odt$/i, '')
     const totalMots = result.axes.reduce((s, a) => s + (a.stats?.mots || 0), 0)
@@ -228,6 +318,8 @@ export class DocumentsService {
           final: result.final as unknown as Prisma.InputJsonValue,
           // Prisma rend les `Bytes` en Uint8Array, pas en Buffer (v6) : la
           // conversion est un aller-retour de type, pas une transformation.
+          structureStartIndex: bounds.structureStartIndex,
+          structureEndIndex: bounds.structureEndIndex,
           source: { create: { bytes: new Uint8Array(source), sizeBytes: source.length } },
         },
         include: { source: DocumentsService.SOURCE_PRESENCE },

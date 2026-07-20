@@ -9,6 +9,12 @@ export interface PreviewResponse {
   // entière, pas une erreur : l'écran de calibration n'affiche alors pas de
   // seconde démarcation tant que l'utilisateur ne la pose pas lui-même.
   suggestedStructureEndIndex?: number
+  // Les bornes RÉELLEMENT validées au dernier commit, à ne pas confondre avec
+  // les suggestions ci-dessus : c'est là que la calibration doit rouvrir. Null
+  // pour un import neuf (rien n'a encore été validé) et pour les documents
+  // antérieurs à ces colonnes.
+  currentStructureStartIndex: number | null
+  currentStructureEndIndex: number | null
 }
 
 export type CommitImportRequest = ImportCorrections
@@ -20,6 +26,15 @@ export type CommitImportRequest = ImportCorrections
 export interface RecalibrationReport {
   restoredValidations: number
   droppedValidations: { slug: string; reason: 'disparu' | 'ambigu' }[]
+  // Nœuds dont l'id a été conservé — c'est ce qui permet aux analyses de
+  // survivre au recalibrage (cf. remapNodeIds).
+  reusedNodes: number
+  // Nœuds qu'on n'a pas su retrouver : les analyses déjà calculées ne les
+  // désignent plus. Comptés et affichés, jamais devinés.
+  orphanedNodes: number
+  // Faux seulement quand plus RIEN ne s'apparie : les analyses sont alors
+  // supprimées, le document ayant trop changé pour qu'elles parlent de lui.
+  analysesKept: boolean
 }
 
 // `recalibration` est absent d'un import initial : il n'y a alors aucune

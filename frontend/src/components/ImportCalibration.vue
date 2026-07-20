@@ -75,6 +75,12 @@ const props = defineProps({
   // Absent = le backend n'a rien trouvé de probant. Pas d'erreur : le livre
   // n'a alors pas de partie finale tant que l'utilisateur n'en pose pas une.
   suggestedStructureEndIndex: { type: Number, default: null },
+  // Les bornes DÉJÀ validées pour ce document (recalibration). Elles priment
+  // sur les suggestions : rouvrir la calibration sur une suggestion ferait
+  // repartir l'utilisateur du réglage qu'il avait justement corrigé. Nulles à
+  // l'import, et pour un document antérieur à ces colonnes.
+  currentStructureStartIndex: { type: Number, default: null },
+  currentStructureEndIndex: { type: Number, default: null },
   // Le flux est le même des deux côtés — c'est le previewId qui sait s'il
   // s'agit d'un remplacement (cf. `backend/CLAUDE.md`). Seuls les mots
   // changent : on ne « valide pas un import » quand on refait celui d'hier.
@@ -83,8 +89,10 @@ const props = defineProps({
 
 const emit = defineEmits(['committed', 'cancel'])
 
-const structureStartIndex = ref(props.suggestedStructureStartIndex)
-const structureEndIndex = ref(props.suggestedStructureEndIndex)
+// La borne validée l'emporte sur la suggestion ; `?? ` et non `||` : l'index 0
+// est une borne parfaitement légitime (un livre sans liminaire).
+const structureStartIndex = ref(props.currentStructureStartIndex ?? props.suggestedStructureStartIndex)
+const structureEndIndex = ref(props.currentStructureEndIndex ?? props.suggestedStructureEndIndex)
 // Niveaux masqués par défaut : la calibration ne différencie plus que
 // liminaire / contenu / partie finale. Le réglage manuel reste dispo (rattrape
 // un .odt mal stylé) mais sous ce pli, replié à l'ouverture.

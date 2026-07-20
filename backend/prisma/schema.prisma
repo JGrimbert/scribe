@@ -36,6 +36,16 @@ model Document {
   // manuelle, elle l'informe.
   validationRules Json?
 
+  // Les deux bornes du livre TELLES QU'ELLES ONT ÉTÉ VALIDÉES au dernier
+  // commit (index de titre dans l'outline, cf. ImportCorrections). Elles
+  // n'étaient stockées nulle part : `suggestedStructureStartIndex` est une
+  // SUGGESTION recalculée à chaque preview, pas la borne courante — on ne
+  // pouvait donc pas rouvrir la calibration là où l'utilisateur l'avait
+  // laissée, ni interpréter un déplacement relatif de borne.
+  // Nullables : les documents importés avant ces colonnes ne les portent pas.
+  structureStartIndex Int?
+  structureEndIndex   Int?
+
   // liminaire / final : les deux bouts du livre qui ne sont pas de la structure
   // (page de titre, auteur, dédicace ; table des matières, index, glossaire),
   // sous forme de TexteEntry[] — ils portent donc styleName et highlight, ce

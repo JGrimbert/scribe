@@ -78,6 +78,63 @@ function uniqueByKey<T>(items: T[], key: (item: T) => string): Map<string, T | n
   return index
 }
 
+// Un nœud tel qu'il existe en base AVANT la reconstruction.
+export interface ExistingNode {
+  nodeId: string
+  slug: string
+  currentHash: string
+}
+
+export interface IdRemapResult {
+  // Id fraîchement généré par `harmonize()` → id EXISTANT à réutiliser à sa
+  // place. Une clé n'étant unique que si elle désigne un seul nœud de chaque
+  // côté, un id existant ne peut être réutilisé qu'une fois : pas de collision
+  // de clé primaire possible.
+  reuse: Map<string, string>
+  // Nœuds reconstruits qui gardent leur id neuf (nouveaux, ou ambigus).
+  fresh: number
+  // Nœuds qui existaient et qu'on n'a pas su retrouver. Leur id disparaît, donc
+  // les analyses qui le référencent pointent désormais dans le vide — c'est ce
+  // compte qu'on remonte à l'utilisateur.
+  orphaned: number
+}
+
+/**
+ * Réattribuer aux nœuds reconstruits l'id de leur prédécesseur, quand on sait
+ * les apparier — même critère (slug, texte) et mêmes raisons que
+ * `remapValidations`, dont ceci est la généralisation.
+ *
+ * L'enjeu dépasse les validations : `DocumentAnalysis` (lexical, semantic,
+ * topics) indexe des `nodeId`. Tant que les ids changeaient à chaque parse, la
+ * seule issue honnête était de jeter les analyses — donc de refaire des minutes
+ * de calcul NLP pour avoir déplacé une borne. En conservant les ids, un
+ * recalibrage cesse d'être une opération destructrice.
+ *
+ * Les nœuds ambigus (mêmes slug et texte de part et d'autre — sur le témoin,
+ * les centaines de chapitres vides) gardent un id neuf : réutiliser un id au
+ * jugé rattacherait l'analyse d'un chapitre à un autre, ce qui ment en silence.
+ */
+export function remapNodeIds(previous: ExistingNode[], next: RebuiltNode[]): IdRemapResult {
+  const before = uniqueByKey(previous, (p) => keyOf(p.slug, p.currentHash))
+  const after = uniqueByKey(next, (n) => keyOf(n.slug, n.currentHash))
+
+  const reuse = new Map<string, string>()
+  for (const node of next) {
+    const key = keyOf(node.slug, node.currentHash)
+    // Ambigu d'un côté ou de l'autre : personne n'est désigné.
+    if (before.get(key) === null || after.get(key) === null) continue
+    const match = before.get(key)
+    if (match) reuse.set(node.nodeId, match.nodeId)
+  }
+
+  const reused = new Set(reuse.values())
+  return {
+    reuse,
+    fresh: next.length - reuse.size,
+    orphaned: previous.filter((p) => !reused.has(p.nodeId)).length,
+  }
+}
+
 export function remapValidations(previous: PreviousValidation[], next: RebuiltNode[]): RemapResult {
   const before = uniqueByKey(previous, (p) => keyOf(p.slug, p.currentHash))
   const after = uniqueByKey(next, (n) => keyOf(n.slug, n.currentHash))

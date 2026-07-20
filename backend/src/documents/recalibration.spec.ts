@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { PreviousValidation, RebuiltNode, remapValidations } from './recalibration'
+import { ExistingNode, PreviousValidation, RebuiltNode, remapNodeIds, remapValidations } from './recalibration'
 
 const AT = new Date('2026-07-01T10:00:00.000Z')
 
@@ -115,5 +115,71 @@ describe('remapValidations', () => {
 
   it('ne fait rien sur un document sans aucune validation', () => {
     expect(remapValidations([], [rebuilt('neuf', 'la-lisiere', 'hash-a')])).toEqual({ restore: [], dropped: [] })
+  })
+})
+
+function existing(nodeId: string, slug: string, currentHash: string): ExistingNode {
+  return { nodeId, slug, currentHash }
+}
+
+describe('remapNodeIds', () => {
+  it("réattribue l'id existant au nœud reconstruit de même slug et même texte", () => {
+    const r = remapNodeIds([existing('vieux-1', 'la-lisiere', 'h-a')], [rebuilt('neuf-1', 'la-lisiere', 'h-a')])
+
+    expect(r.reuse.get('neuf-1')).toBe('vieux-1')
+    expect(r.fresh).toBe(0)
+    expect(r.orphaned).toBe(0)
+  })
+
+  it('laisse son id neuf à un nœud qui n’existait pas', () => {
+    const r = remapNodeIds([], [rebuilt('neuf-1', 'inedit', 'h-x')])
+
+    expect(r.reuse.size).toBe(0)
+    expect(r.fresh).toBe(1)
+    expect(r.orphaned).toBe(0)
+  })
+
+  it('compte comme orphelin un nœud existant qu’on ne retrouve pas — ses analyses pointent dans le vide', () => {
+    const r = remapNodeIds([existing('vieux-1', 'disparu', 'h-a')], [rebuilt('neuf-1', 'autre', 'h-b')])
+
+    expect(r.reuse.size).toBe(0)
+    expect(r.orphaned).toBe(1)
+  })
+
+  it('n’apparie RIEN quand le couple est ambigu — 257 chapitres vides partagent le hash du vide', () => {
+    const r = remapNodeIds(
+      [existing('v-1', 'notes', 'vide'), existing('v-2', 'notes', 'vide')],
+      [rebuilt('n-1', 'notes', 'vide'), rebuilt('n-2', 'notes', 'vide')],
+    )
+
+    expect(r.reuse.size).toBe(0)
+    expect(r.fresh).toBe(2)
+    expect(r.orphaned).toBe(2)
+  })
+
+  it('INVARIANT : un id existant n’est jamais réutilisé deux fois (collision de clé primaire)', () => {
+    // Deux nœuds reconstruits identiques face à un seul ancien : les apparier
+    // tous les deux dupliquerait la clé primaire.
+    const r = remapNodeIds(
+      [existing('v-1', 'notes', 'vide')],
+      [rebuilt('n-1', 'notes', 'vide'), rebuilt('n-2', 'notes', 'vide')],
+    )
+
+    const reused = [...r.reuse.values()]
+    expect(new Set(reused).size).toBe(reused.length)
+    expect(r.reuse.size).toBe(0)
+  })
+
+  it('apparie chapitre par chapitre sur un lot mêlant conservés, nouveaux et disparus', () => {
+    const r = remapNodeIds(
+      [existing('v-1', 'a', 'h-a'), existing('v-2', 'b', 'h-b'), existing('v-3', 'parti', 'h-c')],
+      [rebuilt('n-1', 'a', 'h-a'), rebuilt('n-2', 'b', 'h-b'), rebuilt('n-3', 'neuf', 'h-d')],
+    )
+
+    expect(r.reuse.get('n-1')).toBe('v-1')
+    expect(r.reuse.get('n-2')).toBe('v-2')
+    expect(r.reuse.has('n-3')).toBe(false)
+    expect(r.fresh).toBe(1)
+    expect(r.orphaned).toBe(1)
   })
 })
