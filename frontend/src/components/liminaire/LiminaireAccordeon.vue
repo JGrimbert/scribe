@@ -294,7 +294,7 @@ function labelOf(key) {
      net ce qui dépasse, et le bouton « Exclure » y laissait sa moitié basse.
      Le vide résiduel sur les autres crans est le prix d'une scène qui ne saute
      pas de hauteur au changement de focus. */
-  height: 23.5em;
+  height: 22em;
   /* Coupe le halo net sur le bas de la scène — c'est-à-dire pile sur la
      réglette. */
   overflow: hidden;
@@ -310,8 +310,8 @@ function labelOf(key) {
   inset: 0;
   background: radial-gradient(
       ellipse 75% 25% at 50% 100%,
-      color-mix(in srgb, var(--c-accent) 10%, transparent),
-      color-mix(in srgb, var(--c-accent) 10%, transparent) 45%,
+      color-mix(in srgb, var(--c-accent-alt-darker) 1%, transparent),
+      color-mix(in srgb, var(--c-accent-alt-darker) 1%, transparent) 45%,
       transparent 72%
   );
   pointer-events: none;

@@ -11,6 +11,7 @@
 :root {
     /* Couleurs */
     --c-bg: #faf8f4;
+    --c-folio-bg: aliceblue;
     --c-surface0: rgb(255, 255, 255);
     --c-surface: rgba(255, 255, 255, 0.8);
     --c-surface2: #f2ede6;

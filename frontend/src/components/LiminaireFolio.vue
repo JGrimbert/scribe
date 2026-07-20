@@ -54,7 +54,7 @@ function labelOf(key) {
   max-width: 13em;
   aspect-ratio: 1 / 1.414;
   border: 1px solid var(--c-border);
-  background: var(--c-surface);
+  background: var(--c-surface0);
   border-radius: var(--radius-sm);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
   padding: var(--sp-3) var(--sp-2) var(--sp-2);
@@ -72,24 +72,22 @@ function labelOf(key) {
    franc pour la garde (une face qu'on ne verra jamais). */
 .folio--blank {
   border-style: dashed;
-  background: repeating-linear-gradient(
-      45deg,
-      transparent,
-      transparent 9px,
-      color-mix(in srgb, var(--c-border) 55%, transparent) 9px,
-      color-mix(in srgb, var(--c-border) 55%, transparent) 10px
-  );
   box-shadow: none;
 }
 
 .folio--cover {
   border: 1px dashed var(--c-border);
-  background: repeating-linear-gradient(45deg, transparent, transparent 5px, var(--c-border) 5px, var(--c-border) 6px);
-  opacity: var(--op-faint);
 }
 
 .folio--blank, .folio--cover {
   justify-content: center;
+  background: repeating-linear-gradient(
+      45deg,
+      var(--c-folio-bg),
+      var(--c-folio-bg) 9px,
+      color-mix(in srgb, var(--c-border) 55%,  var(--c-folio-bg)) 9px,
+      color-mix(in srgb, var(--c-border) 55%,  var(--c-folio-bg)) 10px
+  );
 }
 
 .folio-num {
@@ -106,7 +104,7 @@ function labelOf(key) {
 .folio-blank-label {
   padding: 0.15em 0.5em;
   border-radius: var(--radius-sm);
-  background: var(--c-surface);
+  background: var(--c-folio-bg);
   font-size: var(--fs-xs);
   font-style: italic;
   color: var(--c-ink2);
