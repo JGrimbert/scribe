@@ -41,7 +41,15 @@
              qu'on peut rendre au corps du livre. Hors flux (top: 100%) pour la
              même raison que la mention Verso/Recto. -->
         <div v-if="si === focused && si === spreads.length - 1" class="acc-spread-action">
-          <button type="button" class="lim-border-btn" :disabled="!recalibratable || starting" @click.stop="$emit('exclude')">
+          <button
+              type="button"
+              class="lim-border-btn"
+              :disabled="!borderShift"
+              :title="borderShift
+                ? 'Rendre le dernier chapitre absorbé au corps du livre'
+                : 'Le liminaire d’origine s’arrête avant le premier titre : aucune borne ne peut le raccourcir'"
+              @click.stop="$emit('exclude')"
+          >
             <i class="pi pi-arrow-up-right"></i>
             Exclure du liminaire
           </button>
@@ -60,9 +68,30 @@
         <div class="extend-card">
           <i class="pi pi-plus-circle"></i>
           <p class="extend-lead">Le liminaire s'arrête ici.</p>
-          <button type="button" class="lim-border-btn" :disabled="!recalibratable || starting" @click.stop="$emit('extend')">
+
+          <button
+              type="button"
+              class="lim-border-btn"
+              :disabled="!canExtend"
+              :title="canExtend ? `Absorber « ${nextTitle} » dans le liminaire` : 'Plus aucun chapitre à absorber'"
+              @click.stop="$emit('extend')"
+          >
+            <i class="pi pi-arrow-down-left"></i>
             Étendre le liminaire
           </button>
+          <!-- Annoncer CE qu'on absorbe : sans le titre, l'action est un saut
+               dans le noir. -->
+          <p v-if="canExtend" class="extend-note">Prochain : « {{ nextTitle }} »</p>
+
+          <button
+              type="button"
+              class="lim-border-btn lim-border-btn--ghost"
+              :disabled="!recalibratable || starting"
+              @click.stop="$emit('redefine')"
+          >
+            Redéfinir les bornes…
+          </button>
+
           <p v-if="!recalibratable" class="extend-note">
             Document importé avant que le <code>.odt</code> ne soit conservé : seul un réimport
             rattache son fichier d'origine.
@@ -137,9 +166,12 @@ const props = defineProps({
   recalibratable: { type: Boolean, default: true },
   starting: { type: Boolean, default: false },
   recalError: { type: String, default: null },
+  borderShift: { type: Number, default: 0 },
+  canExtend: { type: Boolean, default: true },
+  nextTitle: { type: String, default: null },
 })
 
-const emit = defineEmits(['update:focused', 'set-type', 'extend', 'exclude'])
+const emit = defineEmits(['update:focused', 'set-type', 'extend', 'exclude', 'redefine'])
 
 function typeOfCell(cell) {
   return cell?.page ? (props.types[cell.page.key] ?? '') : ''
@@ -289,7 +321,10 @@ function labelOf(key) {
   position: absolute;
   /* Laisse juste la place à la mention Verso/Recto, posée hors flux au-dessus. */
   top: 1.7em;
-  width: 26em;
+  /* Plafonné à la largeur de la scène : à 26em fixes, une colonne étroite (main
+     du split sur petit écran) faisait couper le vis-à-vis au premier plan par
+     l'`overflow: hidden` de la scène. */
+  width: min(26em, 100%);
   cursor: pointer;
   /* Compositor-only. `left` ne dépend que du rang, seul `transform` est animé. */
   transition: transform 0.35s cubic-bezier(0.22, 0.61, 0.36, 1);
@@ -407,6 +442,15 @@ function labelOf(key) {
 .lim-border-btn:disabled {
   opacity: var(--op-faint);
   cursor: default;
+}
+
+/* Action secondaire du même bloc : elle ouvre la modale (donc engage un
+   recalibrage), là où « Étendre » ne fait qu'un aperçu. Moins appuyée. */
+.lim-border-btn--ghost {
+  border-color: transparent;
+  background: none;
+  font-size: var(--fs-xs);
+  text-decoration: underline;
 }
 
 /* Réglette de situation : où l'on est dans le liminaire. Pas un vrai scroll —

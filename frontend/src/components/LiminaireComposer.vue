@@ -6,6 +6,22 @@
        (config mutée en place, focus) et le distribue. -->
   <AnalyseBlock aside="right" bare>
     <template #main>
+      <!-- Un décalage de borne n'est qu'une PRÉVISUALISATION : les entrées
+           absorbées ne sont dans aucune base tant que le recalibrage n'a pas
+           reconstruit l'arbre. Le dire fort, sinon on croit avoir enregistré. -->
+      <UiCallout v-if="borderShift > 0" tone="error" title="Aperçu — rien n'est enregistré" class="shift-note">
+        <div class="shift-body">
+          <span>
+            Liminaire étendu de <strong>{{ borderShift }}</strong>
+            {{ borderShift > 1 ? 'chapitres' : 'chapitre' }}. Seul un recalibrage déplace la borne
+            pour de bon — enregistrer la configuration ne la retiendra pas.
+          </span>
+          <BaseButton variant="outline" icon="pi-refresh" :disabled="!recalibratable" :busy="starting" @click="$emit('redefine')">
+            Redéfinir le liminaire
+          </BaseButton>
+        </div>
+      </UiCallout>
+
       <LiminaireAccordeon
           :spreads="spreads"
           :focused="focused"
@@ -14,10 +30,14 @@
           :recalibratable="recalibratable"
           :starting="starting"
           :recal-error="recalError"
+          :border-shift="borderShift"
+          :can-extend="canExtend"
+          :next-title="nextTitle"
           @update:focused="focused = $event"
           @set-type="onSetType"
           @extend="$emit('extend')"
           @exclude="$emit('exclude')"
+          @redefine="$emit('redefine')"
       />
     </template>
 
@@ -44,6 +64,8 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import AnalyseBlock from './analyse/AnalyseBlock.vue'
+import BaseButton from './ui/BaseButton.vue'
+import UiCallout from './ui/UiCallout.vue'
 import LiminaireAccordeon from './liminaire/LiminaireAccordeon.vue'
 import LiminaireDecoupage from './liminaire/LiminaireDecoupage.vue'
 import LiminaireEligibilite from './liminaire/LiminaireEligibilite.vue'
@@ -70,9 +92,16 @@ const props = defineProps({
   recalibratable: { type: Boolean, default: true },
   starting: { type: Boolean, default: false },
   recalError: { type: String, default: null },
+  // Déplacement local de la borne, en nombre de chapitres absorbés (cf.
+  // script/liminaire-bornes). Toujours >= 0 : on ne peut pas mordre sur le
+  // liminaire d'origine, dont les paragraphes précèdent le premier titre.
+  borderShift: { type: Number, default: 0 },
+  canExtend: { type: Boolean, default: true },
+  // Titre du prochain chapitre absorbable — ce que « Étendre » promet.
+  nextTitle: { type: String, default: null },
 })
 
-defineEmits(['extend', 'exclude'])
+defineEmits(['extend', 'exclude', 'redefine'])
 
 const elig = computed(() => deriveEligibility(props.pages, props.config))
 
@@ -148,6 +177,16 @@ const emptyLabel = computed(() =>
 </script>
 
 <style scoped>
+.shift-note { margin-bottom: var(--sp-3); }
+
+.shift-body {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+
 .lim-aside { padding: var(--split-pad-aside, var(--sp-4)); }
 
 .lim-group + .lim-group { margin-top: var(--sp-5); }
