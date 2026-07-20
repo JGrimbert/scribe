@@ -29,27 +29,18 @@
            on travaille dans le document. -->
       <div
           class="document-layout__sidebar"
-          :class="{ 'document-layout__sidebar--rail': !sidebarExpanded }"
+          :class="{
+            'document-layout__sidebar--rail': !sidebarExpanded,
+            'document-layout__sidebar--registry': asideMode === 'registry',
+          }"
       >
         <CustomScrollbar :top-offset="42">
           <aside v-if="asideMode === 'registry'" class="registry-aside">
-            <template v-if="sidebarExpanded">
-              <DocumentList
-                  :active-id="route.params.id"
-                  @select="openDocument"
-                  @deleted="onDocumentDeleted"
-              />
-              <div class="registry-aside__foot">
-                <ImportButton />
-              </div>
-            </template>
-            <BaseButton
-                v-else
-                variant="ghost"
-                icon="pi-book"
-                title="Ouvrir le registre"
-                class="registry-aside__rail"
-                @click="sidebarExpanded = true"
+            <DocumentList
+                v-if="sidebarExpanded"
+                :active-id="route.params.id"
+                @select="openDocument"
+                @deleted="onDocumentDeleted"
             />
           </aside>
 
@@ -62,6 +53,16 @@
               @select="select"
           />
         </CustomScrollbar>
+
+        <!-- HORS de la zone de défilement : l'import doit rester sous la main
+             quelle que soit la longueur du registre. En rail, il se réduit à
+             son icône — 42 px ne portent pas un libellé. -->
+        <div v-if="asideMode === 'registry'" class="registry-foot">
+          <ImportButton
+              v-if="sidebarExpanded"
+              :label="'Importer un document'"
+          />
+        </div>
       </div>
 
       <!-- Contenu principal avec CustomScrollbar -->
@@ -279,6 +280,15 @@ onMounted(() => {
   flex: 0 0 auto;
   min-height: 0;
   border-right: 1px solid #eee;
+  /* Colonne en flex : le défilement prend ce qui reste, le pied garde sa
+     hauteur. Poser le fond ICI plutôt que sur `.registry-aside` (qui s'arrête
+     au contenu) est ce qui le fait descendre jusqu'en bas. */
+  display: flex;
+  flex-direction: column;
+}
+
+.document-layout__sidebar--registry {
+  background-color: var(--c-aside-bck);
 }
 
 /* Replié : le rail garde la largeur d'une barre, le contenu récupère le reste. */
@@ -288,13 +298,19 @@ onMounted(() => {
 
 /* Même décrochement que `.structure-panel` : la barre est en absolu au-dessus
    de la zone de défilement, l'aside démarre sous elle. */
+/* Sans padding : les lignes du registre occupent toute la largeur, leur survol
+   devient une bande pleine plutôt qu'une pastille flottante. */
 .registry-aside {
   margin-top: 42px;
-  padding: 0.6em 0.6em 1em;
   display: flex;
   flex-direction: column;
-  gap: var(--sp-4);
-  background-color: #f1f2e4;
+}
+
+.registry-foot {
+  flex: 0 0 auto;
+  padding: var(--sp-3);
+  display: flex;
+  justify-content: center;
 }
 
 /* Le rail est trop étroit pour une liste : il n'y reste que de quoi la
@@ -312,10 +328,18 @@ onMounted(() => {
   min-width: 0;
 }
 
-/* Assure que CustomScrollbar prend toute la hauteur */
-.document-layout__sidebar > .custom-scrollbar,
+/* Le contenu prend toute la hauteur ; la sidebar, elle, la PARTAGE avec son
+   pied — `height: 100%` y ferait déborder la colonne d'autant. */
 .document-layout__content > .custom-scrollbar {
   height: 100%;
+}
+
+.document-layout__sidebar > .custom-scrollbar {
+  flex: 1 1 auto;
+  min-height: 0;
+  /* Neutralise explicitement le `height: 100%` du `:deep` plus bas, qui vise
+     TOUS les CustomScrollbar. */
+  height: auto;
 }
 
 /* Assurer que CustomScrollbar prend toute la hauteur disponible */

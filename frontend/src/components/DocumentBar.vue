@@ -9,6 +9,13 @@
     </button>
 
     <nav class="breadcrumb" aria-label="Fil d'Ariane">
+      <!-- Inerte (span, pas bouton) : on est déjà sur cet écran, il n'y a rien
+           à y naviguer — c'est un titre, pas un maillon. -->
+      <template v-if="screenLabel">
+        <span class="crumb crumb--screen">{{ screenLabel }}</span>
+        <i class="pi pi-angle-right crumb-sep"></i>
+      </template>
+
       <button
           class="crumb crumb--root"
           :class="{ 'crumb--current': !currentNodeId }"
@@ -69,6 +76,7 @@
 
 <script setup>
 import { computed } from 'vue'
+import { useRoute } from 'vue-router'
 import { pathToInAxes } from '../script/trame'
 import ProgressChecklist from './ui/ProgressChecklist.vue'
 import { useAnalyse } from '../composables/useAnalyse'
@@ -107,13 +115,23 @@ const STEP_LABELS = {
   topics: 'thèmes',
 }
 
-// Checklist de progression d'analyse (store fourni par DocumentLayout). Visible
-// seulement en mode analyse (scoped), tant que la révélation n'est pas terminée
-// ou qu'une analyse tourne.
+// Checklist de progression d'analyse (store fourni par DocumentLayout).
 const {
   steps, stepStatus, topicsProgress, runAll,
-  revealDone, running, lexical, semantic, topics
+  running, lexical, semantic, topics
 } = useAnalyse()
+
+// Nom de l'écran, en tête du fil d'Ariane. Lu ici plutôt que reçu en prop :
+// c'est du vocabulaire d'affichage, `DocumentLayout` n'a pas à en arbitrer.
+// `scoped` ne suffirait pas — il ne sépare que l'édition du reste.
+const SCREEN_LABELS = {
+  config: 'Configuration',
+  document: 'Analyse',
+  editor: 'Édition',
+}
+
+const route = useRoute()
+const screenLabel = computed(() => SCREEN_LABELS[route.name] ?? null)
 
 const crumbs = computed(() => {
   if (!props.currentNodeId || !props.trame || !props.data) return []
@@ -136,9 +154,10 @@ const checklistProgress = computed(() => {
   return tp ? { pct: tp.pct, label: `${tp.step} (${Math.round(tp.pct)} %)` } : null
 })
 
-const checklistVisible = computed(
-  () => props.scoped && !!revealDone && (!revealDone.value || running.value !== null),
-)
+// La checklist rend compte d'une analyse EN COURS. Au repos elle affichait un
+// état figé que plus rien ne faisait avancer — du bruit permanent dans la barre.
+// Le bouton « Lancer / Relancer », lui, reste visible : c'est la porte d'entrée.
+const checklistVisible = computed(() => props.scoped && !!running && running.value !== null)
 </script>
 
 <style scoped lang="scss">
@@ -242,6 +261,16 @@ const checklistVisible = computed(
 .crumb--root {
   font-weight: 500;
   flex-shrink: 0;
+}
+
+/* Titre de l'écran : ni survol ni clic, mais la métrique des crumbs pour que la
+   ligne reste d'un seul tenant. */
+.crumb--screen {
+  flex-shrink: 0;
+  opacity: 1;
+  font-weight: 600;
+  color: var(--c-bar-accent);
+  cursor: default;
 }
 
 .crumb:hover {
