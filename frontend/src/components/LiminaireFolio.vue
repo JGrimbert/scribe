@@ -1,7 +1,7 @@
 <template>
-  <!-- UN folio physique, rendu à l'identique par les trois vues de composition
-       (planches, chemin de fer, accordéon). Sans état : le parent détient la
-       config, ce composant ne fait qu'afficher et émettre. -->
+  <!-- UN folio physique de l'accordéon. Sans état ET sans contrôle : la page ne
+       porte que son verdict, les contrôles vivent sous la scène (une page
+       réduite et chevauchée ne se clique pas). -->
   <div
       v-if="cell"
       class="folio"
@@ -18,56 +18,12 @@
     </template>
 
     <template v-else>
-      <button
-          v-if="!compact && cell.page.ordinal > 0"
-          class="folio-merge"
-          type="button"
-          title="Rattacher à la page précédente"
-          :class="{ active: joined }"
-          @click="$emit('toggle-merge')"
-      >
-        <i class="pi pi-arrow-up"></i>
-      </button>
-
-      <!-- COMPACT (accordéon) : la page ne porte QUE son verdict, les contrôles
-           vivent sous la scène. Une page réduite et chevauchée ne se clique pas. -->
-      <span v-if="compact" class="folio-typelabel" :class="{ 'is-empty': !type }">
+      <span class="folio-typelabel" :class="{ 'is-empty': !type }">
         <i v-if="!type && suggestion" class="pi pi-bolt"></i>
         {{ type ? labelOf(type) : suggestion ? `${labelOf(suggestion.key)} ?` : '— non typé —' }}
       </span>
 
-      <template v-else>
-        <BaseSelect
-            class="folio-type"
-            :model-value="type"
-            @update:model-value="$emit('update:type', $event)"
-        >
-          <option value="">— type —</option>
-          <option v-for="t in LIMINAIRE_PAGES" :key="t.key" :value="t.key">{{ t.label }}</option>
-        </BaseSelect>
-
-        <button
-            v-if="!type && suggestion"
-            class="suggest folio-suggest"
-            :class="`suggest--${suggestion.source}`"
-            type="button"
-            :title="suggestion.why"
-            @click="$emit('apply-suggestion')"
-        >
-          <i class="pi" :class="suggestion.source === 'flou' ? 'pi-sparkles' : 'pi-bolt'"></i>
-          <span v-if="suggestion.source === 'flou'">≈ </span>{{ labelOf(suggestion.key) }} ?
-        </button>
-      </template>
-
       <p class="folio-preview" :title="cell.page.preview">{{ cell.page.preview || '(vide)' }}</p>
-
-      <button
-          v-if="!compact"
-          class="folio-sidebtn"
-          type="button"
-          :title="`Côté : ${side} — cliquer pour changer`"
-          @click="$emit('cycle-side')"
-      >{{ sideGlyph }}</button>
     </template>
   </div>
 
@@ -76,26 +32,14 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
-import BaseSelect from './ui/BaseSelect.vue'
-import { LIMINAIRE_PAGES, LIMINAIRE_BY_KEY } from '../script/liminaire'
+import { LIMINAIRE_BY_KEY } from '../script/liminaire'
 
-const props = defineProps({
+defineProps({
   // Un slot d'imposition (cf. computeImposition) ou null pour un vis-à-vis vide.
   cell: { type: Object, default: null },
   type: { type: String, default: '' },
   suggestion: { type: Object, default: null },
-  side: { type: String, default: 'auto' },
-  joined: { type: Boolean, default: false },
-  // Accordéon : page en lecture seule (les contrôles vivent sous la scène).
-  compact: { type: Boolean, default: false },
 })
-
-defineEmits(['update:type', 'apply-suggestion', 'toggle-merge', 'cycle-side'])
-
-const sideGlyph = computed(() =>
-  props.side === 'recto' ? 'R' : props.side === 'verso' ? 'V' : '·',
-)
 
 function labelOf(key) {
   return LIMINAIRE_BY_KEY.get(key)?.label ?? key
@@ -121,9 +65,20 @@ function labelOf(key) {
   overflow: hidden;
 }
 
+/* Blanche et garde ne portent RIEN : sans trame, deux rectangles vides ne se
+   distinguent ni l'un de l'autre, ni d'une page pleine qu'on n'a pas typée.
+   Les hachures obliques disent « cette page n'est pas à remplir » ; le PAS les
+   sépare — large et pâle pour la blanche (du papier qui reste blanc), serré et
+   franc pour la garde (une face qu'on ne verra jamais). */
 .folio--blank {
   border-style: dashed;
-  background: none;
+  background: repeating-linear-gradient(
+      45deg,
+      transparent,
+      transparent 9px,
+      color-mix(in srgb, var(--c-border) 55%, transparent) 9px,
+      color-mix(in srgb, var(--c-border) 55%, transparent) 10px
+  );
   box-shadow: none;
 }
 
@@ -137,7 +92,6 @@ function labelOf(key) {
   justify-content: center;
 }
 
-
 .folio-num {
   position: absolute;
   top: 0.25em;
@@ -148,25 +102,18 @@ function labelOf(key) {
   font-variant-numeric: tabular-nums;
 }
 
+/* Sur la trame, un libellé nu devient illisible : il lui faut son propre fond. */
 .folio-blank-label {
+  padding: 0.15em 0.5em;
+  border-radius: var(--radius-sm);
+  background: var(--c-surface);
   font-size: var(--fs-xs);
   font-style: italic;
   color: var(--c-ink2);
-  opacity: var(--op-muted);
 }
 
-.folio-type {
-  width: 100%;
-  font-size: var(--fs-sm);
-  margin-top: var(--sp-2);
-}
-
-.folio-suggest {
-  font-size: var(--fs-xs);
-}
-
-/* Verdict en lecture seule (accordéon) : le type posé, ou la suggestion en
-   attente — reprise de la teinte d'accent pour qu'elle se lise « proposée ». */
+/* Verdict en lecture seule : le type posé, ou la suggestion en attente —
+   reprise de la teinte d'accent pour qu'elle se lise « proposée ». */
 .folio-typelabel {
   margin-top: var(--sp-2);
   font-size: var(--fs-xs);
@@ -191,61 +138,5 @@ function labelOf(key) {
   display: -webkit-box;
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
-}
-
-/* Côté imposé/choisi : pastille en bas, cliquable pour cycler. */
-.folio-sidebtn {
-  margin-top: auto;
-  width: 1.7em;
-  height: 1.7em;
-  border-radius: 50%;
-  border: 1px solid var(--c-border);
-  background: var(--c-surface);
-  color: var(--c-ink2);
-  font: inherit;
-  font-size: var(--fs-xs);
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.folio-merge {
-  position: absolute;
-  top: 0.2em;
-  right: 0.3em;
-  border: 0;
-  background: none;
-  color: var(--c-ink2);
-  font-size: var(--fs-xs);
-  cursor: pointer;
-  opacity: 0;
-  transition: opacity 0.1s ease;
-}
-
-.folio:hover .folio-merge { opacity: var(--op-muted); }
-.folio-merge:hover, .folio-merge.active { opacity: 1; color: var(--c-accent); }
-
-/* Indice inline : une proposition à un clic, en teinte d'accent discrète. */
-.suggest {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3em;
-  border: 1px dashed var(--c-accent);
-  border-radius: 1em;
-  background: none;
-  color: var(--c-accent);
-  font: inherit;
-  font-size: var(--fs-xs);
-  padding: 0.1em 0.6em;
-  cursor: pointer;
-  opacity: var(--op-muted);
-}
-
-.suggest:hover { opacity: 1; }
-
-/* Suggestion sémantique (floue) : ton distinct de l'accent (déterministe, sûr)
-   pour que « deviné » ne se confonde pas avec « déduit ». */
-.suggest--flou {
-  border-color: var(--c-ink2);
-  color: var(--c-ink2);
 }
 </style>

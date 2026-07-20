@@ -71,32 +71,20 @@
             :default-rule-set="rules.default"
             @toggle-rules="toggleDepth"
         >
+          <!-- Les deux bornes du livre se reprennent depuis le composer : c'est
+               le dernier vis-à-vis du liminaire qui dit où il s'arrête. Étendre
+               comme exclure passent par le même recalibrage. -->
           <template v-if="section.zone.key === 'liminaire'" #body>
-            <LiminaireComposer :pages="liminairePages" :config="liminaireConfig" :title="doc?.title ?? ''" />
-          </template>
-
-          <template v-if="section.zone.key === 'liminaire'" #lead>
-            <div class="borders">
-              <UiNote variant="hint">
-                Les deux bornes du livre — fin du liminaire, début de la partie finale — se reprennent
-                ici. C'est un recalibrage : il reconstruit l'arbre depuis le <code>.odt</code>
-                d'origine.
-              </UiNote>
-              <UiNote v-if="!recalibratable" variant="hint">
-                Ce document a été importé avant que le <code>.odt</code> ne soit conservé : il n'est
-                pas recalibrable. Seul un réimport rattache son fichier d'origine.
-              </UiNote>
-              <UiNote v-if="recalError" variant="error">{{ recalError }}</UiNote>
-              <BaseButton
-                  variant="outline"
-                  icon="pi-refresh"
-                  :disabled="!recalibratable"
-                  :busy="starting"
-                  @click="startRecalibration"
-              >
-                Reprendre les bornes du livre
-              </BaseButton>
-            </div>
+            <LiminaireComposer
+                :pages="liminairePages"
+                :config="liminaireConfig"
+                :title="doc?.title ?? ''"
+                :recalibratable="recalibratable"
+                :starting="starting"
+                :recal-error="recalError"
+                @extend="startRecalibration"
+                @exclude="startRecalibration"
+            />
           </template>
         </TypologySection>
 
@@ -317,15 +305,6 @@ async function onDelete() {
   font-size: var(--fs-md);
 }
 
-/* La reprise des bornes : action secondaire, posée sous l'en-tête de la section
-   Liminaire. */
-.borders {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--sp-2);
-  margin-top: var(--sp-3);
-}
 
 /* Une grille qui remplit la largeur plutôt qu'une colonne étroite : chaque
    surlignage se décide couleur par couleur, mais rien n'oblige à les empiler. */

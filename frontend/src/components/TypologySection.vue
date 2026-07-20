@@ -4,11 +4,8 @@
       <h3 class="typo-title">
         <span class="zone-swatch" :style="{ background: zone.color }"></span>
         {{ zone.label }}
-        <span v-if="styles.length" class="count">{{ styles.length }}</span>
       </h3>
-      <p class="typo-hint">{{ zone.hint }}</p>
-      <!-- Point d'injection contextuel : la reprise des bornes du livre pour le
-           liminaire, par exemple. -->
+      <!-- Point d'injection contextuel, si une zone a de quoi le nourrir. -->
       <slot name="lead" />
     </header>
 
@@ -122,17 +119,6 @@ defineEmits(['toggle-rules'])
   border-radius: var(--radius-sm);
   align-self: center;
   flex-shrink: 0;
-}
-
-.count {
-  opacity: var(--op-faint);
-  font-weight: 400;
-}
-
-.typo-hint {
-  margin: var(--sp-1) 0 0;
-  color: var(--c-ink2);
-  font-size: var(--fs-sm);
 }
 
 /* Modèles inlinés sous la table : une ligne de signatures, discrète. */
