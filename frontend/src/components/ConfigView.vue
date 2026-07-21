@@ -102,6 +102,7 @@
           :style-roles="styles"
           :rule-set="section.depthKey !== null ? (rules.byDepth[section.depthKey] ?? null) : null"
           :default-rule-set="rules.default"
+          :data="documentData"
           @toggle-rules="toggleDepth"
       >
         <!-- Les deux bornes du livre se reprennent depuis le composer : c'est

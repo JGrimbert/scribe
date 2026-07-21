@@ -9,53 +9,68 @@
       <slot name="lead" />
     </header>
 
-    <!-- Niveau de chapitrage : styles + modèles inlinés dans le main, règles
-         d'éligibilité dans l'aside. Cadre effacé (bare) : c'est l'aside qui
-         porte la bordure. -->
+    <!-- Niveau de chapitrage : trois colonnes en plein écran —
+         1) aperçu d'une page (témoin du modèle sélectionné) + liste des modèles,
+         2) table des styles,
+         3) règles d'éligibilité. -->
     <template v-if="depthKey !== null">
-      <AnalyseBlock aside="right" bare>
-        <template #main>
-          <StyleRolesTable :styles="styles" :style-roles="styleRoles" />
+      <div class="typo-cols">
+        <!-- Col 1 : aperçu + modèles ------------------------------------------ -->
+        <div class="col col--preview">
+          <!-- PERF à surveiller : une iframe pagedjs (~900 Ko UMD) par section,
+               jusqu'à 3 sur cet écran. Pistes (mutualiser un pagedjs, paginer à la
+               demande) documentées en mémoire si le chargement devient lourd. -->
+          <div class="preview-frame">
+            <FolioView :data="data" :node-id="witnessNodeId" :depth="depthKey" />
+          </div>
 
-          <!-- Modèles inlinés, discrets : les formes récurrentes en une ligne,
-               pas une card à part. Le corps ne porte pas son ×N (cf.
-               script/shapes.js). -->
           <div class="models">
             <UiNote v-if="shapesError" variant="error">{{ shapesError }}</UiNote>
-            <template v-else-if="shapeGroup && shapeGroup.signatures.length">
-              <span class="models-label">Modèles</span>
-              <span class="models-meta">{{ shapeGroup.total - shapeGroup.empty }}/{{ shapeGroup.total }} rédigés</span>
+            <template v-else-if="activeSignature">
+              <div class="models-head">
+                <span class="models-label">Modèles</span>
+                <span class="models-meta">{{ shapeGroup.total - shapeGroup.empty }}/{{ shapeGroup.total }} rédigés</span>
+              </div>
+              <!-- Le corps ne porte jamais son ×N (cf. script/shapes.js). Chaque
+                   signature pilote l'aperçu ; le 1er est le témoin par défaut. -->
               <ul class="model-list">
-                <li
-                    v-for="signature in shapeGroup.signatures.slice(0, 8)"
-                    :key="signature.key"
-                    class="model"
-                    :title="signature.nodes.map((n) => n.titre).join(', ')"
-                >
-                  <code class="model-sig">{{ signature.label }}</code>
-                  <span class="model-pct">{{ signature.pct }} %</span>
+                <li v-for="signature in shapeGroup.signatures" :key="signature.key">
+                  <button
+                      type="button"
+                      class="model"
+                      :class="{ 'model--active': signature.key === activeSignature.key }"
+                      :title="signature.nodes.map((n) => n.titre).join(', ')"
+                      @click="selectedKey = signature.key"
+                  >
+                    <code class="model-sig">{{ signature.label }}</code>
+                    <span class="model-pct">{{ signature.pct }} %</span>
+                  </button>
                 </li>
               </ul>
             </template>
+            <p v-else class="models-empty">Aucun modèle relevé à ce niveau.</p>
           </div>
-        </template>
+        </div>
 
-        <template #aside>
-          <div class="rules-aside">
-            <h4 class="rules-title">Règles d'éligibilité</h4>
-            <label class="rule-override">
-              <input type="checkbox" :checked="!!ruleSet" @change="$emit('toggle-rules', depthKey)" />
-              <span>Des règles propres à ce niveau</span>
-            </label>
-            <!-- Toujours affichées : quand le niveau suit le défaut, on montre
-                 les valeurs du défaut en grisé plutôt qu'un vide. -->
-            <RuleSetForm :rule-set="ruleSet ?? defaultRuleSet" :disabled="!ruleSet" />
-            <p v-if="!ruleSet" class="rules-scope">
-              Ce niveau suit les règles par défaut. Cocher part d'une copie du défaut.
-            </p>
-          </div>
-        </template>
-      </AnalyseBlock>
+        <!-- Col 2 : la table des styles --------------------------------------- -->
+        <div class="col col--table">
+          <StyleRolesTable :styles="styles" :style-roles="styleRoles" />
+        </div>
+
+        <!-- Col 3 : les règles d'éligibilité ---------------------------------- -->
+        <div class="col col--rules">
+          <h4 class="rules-title">Règles d'éligibilité</h4>
+          <label class="rule-override">
+            <input type="checkbox" :checked="!!ruleSet" @change="$emit('toggle-rules', depthKey)" />
+            <span>Des règles propres à ce niveau</span>
+          </label>
+          <!-- Quand le niveau suit le défaut, valeurs du défaut en grisé. -->
+          <RuleSetForm :rule-set="ruleSet ?? defaultRuleSet" :disabled="!ruleSet" />
+          <p v-if="!ruleSet" class="rules-scope">
+            Ce niveau suit les règles par défaut. Cocher part d'une copie du défaut.
+          </p>
+        </div>
+      </div>
     </template>
 
     <!-- Liminaire, partie finale : pas de nœuds/modèles/règles. Par défaut les
@@ -70,12 +85,13 @@
 </template>
 
 <script setup>
-import AnalyseBlock from './analyse/AnalyseBlock.vue'
+import { computed, ref, watch } from 'vue'
+import FolioView from './FolioView.vue'
 import RuleSetForm from './RuleSetForm.vue'
 import StyleRolesTable from './StyleRolesTable.vue'
 import UiNote from './ui/UiNote.vue'
 
-defineProps({
+const props = defineProps({
   zone: { type: Object, required: true },
   styles: { type: Array, required: true },
   // Groupe de modèles de la zone (nul hors chapitrage).
@@ -90,9 +106,30 @@ defineProps({
   ruleSet: { type: Object, default: null },
   // Le jeu par défaut, montré grisé quand le niveau n'a pas de règles propres.
   defaultRuleSet: { type: Object, required: true },
+  // Le contenu du document (keyé par nodeId) : l'aperçu rend le nœud témoin.
+  data: { type: Object, default: null },
 })
 
 defineEmits(['toggle-rules'])
+
+// Modèle sélectionné (pilote l'aperçu). `null` → repli sur le premier, le témoin
+// par défaut. `shapeGroup` est recalculé à CHAQUE édition de rôle (nouvel objet) :
+// on ne réinitialise donc la sélection que si la signature choisie a réellement
+// disparu, sans quoi le moindre changement de dropdown ramènerait l'aperçu au
+// premier modèle.
+const selectedKey = ref(null)
+watch(() => props.shapeGroup, (group) => {
+  const keys = new Set((group?.signatures ?? []).map((s) => s.key))
+  if (selectedKey.value && !keys.has(selectedKey.value)) selectedKey.value = null
+})
+
+const activeSignature = computed(() => {
+  const sigs = props.shapeGroup?.signatures ?? []
+  return sigs.find((s) => s.key === selectedKey.value) ?? sigs[0] ?? null
+})
+
+// Le témoin : le premier nœud concerné par le modèle actif.
+const witnessNodeId = computed(() => activeSignature.value?.nodes?.[0]?.nodeId ?? null)
 </script>
 
 <style scoped>
@@ -121,13 +158,43 @@ defineEmits(['toggle-rules'])
   flex-shrink: 0;
 }
 
-/* Modèles inlinés sous la table : une ligne de signatures, discrète. */
+/* Trois colonnes en plein écran ; `minmax(0, 1fr)` sur la table pour qu'elle
+   puisse rétrécir (sinon son contenu la fait déborder). */
+.typo-cols {
+  display: grid;
+  grid-template-columns: minmax(15em, 20em) minmax(0, 1fr) minmax(16em, 22em);
+  gap: var(--sp-5);
+  align-items: start;
+}
+
+/* En deçà, la grille ne tient plus : on empile. */
+@media (max-width: 75em) {
+  .typo-cols {
+    grid-template-columns: 1fr;
+  }
+}
+
+.col {
+  min-width: 0;
+}
+
+/* ── Col 1 : aperçu + modèles ─────────────────────────────────────────────── */
+.preview-frame {
+  padding: var(--sp-3);
+  background: var(--c-folio-bg, var(--c-surface));
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-md);
+}
+
 .models {
-  margin-top: var(--sp-4);
+  margin-top: var(--sp-3);
+}
+
+.models-head {
   display: flex;
-  flex-wrap: wrap;
   align-items: baseline;
-  gap: var(--sp-2) var(--sp-3);
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-2);
 }
 
 .models-label {
@@ -140,6 +207,12 @@ defineEmits(['toggle-rules'])
   opacity: var(--op-faint);
 }
 
+.models-empty {
+  margin: 0;
+  color: var(--c-ink2);
+  font-size: var(--fs-sm);
+}
+
 .model-list {
   list-style: none;
   margin: 0;
@@ -147,22 +220,35 @@ defineEmits(['toggle-rules'])
   display: flex;
   flex-wrap: wrap;
   gap: var(--sp-2);
-  flex: 1 1 100%;
 }
 
+/* Une signature cliquable : elle sélectionne le témoin affiché dans l'aperçu. */
 .model {
   display: inline-flex;
   align-items: baseline;
   gap: 0.4em;
+  padding: 0.15em 0.55em;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-md);
+  background: var(--c-surface);
+  font: inherit;
   font-size: var(--fs-sm);
+  cursor: pointer;
+  transition: border-color 0.1s ease, background 0.1s ease;
+}
+
+.model:hover {
+  border-color: var(--c-accent);
+}
+
+.model--active {
+  border-color: var(--c-accent);
+  background: var(--c-accent-soft, var(--c-surface));
+  box-shadow: inset 0 0 0 1px var(--c-accent);
 }
 
 .model-sig {
   font-family: var(--font-ui);
-  padding: 0.1em 0.5em;
-  border-radius: var(--radius-md);
-  background: var(--c-surface);
-  border: 1px solid var(--c-border);
 }
 
 .model-pct {
@@ -170,10 +256,11 @@ defineEmits(['toggle-rules'])
   opacity: var(--op-muted);
 }
 
-/* L'aside porte sa propre bordure (mode bare) : elle a besoin de sa
-   respiration. */
-.rules-aside {
-  padding: var(--split-pad-aside, var(--sp-4));
+/* ── Col 3 : règles ───────────────────────────────────────────────────────── */
+.col--rules {
+  padding: var(--sp-4);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-md);
 }
 
 .rules-title {

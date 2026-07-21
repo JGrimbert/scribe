@@ -69,9 +69,11 @@ function measure({ measureEl, blocks }) {
 let _uid = 0
 const uid = () => `blk_${Date.now()}_${_uid++}`
 
-const TITLE_TAG_BY_DEPTH = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']
+export const TITLE_TAG_BY_DEPTH = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']
 
-function buildBlocks(sections) {
+// Exporté : l'aperçu de config (FolioView) construit le même HTML de blocs que
+// l'éditeur pour le donner à paginer à un Previewer tournant DANS son iframe.
+export function buildBlocks(sections) {
     const blocks = []
 
     for (const section of sections) {
