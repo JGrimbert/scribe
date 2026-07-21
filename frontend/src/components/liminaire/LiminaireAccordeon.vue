@@ -376,8 +376,6 @@ function labelOf(key) {
 .accordeon {
   display: flex;
   flex-direction: column;
-  background-color: var(--c-aside-bck);
-  padding: 1em 2em;
   border-radius: var(--radius-md);
 }
 
@@ -387,6 +385,8 @@ function labelOf(key) {
     position: relative;
     height: 22em;
     overflow: hidden;
+/*    background-color: var(--c-aside-bck);
+    padding: 1em 2em;*/
   }
 
   &-backdrop {

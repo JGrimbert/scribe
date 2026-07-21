@@ -8,7 +8,7 @@
         titre. Exclus de l'analyse thématique.
       </UiNote>
       <UiNote>{{ anomalies.length }} chapitre(s) sur {{ leafCount }}.</UiNote>
-      <UiTable scroll>
+      <UiTable scroll flat>
         <thead>
           <tr>
             <th>Chapitre</th>

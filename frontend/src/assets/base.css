@@ -27,6 +27,21 @@
     --c-aside-bck: #f1f2e4; /* colonne latérale (registre) — vert sourd */
     --c-paper-cream: #f7f1e3; /* crème franc — ce qui n'est PAS une page du livre */
 
+    /* Tables (UiTable) — cadre « encadré » et en-tête cyan repris de la doc-bar
+       (le #8ed4e1 est la teinte de --c-doc-bar-bck, ici hors thème teal donc
+       promue en token global). Le fond est TRANSLUCIDE, comme la doc-bar :
+       couplé à backdrop-filter côté composant, il laisse apercevoir le corps
+       (flouté) qui défile dessous. --c-table-ring garde une pointe de
+       transparence pour laisser filer un léger backdrop. --c-table-head-ink =
+       le bleu du fil d'Ariane (--c-bar-accent en thème teal). */
+    --c-table-ring: color-mix(in srgb, floralwhite 90%, transparent);
+    --c-table-head-bg: rgba(142, 212, 225, 0.5);
+    --c-table-head-border: var(--c-accent-alt);
+    --c-table-head-ink: var(--c-accent-alt-darker);
+    /* Survol de ligne : --c-paper à peine assombri (pas un beige franc comme
+       --c-surface2, qui virait « ligne sélectionnée »). */
+    --c-table-row-hover: color-mix(in srgb, var(--c-ink) 5%, var(--c-paper));
+
 
     --c-ink: #1a1612;
     --c-ink2: #5a5047;

@@ -9,7 +9,7 @@
       <UiNote v-if="hint" variant="hint">{{ hint }}</UiNote>
       <UiNote v-if="!pairs.length" variant="hint">Aucune paire pour ce critère.</UiNote>
 
-      <UiTable v-else>
+      <UiTable v-else flat>
         <tbody>
           <tr
               v-for="pair in pairs"

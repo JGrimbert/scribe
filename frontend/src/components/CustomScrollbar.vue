@@ -228,6 +228,11 @@ onUnmounted(() => {
   window.removeEventListener('mouseup', onMouseUp)
   stopStepping()
 })
+
+// `measure` ne se déclenche que sur resize/mutation/mount : un parent qui
+// change `topOffset` après coup (UiTable, une fois la hauteur du thead connue)
+// doit pouvoir forcer le recalcul de la track.
+defineExpose({ measure })
 </script>
 
 <style scoped>

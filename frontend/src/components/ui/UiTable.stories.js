@@ -41,6 +41,24 @@ export const AvecScoreBar = {
   }),
 }
 
+export const Flat = {
+  render: () => ({
+    components: { UiTable },
+    template: `
+      <UiTable flat>
+        <thead>
+          <tr><th>Article</th><th class="num">Mots</th><th class="num">Phrases</th></tr>
+        </thead>
+        <tbody>
+          <tr class="row-link"><td>L'Aube</td><td class="num">42</td><td class="num">4</td></tr>
+          <tr class="row-link"><td>Le Désamour</td><td class="num">107</td><td class="num">6</td></tr>
+          <tr class="row-link"><td>L'Éclipse</td><td class="num">194</td><td class="num">13</td></tr>
+        </tbody>
+      </UiTable>
+    `,
+  }),
+}
+
 export const AvecScroll = {
   render: () => ({
     components: { UiTable },

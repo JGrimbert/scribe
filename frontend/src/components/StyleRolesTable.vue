@@ -1,12 +1,12 @@
 <template>
-  <UiTable v-if="styles.length">
-    <thead>
+  <UiTable v-if="styles.length" scroll>
+<!--    <thead>
       <tr>
         <th>style</th>
         <th>extrait</th>
         <th class="role-col">rôle</th>
       </tr>
-    </thead>
+    </thead>-->
     <tbody>
       <tr v-for="style in styles" :key="style.name">
         <td>

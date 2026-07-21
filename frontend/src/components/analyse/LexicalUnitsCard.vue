@@ -1,6 +1,6 @@
 <template>
   <UiCard v-if="units.length" title="Statistiques par article">
-    <UiTable scroll>
+    <UiTable scroll flat>
       <thead>
         <tr>
           <th>Article</th>

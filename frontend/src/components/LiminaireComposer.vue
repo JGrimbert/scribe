@@ -47,17 +47,20 @@
 
     <template #aside>
       <div class="lim-aside">
-        <section class="lim-group lim-group--edit">
-          <!-- Le découpage suit le FOCUS : dérouler tout le liminaire à côté
+        <!-- L
+        <section class="lim-group lim-group--edit"></section>
+          e découpage suit le FOCUS : dérouler tout le liminaire à côté
                d'un vis-à-vis unique obligeait à chercher, dans une liste de
                dix pages, les deux qu'on a sous les yeux. -->
-          <h4 class="lim-title">Découpage</h4>
+<!--          <h4 class="lim-title">Découpage</h4>
           <p class="lim-scope">{{ scopeLabel }}</p>
+          -->
+
           <LiminaireDecoupage :pages="focusedPages" :config="config" :empty-label="emptyLabel" />
-        </section>
+
 
         <section class="lim-group lim-group--verdict">
-          <h4 class="lim-title">Éligibilité</h4>
+<!--          <h4 class="lim-title">Éligibilité</h4>-->
           <LiminaireEligibilite :elig="elig" />
         </section>
       </div>

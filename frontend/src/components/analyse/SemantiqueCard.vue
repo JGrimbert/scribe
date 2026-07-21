@@ -26,7 +26,7 @@
             Éditer <i class="pi pi-arrow-right"></i>
           </BaseButton>
         </header>
-        <UiTable>
+        <UiTable flat>
           <thead>
             <tr><th>Article proche</th><th class="score-col">Proximité</th></tr>
           </thead>

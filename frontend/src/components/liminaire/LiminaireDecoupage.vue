@@ -80,6 +80,7 @@ defineProps({
   border: 1px solid var(--c-border);
   border-radius: var(--radius-md);
   padding: var(--sp-2);
+  background-color: #fff;
 }
 
 /* Page blanche : structurante, pas du contenu — atténuée, en pointillés. */

@@ -20,7 +20,7 @@
 
     <UiCard bare>
       <p class="card-lead">Présence par axe</p>
-      <UiTable>
+      <UiTable flat>
         <tbody>
           <tr v-for="row in byAxe" :key="row.axeId ?? 'liminaire'">
             <td>{{ row.titre }}</td>
