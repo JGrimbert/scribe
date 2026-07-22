@@ -14,35 +14,10 @@ async function viewportHeight(page) {
   return page.evaluate(() => window.innerHeight)
 }
 
-test.describe('boucle de rétroaction Folia', () => {
-  // `.spread-scaler` (Folia) fait height:100%. Si un ancêtre a une hauteur
-  // indéfinie (parent bloc au lieu de flex), ce 100% se résout en `auto` :
-  // Folia mesure alors sa PROPRE hauteur scalée et la multiplie par 0.92 à
-  // chaque passage du ResizeObserver — décroissance géométrique jusqu'à
-  // disparition des folios.
-  test("l'échelle se stabilise au lieu de décroître indéfiniment", async ({ page }) => {
-    await gotoEditor(page, { paragraphCount: 3 })
-    await expect(page.locator('.folio')).toHaveCount(1, { timeout: 15000 })
-
-    const indicator = page.locator('.scale-indicator')
-    await page.waitForTimeout(600)
-    const first = await indicator.textContent()
-    await page.waitForTimeout(1500)
-    const second = await indicator.textContent()
-
-    expect(second, 'échelle instable entre deux relevés (boucle de rétroaction)').toBe(first)
-    expect(parseInt(first, 10), 'échelle effondrée').toBeGreaterThan(20)
-  })
-
-  test('le folio garde une hauteur exploitable', async ({ page }) => {
-    await gotoEditor(page, { paragraphCount: 3 })
-    await expect(page.locator('.folio')).toHaveCount(1, { timeout: 15000 })
-    await page.waitForTimeout(1500)
-
-    const folio = await box(page.locator('.folio').first())
-    expect(folio.height, 'folio écrasé par la boucle de rétroaction').toBeGreaterThan(150)
-  })
-})
+// NOTE : le bloc « boucle de rétroaction Folia » a été retiré avec la suppression
+// de l'ancien éditeur (Folia.vue). FolioView met à l'échelle via fitScale, sur un
+// clientHeight de parent flex indépendant du contenu (pas de boucle par
+// construction) — une couverture dédiée pourra être réécrite si besoin.
 
 test.describe('track dans les limites du viewport', () => {
   // La marge négative de `.document-layout` faisait grandir la boîte de

@@ -49,6 +49,22 @@ const emit = defineEmits([
 const editorHost = ref(null)
 let quill = null
 
+// Le clipboard de Quill écrase les espaces insécables ÉTROITES (U+202F, très
+// utilisées en français avant « » ; : ! ? ») en espaces normales → « mot » se
+// coupe en fin de ligne. On protège les insécables par des sentinelles (zone
+// privée) avant le paste, et on les restaure à chaque lecture du HTML de Quill.
+// U+00A0 est en principe conservé par Quill, on le protège aussi par sécurité.
+const NBSP_SENTINELS = [['\u00A0', '\uE000'], ['\u202F', '\uE001']]
+function protectNbsp(html) {
+  return NBSP_SENTINELS.reduce((s, [nb, sentinel]) => s.replaceAll(nb, sentinel), html)
+}
+function restoreNbsp(html) {
+  return NBSP_SENTINELS.reduce((s, [nb, sentinel]) => s.replaceAll(sentinel, nb), html)
+}
+function currentHtml() {
+  return restoreNbsp(quill.root.innerHTML)
+}
+
 function requestActivate() {
   if (!props.active) emit('request-activate')
 }
@@ -80,11 +96,11 @@ async function mountQuill() {
   if (linkButton) linkButton.innerHTML = '<i class="pi pi-link"></i>'
   emit('toolbar-ready', toolbarEl)
 
-  quill.clipboard.dangerouslyPasteHTML(props.modelValue || '')
+  quill.clipboard.dangerouslyPasteHTML(protectNbsp(props.modelValue || ''))
   quill.focus()
 
   quill.on('text-change', () => {
-    emit('update:modelValue', quill.root.innerHTML)
+    emit('update:modelValue', currentHtml())
     emitState()
   })
 
@@ -216,7 +232,7 @@ function handleArrowUp(e) {
 function emitState() {
   const range = quill.getSelection()
   emit('state-change', {
-    html: quill.root.innerHTML,
+    html: currentHtml(),
     index: range ? range.index : null,
     length: range ? range.length : 0,
   })
@@ -271,11 +287,15 @@ onBeforeUnmount(() => {
 .preview,
 .quill-block :deep(.ql-editor) {
   font-family: var(--editor-font-family, Georgia, 'Times New Roman', serif);
+  /* Plancher de justification : le livre est toujours justifié (paged.css), mais
+     cette CSS vit dans l'iframe et n'atteint plus Quill (document principal)
+     depuis le passage en frame. syncQuill recopie la vraie valeur calculée du
+     fragment par-dessus ; ce plancher garantit la métrique dès le montage. */
+  text-align: justify;
   /*font-size: var(--editor-font-size, 1rem);
   line-height: var(--editor-line-height, 1.185);
   color: var(--editor-color, inherit);
-  padding: 0;
-  text-align: var(--editor-text-align, justify);*/
+  padding: 0;*/
 }
 
 .preview p,

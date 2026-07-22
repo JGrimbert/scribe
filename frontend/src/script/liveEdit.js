@@ -9,7 +9,7 @@ export function applyMirrorHtml(el, quillHtml) {
 }
 
 export function charIndexFromNodeOffset(rootEl, node, offset) {
-    const walker = document.createTreeWalker(rootEl, NodeFilter.SHOW_TEXT)
+    const walker = rootEl.ownerDocument.createTreeWalker(rootEl, NodeFilter.SHOW_TEXT)
     let count = 0
     let current = walker.nextNode()
     while (current) {
@@ -30,7 +30,7 @@ export function getCaretRect(root, charIndex) {
     let remaining = charIndex
 
     for (const block of blocks) {
-        const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT)
+        const walker = block.ownerDocument.createTreeWalker(block, NodeFilter.SHOW_TEXT)
         let node, lastNode = null
 
         while ((node = walker.nextNode())) {
@@ -56,7 +56,7 @@ export function getCaretRect(root, charIndex) {
 // fiable), cette Range est toujours scopée à UN SEUL élément — à appliquer
 // fragment par fragment pour composer l'overlay d'une sélection cross-fragment.
 export function getRangeRects(el, startCharIdx, endCharIdx) {
-    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT)
+    const walker = el.ownerDocument.createTreeWalker(el, NodeFilter.SHOW_TEXT)
     let count = 0
     let startNode = null, startOffset = 0
     let endNode = null, endOffset = 0
@@ -86,7 +86,7 @@ export function getRangeRects(el, startCharIdx, endCharIdx) {
         endOffset = lastNode ? lastNode.textContent.length : 0
     }
 
-    const range = document.createRange()
+    const range = el.ownerDocument.createRange()
     range.setStart(startNode, Math.min(startOffset, startNode.textContent.length))
     range.setEnd(endNode, Math.min(endOffset, endNode.textContent.length))
 
@@ -99,7 +99,7 @@ export function getRangeRects(el, startCharIdx, endCharIdx) {
 }
 
 function rectAtOffset(node, offset) {
-    const range = document.createRange()
+    const range = node.ownerDocument.createRange()
     const safeOffset = Math.min(offset, node.textContent.length)
     range.setStart(node, safeOffset)
     range.collapse(true)
@@ -108,7 +108,7 @@ function rectAtOffset(node, offset) {
 }
 
 export function getCharIndexAtPoint(root, x, y) {
-    const range = caretRangeFromPoint(x, y)
+    const range = caretRangeFromPoint(root.ownerDocument, x, y)
     if (!range || !root.contains(range.startContainer)) return null
 
     const isContainerOfLines =
@@ -129,12 +129,15 @@ export function getCharIndexAtPoint(root, x, y) {
     return Math.max(0, total - 1) // clic après le dernier bloc
 }
 
-function caretRangeFromPoint(x, y) {
-    if (document.caretRangeFromPoint) return document.caretRangeFromPoint(x, y)
-    if (document.caretPositionFromPoint) {
-        const pos = document.caretPositionFromPoint(x, y)
+// Le `document` est celui du nœud visé (celui de l'iframe en mode édition,
+// le document principal sinon) — sans quoi le point cliqué serait interprété
+// dans le mauvais réalm.
+function caretRangeFromPoint(doc, x, y) {
+    if (doc.caretRangeFromPoint) return doc.caretRangeFromPoint(x, y)
+    if (doc.caretPositionFromPoint) {
+        const pos = doc.caretPositionFromPoint(x, y)
         if (!pos) return null
-        const range = document.createRange()
+        const range = doc.createRange()
         range.setStart(pos.offsetNode, pos.offset)
         return range
     }
@@ -142,7 +145,7 @@ function caretRangeFromPoint(x, y) {
 }
 
 function textLength(block) {
-    const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT)
+    const walker = block.ownerDocument.createTreeWalker(block, NodeFilter.SHOW_TEXT)
     let len = 0, node
     while ((node = walker.nextNode())) len += node.textContent.length
     return len
@@ -152,7 +155,7 @@ function offsetWithinBlock(block, range) {
     const { startContainer, startOffset } = range
 
     if (startContainer.nodeType === Node.TEXT_NODE) {
-        const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT)
+        const walker = block.ownerDocument.createTreeWalker(block, NodeFilter.SHOW_TEXT)
         let node, total = 0
         while ((node = walker.nextNode())) {
             if (node === startContainer) return total + startOffset
@@ -162,7 +165,7 @@ function offsetWithinBlock(block, range) {
     }
 
     // clic sur un nœud élément (ex: paragraphe vide)
-    const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT)
+    const walker = block.ownerDocument.createTreeWalker(block, NodeFilter.SHOW_TEXT)
     let node, total = 0
     const before = startContainer.childNodes[startOffset - 1] || null
 

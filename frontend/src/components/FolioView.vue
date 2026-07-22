@@ -1,54 +1,211 @@
 <template>
   <div ref="rootRef" class="folio-view" :class="`folio-view--${mode}`">
-    <iframe ref="frameRef" class="folio-frame" :title="mode === 'edit' ? 'Pages du chapitre' : 'Aperçu de page'" />
+    <div class="folio-scroll">
+      <iframe ref="frameRef" class="folio-frame" :title="mode === 'edit' ? 'Pages du chapitre' : 'Aperçu de page'" />
+    </div>
     <p v-if="!hasContent" class="folio-empty">Aucun aperçu disponible.</p>
+
+    <!-- Indicateur de zoom (édition), épinglé hors de la zone scrollable. -->
+    <div v-if="mode === 'edit' && hasContent" class="scale-indicator">{{ Math.round(scalePercent) }} %</div>
+
+    <!-- ─── Édition : overlays téléportés dans le body principal ─────────────── -->
+    <template v-if="mode === 'edit'">
+      <!-- Quill flottant (invisible par défaut : l'utilisateur voit le miroir
+           Folio + le faux curseur ; Quill ne fait que capter la frappe). Placé
+           par syncQuill au-dessus du fragment, avec l'offset iframe. -->
+      <Teleport to="body">
+        <div
+            v-if="editorVisible"
+            class="fragment-editor"
+            :class="{ 'fragment-editor--hidden': !quillVisible }"
+        >
+          <QuillBlock
+              ref="quillBlockRef"
+              :key="editingId"
+              :model-value="initialHtml"
+              :initial-index="pendingIndex"
+              :initial-length="pendingLength"
+              :is-first-fragment="isFirstFragment"
+              :is-last-fragment="isLastFragment"
+              active
+              @state-change="onFragmentStateChange"
+              @maj="commitEdit"
+              @merge-next="mergeNextFragment"
+              @merge-prev="mergePrevFragment"
+              @arrow-down="navigateDown"
+              @arrow-up="navigateUp"
+              @toolbar-ready="registerToolbar"
+              @request-internal-link="() => {}"
+          />
+        </div>
+      </Teleport>
+
+      <Teleport to="body">
+        <div
+            v-if="cursorRect"
+            class="fake-cursor"
+            :style="{ top: cursorRect.top + 'px', left: cursorRect.left + 'px', height: cursorRect.height + 'px' }"
+        />
+        <div
+            v-for="(rect, i) in selectionRects"
+            :key="i"
+            class="fake-selection-rect"
+            :style="{ position: 'fixed', top: rect.top + 'px', left: rect.left + 'px', width: rect.width + 'px', height: rect.height + 'px' }"
+        />
+      </Teleport>
+    </template>
   </div>
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import QuillBlock from './QuillBlock.vue'
 import { buildBlocks } from '../script/paginate.js'
+import { buildFragmentRegistry, createFragmentApi } from '../script/fragment.js'
+import { createRegistry } from '../script/registry.js'
+import { syncQuillToFragment } from '../script/syncQuill.js'
+import { useFakeCaret } from '../composables/useFakeCaret.js'
+import { useFloatingToolbar } from '../composables/useFloatingToolbar.js'
+import { useFragmentEditor } from '../composables/useFragmentEditor.js'
 
 const props = defineProps({
-  // 'read' : aperçu compact (une page, sans Quill).
-  // 'edit' : la rangée de pages du chapitre (Quill/overlays viendront ensuite).
+  // 'read' : aperçu compact (une page, sans édition).
+  // 'edit' : la rangée de pages du chapitre + édition (Quill flottant, curseur,
+  //          sélection) — même mécanique que l'éditeur historique, mais le DOM
+  //          Folio vit dans l'iframe (coordonnées recalées par l'offset).
   mode: { type: String, default: 'read' },
-  // Le modèle de données du document (keyé par nodeId).
   data: { type: Object, default: null },
-  // Le nœud à rendre (aperçu : le témoin ; édition : le chapitre courant).
   nodeId: { type: String, default: null },
-  // Profondeur → tag de titre (h1..h6), pour porter le bon niveau.
   depth: { type: Number, default: 0 },
-  // Édition seulement : combien de pages viser dans la largeur visible (le reste
-  // défile horizontalement), comme le `visiblePages` de Folia.
   visiblePages: { type: Number, default: 2.2 },
+  // Debug : rendre visible le Quill flottant (sinon seul le miroir Folio l'est).
+  quillVisible: { type: Boolean, default: false },
 })
 
 const rootRef = ref(null)
 const frameRef = ref(null)
 
-// URLs ABSOLUES : l'iframe sans `src` a une base `about:blank`, où un chemin
-// racine résout mal. On fige donc tout contre l'origine du parent. Le build UMD
-// de Paged.js est servi par un middleware dev (cf. vite.config.js).
+// URLs ABSOLUES : l'iframe sans `src` a une base `about:blank`. Le build UMD de
+// Paged.js est servi par un middleware dev (cf. vite.config.js).
 const PAGED_SRC = new URL('/vendor/paged.js', window.location.href).href
 const CSS_HREF = new URL('/paged.css', window.location.href).href
 
-// HTML source du nœud : mêmes blocs que l'éditeur (titre, paragraphes, listes,
-// tableaux) via buildBlocks — l'aperçu et l'édition partagent le rendu.
+// Respiration autour des pages en édition (px). Doit rester synchro avec le
+// padding de .folio-scroll ci-dessous (fitScale la retire de la place disponible).
+const EDIT_PAD = 40
+
+// Le nœud à rendre, et ses blocs (mêmes que l'éditeur via buildBlocks). `section`
+// est l'OWNER du registre : muté en place par l'édition (son `texte` est le même
+// tableau que data[nodeId], donc les modifs persistent).
 const item = computed(() => (props.nodeId ? props.data?.[props.nodeId] : null))
 const hasContent = computed(() => !!item.value)
+const section = computed(() => (item.value ? { ...item.value, id: props.nodeId, depth: props.depth } : null))
+const blocks = computed(() => (section.value ? buildBlocks([section.value]) : []))
 
-const sourceHtml = computed(() => {
-  if (!item.value) return ''
-  const blocks = buildBlocks([{ ...item.value, id: props.nodeId, depth: props.depth }])
-  return `<article>${blocks.map((b) => b.html).join('')}</article>`
+// ─── Édition : état partagé + composables (mêmes qu'à l'éditeur historique) ───
+const registry = ref(null)
+const fragments = ref(null)
+const scaleRef = ref(1)
+const scalePercent = computed(() => scaleRef.value * 100)
+
+function frameDoc() {
+  return frameRef.value?.contentDocument ?? null
+}
+function findFragEl(fragId) {
+  return frameDoc()?.querySelector(`[data-frag-id="${fragId}"]`) ?? null
+}
+function listFragEls() {
+  return Array.from(frameDoc()?.querySelectorAll('[data-frag-id]') ?? [])
+}
+// Offset écran de l'iframe, ajouté aux rects du faux curseur/sélection (dont les
+// coordonnées sortent du viewport de l'iframe).
+function frameOffset() {
+  const r = frameRef.value?.getBoundingClientRect()
+  return r ? { x: r.left, y: r.top } : { x: 0, y: 0 }
+}
+
+const caret = useFakeCaret(findFragEl, frameOffset)
+const toolbar = useFloatingToolbar()
+const { cursorRect, selectionRects } = caret
+const { registerToolbar } = toolbar
+
+const {
+  quillBlockRef,
+  editorVisible,
+  editingId,
+  initialHtml,
+  pendingIndex,
+  pendingLength,
+  isFirstFragment,
+  isLastFragment,
+  onColumnClick,
+  onColumnMouseDown,
+  onColumnMouseUp,
+  onFragmentStateChange,
+  commitEdit,
+  mergeNextFragment,
+  mergePrevFragment,
+  navigateDown,
+  navigateUp,
+} = useFragmentEditor({
+  findFragEl,
+  listFragEls,
+  registry,
+  fragments,
+  refresh,
+  scalePercent,
+  caret,
+  toolbar,
+  // Le clavier de la sélection cross-fragment écoute le document de l'iframe (le
+  // focus y vit après un drag). Fonction : résolue quand on branche le listener.
+  keyboardTarget: () => frameDoc() ?? document,
+})
+
+const route = useRoute()
+const router = useRouter()
+
+// Un lien interne (posé à l'import ODT, ou depuis la toolbar Quill) navigue vers
+// le nœud cible plutôt que d'activer l'édition du fragment cliqué — sinon
+// onColumnClick prend la main. Seule la NAVIGATION est portée ici ; la création
+// d'un lien (ArticlePickerModal) reste à rebrancher (cf. FolioComposer historique).
+function onFrameClick(e) {
+  const link = e.target.closest?.('a.lien-interne')
+  if (link) {
+    e.preventDefault()
+    e.stopPropagation()
+    const href = link.getAttribute('href') || ''
+    if (href.startsWith('internal:')) {
+      router.push(`/documents/${route.params.id}/noeud/${href.slice('internal:'.length)}`)
+    }
+    return
+  }
+  onColumnClick(e)
+}
+
+// Quill ISO : positionné et formaté sur le fragment ACTIF (largeur, typo, justif,
+// échelle) à chaque activation. Sans ça, sa boîte par défaut (360px, coin) wrappe
+// le texte autrement que la page → décalages en navigation. useFragmentEditor ne
+// synchronise que le fragment QUITTÉ ; on complète ici pour l'actif.
+watch(editingId, async (id) => {
+  if (!id) return
+  await nextTick()
+  const el = findFragEl(id)
+  const wrapper = quillBlockRef.value?.$el
+  if (!el || !wrapper) return
+  syncQuillToFragment({
+    fragmentEl: el,
+    quillWrapperEl: wrapper,
+    quillInnerEl: wrapper.querySelector('.ql-editor'),
+    scale: scaleRef.value,
+  })
 })
 
 let frameReady = false
 let resizeObserver = null
 
 function buildFrame() {
-  const doc = frameRef.value?.contentDocument
+  const doc = frameDoc()
   if (!doc) return
   doc.open()
   doc.write('<!doctype html><html><head><meta charset="utf-8"></head><body><div id="render"></div></body></html>')
@@ -56,55 +213,89 @@ function buildFrame() {
 
   const boot = doc.createElement('style')
   boot.id = '__boot'
-  // Read : les pages s'empilent, centrées (aperçu d'UNE page).
-  // Edit : on garde la rangée native de paged.css (`.pagedjs_pages` en flex-row)
-  //        et on aligne la mise à l'échelle en haut-gauche.
-  const layout = props.mode === 'edit'
-    ? '#render{transform-origin:top left;} .pagedjs_page{background:#fff;box-shadow:0 1px 6px rgba(0,0,0,.15);}'
-    : '#render{transform-origin:top center;} .pagedjs_pages{display:block;} .pagedjs_page{margin:0 auto;background:#fff;box-shadow:0 1px 6px rgba(0,0,0,.15);}'
-  boot.textContent = 'html,body{margin:0;padding:0;background:transparent;overflow:hidden;}' + layout
+  // Origine top-left : la mise à l'échelle et la largeur de l'iframe s'accordent
+  // au pixel (pas de marge parasite ni de coupe). Bordure de page + filet
+  // pointillé sur la zone de contenu = repère des marges du livre.
+  const common = [
+    'html,body{margin:0;padding:0;background:transparent;overflow:hidden;}',
+    '#render{transform-origin:top left;}',
+    '.pagedjs_page{background:#fff;box-shadow:0 1px 6px rgba(0,0,0,.15);border:1px solid #e2e2e2;}',
+    // Justification garantie de la zone de texte (le livre est justifié) : c'est
+    // aussi ce que syncQuill recopiera sur Quill (via getComputedStyle du
+    // fragment). Les titres restent courts, l'effet ne s'y voit pas.
+    '.pagedjs_page_content{outline:1px dotted #d6d6d6;text-align:justify;}',
+  ].join('')
+  const layout = props.mode === 'edit' ? '' : '.pagedjs_pages{display:block;} .pagedjs_page{margin:0;}'
+  boot.textContent = common + layout
   doc.head.appendChild(boot)
+
+  if (props.mode === 'edit') {
+    doc.addEventListener('click', onFrameClick)
+    doc.addEventListener('mousedown', onColumnMouseDown)
+    doc.addEventListener('mouseup', onColumnMouseUp)
+  }
 
   const script = doc.createElement('script')
   script.src = PAGED_SRC
-  script.onload = () => { frameReady = true; render() }
+  script.onload = () => { frameReady = true; refresh() }
   doc.head.appendChild(script)
 }
 
-// Pousse le HTML courant dans l'iframe et repagine. Réinstancie un Previewer à
-// chaque fois (l'ancien a injecté ses styles) après avoir purgé les <style> de la
-// passe précédente — sans quoi ils s'empileraient, fût-ce dans l'iframe.
-function render() {
+// (Re)pagine dans l'iframe et, en édition, (re)construit le registre depuis le
+// flow. Renvoie une promesse : useFragmentEditor l'attend après chaque édition.
+function refresh() {
   const frame = frameRef.value
   const doc = frame?.contentDocument
   const win = frame?.contentWindow
-  if (!frameReady || !doc || !win?.Paged) return
+  if (!frameReady || !doc || !win?.Paged) return Promise.resolve()
 
   const boot = doc.getElementById('__boot')
   doc.head.querySelectorAll('style').forEach((el) => { if (el !== boot) el.remove() })
 
   const target = doc.getElementById('render')
-  if (!target) return
+  if (!target) return Promise.resolve()
   target.style.transform = ''
   target.innerHTML = ''
+  caret.clear()
 
-  if (!sourceHtml.value) return
+  if (!blocks.value.length) {
+    registry.value = null
+    fragments.value = null
+    return Promise.resolve()
+  }
 
+  // Article + `data-block-id` sur chaque bloc : l'`<article>` porte la typo du
+  // livre (paged.css), l'attribut permet à buildFragmentRegistry de repérer les
+  // blocs dans le flow paginé et d'y stamper les `data-frag-id`.
+  const article = doc.createElement('article')
+  for (const b of blocks.value) {
+    const tmp = doc.createElement('div')
+    tmp.innerHTML = b.html
+    const root = tmp.firstElementChild
+    if (!root) continue
+    root.setAttribute('data-block-id', b.id)
+    article.appendChild(root)
+  }
   const source = doc.createElement('div')
-  source.innerHTML = sourceHtml.value
+  source.appendChild(article)
+
   const previewer = new win.Paged.Previewer()
-  previewer.preview(source, [CSS_HREF], target).then(fitScale).catch((e) => {
-    // Ne pas masquer un échec de pagination : il ne casse pas l'écran (le rendu
-    // reste vide) mais doit se diagnostiquer.
+  return previewer.preview(source, [CSS_HREF], target).then((flow) => {
+    if (props.mode === 'edit' && flow) {
+      const owners = new Map([[props.nodeId, section.value]])
+      const blockRegistry = createRegistry(owners, blocks.value, flow)
+      const { fragmentMap, blockFragments } = buildFragmentRegistry(flow)
+      registry.value = blockRegistry
+      fragments.value = createFragmentApi(blockRegistry, fragmentMap, blockFragments)
+    }
+    fitScale()
+  }).catch((e) => {
     console.warn('[FolioView] pagination échouée', e)
   })
 }
 
-// Met le rendu à l'échelle. La base est la LARGEUR DU CONTENEUR (indépendante du
-// contenu), pas celle de l'iframe — sinon le ResizeObserver entrerait en boucle
-// de rétroaction (cf. « Pièges connus » racine).
 function fitScale() {
-  const doc = frameRef.value?.contentDocument
+  const doc = frameDoc()
   const pageEl = doc?.querySelector('.pagedjs_page')
   const render = doc?.getElementById('render')
   const frame = frameRef.value
@@ -112,20 +303,31 @@ function fitScale() {
   if (!pageEl || !render || !frame || !root) return
 
   if (props.mode === 'edit') {
-    // Viser `visiblePages` dans la largeur ; la rangée entière peut déborder et
-    // défile horizontalement (le conteneur porte l'overflow-x).
     const pagesArea = doc.querySelector('.pagedjs_pages')
     const rowW = pagesArea ? pagesArea.scrollWidth : pageEl.offsetWidth
-    const scale = Math.min(root.clientWidth / (pageEl.offsetWidth * props.visiblePages), 1)
+    // Ajusté sur la largeur (viser `visiblePages`) ET la hauteur (une page tient
+    // verticalement) — le plus contraignant l'emporte. On retire le padding
+    // généreux autour des pages (EDIT_PAD, appliqué à .folio-scroll) pour que la
+    // page tienne DANS cette respiration. `clientHeight` vient du flex parent
+    // (indépendant du contenu → pas de boucle).
+    const availW = root.clientWidth - 2 * EDIT_PAD
+    const availH = root.clientHeight - 2 * EDIT_PAD
+    const scale = Math.min(
+      availW / (pageEl.offsetWidth * props.visiblePages),
+      availH / pageEl.offsetHeight,
+      1,
+    )
+    scaleRef.value = scale
     render.style.transform = `scale(${scale})`
     frame.style.width = `${rowW * scale}px`
     frame.style.height = `${pageEl.offsetHeight * scale}px`
     return
   }
 
-  // Read : une page à la largeur de la colonne, hauteur clampée à une page.
   const scale = Math.min(root.clientWidth / pageEl.offsetWidth, 1)
+  scaleRef.value = scale
   render.style.transform = `scale(${scale})`
+  frame.style.width = `${pageEl.offsetWidth * scale}px`
   frame.style.height = `${pageEl.offsetHeight * scale}px`
 }
 
@@ -137,37 +339,74 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   resizeObserver?.disconnect()
+  const doc = frameDoc()
+  if (doc && props.mode === 'edit') {
+    doc.removeEventListener('click', onFrameClick)
+    doc.removeEventListener('mousedown', onColumnMouseDown)
+    doc.removeEventListener('mouseup', onColumnMouseUp)
+  }
 })
 
-// Changement de nœud : repagine. Le contenu (blocs) est recalculé, le Previewer
-// relancé.
-watch(sourceHtml, render)
+// Changement de nœud/niveau : repagine. L'édition, elle, repagine via refresh()
+// (appelé par useFragmentEditor) — pas besoin d'observer le contenu ici, ce qui
+// éviterait de repaginer deux fois après une frappe.
+watch(() => [props.nodeId, props.depth], refresh)
 </script>
 
 <style scoped>
 .folio-view {
   position: relative;
   width: 100%;
-  /* Taille définie indépendante du contenu : ancre la mise à l'échelle. */
   min-height: 4em;
 }
 
-/* Édition : la rangée de pages peut être plus large que le conteneur — un seul
-   défilement horizontal, ici (pas dans l'iframe). */
+/* Édition : remplit la hauteur disponible (flex du .scroll-folio parent) — d'où
+   un clientHeight stable, indépendant du contenu, pour fitScale. Le défilement
+   horizontal des pages vit dans .folio-scroll, pas ici (l'indicateur de zoom
+   reste ainsi épinglé). */
 .folio-view--edit {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.folio-scroll {
+  width: 100%;
+  height: 100%;
+}
+
+.folio-view--edit .folio-scroll {
   overflow-x: auto;
   overflow-y: hidden;
+  /* Respiration généreuse autour des pages (cf. EDIT_PAD, que fitScale retire de
+     la place disponible). box-sizing pour que le 100% inclue ce padding. */
+  padding: 40px;
+  box-sizing: border-box;
 }
 
 .folio-frame {
   display: block;
   width: 100%;
   border: 0;
-  /* La hauteur (et, en édition, la largeur) est posée par fitScale. */
 }
 
-.folio-view--edit .folio-frame {
-  width: auto;
+.folio-view--read .folio-frame {
+  margin-inline: auto;
+}
+
+/* Zoom : discret, coin bas-droit, au-dessus des pages. */
+.scale-indicator {
+  position: absolute;
+  right: var(--sp-2);
+  bottom: var(--sp-2);
+  padding: 0.1em 0.5em;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--c-surface) 80%, transparent);
+  border: 1px solid var(--c-border);
+  color: var(--c-ink2);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
 }
 
 .folio-empty {
@@ -176,5 +415,51 @@ watch(sourceHtml, render)
   color: var(--c-ink2);
   font-size: var(--fs-sm);
   text-align: center;
+}
+
+/* Quill flottant + faux curseur/sélection : téléportés dans le body (le scoped
+   s'y applique, Vue marque le vnode). Repris de FolioComposer — capture invisible
+   par défaut (quillVisible=false) ; le WYSIWYG est le miroir Folio + faux curseur.
+   Le `top/right/width` doit rester : sans lui la fenêtre debug n'a ni place ni
+   taille et paraît absente. */
+.fragment-editor {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  width: 360px;
+  max-height: 80vh;
+  overflow: auto;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.18);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+}
+
+.fragment-editor--hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.fake-cursor {
+  position: fixed;
+  width: 2px;
+  background: #2f6fed;
+  pointer-events: none;
+  z-index: 999;
+  animation: fake-blink 1s steps(1) infinite;
+}
+
+@keyframes fake-blink {
+  50% { opacity: 0; }
+}
+
+.fake-selection-rect {
+  position: fixed;
+  background-color: rgba(0, 100, 255, 0.25);
+  pointer-events: none;
+  z-index: 5;
+  border-radius: 1px;
 }
 </style>

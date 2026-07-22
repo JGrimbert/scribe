@@ -17,7 +17,11 @@ function parseBlockId(blockId) {
 // Gère le cycle de vie complet de l'édition "par fragment" : ouverture/
 // fermeture de l'éditeur Quill flottant, sauvegarde, découpe d'un paragraphe
 // (Entrée) et fusion de deux paragraphes (Backspace/Delete).
-export function useFragmentEditor({ findFragEl, listFragEls, registry, fragments, refresh, scalePercent, caret, toolbar }) {
+// `keyboardTarget` : FONCTION rendant la cible du listener clavier de la
+// sélection cross-fragment — `document` pour l'éditeur historique, le document
+// de l'iframe pour le rendu unifié (le focus y vit après un drag). Résolue au
+// moment de (dé)brancher, car l'iframe n'existe pas encore au setup.
+export function useFragmentEditor({ findFragEl, listFragEls, registry, fragments, refresh, scalePercent, caret, toolbar, keyboardTarget = () => document }) {
     const quillBlockRef = ref(null)
 
     const editorVisible = ref(false)
@@ -182,8 +186,14 @@ export function useFragmentEditor({ findFragEl, listFragEls, registry, fragments
     // du bas (ligne d'entrée si on remonte) du fragment.
     function resolveEntryIndex(targetEl, clientX, direction) {
         const rect = targetEl.getBoundingClientRect()
+        // `clientX` vient du faux curseur (coords ÉCRAN, offset iframe inclus) ;
+        // `rect` et getCharIndexAtPoint raisonnent dans le viewport du réalm du
+        // fragment. On retire l'offset de l'iframe pour rester cohérent (0 hors
+        // iframe → comportement inchangé pour l'éditeur historique).
+        const win = targetEl.ownerDocument.defaultView
+        const fx = win.frameElement ? win.frameElement.getBoundingClientRect().left : 0
         const y = direction === 'down' ? rect.top + 4 : rect.bottom - 4
-        return getCharIndexAtPoint(targetEl, clientX, y) ?? 0
+        return getCharIndexAtPoint(targetEl, clientX - fx, y) ?? 0
     }
 
     // ArrowDown/ArrowUp en bord de ligne visuelle (cf. QuillBlock.vue) : bascule
@@ -246,7 +256,9 @@ export function useFragmentEditor({ findFragEl, listFragEls, registry, fragments
     }
 
     function onColumnMouseUp(e) {
-        const sel = window.getSelection()
+        // Sélection lue dans le réalm de l'événement : le document principal pour
+        // l'éditeur historique, celui de l'iframe pour le rendu unifié.
+        const sel = (e.target?.ownerDocument?.defaultView ?? window).getSelection()
         if (!sel || sel.isCollapsed) return
 
         const anchorEl = sel.anchorNode && (sel.anchorNode.nodeType === 1
@@ -395,16 +407,21 @@ export function useFragmentEditor({ findFragEl, listFragEls, registry, fragments
         openTexteFragment(sel.articleId, result.index, result.cursor)
     }
 
+    // Cible retenue à l'ajout pour que removeEventListener matche (même si le
+    // document de l'iframe changeait entre-temps).
+    let boundKbd = null
     watch(crossSelection, (val, oldVal) => {
         if (val && !oldVal) {
-            document.addEventListener('keydown', handleCrossSelectionKeydown)
+            boundKbd = keyboardTarget() ?? document
+            boundKbd.addEventListener('keydown', handleCrossSelectionKeydown)
         } else if (!val && oldVal) {
-            document.removeEventListener('keydown', handleCrossSelectionKeydown)
+            boundKbd?.removeEventListener('keydown', handleCrossSelectionKeydown)
+            boundKbd = null
         }
     })
 
     onBeforeUnmount(() => {
-        document.removeEventListener('keydown', handleCrossSelectionKeydown)
+        boundKbd?.removeEventListener('keydown', handleCrossSelectionKeydown)
     })
 
     function onColumnClick(e) {

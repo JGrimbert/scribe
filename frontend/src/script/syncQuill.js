@@ -6,35 +6,47 @@ export function syncQuillToFragment({
                                     }) {
     if (!fragmentEl || !quillWrapperEl || !quillInnerEl) return
 
+    // Réalm du fragment : le document principal pour l'éditeur historique, celui
+    // de l'iframe pour le rendu unifié. On dérive tout de là (aucune injection) :
+    // `frameElement` donne l'iframe (null hors iframe → offset nul), et
+    // `getComputedStyle` doit lire dans CE réalm.
+    const win = fragmentEl.ownerDocument.defaultView
+    const frameEl = win.frameElement
+    const fo = frameEl ? frameEl.getBoundingClientRect() : { left: 0, top: 0 }
+
     // ---------------------------
     // 1. RECT POSITIONNEMENT
     // ---------------------------
+    // `rect` est relatif au viewport du réalm du fragment (l'iframe) ; le wrapper
+    // Quill est en `fixed` dans le body principal → on recale par la position
+    // écran de l'iframe.
     const rect = fragmentEl.getBoundingClientRect()
 
     quillWrapperEl.style.position = 'fixed'
-    quillWrapperEl.style.top = `${rect.top}px`
-    quillWrapperEl.style.left = `${rect.left}px`
+    quillWrapperEl.style.top = `${rect.top + fo.top}px`
+    quillWrapperEl.style.left = `${rect.left + fo.left}px`
     quillWrapperEl.style.width = `${rect.width}px`
     quillWrapperEl.style.height = `${rect.height}px`
     quillWrapperEl.style.zIndex = 1000
 
     // ---------------------------
-    // 2. HOMOTHÉTIE INVERSE
+    // 2. HOMOTHÉTIE
     // ---------------------------
-    const invScale = 1 / scale
-
-    quillWrapperEl.style.setProperty('--inv-scale', invScale)
-
+    // Le fragment Folio vit dans un conteneur `transform: scale(scale)` : son
+    // getBoundingClientRect est DÉJÀ scalé (= W·scale), mais sa font-size
+    // calculée ne l'est pas (les transforms n'affectent pas le layout). Pour que
+    // Quill retourne à la ligne EXACTEMENT comme le Folio, on le met en page aux
+    // métriques réelles du livre — largeur non scalée W = rect.width/scale, à la
+    // même police — puis on le réduit par le MÊME `scale` que le Folio. Le ratio
+    // largeur/police qui gouverne le wrapping devient identique (W/F).
     quillInnerEl.style.transformOrigin = 'top left'
-    quillInnerEl.style.transform = `scale(${invScale})`
-
-    // IMPORTANT : largeur compensée pour éviter compression horizontale
-    quillInnerEl.style.width = `${rect.width * scale}px`
+    quillInnerEl.style.transform = `scale(${scale})`
+    quillInnerEl.style.width = `${rect.width / scale}px`
 
     // ---------------------------
     // 3. TYPOGRAPHIE EXACTE
     // ---------------------------
-    const style = window.getComputedStyle(fragmentEl)
+    const style = win.getComputedStyle(fragmentEl)
 
     const fontSize = style.fontSize
     const lineHeight = style.lineHeight

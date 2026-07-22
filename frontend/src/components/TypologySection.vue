@@ -20,9 +20,7 @@
           <!-- PERF à surveiller : une iframe pagedjs (~900 Ko UMD) par section,
                jusqu'à 3 sur cet écran. Pistes (mutualiser un pagedjs, paginer à la
                demande) documentées en mémoire si le chargement devient lourd. -->
-          <div class="preview-frame">
-            <FolioView :data="data" :node-id="witnessNodeId" :depth="depthKey" />
-          </div>
+          <FolioView :data="data" :node-id="witnessNodeId" :depth="depthKey" />
 
           <div class="models">
             <UiNote v-if="shapesError" variant="error">{{ shapesError }}</UiNote>
@@ -179,13 +177,6 @@ const witnessNodeId = computed(() => activeSignature.value?.nodes?.[0]?.nodeId ?
 }
 
 /* ── Col 1 : aperçu + modèles ─────────────────────────────────────────────── */
-.preview-frame {
-  padding: var(--sp-3);
-  background: var(--c-folio-bg, var(--c-surface));
-  border: 1px solid var(--c-border);
-  border-radius: var(--radius-md);
-}
-
 .models {
   margin-top: var(--sp-3);
 }
