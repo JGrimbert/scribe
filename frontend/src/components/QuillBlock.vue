@@ -50,14 +50,19 @@ const emit = defineEmits([
 const editorHost = ref(null)
 let quill = null
 
-// Le clipboard de Quill écrase les espaces insécables ÉTROITES (U+202F, très
-// utilisées en français avant « » ; : ! ? ») en espaces normales → « mot » se
-// coupe en fin de ligne. On protège les insécables par des sentinelles (zone
-// privée) avant le paste, et on les restaure à chaque lecture du HTML de Quill.
-// U+00A0 est en principe conservé par Quill, on le protège aussi par sécurité.
+// Le clipboard de Quill écrase les espaces insécables (U+202F étroite, très
+// utilisée en français avant « » ; : ! ? ; et U+00A0) en espaces normales → le
+// mot se coupe de sa ponctuation en fin de ligne. On les neutralise par des
+// sentinelles (zone privée) avant le paste, restaurées à chaque lecture du HTML.
+// Subtilité : la source (`modelValue` = outerHTML) sérialise U+00A0 en ENTITÉ
+// `&nbsp;`, pas en caractère — il faut donc traiter l'entité EN PLUS du
+// caractère, sinon la protection est un no-op et l'insécable redevient sécable.
 const NBSP_SENTINELS = [['\u00A0', '\uE000'], ['\u202F', '\uE001']]
 function protectNbsp(html) {
-  return NBSP_SENTINELS.reduce((s, [nb, sentinel]) => s.replaceAll(nb, sentinel), html)
+  // U+00A0 arrive sérialisé en entité `&nbsp;` → on la neutralise d'abord vers la
+  // sentinelle de U+00A0, puis on traite les formes caractère (U+00A0, U+202F).
+  const withEntity = html.replaceAll('&nbsp;', NBSP_SENTINELS[0][1])
+  return NBSP_SENTINELS.reduce((s, [nb, sentinel]) => s.replaceAll(nb, sentinel), withEntity)
 }
 function restoreNbsp(html) {
   return NBSP_SENTINELS.reduce((s, [nb, sentinel]) => s.replaceAll(sentinel, nb), html)
