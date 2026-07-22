@@ -7,10 +7,24 @@ mérite pas d'être un composant. Logique pure sans état → `../script/` ; UI 
 ## Édition (moteur de `FolioView`)
 
 `../components/FolioView.vue` (rendu Paged.js en iframe, l'UNIQUE éditeur — cf.
-`../components/CLAUDE.md`) instancie ces trois-là et fait le câblage. Ils
+`../components/CLAUDE.md`) instancie ces composables et fait le câblage. Ils
 reprennent la mécanique de l'ancien éditeur, avec le DOM Folio désormais dans
-l'iframe (coordonnées recalées par l'offset de la frame).
+l'iframe (coordonnées recalées par l'offset de la frame). FolioView ne garde que
+les **helpers DOM de l'iframe** (`frameDoc`/`findFragEl`/`listFragEls`/
+`frameOffset`, propres au composant racine — cf. « Découplage ») et le câblage.
 
+- **`useFolioFrame.js`** — construit l'iframe Paged.js et la (re)pagine
+  (`buildFrame`/`refresh`/`teardown`) ; en édition, (re)construit `registry`/
+  `fragments` depuis le flow (partagés avec `useFragmentEditor`). Reçoit
+  `frameRef`/`frameDoc`/`blocks`/`section` + trois callbacks : `onReset` (vider le
+  curseur), `onPaginated` (recaler l'échelle), `getEditListeners` (les listeners du
+  doc iframe, résolus au (dé)montage — ils vivent chez FolioView). Ces callbacks
+  cassent le cycle frame↔échelle : la frame n'importe pas l'échelle, elle la
+  notifie.
+- **`useFolioScale.js`** — l'échelle du rendu (`fitScale` : largeur → `visiblePages`
+  ET hauteur, le plus contraignant l'emporte) + son `ResizeObserver`. Reçoit
+  `rootRef`/`frameRef`/`frameDoc`. Le `clientHeight` vient du flex parent
+  (indépendant du contenu → pas de boucle de rétroaction d'échelle).
 - **`useFakeCaret.js`** — faux curseur clignotant / rectangles de sélection. Le
   DOM paginé (dans l'iframe, régénéré à chaque `refresh()`) n'est pas éditable ;
   ce composable pilote l'overlay visuel superposé, téléporté dans le body

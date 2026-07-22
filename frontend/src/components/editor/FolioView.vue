@@ -63,12 +63,12 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import QuillBlock from './QuillBlock.vue'
 import { buildBlocks } from '../../script/paginate.js'
-import { buildFragmentRegistry, createFragmentApi } from '../../script/fragment.js'
-import { createRegistry } from '../../script/registry.js'
 import { syncQuillToFragment } from '../../script/syncQuill.js'
 import { useFakeCaret } from '../../composables/useFakeCaret.js'
 import { useFloatingToolbar } from '../../composables/useFloatingToolbar.js'
 import { useFragmentEditor } from '../../composables/useFragmentEditor.js'
+import { useFolioFrame } from '../../composables/useFolioFrame.js'
+import { useFolioScale } from '../../composables/useFolioScale.js'
 
 const props = defineProps({
   // 'read' : aperçu compact (une page, sans édition).
@@ -87,29 +87,8 @@ const props = defineProps({
 const rootRef = ref(null)
 const frameRef = ref(null)
 
-// URLs ABSOLUES : l'iframe sans `src` a une base `about:blank`. Le build UMD de
-// Paged.js est servi par un middleware dev (cf. vite.config.js).
-const PAGED_SRC = new URL('/vendor/paged.js', window.location.href).href
-const CSS_HREF = new URL('/paged.css', window.location.href).href
-
-// Respiration autour des pages en édition (px). Doit rester synchro avec le
-// padding de .folio-scroll ci-dessous (fitScale la retire de la place disponible).
-const EDIT_PAD = 40
-
-// Le nœud à rendre, et ses blocs (mêmes que l'éditeur via buildBlocks). `section`
-// est l'OWNER du registre : muté en place par l'édition (son `texte` est le même
-// tableau que data[nodeId], donc les modifs persistent).
-const item = computed(() => (props.nodeId ? props.data?.[props.nodeId] : null))
-const hasContent = computed(() => !!item.value)
-const section = computed(() => (item.value ? { ...item.value, id: props.nodeId, depth: props.depth } : null))
-const blocks = computed(() => (section.value ? buildBlocks([section.value]) : []))
-
-// ─── Édition : état partagé + composables (mêmes qu'à l'éditeur historique) ───
-const registry = ref(null)
-const fragments = ref(null)
-const scaleRef = ref(1)
-const scalePercent = computed(() => scaleRef.value * 100)
-
+// Helpers DOM de l'iframe, propres au composant racine (cf. composables/CLAUDE.md :
+// findFragEl est injecté, pas recréé). Injectés dans les composables Folio/fragment.
 function frameDoc() {
   return frameRef.value?.contentDocument ?? null
 }
@@ -126,10 +105,32 @@ function frameOffset() {
   return r ? { x: r.left, y: r.top } : { x: 0, y: 0 }
 }
 
+// Le nœud à rendre, et ses blocs (mêmes que l'éditeur via buildBlocks). `section`
+// est l'OWNER du registre : muté en place par l'édition (son `texte` est le même
+// tableau que data[nodeId], donc les modifs persistent).
+const item = computed(() => (props.nodeId ? props.data?.[props.nodeId] : null))
+const hasContent = computed(() => !!item.value)
+const section = computed(() => (item.value ? { ...item.value, id: props.nodeId, depth: props.depth } : null))
+const blocks = computed(() => (section.value ? buildBlocks([section.value]) : []))
+
+const { scaleRef, scalePercent, fitScale } = useFolioScale(props, { rootRef, frameRef, frameDoc })
+
 const caret = useFakeCaret(findFragEl, frameOffset)
 const toolbar = useFloatingToolbar()
 const { cursorRect, selectionRects } = caret
 const { registerToolbar } = toolbar
+
+const { registry, fragments, buildFrame, refresh, teardown } = useFolioFrame(props, {
+  frameRef,
+  frameDoc,
+  blocks,
+  section,
+  // Vider le curseur avant chaque repagination, recaler l'échelle après.
+  onReset: () => caret.clear(),
+  onPaginated: () => fitScale(),
+  // Les listeners du doc iframe (édition), résolus au (dé)montage — cf. editListeners.
+  getEditListeners: () => editListeners,
+})
 
 const {
   quillBlockRef,
@@ -202,151 +203,15 @@ function syncActiveQuill() {
   })
 }
 
-let frameReady = false
-let resizeObserver = null
+// Listeners attachés au doc de l'iframe en édition. Le getter passé à useFolioFrame
+// les résout au (dé)montage : onColumnMouseDown/Up viennent de useFragmentEditor,
+// onFrameClick d'ici — ils n'existent donc qu'à ce niveau.
+const editListeners = props.mode === 'edit'
+  ? { click: onFrameClick, mousedown: onColumnMouseDown, mouseup: onColumnMouseUp }
+  : null
 
-function buildFrame() {
-  const doc = frameDoc()
-  if (!doc) return
-  doc.open()
-  doc.write('<!doctype html><html><head><meta charset="utf-8"></head><body><div id="render"></div></body></html>')
-  doc.close()
-
-  const boot = doc.createElement('style')
-  boot.id = '__boot'
-  // Origine top-left : la mise à l'échelle et la largeur de l'iframe s'accordent
-  // au pixel (pas de marge parasite ni de coupe). Bordure de page + filet
-  // pointillé sur la zone de contenu = repère des marges du livre.
-  const common = [
-    'html,body{margin:0;padding:0;background:transparent;overflow:hidden;}',
-    '#render{transform-origin:top left;}',
-    '.pagedjs_page{background:#fff;box-shadow:0 1px 6px rgba(0,0,0,.15);border:1px solid #e2e2e2;}',
-    // Justification garantie de la zone de texte (le livre est justifié) : c'est
-    // aussi ce que syncQuill recopiera sur Quill (via getComputedStyle du
-    // fragment). Les titres restent courts, l'effet ne s'y voit pas.
-    '.pagedjs_page_content{outline:1px dotted #d6d6d6;text-align:justify;}',
-  ].join('')
-  const layout = props.mode === 'edit' ? '' : '.pagedjs_pages{display:block;} .pagedjs_page{margin:0;}'
-  boot.textContent = common + layout
-  doc.head.appendChild(boot)
-
-  if (props.mode === 'edit') {
-    doc.addEventListener('click', onFrameClick)
-    doc.addEventListener('mousedown', onColumnMouseDown)
-    doc.addEventListener('mouseup', onColumnMouseUp)
-  }
-
-  const script = doc.createElement('script')
-  script.src = PAGED_SRC
-  script.onload = () => { frameReady = true; refresh() }
-  doc.head.appendChild(script)
-}
-
-// (Re)pagine dans l'iframe et, en édition, (re)construit le registre depuis le
-// flow. Renvoie une promesse : useFragmentEditor l'attend après chaque édition.
-function refresh() {
-  const frame = frameRef.value
-  const doc = frame?.contentDocument
-  const win = frame?.contentWindow
-  if (!frameReady || !doc || !win?.Paged) return Promise.resolve()
-
-  const boot = doc.getElementById('__boot')
-  doc.head.querySelectorAll('style').forEach((el) => { if (el !== boot) el.remove() })
-
-  const target = doc.getElementById('render')
-  if (!target) return Promise.resolve()
-  target.style.transform = ''
-  target.innerHTML = ''
-  caret.clear()
-
-  if (!blocks.value.length) {
-    registry.value = null
-    fragments.value = null
-    return Promise.resolve()
-  }
-
-  // Article + `data-block-id` sur chaque bloc : l'`<article>` porte la typo du
-  // livre (paged.css), l'attribut permet à buildFragmentRegistry de repérer les
-  // blocs dans le flow paginé et d'y stamper les `data-frag-id`.
-  const article = doc.createElement('article')
-  for (const b of blocks.value) {
-    const tmp = doc.createElement('div')
-    tmp.innerHTML = b.html
-    const root = tmp.firstElementChild
-    if (!root) continue
-    root.setAttribute('data-block-id', b.id)
-    article.appendChild(root)
-  }
-  const source = doc.createElement('div')
-  source.appendChild(article)
-
-  const previewer = new win.Paged.Previewer()
-  return previewer.preview(source, [CSS_HREF], target).then((flow) => {
-    if (props.mode === 'edit' && flow) {
-      const owners = new Map([[props.nodeId, section.value]])
-      const blockRegistry = createRegistry(owners, blocks.value, flow)
-      const { fragmentMap, blockFragments } = buildFragmentRegistry(flow)
-      registry.value = blockRegistry
-      fragments.value = createFragmentApi(blockRegistry, fragmentMap, blockFragments)
-    }
-    fitScale()
-  }).catch((e) => {
-    console.warn('[FolioView] pagination échouée', e)
-  })
-}
-
-function fitScale() {
-  const doc = frameDoc()
-  const pageEl = doc?.querySelector('.pagedjs_page')
-  const render = doc?.getElementById('render')
-  const frame = frameRef.value
-  const root = rootRef.value
-  if (!pageEl || !render || !frame || !root) return
-
-  if (props.mode === 'edit') {
-    const pagesArea = doc.querySelector('.pagedjs_pages')
-    const rowW = pagesArea ? pagesArea.scrollWidth : pageEl.offsetWidth
-    // Ajusté sur la largeur (viser `visiblePages`) ET la hauteur (une page tient
-    // verticalement) — le plus contraignant l'emporte. On retire le padding
-    // généreux autour des pages (EDIT_PAD, appliqué à .folio-scroll) pour que la
-    // page tienne DANS cette respiration. `clientHeight` vient du flex parent
-    // (indépendant du contenu → pas de boucle).
-    const availW = root.clientWidth - 2 * EDIT_PAD
-    const availH = root.clientHeight - 2 * EDIT_PAD
-    const scale = Math.min(
-      availW / (pageEl.offsetWidth * props.visiblePages),
-      availH / pageEl.offsetHeight,
-      1,
-    )
-    scaleRef.value = scale
-    render.style.transform = `scale(${scale})`
-    frame.style.width = `${rowW * scale}px`
-    frame.style.height = `${pageEl.offsetHeight * scale}px`
-    return
-  }
-
-  const scale = Math.min(root.clientWidth / pageEl.offsetWidth, 1)
-  scaleRef.value = scale
-  render.style.transform = `scale(${scale})`
-  frame.style.width = `${pageEl.offsetWidth * scale}px`
-  frame.style.height = `${pageEl.offsetHeight * scale}px`
-}
-
-onMounted(() => {
-  buildFrame()
-  resizeObserver = new ResizeObserver(fitScale)
-  resizeObserver.observe(rootRef.value)
-})
-
-onBeforeUnmount(() => {
-  resizeObserver?.disconnect()
-  const doc = frameDoc()
-  if (doc && props.mode === 'edit') {
-    doc.removeEventListener('click', onFrameClick)
-    doc.removeEventListener('mousedown', onColumnMouseDown)
-    doc.removeEventListener('mouseup', onColumnMouseUp)
-  }
-})
+onMounted(buildFrame)
+onBeforeUnmount(teardown)
 
 // Changement de nœud/niveau : repagine. L'édition, elle, repagine via refresh()
 // (appelé par useFragmentEditor) — pas besoin d'observer le contenu ici, ce qui
