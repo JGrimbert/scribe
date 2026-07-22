@@ -77,20 +77,17 @@ test.describe('affichage conditionnel', () => {
   // ne valait jamais exactement 1 et la track restait affichée.
   test('aucune track quand le contenu ne déborde pas', async ({ page }) => {
     await gotoEditor(page, { paragraphCount: 3 })
-    await expect(page.locator('.folio')).toHaveCount(1, { timeout: 15000 })
+    // FolioView pagine dans une iframe : on attend la page rendue
+    // (`.pagedjs_page`) avant de vérifier que la CustomScrollbar de l'app reste
+    // absente. Le débordement horizontal éventuel de la rangée de folios est
+    // désormais interne à FolioView (`.folio-scroll`), plus porté par la
+    // scrollbar de l'app — d'où le retrait des tests de track/flèche horizontales.
+    await expect(page.frameLocator('.folio-frame').locator('.pagedjs_page')).toHaveCount(1, { timeout: 15000 })
     await page.waitForTimeout(1500)
 
     await expect(page.locator(`${CONTENT} .custom-scrollbar__track--y`)).toBeHidden()
     await expect(page.locator(`${CONTENT} .custom-scrollbar__track--x`)).toBeHidden()
     await expect(page.locator(`${SIDEBAR} .custom-scrollbar__track--y`)).toBeHidden()
-  })
-
-  test('track horizontale quand la rangée de folios déborde', async ({ page }) => {
-    await gotoEditor(page, { paragraphCount: 40 })
-    await expect(page.locator('.folio').first()).toBeVisible({ timeout: 15000 })
-    await page.waitForTimeout(1500)
-
-    await expect(page.locator(`${CONTENT} .custom-scrollbar__track--x`)).toBeVisible()
   })
 })
 
@@ -110,22 +107,5 @@ test.describe('flèches', () => {
     await page.waitForTimeout(200)
     const afterUp = await content.evaluate((el) => el.scrollTop)
     expect(afterUp, 'la flèche haut ne remonte pas').toBeLessThan(afterDown)
-  })
-
-  test('les flèches horizontales défilent la rangée de folios', async ({ page }) => {
-    await gotoEditor(page, { paragraphCount: 40 })
-    const content = page.locator(`${CONTENT} .custom-scrollbar__content`)
-    await expect(page.locator('.folio').first()).toBeVisible({ timeout: 15000 })
-    await page.waitForTimeout(1500)
-
-    await page.locator(`${CONTENT} .custom-scrollbar__arrow--right`).click()
-    await page.waitForTimeout(200)
-    const afterRight = await content.evaluate((el) => el.scrollLeft)
-    expect(afterRight, 'la flèche droite ne défile pas').toBeGreaterThan(0)
-
-    await page.locator(`${CONTENT} .custom-scrollbar__arrow--left`).click()
-    await page.waitForTimeout(200)
-    const afterLeft = await content.evaluate((el) => el.scrollLeft)
-    expect(afterLeft, 'la flèche gauche ne revient pas').toBeLessThan(afterRight)
   })
 })

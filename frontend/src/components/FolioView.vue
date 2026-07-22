@@ -35,6 +35,7 @@
               @arrow-down="navigateDown"
               @arrow-up="navigateUp"
               @toolbar-ready="registerToolbar"
+              @quill-ready="syncActiveQuill"
               @request-internal-link="() => {}"
           />
         </div>
@@ -58,7 +59,7 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import QuillBlock from './QuillBlock.vue'
 import { buildBlocks } from '../script/paginate.js'
@@ -183,14 +184,14 @@ function onFrameClick(e) {
   onColumnClick(e)
 }
 
-// Quill ISO : positionné et formaté sur le fragment ACTIF (largeur, typo, justif,
-// échelle) à chaque activation. Sans ça, sa boîte par défaut (360px, coin) wrappe
-// le texte autrement que la page → décalages en navigation. useFragmentEditor ne
-// synchronise que le fragment QUITTÉ ; on complète ici pour l'actif.
-watch(editingId, async (id) => {
-  if (!id) return
-  await nextTick()
-  const el = findFragEl(id)
+// Métriques ISO du fragment ACTIF : sans ça, la boîte Quill wrappe le texte
+// autrement que la page → décalages en navigation ↑/↓. useFragmentEditor ne
+// synchronise que le fragment QUITTÉ ; on complète ici pour l'actif. Déclenché
+// par l'event `quill-ready` de QuillBlock (fin de mountQuill, `.ql-editor`
+// garanti présent) et NON par un watch(editingId)+nextTick, qui tombait avant
+// le montage async de Quill (course : la synchro ne s'exécutait pas).
+function syncActiveQuill() {
+  const el = findFragEl(editingId.value)
   const wrapper = quillBlockRef.value?.$el
   if (!el || !wrapper) return
   syncQuillToFragment({
@@ -199,7 +200,7 @@ watch(editingId, async (id) => {
     quillInnerEl: wrapper.querySelector('.ql-editor'),
     scale: scaleRef.value,
   })
-})
+}
 
 let frameReady = false
 let resizeObserver = null

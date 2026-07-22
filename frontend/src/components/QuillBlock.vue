@@ -43,6 +43,7 @@ const emit = defineEmits([
     'arrow-down',
     'arrow-up',
     'toolbar-ready',
+    'quill-ready',
     'request-internal-link',
 ])
 
@@ -155,6 +156,12 @@ async function mountQuill() {
   // utilisateur pour que le faux-curseur apparaisse dans le Folia
   emitState()
 
+  // Quill est monté (`.ql-editor` existe) : le parent peut synchroniser les
+  // métriques du fragment actif. Émis ICI et pas au changement d'`editingId` :
+  // mountQuill étant async (import dynamique), un simple nextTick côté parent
+  // tombe avant que `new Quill()` n'ait créé `.ql-editor` (course confirmée :
+  // hasInner:false).
+  emit('quill-ready')
 }
 
 function handleMergeNext(e) {
