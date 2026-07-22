@@ -28,10 +28,10 @@
 </template>
 
 <script setup>
-import BaseChip from './ui/BaseChip.vue'
-import BaseSelect from './ui/BaseSelect.vue'
-import UiTable from './ui/UiTable.vue'
-import { STYLE_ROLES } from '../script/typology'
+import BaseChip from '../ui/BaseChip.vue'
+import BaseSelect from '../ui/BaseSelect.vue'
+import UiTable from '../ui/UiTable.vue'
+import { STYLE_ROLES } from '../../script/typology'
 
 // `styleRoles` est muté en place (v-model sur `styleRoles[style.name]`) :
 // c'est la map réactive de la typologie, détenue par le composable, comme

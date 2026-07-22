@@ -33,7 +33,7 @@
 
 <script setup>
 import { ref, watch } from 'vue'
-import { REQUIRABLE_ROLES } from '../script/typology'
+import { REQUIRABLE_ROLES } from '../../script/typology'
 
 // Un jeu de critères. `ruleSet` est muté en place, délibérément : le parent
 // détient l'objet réactif complet (`rules`), et le faire remonter par

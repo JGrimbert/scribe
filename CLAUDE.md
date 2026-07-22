@@ -41,7 +41,7 @@ Deux chemins de données coexistent actuellement, volontairement :
   reste inoffensif (mort) tant qu'`App.vue` ne l'appelle plus au montage.
 
 Le parseur `.odt` original (`Marvarid/parser/parse.js` + `harmonize.js`) a
-été **porté** dans `backend/src/import/odt-parser.ts` (voir
+été **porté** dans `backend/src/import/odt-parser/` (voir
 `backend/CLAUDE.md`) — les deux copies coexistent, pas de dépendance de code
 entre elles.
 

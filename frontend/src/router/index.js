@@ -4,7 +4,7 @@ import ImportView from '../components/ImportView.vue'
 import DocumentLayout from '../components/DocumentLayout.vue'
 import AnalyseView from '../components/AnalyseView.vue'
 import EditorView from '../components/EditorView.vue'
-import ConfigView from '../components/ConfigView.vue'
+import ConfigView from '../components/config/ConfigView.vue'
 import { useRegistry } from '../composables/useRegistry'
 
 const routes = [
