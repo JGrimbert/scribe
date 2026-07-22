@@ -1,6 +1,6 @@
 import { provide, reactive, ref } from 'vue'
 import AnalyseBlock from './AnalyseBlock.vue'
-import UiCard from '../ui/UiCard.vue'
+import UiCard from '../ui/molecules/UiCard.vue'
 import { ANALYSE_KEY } from '../../composables/useAnalyse'
 import '../../assets/base.css'
 import '../../assets/analyse.css'

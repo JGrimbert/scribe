@@ -38,7 +38,7 @@
 
 <script setup>
 import { onMounted } from 'vue'
-import UiNote from '../ui/UiNote.vue'
+import UiNote from '../ui/molecules/UiNote.vue'
 import { useRegistry } from '../../composables/useRegistry'
 import { formatBytes, formatDay } from '../../script/format'
 

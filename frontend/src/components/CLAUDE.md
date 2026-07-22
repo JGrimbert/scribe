@@ -15,11 +15,13 @@ chargé à la demande (ne toucher qu'une famille n'en charge que le doc). Carte 
 - **`home/`** — accueil + registre : `HomeView`, `DocumentList`. Voir `home/CLAUDE.md`.
 - **`config/`** — écran de configuration (typologie, styles, modèles, règles,
   recalibration). Voir `config/CLAUDE.md`.
-- **`analyse/`** — dashboard de `/documents/:id` (`AnalyseView` + cards,
-  `AnalyseBlock`, echarts). Voir `analyse/CLAUDE.md`.
+- **`analyse/`** — dashboard de `/documents/:id` (`AnalyseView` + `AnalyseBlock`,
+  echarts) ; cards rangées par famille `structure/`·`lexical/`·`semantic/`·`themes/`.
+  Voir `analyse/CLAUDE.md`.
 - **`liminaire/`** — typage/composition des pages liminaires (`LiminaireComposer`
   + accordéon/découpage/éligibilité/folio). Voir `liminaire/CLAUDE.md`.
-- **`ui/`** — design system atomique + Storybook + `BaseChart`. Voir `ui/CLAUDE.md`.
+- **`ui/`** — design system en atomic design : `atoms/`, `molecules/`,
+  `organisms/` (`BaseChart`) + Storybook. Voir `ui/CLAUDE.md`.
 
 Routing et rôle de chaque vue : `../router/CLAUDE.md`. Moteur d'édition (logique
 pure) : `../script/CLAUDE.md`. Composables : `../composables/CLAUDE.md`.

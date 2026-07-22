@@ -28,9 +28,9 @@
 </template>
 
 <script setup>
-import BaseChip from '../ui/BaseChip.vue'
-import BaseSelect from '../ui/BaseSelect.vue'
-import UiTable from '../ui/UiTable.vue'
+import BaseChip from '../ui/atoms/BaseChip.vue'
+import BaseSelect from '../ui/atoms/BaseSelect.vue'
+import UiTable from '../ui/molecules/UiTable.vue'
 import { STYLE_ROLES } from '../../script/typology'
 
 // `styleRoles` est muté en place (v-model sur `styleRoles[style.name]`) :

@@ -33,7 +33,7 @@
 
 <script setup>
 import { computed } from 'vue'
-import TreeRow from '../ui/TreeRow.vue'
+import TreeRow from '../ui/molecules/TreeRow.vue'
 
 const props = defineProps({
   node: { type: Object, required: true },

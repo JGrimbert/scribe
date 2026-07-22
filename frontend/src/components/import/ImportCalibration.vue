@@ -76,11 +76,11 @@
 
 <script setup>
 import { computed, reactive, ref } from 'vue'
-import BaseButton from '../ui/BaseButton.vue'
-import UiHint from '../ui/UiHint.vue'
-import UiNote from '../ui/UiNote.vue'
+import BaseButton from '../ui/atoms/BaseButton.vue'
+import UiHint from '../ui/atoms/UiHint.vue'
+import UiNote from '../ui/molecules/UiNote.vue'
 import CalibrationNode from './CalibrationNode.vue'
-import CustomScrollbar from '../ui/CustomScrollbar.vue'
+import CustomScrollbar from '../ui/atoms/CustomScrollbar.vue'
 
 const props = defineProps({
   previewId: { type: String, required: true },

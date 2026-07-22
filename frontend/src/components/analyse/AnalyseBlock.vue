@@ -46,9 +46,9 @@
 
 <script setup>
 import { computed, watch } from 'vue'
-import UiNote from '../ui/UiNote.vue'
-import ScoreBar from '../ui/ScoreBar.vue'
-import BaseButton from '../ui/BaseButton.vue'
+import UiNote from '../ui/molecules/UiNote.vue'
+import ScoreBar from '../ui/atoms/ScoreBar.vue'
+import BaseButton from '../ui/atoms/BaseButton.vue'
 import { DASHBOARD_STEPS, useAnalyse } from '../../composables/useAnalyse'
 
 const props = defineProps({

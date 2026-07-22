@@ -24,8 +24,10 @@ charge que quand on y travaille :
   - `src/components/home/CLAUDE.md` — accueil + registre (`HomeView`, `DocumentList`).
   - `src/components/config/CLAUDE.md` — écran de configuration (typologie,
     styles, modèles, règles, recalibration).
-  - `src/components/analyse/CLAUDE.md` — dashboard (cards, `AnalyseBlock`, echarts).
-  - `src/components/ui/CLAUDE.md` — design system atomique + Storybook + `BaseChart`.
+  - `src/components/analyse/CLAUDE.md` — dashboard (`AnalyseView`, `AnalyseBlock`,
+    echarts) ; cards par famille `structure/`·`lexical/`·`semantic/`·`themes/`.
+  - `src/components/ui/CLAUDE.md` — design system atomic (`atoms/`, `molecules/`,
+    `organisms/`) + Storybook.
   - `src/components/liminaire/CLAUDE.md` — typage/composition des pages liminaires.
 - **`src/script/CLAUDE.md`** — logique pure : moteur d'édition (pagination,
   registry, fragment, caret), vocabulaires (`typology`/`zones`/`shapes`),

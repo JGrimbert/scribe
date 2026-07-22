@@ -39,15 +39,15 @@ import { computed, inject, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAnalyse } from '../../composables/useAnalyse'
 import { formatInt, formatPercent } from '../../script/format'
-import StatItem from '../ui/StatItem.vue'
-import UiNote from '../ui/UiNote.vue'
-import VocabulaireCard from './VocabulaireCard.vue'
-import EntitiesLeftoverCard from './EntitiesLeftoverCard.vue'
-import LexicalCard from './LexicalCard.vue'
-import LexicalUnitsCard from './LexicalUnitsCard.vue'
-import ThemesCard from './ThemesCard.vue'
-import AnomaliesCard from "./AnomaliesCard.vue";
-import SemanticCard from "./SemanticCard.vue";
+import StatItem from '../ui/molecules/StatItem.vue'
+import UiNote from '../ui/molecules/UiNote.vue'
+import VocabulaireCard from './lexical/VocabulaireCard.vue'
+import EntitiesLeftoverCard from './themes/EntitiesLeftoverCard.vue'
+import LexicalCard from './lexical/LexicalCard.vue'
+import LexicalUnitsCard from './lexical/LexicalUnitsCard.vue'
+import ThemesCard from './themes/ThemesCard.vue'
+import AnomaliesCard from "./structure/AnomaliesCard.vue";
+import SemanticCard from "./semantic/SemanticCard.vue";
 
 const route = useRoute()
 const { error, analysis, isRevealed, fetchAnalysis } = useAnalyse()

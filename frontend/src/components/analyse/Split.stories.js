@@ -1,5 +1,5 @@
-import UiCard from '../ui/UiCard.vue'
-import BaseChip from '../ui/BaseChip.vue'
+import UiCard from '../ui/molecules/UiCard.vue'
+import BaseChip from '../ui/atoms/BaseChip.vue'
 import '../../assets/base.css'
 import '../../assets/analyse.css'
 

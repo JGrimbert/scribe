@@ -1,8 +1,8 @@
-import ProgressChecklist from '../ui/ProgressChecklist.vue'
-import StatItem from '../ui/StatItem.vue'
-import BaseButton from '../ui/BaseButton.vue'
-import UiCard from '../ui/UiCard.vue'
-import BaseChip from '../ui/BaseChip.vue'
+import ProgressChecklist from '../ui/molecules/ProgressChecklist.vue'
+import StatItem from '../ui/molecules/StatItem.vue'
+import BaseButton from '../ui/atoms/BaseButton.vue'
+import UiCard from '../ui/molecules/UiCard.vue'
+import BaseChip from '../ui/atoms/BaseChip.vue'
 
 // Story « en contexte » : elle ne monte pas AnalyseView (routeur + store + fetch
 // + d3), mais rejoue le haut du dashboard avec des composants ui réels + un faux

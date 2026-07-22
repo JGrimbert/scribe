@@ -78,9 +78,9 @@
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { pathToInAxes } from '../../script/trame'
-import ProgressChecklist from '../ui/ProgressChecklist.vue'
+import ProgressChecklist from '../ui/molecules/ProgressChecklist.vue'
 import { useAnalyse } from '../../composables/useAnalyse'
-import BaseButton from "../ui/BaseButton.vue";
+import BaseButton from "../ui/atoms/BaseButton.vue";
 
 const props = defineProps({
   title: String,

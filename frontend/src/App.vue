@@ -87,7 +87,7 @@
 <script setup>
 import { ref, computed, provide, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import BaseButton from './components/ui/BaseButton.vue'
+import BaseButton from './components/ui/atoms/BaseButton.vue'
 import { useRegistry } from './composables/useRegistry'
 
 const route = useRoute()

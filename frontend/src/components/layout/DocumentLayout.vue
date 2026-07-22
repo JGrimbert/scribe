@@ -81,10 +81,10 @@ import { ref, computed, provide, watch, onMounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import StructureView from '../structure/StructureView.vue'
 import DocumentBar from './DocumentBar.vue'
-import CustomScrollbar from '../ui/CustomScrollbar.vue'
+import CustomScrollbar from '../ui/atoms/CustomScrollbar.vue'
 import DocumentList from '../home/DocumentList.vue'
 import ImportButton from '../import/ImportButton.vue'
-import BaseButton from '../ui/BaseButton.vue'
+import BaseButton from '../ui/atoms/BaseButton.vue'
 import { provideAnalyse } from '../../composables/useAnalyse'
 
 const route = useRoute()

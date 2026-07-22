@@ -71,8 +71,8 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import AnalyseBlock from '../analyse/AnalyseBlock.vue'
-import BaseButton from '../ui/BaseButton.vue'
-import UiCallout from '../ui/UiCallout.vue'
+import BaseButton from '../ui/atoms/BaseButton.vue'
+import UiCallout from '../ui/atoms/UiCallout.vue'
 import LiminaireAccordeon from './LiminaireAccordeon.vue'
 import LiminaireDecoupage from './LiminaireDecoupage.vue'
 import LiminaireEligibilite from './LiminaireEligibilite.vue'

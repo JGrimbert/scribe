@@ -17,7 +17,7 @@
 
 <script setup>
 import { useRouter } from 'vue-router'
-import BaseButton from '../ui/BaseButton.vue'
+import BaseButton from '../ui/atoms/BaseButton.vue'
 import { useRegistry } from '../../composables/useRegistry'
 
 defineProps({

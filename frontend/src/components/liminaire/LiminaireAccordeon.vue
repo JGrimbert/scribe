@@ -182,7 +182,7 @@
 
 <script setup>
 import { computed, watch } from 'vue'
-import BaseSelect from '../ui/BaseSelect.vue'
+import BaseSelect from '../ui/atoms/BaseSelect.vue'
 import LiminaireFolio from './LiminaireFolio.vue'
 import { LIMINAIRE_PAGES, LIMINAIRE_BY_KEY, PAGE_SIDES } from '../../script/liminaire'
 
