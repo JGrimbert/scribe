@@ -1,4 +1,4 @@
-import { DataMap, ImportCorrections, OutlineEntry, StyleInventory, Trame } from '../import/odt-parser'
+import { DataMap, ImportCorrections, OutlineEntry, PageFormat, StyleInventory, StyleVisual, Trame } from '../import/odt-parser'
 import { DocumentTypology, StyleRole } from './typology'
 
 export interface PreviewResponse {
@@ -80,6 +80,12 @@ export interface DocumentContent {
   // (plainNodeText + sha256) — dupliquer ce calcul en JS, c'est signer pour
   // deux implémentations qui divergeront.
   validations: Record<string, NodeValidationState>
+  // Apparence des styles (par nom de style EFFECTIF, même clé que
+  // `TexteEntry.styleName`) et format de page, lus du `styleInventory` : la
+  // couche Folio les applique pour un rendu FIDÈLE au .odt (police, corps,
+  // alignement…). Vides pour un document importé avant la lecture de styles.xml.
+  visuals: Record<string, StyleVisual>
+  page: PageFormat | null
 }
 
 export type NodeValidationState = 'validé' | 'périmé'

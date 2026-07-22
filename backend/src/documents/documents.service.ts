@@ -16,7 +16,7 @@ import {
 import { nodeContentHash } from '../analyse/plain-text'
 import { collectShapes, StructureShapes } from '../analyse/structure-shapes'
 import { DocumentTypology, isTypologySettled, suggestTypology, typologyErrors } from './typology'
-import { DEFAULT_RULES, DocumentRules, normalizeRules, rulesErrors } from './rules'
+import { DocumentRules, normalizeRules, rulesErrors } from './rules'
 import { LiminaireConfig, liminaireConfigErrors, normalizeLiminaireConfig } from './liminaire-config'
 import { PreviousValidation, RebuiltNode, remapNodeIds, remapValidations } from './recalibration'
 import {
@@ -437,6 +437,11 @@ export class DocumentsService {
     const liminaire = (document.liminaire as unknown as Trame['liminaire']) ?? []
     const final = (document.final as unknown as Trame['final']) ?? []
 
+    // Apparence des styles + format de page pour la couche Folio (rendu fidèle).
+    // Vides tant que le document n'a pas été (ré)importé après la lecture de
+    // styles.xml — le rendu retombe alors sur le look générique de paged.css.
+    const inventory = document.styleInventory as unknown as StyleInventory | null
+
     const validations: Record<string, NodeValidationState> = {}
     for (const [nodeId, hash] of await this.getValidations(id)) {
       const item = data[nodeId]
@@ -444,7 +449,14 @@ export class DocumentsService {
       validations[nodeId] = hash === nodeContentHash(item.texte) ? 'validé' : 'périmé'
     }
 
-    return { title: document.title, trame: { axes, liminaire, final }, data, validations }
+    return {
+      title: document.title,
+      trame: { axes, liminaire, final },
+      data,
+      validations,
+      visuals: inventory?.visuals ?? {},
+      page: inventory?.page ?? null,
+    }
   }
 
   // Paragraphes en base → `texte[]` du modèle. Partagé par getContent et la

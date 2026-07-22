@@ -59,6 +59,33 @@ describe('buildFlatNodes — méta, listes, tableaux', () => {
     ])
   })
 
+  it('préserve le gras/italique inline en <strong>/<em> (styles de caractère)', () => {
+    const { flatNodes } = buildFlatNodes(
+      odt(
+        '<text:p text:style-name="Standard">' +
+          '<text:span text:style-name="Tb">gras</text:span> ' +
+          '<text:span text:style-name="Ti">ital</text:span> ' +
+          '<text:span text:style-name="Tn">normal</text:span>' +
+          '</text:p>',
+        '<style:style style:name="Tb" style:family="text"><style:text-properties fo:font-weight="bold"/></style:style>' +
+          '<style:style style:name="Ti" style:family="text"><style:text-properties fo:font-style="italic"/></style:style>' +
+          // Annule explicitement : ne doit PAS être enveloppé.
+          '<style:style style:name="Tn" style:family="text"><style:text-properties fo:font-weight="normal" fo:font-style="normal"/></style:style>',
+      ),
+    )
+    expect(flatNodes[0].text).toBe('<strong>gras</strong> <em>ital</em> normal')
+  })
+
+  it('compose gras + italique + surlignage inline sur un même span', () => {
+    const { flatNodes } = buildFlatNodes(
+      odt(
+        '<text:p text:style-name="Standard"><text:span text:style-name="Tx">mot</text:span></text:p>',
+        '<style:style style:name="Tx" style:family="text"><style:text-properties fo:font-weight="bold" fo:font-style="italic" fo:background-color="#ffff00"/></style:style>',
+      ),
+    )
+    expect(flatNodes[0].text).toBe('<mark data-hl="#ffff00"><strong><em>mot</em></strong></mark>')
+  })
+
   it('extrait le contenu d’un tableau', () => {
     const { flatNodes } = buildFlatNodes(
       odt('<table:table><table:table-row><table:table-cell><text:p>a</text:p></table:table-cell><table:table-cell><text:p>b</text:p></table:table-cell></table:table-row></table:table>'),

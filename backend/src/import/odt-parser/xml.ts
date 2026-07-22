@@ -34,6 +34,12 @@ export interface OdtStyle {
   parent: string | null
   family: string
   background: string | null // fo:background-color, hors blanc/transparent
+  // Emphase de caractère portée DIRECTEMENT par le style (null = non spécifié,
+  // donc à hériter du parent). Distinguer `false` (le style annule le gras d'un
+  // parent, cf. T82 du témoin qui pose fo:font-weight="normal") de `null` est ce
+  // qui permet à styleEmphasis de ne pas écraser un héritage par un défaut.
+  bold: boolean | null
+  italic: boolean | null
 }
 
 export type StyleTable = Map<string, OdtStyle>
@@ -53,6 +59,21 @@ function readBackground(styleNode: any): string | null {
   return value.toLowerCase()
 }
 
+// Gras/italique portés par le style de caractère. `fo:font-weight` vaut « bold »,
+// « normal » ou un poids numérique (700 = gras) ; `fo:font-style` vaut « italic »/
+// « oblique » ou « normal ». Attribut absent (chaîne vide sous xmldom) → `null`
+// (non spécifié, à hériter), pas `false`.
+function readEmphasis(styleNode: any): { bold: boolean | null; italic: boolean | null } {
+  const props = (select('*[local-name()="text-properties"]', styleNode) as any[])[0]
+  if (!props) return { bold: null, italic: null }
+  const weight = props.getAttribute('fo:font-weight')
+  const style = props.getAttribute('fo:font-style')
+  return {
+    bold: weight ? weight === 'bold' || (/^\d+$/.test(weight) && parseInt(weight, 10) >= 600) : null,
+    italic: style ? style === 'italic' || style === 'oblique' : null,
+  }
+}
+
 export function buildStyleTable(doc: any): StyleTable {
   const table: StyleTable = new Map()
   for (const styleNode of select('//*[local-name()="style"]', doc) as any[]) {
@@ -62,6 +83,7 @@ export function buildStyleTable(doc: any): StyleTable {
       parent: styleNode.getAttribute('style:parent-style-name') || null,
       family: styleNode.getAttribute('style:family') || '',
       background: readBackground(styleNode),
+      ...readEmphasis(styleNode),
     })
   }
   return table
@@ -82,6 +104,26 @@ export function styleBackground(styleName: string, table: StyleTable): string | 
   if (!style) return null
   if (style.background) return style.background
   return (style.parent && table.get(style.parent)?.background) ?? null
+}
+
+// Gras/italique effectifs d'un style de caractère, résolus sur toute la chaîne
+// d'héritage : la première valeur EXPLICITE l'emporte (un enfant qui pose
+// `normal` annule le gras d'un parent). Défaut `false` si rien n'est spécifié.
+export function styleEmphasis(styleName: string, table: StyleTable): { bold: boolean; italic: boolean } {
+  let bold: boolean | null = null
+  let italic: boolean | null = null
+  let name: string | null = styleName
+  const seen = new Set<string>()
+  while (name && !seen.has(name)) {
+    seen.add(name)
+    const style = table.get(name)
+    if (!style) break
+    if (bold === null && style.bold !== null) bold = style.bold
+    if (italic === null && style.italic !== null) italic = style.italic
+    if (bold !== null && italic !== null) break
+    name = style.parent
+  }
+  return { bold: bold ?? false, italic: italic ?? false }
 }
 
 // ─── Extraire le texte brut d'un nœud (récursif) ──────────────────────────
@@ -123,6 +165,14 @@ export function nodeText(node: any): string {
 // reprendre ») : les aplatir, c'était perdre la seule trace de ce qui reste à
 // faire à l'intérieur d'un paragraphe. La couleur est conservée brute — c'est
 // la typologie (configurable) qui lui donne un sens, pas le parseur.
+//
+// Préserve enfin le GRAS/ITALIQUE inline (<text:span> dont le style de caractère
+// porte fo:font-weight:bold / fo:font-style:italic) en `<strong>`/`<em>` — même
+// marque HTML que celle produite par Quill, donc round-trip sans traduction côté
+// édition (extractParagraphs/renderTexteEntry). Limite connue : un span imbriqué
+// qui ANNULE explicitement le gras d'un span parent reste rendu gras (le parent
+// enveloppe le tout) ; les .odt LibreOffice posent des spans à plat, le cas ne
+// se présente pas sur le témoin.
 export function nodeTextWithLinks(node: any, table?: StyleTable): string {
   if (!node) return ''
   if (node.nodeType === 3) return node.nodeValue || ''
@@ -154,9 +204,14 @@ export function nodeTextWithLinks(node: any, table?: StyleTable): string {
       continue
     }
     if (child.localName === 'span' && table) {
-      const highlight = styleBackground(child.getAttribute('text:style-name') || '', table)
-      const inner = nodeTextWithLinks(child, table)
-      text += highlight ? `<mark data-hl="${highlight}">${inner}</mark>` : inner
+      const styleName = child.getAttribute('text:style-name') || ''
+      const highlight = styleBackground(styleName, table)
+      const { bold, italic } = styleEmphasis(styleName, table)
+      let inner = nodeTextWithLinks(child, table)
+      if (italic) inner = `<em>${inner}</em>`
+      if (bold) inner = `<strong>${inner}</strong>`
+      if (highlight) inner = `<mark data-hl="${highlight}">${inner}</mark>`
+      text += inner
       continue
     }
     text += nodeTextWithLinks(child, table)
