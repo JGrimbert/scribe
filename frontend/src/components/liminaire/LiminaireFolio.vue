@@ -32,7 +32,7 @@
 </template>
 
 <script setup>
-import { LIMINAIRE_BY_KEY } from '../script/liminaire'
+import { LIMINAIRE_BY_KEY } from '../../script/liminaire'
 
 defineProps({
   // Un slot d'imposition (cf. computeImposition) ou null pour un vis-à-vis vide.

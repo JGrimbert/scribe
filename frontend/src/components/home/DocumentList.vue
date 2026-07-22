@@ -38,9 +38,9 @@
 
 <script setup>
 import { onMounted } from 'vue'
-import UiNote from './ui/UiNote.vue'
-import { useRegistry } from '../composables/useRegistry'
-import { formatBytes, formatDay } from '../script/format'
+import UiNote from '../ui/UiNote.vue'
+import { useRegistry } from '../../composables/useRegistry'
+import { formatBytes, formatDay } from '../../script/format'
 
 defineProps({
   // Document étudié — souligné dans la liste. Absent sur l'accueil.

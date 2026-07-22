@@ -16,7 +16,7 @@
 <script setup>
 import { useRouter } from 'vue-router'
 import ImportCalibration from './ImportCalibration.vue'
-import { useRegistry } from '../composables/useRegistry'
+import { useRegistry } from '../../composables/useRegistry'
 
 const router = useRouter()
 const { pendingPreview, fetchDocuments, startAnalyse } = useRegistry()

@@ -62,13 +62,13 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import QuillBlock from './QuillBlock.vue'
-import { buildBlocks } from '../script/paginate.js'
-import { buildFragmentRegistry, createFragmentApi } from '../script/fragment.js'
-import { createRegistry } from '../script/registry.js'
-import { syncQuillToFragment } from '../script/syncQuill.js'
-import { useFakeCaret } from '../composables/useFakeCaret.js'
-import { useFloatingToolbar } from '../composables/useFloatingToolbar.js'
-import { useFragmentEditor } from '../composables/useFragmentEditor.js'
+import { buildBlocks } from '../../script/paginate.js'
+import { buildFragmentRegistry, createFragmentApi } from '../../script/fragment.js'
+import { createRegistry } from '../../script/registry.js'
+import { syncQuillToFragment } from '../../script/syncQuill.js'
+import { useFakeCaret } from '../../composables/useFakeCaret.js'
+import { useFloatingToolbar } from '../../composables/useFloatingToolbar.js'
+import { useFragmentEditor } from '../../composables/useFragmentEditor.js'
 
 const props = defineProps({
   // 'read' : aperçu compact (une page, sans édition).

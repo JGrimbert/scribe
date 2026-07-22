@@ -17,8 +17,8 @@
 
 <script setup>
 import { useRouter } from 'vue-router'
-import BaseButton from './ui/BaseButton.vue'
-import { useRegistry } from '../composables/useRegistry'
+import BaseButton from '../ui/BaseButton.vue'
+import { useRegistry } from '../../composables/useRegistry'
 
 defineProps({
   // L'accueil parle du format (« un .odt » : on choisit un fichier), l'aside du

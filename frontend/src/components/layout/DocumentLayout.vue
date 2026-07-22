@@ -79,13 +79,13 @@
 <script setup>
 import { ref, computed, provide, watch, onMounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import StructureView from './StructureView.vue'
+import StructureView from '../structure/StructureView.vue'
 import DocumentBar from './DocumentBar.vue'
-import CustomScrollbar from './CustomScrollbar.vue'
-import DocumentList from './DocumentList.vue'
-import ImportButton from './ImportButton.vue'
-import BaseButton from './ui/BaseButton.vue'
-import { provideAnalyse } from '../composables/useAnalyse'
+import CustomScrollbar from '../ui/CustomScrollbar.vue'
+import DocumentList from '../home/DocumentList.vue'
+import ImportButton from '../import/ImportButton.vue'
+import BaseButton from '../ui/BaseButton.vue'
+import { provideAnalyse } from '../../composables/useAnalyse'
 
 const route = useRoute()
 const router = useRouter()

@@ -26,7 +26,7 @@ completeness/conformity/lexical/semantic/topics). Vocabulaires/helpers purs :
   config.
 
 L'ancien écran « Chapitrage » (`DocumentIndex.vue`) est supprimé — ses stats
-vivent dans l'infobulle des nœuds de `StructureView` (cf. `../CLAUDE.md`).
+vivent dans l'infobulle des nœuds de `StructureView` (cf. `../structure/CLAUDE.md`).
 
 ## Familles de cards
 

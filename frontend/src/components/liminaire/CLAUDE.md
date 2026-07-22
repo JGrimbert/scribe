@@ -21,7 +21,7 @@ liminaire. `../../script/liminaire-bornes.js` (absorption des bornes),
 
 ## Composants
 
-- **`../LiminaireComposer.vue`** (orchestrateur, à la racine `components/`) — un
+- **`LiminaireComposer.vue`** (orchestrateur) — un
   `AnalyseBlock aside="right" bare` : main = accordéon des vis-à-vis, aside =
   découpage du vis-à-vis focusé + verdict. Détient l'état partagé (config mutée
   **en place**, convention `RuleSetForm` ; focus) et le distribue, ne rend rien
@@ -34,7 +34,7 @@ liminaire. `../../script/liminaire-bornes.js` (absorption des bornes),
   (flèches + pastilles + réglette). Le DERNIER cran n'est pas un vis-à-vis mais
   l'action d'étendre le liminaire — d'où `slideCount = spreads + 1` dans toute la
   mécanique.
-- **`../LiminaireFolio.vue`** — UN folio physique, sans état ni contrôle : la page
+- **`LiminaireFolio.vue`** — UN folio physique, sans état ni contrôle : la page
   ne porte que son verdict (type/suggestion/aperçu), les contrôles vivent sous la
   scène (une page réduite et chevauchée ne se clique pas). Gère couverture / page
   blanche / blanche implicite (parité).

@@ -70,12 +70,12 @@
 
 <script setup>
 import { computed, ref, watch } from 'vue'
-import AnalyseBlock from './analyse/AnalyseBlock.vue'
-import BaseButton from './ui/BaseButton.vue'
-import UiCallout from './ui/UiCallout.vue'
-import LiminaireAccordeon from './liminaire/LiminaireAccordeon.vue'
-import LiminaireDecoupage from './liminaire/LiminaireDecoupage.vue'
-import LiminaireEligibilite from './liminaire/LiminaireEligibilite.vue'
+import AnalyseBlock from '../analyse/AnalyseBlock.vue'
+import BaseButton from '../ui/BaseButton.vue'
+import UiCallout from '../ui/UiCallout.vue'
+import LiminaireAccordeon from './LiminaireAccordeon.vue'
+import LiminaireDecoupage from './LiminaireDecoupage.vue'
+import LiminaireEligibilite from './LiminaireEligibilite.vue'
 import {
   LIMINAIRE_BY_KEY,
   computeImposition,
@@ -88,8 +88,8 @@ import {
   sideOfPage,
   toSpreads,
   typeOfPage,
-} from '../script/liminaire'
-import { suggestAll } from '../script/liminaire-suggest'
+} from '../../script/liminaire'
+import { suggestAll } from '../../script/liminaire-suggest'
 
 const props = defineProps({
   pages: { type: Array, required: true },

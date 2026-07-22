@@ -19,7 +19,7 @@
 <script setup>
 import { useRouter } from 'vue-router'
 import DocumentList from './DocumentList.vue'
-import ImportButton from './ImportButton.vue'
+import ImportButton from '../import/ImportButton.vue'
 
 const router = useRouter()
 

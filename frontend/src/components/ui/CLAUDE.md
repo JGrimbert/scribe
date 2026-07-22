@@ -32,7 +32,7 @@ monte pas.
   compositor-only (opacity/transform), sans-serif partout dans l'UI
   (`--font-serif` réservé au contenu du manuscrit), liseret de couleur uniquement
   s'il est sémantique (niveaux de calibration).
-- **Hors périmètre** : la couche Folio/Quill (éditeur paginé, `../FolioView.vue`)
+- **Hors périmètre** : la couche Folio/Quill (éditeur paginé, `../editor/FolioView.vue`)
   ne passe pas par `ui/` ni Storybook.
 
 ## `BaseChart.vue` — seul point d'entrée ECharts

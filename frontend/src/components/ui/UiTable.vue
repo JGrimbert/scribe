@@ -24,7 +24,7 @@
 
 <script setup>
 import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
-import CustomScrollbar from '../CustomScrollbar.vue'
+import CustomScrollbar from './CustomScrollbar.vue'
 
 const props = defineProps({
   // Défilement interne — usage exceptionnel (listes non tronquables) :

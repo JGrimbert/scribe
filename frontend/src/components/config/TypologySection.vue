@@ -84,7 +84,7 @@
 
 <script setup>
 import { computed, ref, watch } from 'vue'
-import FolioView from '../FolioView.vue'
+import FolioView from '../editor/FolioView.vue'
 import RuleSetForm from './RuleSetForm.vue'
 import StyleRolesTable from './StyleRolesTable.vue'
 import UiNote from '../ui/UiNote.vue'

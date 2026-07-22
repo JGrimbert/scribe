@@ -33,7 +33,7 @@ dans la config ; les liens posés visent encore l'ancienne URL).
 ## Recalibration — réduite aux bornes, dans le liminaire
 
 `POST /documents/:id/recalibrate` rend un `PreviewResponse` ordinaire ;
-`ConfigView` monte alors le MÊME `ImportCalibration` (cf. `../CLAUDE.md`) en
+`ConfigView` monte alors le MÊME `ImportCalibration` (cf. `../import/CLAUDE.md`) en
 `mode="recalibration"`. Le `previewId` sait qu'il s'agit d'un remplacement, le
 commit repasse par la route de commit normale. Le déclencheur (« Reprendre les
 bornes du livre ») vit dans la section **Liminaire** : c'est elle qui définit où

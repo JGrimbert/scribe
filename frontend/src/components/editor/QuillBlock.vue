@@ -18,8 +18,8 @@
 
 <script setup>
 import { ref, watch, nextTick, onBeforeUnmount } from 'vue'
-import { isOnFirstLine, isOnLastLine } from '../script/quillCaret.js'
-import { registerInternalLinkBlot } from '../script/internalLinkBlot.js'
+import { isOnFirstLine, isOnLastLine } from '../../script/quillCaret.js'
+import { registerInternalLinkBlot } from '../../script/internalLinkBlot.js'
 
 const props = defineProps({
   modelValue: { type: String, default: "" },

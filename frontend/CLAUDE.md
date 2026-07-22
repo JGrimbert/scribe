@@ -14,9 +14,14 @@ Ce fichier ne garde que le transverse ; le détail vit près du code et ne se
 charge que quand on y travaille :
 
 - **`src/router/CLAUDE.md`** — routing + rôle de chaque vue.
-- **`src/components/CLAUDE.md`** — registre & aside, menus/`DocumentBar`,
-  `StructureView`, calibration d'import, composants éditeur. Carte des
-  sous-dossiers de composants :
+- **`src/components/CLAUDE.md`** — carte des sous-dossiers de composants (tout est
+  éclaté par famille, chaque doc chargé à la demande) + note e2e transverse :
+  - `src/components/editor/CLAUDE.md` — rendu paginé + édition (`FolioView`, Quill).
+  - `src/components/import/CLAUDE.md` — import `.odt` + calibration/recalibration.
+  - `src/components/structure/CLAUDE.md` — aside arborescente (`StructureView`).
+  - `src/components/layout/CLAUDE.md` — coquille d'un document (`DocumentLayout`,
+    `DocumentBar` : asides, fil d'Ariane, validation, scope).
+  - `src/components/home/CLAUDE.md` — accueil + registre (`HomeView`, `DocumentList`).
   - `src/components/config/CLAUDE.md` — écran de configuration (typologie,
     styles, modèles, règles, recalibration).
   - `src/components/analyse/CLAUDE.md` — dashboard (cards, `AnalyseBlock`, echarts).

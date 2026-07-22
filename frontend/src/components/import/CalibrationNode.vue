@@ -40,8 +40,8 @@
 
 <script setup>
 import { ref } from 'vue'
-import TreeRow from './ui/TreeRow.vue'
-import BaseChip from './ui/BaseChip.vue'
+import TreeRow from '../ui/TreeRow.vue'
+import BaseChip from '../ui/BaseChip.vue'
 
 defineProps({
   node: { type: Object, required: true },

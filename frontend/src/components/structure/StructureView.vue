@@ -22,7 +22,7 @@
 <script setup>
 import { computed, reactive, watch } from 'vue'
 import StructureNode from './StructureNode.vue'
-import { pathToInAxes } from '../script/trame'
+import { pathToInAxes } from '../../script/trame'
 
 const props = defineProps({
   trame: Object,
