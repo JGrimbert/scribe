@@ -96,6 +96,9 @@ export function buildBlocks(sections) {
                 type: e.type === 'list' ? 'list' : 'paragraph',
                 path: { kind: 'texte', index },
                 ownerId: section.id,
+                // Nom du style effectif : stampé en `data-style` (cf. useFolioFrame),
+                // clé de la feuille `visuals` pour un rendu fidèle au .odt.
+                styleName: e.styleName,
                 html: renderTexteEntry(e)
             })
         })

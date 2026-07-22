@@ -4,6 +4,7 @@
         mode="edit"
         :data="data"
         :node-id="nodeId"
+        :visuals="visuals"
         :quill-visible="quillVisible"
     />
   </div>
@@ -17,6 +18,7 @@ import FolioView from './FolioView.vue'
 const route = useRoute()
 const trame = inject('documentTrame')
 const data = inject('documentData')
+const visuals = inject('documentVisuals')
 const quillVisible = inject('quillVisible')
 
 // `/noeud` sans chapitre = « ouvre l'éditeur », sans dire où. C'est la seule

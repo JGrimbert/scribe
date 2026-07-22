@@ -1,6 +1,7 @@
 import { ref } from 'vue'
 import { buildFragmentRegistry, createFragmentApi } from '../script/fragment.js'
 import { createRegistry } from '../script/registry.js'
+import { buildVisualsCss } from '../script/folioStyles.js'
 
 // URLs ABSOLUES : l'iframe sans `src` a une base `about:blank`. Le build UMD de
 // Paged.js est servi par un middleware dev (cf. vite.config.js).
@@ -72,6 +73,17 @@ export function useFolioFrame(props, { frameRef, frameDoc, blocks, section, onRe
     const boot = doc.getElementById('__boot')
     doc.head.querySelectorAll('style').forEach((el) => { if (el !== boot) el.remove() })
 
+    // Feuille d'apparence des styles (fidélité .odt) : régénérée à chaque
+    // repagination (le boot et les styles de Paged.js tombent au-dessus), avant
+    // le preview pour que Paged.js la reprenne dans les pages rendues.
+    const visualsCss = buildVisualsCss(props.visuals)
+    if (visualsCss) {
+      const styleEl = doc.createElement('style')
+      styleEl.id = '__visuals'
+      styleEl.textContent = visualsCss
+      doc.head.appendChild(styleEl)
+    }
+
     const target = doc.getElementById('render')
     if (!target) return Promise.resolve()
     target.style.transform = ''
@@ -94,6 +106,9 @@ export function useFolioFrame(props, { frameRef, frameDoc, blocks, section, onRe
       const root = tmp.firstElementChild
       if (!root) continue
       root.setAttribute('data-block-id', b.id)
+      // Clé d'apparence : la feuille __visuals cible `[data-style="…"]`. Préservé
+      // par Paged.js sur chaque fragment issu d'une coupure de page.
+      if (b.styleName) root.setAttribute('data-style', b.styleName)
       article.appendChild(root)
     }
     const source = doc.createElement('div')

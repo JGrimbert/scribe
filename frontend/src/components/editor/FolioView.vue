@@ -80,6 +80,10 @@ const props = defineProps({
   nodeId: { type: String, default: null },
   depth: { type: Number, default: 0 },
   visiblePages: { type: Number, default: 2.2 },
+  // Apparence des styles ODT (map nom→StyleVisual, cf. GET /documents/:id) :
+  // la feuille injectée dans l'iframe rend chaque bloc fidèle au .odt. Null =
+  // look générique de paged.css (document sans styles.xml lu).
+  visuals: { type: Object, default: null },
   // Debug : rendre visible le Quill flottant (sinon seul le miroir Folio l'est).
   quillVisible: { type: Boolean, default: false },
 })
