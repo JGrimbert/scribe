@@ -1,4 +1,5 @@
-import { entryPlainText, typeOfStyleName } from './liminaire'
+import { entryPlainText } from './liminaire-pages'
+import { typeOfStyleName } from './liminaire-vocab'
 
 // Devine le type d'une page liminaire à partir de signaux DÉTERMINISTES, du plus
 // fiable au plus faible :

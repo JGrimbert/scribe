@@ -50,7 +50,8 @@
 </template>
 
 <script setup>
-import { breakOfKey, entryPlainText, toggleBreak } from '../../script/liminaire'
+import { breakOfKey, toggleBreak } from '../../script/liminaire-config'
+import { entryPlainText } from '../../script/liminaire-pages'
 
 defineProps({
   // Les pages du vis-à-vis focusé (cf. pagesOfSpread) — pas tout le liminaire.

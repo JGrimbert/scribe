@@ -102,9 +102,13 @@ coupure de page interne.
   attendu). Testé (`shapes.test.js`).
 - **`trame.js`** — parcours de l'arbre `trame.axes[]` (profondeur arbitraire) :
   `pathToInAxes` (fil d'Ariane), partagé par `DocumentBar` et `StructureView`.
-- **`liminaire.js`** / **`liminaire-bornes.js`** / **`liminaire-suggest.js`** —
-  feature liminaire (groupement des pages, bornes absorbables, suggestions).
-  Voir `../components/liminaire/CLAUDE.md`. Testés (`*.test.js`).
+- **`liminaire-vocab.js`** / **`liminaire-pages.js`** /
+  **`liminaire-imposition.js`** / **`liminaire-eligibilite.js`** /
+  **`liminaire-config.js`** / **`liminaire-bornes.js`** /
+  **`liminaire-suggest.js`** — feature liminaire éclatée par thème (vocabulaire,
+  groupement des pages, imposition/planches, éligibilité, accès config, bornes
+  absorbables, suggestions). Voir `../components/liminaire/CLAUDE.md`. Chacun
+  testé (`*.test.js` colocalisé).
 - **`format.js`** — formatage d'affichage (tailles, dates, nombres).
 
 ## Helpers d'analyse (dashboard)

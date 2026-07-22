@@ -76,19 +76,17 @@ import UiCallout from '../ui/atoms/UiCallout.vue'
 import LiminaireAccordeon from './LiminaireAccordeon.vue'
 import LiminaireDecoupage from './LiminaireDecoupage.vue'
 import LiminaireEligibilite from './LiminaireEligibilite.vue'
+import { LIMINAIRE_BY_KEY } from '../../script/liminaire-vocab'
+import { computeImposition, toSpreads, pagesOfSpread } from '../../script/liminaire-imposition'
+import { deriveEligibility } from '../../script/liminaire-eligibilite'
 import {
-  LIMINAIRE_BY_KEY,
-  computeImposition,
-  deriveEligibility,
   expectedSideOf,
   isConflicting,
-  pagesOfSpread,
   setPageSide,
   setPageType,
   sideOfPage,
-  toSpreads,
   typeOfPage,
-} from '../../script/liminaire'
+} from '../../script/liminaire-config'
 import { suggestAll } from '../../script/liminaire-suggest'
 
 const props = defineProps({
