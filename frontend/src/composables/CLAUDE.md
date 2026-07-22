@@ -32,13 +32,18 @@ les **helpers DOM de l'iframe** (`frameDoc`/`findFragEl`/`listFragEls`/
   ajouté aux rects).
 - **`useFloatingToolbar.js`** — positionne la toolbar Quill (téléportée dans
   `<body>` par `QuillBlock`) au-dessus de la sélection courante.
-- **`useFragmentEditor.js`** — le plus gros : cycle de vie complet de l'édition
-  par fragment (activer/fermer/commit/merge, navigation ↑/↓) ET la sélection
-  cross-fragment (`crossSelection` — à cheval sur plusieurs fragments, traitée
-  directement sur le modèle puisqu'aucun Quill ne peut la représenter ; voir
-  « Pièges éditeur » de `../script/CLAUDE.md`). Reçoit `caret`/`toolbar`/
-  `findFragEl`/`refresh`/`scalePercent`/`keyboardTarget` par injection (pas
-  d'import direct), voir « Découplage ».
+- **`useFragmentEditor.js`** — cycle de vie de l'édition MONO-fragment
+  (activer/fermer/commit/merge, navigation ↑/↓, clic/drag mono). Reçoit
+  `caret`/`toolbar`/`findFragEl`/`refresh`/`scalePercent`/`keyboardTarget` par
+  injection (pas d'import direct), voir « Découplage ». Instancie
+  `useCrossSelection` et lui passe trois callbacks vers l'état mono
+  (`flushEditor` = persister+fermer, `openTexteFragment` = rouvrir, `armSuppressClick`).
+- **`useCrossSelection.js`** — la sélection à cheval sur PLUSIEURS fragments
+  (`crossSelection` : coupure de page interne OU vraie frontière de paragraphe).
+  Aucun Quill ne peut la représenter (un seul monté à la fois) : elle se traite
+  directement sur le modèle (`registry.deleteRange`), avec overlay reconstruit
+  rect par rect et interception clavier ciblée (voir « Pièges éditeur » de
+  `../script/CLAUDE.md`). Découplée de l'édition mono par les callbacks ci-dessus.
 
 ## Registre, typologie, analyse
 

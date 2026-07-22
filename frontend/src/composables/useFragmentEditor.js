@@ -1,6 +1,7 @@
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
-import { applyMirrorHtml, getCharIndexAtPoint, charIndexFromNodeOffset, getRangeRects } from '../script/liveEdit.js'
+import { computed, nextTick, ref } from 'vue'
+import { applyMirrorHtml, getCharIndexAtPoint, charIndexFromNodeOffset } from '../script/liveEdit.js'
 import { syncQuillToFragment } from '../script/syncQuill.js'
+import { useCrossSelection } from './useCrossSelection.js'
 
 // L'id d'un bloc "texte" a la forme `${articleId}__texte__${index}` (cf.
 // buildBlock() dans paginate.js) ; parseBlockId() en est l'inverse.
@@ -33,13 +34,26 @@ export function useFragmentEditor({ findFragEl, listFragEls, registry, fragments
     const pendingLength = ref(0)
     const switchingFragment = ref(false)
 
-    // Sélection "virtuelle" à cheval sur plusieurs fragments : aucun Quill ne
-    // peut la représenter (un seul est monté à la fois), donc pas d'éditeur
-    // ouvert tant qu'elle est active — juste un overlay + une interception
-    // clavier ciblée. Voir activateCrossSelection/handleCrossSelectionKeydown.
-    const crossSelection = ref(null)
-
     let suppressNextClick = false
+
+    // Persiste + ferme le fragment mono en cours avant qu'une sélection
+    // cross-fragment ne prenne la main (sinon les modifs Quill en cours sont
+    // perdues). Passé à useCrossSelection, qui n'a pas accès à l'état mono.
+    function flushEditor() {
+        if (editingId.value) {
+            fragments.value?.setFragment(editingId.value, liveHtml.value)
+            closeEditor()
+        }
+    }
+    function armSuppressClick() { suppressNextClick = true }
+
+    // La sélection à cheval sur plusieurs fragments vit dans son composable dédié :
+    // aucun Quill ne peut la représenter (un seul monté à la fois), elle se traite
+    // directement sur le modèle. Couplage à l'éditeur mono par callbacks.
+    const { crossSelection, activateCrossSelection } = useCrossSelection({
+        listFragEls, fragments, registry, refresh, caret, toolbar, keyboardTarget,
+        parseBlockId, flushEditor, openTexteFragment, armSuppressClick,
+    })
 
     // Un paragraphe peut être réparti sur plusieurs fragments de pagination
     // (coupure de page en plein milieu). Delete/Backspace ne doivent fusionner
@@ -301,128 +315,6 @@ export function useFragmentEditor({ findFragEl, listFragEls, registry, fragments
 
         activateCrossSelection(sel, anchorEl, focusEl)
     }
-
-    // Sélection dont l'ancre et le focus tombent dans deux fragments
-    // différents — soit une vraie frontière de paragraphe, soit une simple
-    // coupure de page interne à un même paragraphe. Dans les deux cas, aucun
-    // Quill ne peut la représenter (un seul fragment chargé à la fois) : on
-    // résout les deux bords en position globale (blockId + offset dans le
-    // paragraphe complet, via fragments.globalIndex) plutôt qu'en local, ce
-    // qui unifie les deux cas — même blockId aux deux bords = simple édition
-    // mono-paragraphe, blockId différents = fusion multi-paragraphe.
-    function activateCrossSelection(sel, anchorEl, focusEl) {
-        const allFrags = listFragEls()
-        const anchorPos = allFrags.indexOf(anchorEl)
-        const focusPos = allFrags.indexOf(focusEl)
-        if (anchorPos === -1 || focusPos === -1) return
-
-        // Ordre réel dans le document (l'utilisateur peut glisser dans les
-        // deux sens) : détermine qui est le bord "début" vs "fin".
-        const reversed = anchorPos > focusPos
-        const startEl = reversed ? focusEl : anchorEl
-        const endEl = reversed ? anchorEl : focusEl
-        const startNode = reversed ? sel.focusNode : sel.anchorNode
-        const startNodeOffset = reversed ? sel.focusOffset : sel.anchorOffset
-        const endNode = reversed ? sel.anchorNode : sel.focusNode
-        const endNodeOffset = reversed ? sel.anchorOffset : sel.focusOffset
-
-        const startLocal = charIndexFromNodeOffset(startEl, startNode, startNodeOffset)
-        const endLocal = charIndexFromNodeOffset(endEl, endNode, endNodeOffset)
-
-        // Dernière lecture utile de `sel` : on la vide avant toute mutation DOM
-        // (closeEditor()/applyMirrorHtml plus bas) — même raison que dans
-        // onColumnMouseUp, cf. son commentaire.
-        sel.removeAllRanges()
-
-        const startResolved = fragments.value?.globalIndex(startEl.dataset.fragId, startLocal)
-        const endResolved = fragments.value?.globalIndex(endEl.dataset.fragId, endLocal)
-        if (!startResolved || !endResolved) return
-
-        const startBlock = parseBlockId(startResolved.blockId)
-        const endBlock = parseBlockId(endResolved.blockId)
-        if (startBlock.kind !== 'texte' || endBlock.kind !== 'texte') return
-        if (startBlock.articleId !== endBlock.articleId) return // pas de fusion inter-article
-
-        // Un fragment était en cours d'édition : on persiste son contenu
-        // avant de le fermer, sinon les modifs en cours dans Quill sont
-        // perdues (même précaution que dans activateFragment).
-        if (editingId.value) {
-            fragments.value?.setFragment(editingId.value, liveHtml.value)
-            closeEditor()
-        }
-
-        const coveredEls = allFrags.slice(Math.min(anchorPos, focusPos), Math.max(anchorPos, focusPos) + 1)
-        const rects = coveredEls.flatMap((el, i) => {
-            const from = i === 0 ? startLocal : 0
-            const to = i === coveredEls.length - 1 ? endLocal : Infinity
-            return getRangeRects(el, from, to)
-        })
-
-        suppressNextClick = true
-        caret.setSelectionRects(rects)
-        toolbar.updateVisibility(rects)
-
-        crossSelection.value = {
-            articleId: startBlock.articleId,
-            startIndex: startBlock.index,
-            startOffset: startResolved.index,
-            endIndex: endBlock.index,
-            endOffset: endResolved.index,
-        }
-    }
-
-    // Touche tapée pendant qu'une sélection cross-fragment est affichée :
-    // Entrée garde les deux restes comme deux paragraphes séparés, tout le
-    // reste (Backspace/Delete/caractère imprimable) les fusionne en un seul —
-    // un caractère tapé est inséré au point de jonction dans le même geste.
-    async function handleCrossSelectionKeydown(e) {
-        const sel = crossSelection.value
-        if (!sel) return
-
-        const isEnter = e.key === 'Enter'
-        const isDelete = e.key === 'Backspace' || e.key === 'Delete'
-        const insertChar = (!isEnter && !isDelete && !e.ctrlKey && !e.metaKey && !e.altKey && e.key.length === 1)
-            ? e.key
-            : null
-
-        if (!isEnter && !isDelete && insertChar == null) return // touche non gérée : on laisse passer
-
-        e.preventDefault()
-
-        const blockId = `${sel.articleId}__texte__${sel.startIndex}`
-        const entry = registry.value?.get(blockId)
-        const result = entry?.deleteRange?.(sel.startOffset, sel.endIndex, sel.endOffset, {
-            keepSplit: isEnter,
-            insertText: insertChar ?? '',
-        })
-
-        crossSelection.value = null
-        caret.clear()
-        toolbar.hide()
-        if (!result) return
-
-        await refresh()
-        await settleClose()
-
-        openTexteFragment(sel.articleId, result.index, result.cursor)
-    }
-
-    // Cible retenue à l'ajout pour que removeEventListener matche (même si le
-    // document de l'iframe changeait entre-temps).
-    let boundKbd = null
-    watch(crossSelection, (val, oldVal) => {
-        if (val && !oldVal) {
-            boundKbd = keyboardTarget() ?? document
-            boundKbd.addEventListener('keydown', handleCrossSelectionKeydown)
-        } else if (!val && oldVal) {
-            boundKbd?.removeEventListener('keydown', handleCrossSelectionKeydown)
-            boundKbd = null
-        }
-    })
-
-    onBeforeUnmount(() => {
-        boundKbd?.removeEventListener('keydown', handleCrossSelectionKeydown)
-    })
 
     function onColumnClick(e) {
         if (suppressNextClick) {
