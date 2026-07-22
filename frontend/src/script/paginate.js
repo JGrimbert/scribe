@@ -1,4 +1,4 @@
-import { Previewer } from 'pagedjs'
+import { Previewer as PretextPreviewer, createPreviewer } from './pretext-adapter.js'
 import { buildFragmentRegistry, createFragmentApi, renderTexteEntry } from "./fragment.js";
 import { createRegistry } from "./registry.js";
 
@@ -50,7 +50,7 @@ function measure({ measureEl, blocks }) {
         colTarget.appendChild(root)
     })
 
-    const previewer = new Previewer();
+    const previewer = createPreviewer();
     const idx = new Map()
 
     const source = document.createElement("div");
