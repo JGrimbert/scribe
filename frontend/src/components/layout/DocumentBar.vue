@@ -53,23 +53,41 @@
       {{ VALIDATION_UI[validationState ?? 'aucune'].label }}
     </BaseButton>
 
+    <!-- CTA global à droite : un slot, un CTA contextuel. Une action posée par
+         l'écran (`barAction` — ex : « Redéfinir les bornes » en config) prend la
+         place du CTA d'analyse propre au dashboard. -->
     <div class="analyse-cta">
-      <ProgressChecklist
-          v-if="checklistVisible"
-          compact
-          class="doc-bar__checklist"
-          :items="checklistItems"
-          :progress="checklistProgress"
-      />
       <BaseButton
+          v-if="barAction"
           variant="solid-alt"
           class="run-all"
-          :icon="running ? null : 'pi-play'"
-          :busy="!!running"
-          @click="runAll"
+          :icon="barAction.icon"
+          :disabled="barAction.disabled"
+          :busy="barAction.busy"
+          :title="barAction.title"
+          @click="barAction.run"
       >
-        {{ running ? `Analyse : ${STEP_LABELS[running]}…` : hasAny ? 'Relancer l’analyse' : 'Lancer l’analyse' }}
+        {{ barAction.label }}
       </BaseButton>
+
+      <template v-else>
+        <ProgressChecklist
+            v-if="checklistVisible"
+            compact
+            class="doc-bar__checklist"
+            :items="checklistItems"
+            :progress="checklistProgress"
+        />
+        <BaseButton
+            variant="solid-alt"
+            class="run-all"
+            :icon="running ? null : 'pi-play'"
+            :busy="!!running"
+            @click="runAll"
+        >
+          {{ running ? `Analyse : ${STEP_LABELS[running]}…` : hasAny ? 'Relancer l’analyse' : 'Lancer l’analyse' }}
+        </BaseButton>
+      </template>
     </div>
   </div>
 </template>
@@ -96,6 +114,9 @@ const props = defineProps({
   // État de validation du chapitre courant : 'validé', 'périmé', ou null.
   validationState: { type: String, default: null },
   validating: Boolean,
+  // Action contextuelle de l'écran, posée dans le CTA global à droite à la place
+  // du bouton d'analyse. `{ label, icon, disabled, busy, title, run }` ou null.
+  barAction: { type: Object, default: null },
 })
 
 defineEmits(['toggle-sidebar', 'select', 'toggle-validation'])

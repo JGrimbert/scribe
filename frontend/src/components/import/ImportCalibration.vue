@@ -1,26 +1,13 @@
 <template>
-  <div class="calibration" :class="{ 'calibration--boxed': mode === 'recalibration' }">
-    <div class="calibration-header">
-      <h2 v-if="mode === 'import'">Calibrage de l'import</h2>
-      <!-- À l'import, on découvre l'écran : le mode d'emploi complet a sa place.
-           En recalibrage, on y revient pour déplacer une borne qu'on a déjà
-           posée — le rappeler en huit lignes, c'est faire relire ce qu'on sait. -->
-      <UiNote v-if="mode === 'import'" variant="hint">
-        Posez les deux démarcations : là où le vrai contenu commence (ce qui
-        précède part en liminaire) et, s'il y en a une, là où la partie finale
-        commence — table des matières, index, glossaire. Ce sont les deux bouts
-        qui ne sont pas de la structure du livre. Dépliez un titre pour voir ses
-        sous-titres. Les niveaux de titre viennent du document : on ne les
-        reprend qu'au besoin, via les réglages avancés ci-dessous.
-      </UiNote>
-    </div>
+  <div class="calibration calibration--boxed">
+    <!-- Titre et mode d'emploi sont portés par la modale hôte (`UiModal`) : la
+         calibration vit TOUJOURS en modale désormais (import comme recalibrage),
+         elle n'a plus d'en-tête propre. -->
 
-    <!-- En modale, la liste défile dans la scrollbar maison (teal + flèches),
-         comme partout ailleurs dans l'app. Sur /import elle n'a pas de hauteur
-         propre et défile avec la page : `component :is` évite de dupliquer tout
-         le contenu de la liste pour cette seule différence d'enveloppe. -->
+    <!-- La liste défile dans la scrollbar maison (teal + flèches), comme partout
+         ailleurs dans l'app ; le pied (Annuler / Valider) reste sous la main. -->
     <div class="outline-wrap">
-    <component :is="isRecalibration ? CustomScrollbar : 'div'" class="outline">
+    <CustomScrollbar class="outline">
       <template v-for="item in topLevelItems" :key="item.entry.index">
         <div
             class="divider"
@@ -53,7 +40,7 @@
         <CalibrationNode v-if="item.type === 'node'" :node="item.node" @level-change="onLevelChange" />
         <div v-else class="matter-row">{{ item.entry.text }}</div>
       </template>
-    </component>
+    </CustomScrollbar>
     </div>
 
     <div class="calibration-footer">
@@ -104,11 +91,11 @@ const props = defineProps({
 const emit = defineEmits(['committed', 'cancel'])
 
 const BORNES_WARNING =
-    "Les bornes ont changé : l'arbre du livre est reconstruit, les analyses seront à relancer."
+    "La calibration a changé (bornes ou niveaux) : l'arbre du livre est reconstruit, les analyses seront à relancer."
 
 const {
   structureStartIndex, structureEndIndex, committing, error,
-  isRecalibration, commitLabel, bornesChanged, topLevelItems,
+  commitLabel, bornesChanged, topLevelItems,
   toggleEnd, onLevelChange, onCommit,
 } = useCalibration(props, emit)
 </script>
@@ -138,10 +125,10 @@ const {
 .calibration--boxed {
   padding: 0;
   max-width: none;
-}
-
-.calibration--boxed .calibration-header {
-  flex: 0 0 auto;
+  /* Remplit le corps de la modale (item flex) et se comprime : sa LISTE défile,
+     son pied reste sous la main. Sans `flex-grow`, elle reprenait la hauteur de
+     sa liste et débordait la modale. */
+  flex: 1 1 auto;
 }
 
 /* Le conteneur flexe, la scrollbar s'y pose en ABSOLU. Ce n'est pas un détour :
@@ -181,40 +168,9 @@ const {
   padding-top: var(--sp-3);
 }
 
-.calibration-header h2 {
-  margin: 0 0 0.5em;
-}
-
-/* Chapeau du recalibrage : une ligne, alignée sur la gouttière de la liste. */
-.calibration-lead {
-  margin: 0 0 var(--sp-3);
-  font-size: var(--fs-sm);
-  color: var(--c-ink2);
-}
-
-/* Pli discret : le réglage des niveaux est l'exception, pas la règle. */
-.advanced-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-2);
-  margin-top: var(--sp-2);
-  padding: var(--sp-1) 0;
-  border: 0;
-  background: none;
-  color: inherit;
-  font: inherit;
-  font-size: var(--fs-sm);
-  cursor: pointer;
-  opacity: var(--op-muted);
-}
-
-.advanced-toggle:hover {
-  opacity: 1;
-}
-
-/* Pas d'`overflow-y: auto` ni de `max-height` ici : la liste défile avec la
-   page, dans la CustomScrollbar qui l'entoure (config) ou celle du navigateur
-   (/import). Une hauteur propre y ajouterait une seconde barre imbriquée. */
+/* Pas d'`overflow-y: auto` ni de `max-height` ici : la liste défile dans la
+   CustomScrollbar qui la porte (mode boxed). Une hauteur propre y ajouterait
+   une seconde barre imbriquée, proscrite par le DS. */
 .outline {
   flex: 1 1 auto;
   padding: 0.25em;

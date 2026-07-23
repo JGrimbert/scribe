@@ -18,19 +18,33 @@ export function useCalibration(props, emit) {
 
   const commitLabel = computed(() => {
     if (isRecalibration.value) return committing.value ? 'Reconstruction…' : 'Recalibrer'
-    return committing.value ? 'Import en cours…' : "Valider l'import"
+    return committing.value ? 'Import en cours…' : 'Valider le calibrage'
   })
 
-  // Les bornes ont-elles VRAIMENT bougé depuis celles du document ? Comparé aux
-  // bornes courantes, pas aux suggestions — c'est le réglage en base qui fait foi.
-  // `currentStructureStartIndex` est nul à l'import et sur un document antérieur à
-  // ces colonnes : on ne peut alors rien comparer, donc rien à avertir.
+  // Niveau relevé du document, par index — le point de comparaison des overrides.
+  const originalLevels = computed(() => {
+    const map = new Map()
+    for (const e of props.outline) map.set(e.index, e.level)
+    return map
+  })
+
+  // La calibration a-t-elle VRAIMENT changé depuis l'état du document ? Deux
+  // sources : les bornes ET les niveaux forcés — l'un comme l'autre reconstruit
+  // l'arbre et regénère les ids de nœuds (analyses à relancer). Comparé à l'état
+  // en base, pas aux suggestions. `currentStructureStartIndex` est nul à l'import
+  // et sur un document antérieur à ces colonnes : rien à comparer, rien à avertir.
+  // Un override ramené à son niveau d'origine (± puis −∓) ne compte pas : on
+  // compare la valeur, pas la présence d'une clé — sinon on userait la mise en
+  // garde à sur-avertir.
   const bornesChanged = computed(() => {
     if (!isRecalibration.value || props.currentStructureStartIndex == null) return false
-    return (
+    const bornesMoved =
         structureStartIndex.value !== props.currentStructureStartIndex ||
         structureEndIndex.value !== props.currentStructureEndIndex
+    const levelsMoved = Object.entries(levelOverrides).some(
+        ([index, level]) => level !== originalLevels.value.get(Number(index)),
     )
+    return bornesMoved || levelsMoved
   })
 
   // Re-cliquer la démarcation posée la retire : la partie finale est facultative,

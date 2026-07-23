@@ -1,22 +1,12 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '../components/home/HomeView.vue'
-import ImportView from '../components/import/ImportView.vue'
 import DocumentLayout from '../components/layout/DocumentLayout.vue'
 import AnalyseView from '../components/analyse/AnalyseView.vue'
 import EditorView from '../components/editor/EditorView.vue'
 import ConfigView from '../components/config/ConfigView.vue'
-import { useRegistry } from '../composables/useRegistry'
 
 const routes = [
   { path: '/', name: 'home', component: HomeView },
-  {
-    path: '/import',
-    name: 'import',
-    component: ImportView,
-    // Le preview d'import ne vit qu'en mémoire (ici comme côté backend) : entrer
-    // sur /import par l'URL ou après un rechargement n'a rien à calibrer.
-    beforeEnter: () => (useRegistry().pendingPreview.value ? true : '/'),
-  },
   {
     path: '/documents/:id',
     name: 'document-layout',

@@ -35,6 +35,15 @@ Le vidage reste le défaut pour un vrai changement de document.
   puis **fil d'Ariane** : titre du livre → niveaux jusqu'au nœud courant
   (`pathToInAxes`, `../../script/trame.js`, partagé avec `StructureView`). Le titre
   vient de `GET /documents/:id` (`content.title`).
+- **CTA global à droite, contextuel** — le slot d'action à l'extrémité droite
+  porte **un** CTA par écran. Par défaut le bouton d'analyse (« Relancer /
+  Lancer l'analyse » + checklist, `useAnalyse`). Une vue routée peut le remplacer
+  en posant une action : `DocumentLayout` fournit `provide('documentBarAction')`
+  (un `ref`), la vue le renseigne via `inject` tant qu'elle est montée
+  (`{ label, icon, disabled, busy, title, run }`), `DocumentBar` le reçoit en prop
+  et l'affiche à la place du CTA d'analyse. Aujourd'hui seule la **config** s'en
+  sert (« Redéfinir les bornes ») ; le `null` au démontage rend le slot à
+  l'analyse.
 - **Validation d'un chapitre** — bouton à droite du fil d'Ariane, monté
   **uniquement en édition et sur un chapitre ouvert** : on valide ce qu'on vient
   de relire, le dashboard ne fait que compter. Trois états (`Valider`/`Validé`/

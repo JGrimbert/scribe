@@ -11,9 +11,10 @@ const deletingId = ref(null)
 const error = ref(null)
 
 // Le preview d'import vit ici et non dans l'URL : il porte l'outline complet
-// (des milliers d'entrées sur un manuscrit réel). De toute façon le backend ne
-// garde le buffer qu'en mémoire — un rechargement de /import le perd, d'où la
-// garde de route qui renvoie à l'accueil plutôt que d'afficher un écran mort.
+// (des milliers d'entrées sur un manuscrit réel), et pilote l'ouverture de la
+// modale d'import globale (`ImportCalibrationModal`, montée dans App). De toute
+// façon le backend ne garde le buffer qu'en mémoire — un rechargement le perd,
+// et la modale se referme alors d'elle-même (plus d'écran ni de route dédiés).
 const pendingPreview = ref(null)
 
 async function fetchDocuments() {
@@ -38,7 +39,8 @@ function ensureLoaded() {
   if (!documents.value.length && !loading.value) return fetchDocuments()
 }
 
-// Rend true si le preview est prêt — l'appelant navigue alors vers /import.
+// Pose `pendingPreview` (qui ouvre la modale d'import) et rend true en cas de
+// succès. L'appelant n'a plus à naviguer : la modale globale réagit au preview.
 async function createPreview(file) {
   uploading.value = true
   error.value = null

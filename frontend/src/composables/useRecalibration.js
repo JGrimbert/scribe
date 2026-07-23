@@ -1,4 +1,4 @@
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, ref } from 'vue'
 
 // Le flux de recalibration des bornes du livre : ouverture de la modale, relecture
 // du `.odt` d'origine (`POST /recalibrate`), et conservation du rapport rendu au
@@ -63,14 +63,8 @@ export function useRecalibration({ docId, borderShift }) {
     report.value = summary.recalibration ?? null
   }
 
-  // Échap ferme la modale. Posé sur `window` et non sur le panneau : le focus peut
-  // être n'importe où dans la calibration (un accordéon entier), un handler local
-  // ne verrait pas la touche.
-  function onEscape(event) {
-    if (event.key === 'Escape' && recalOpen.value) closeRecal()
-  }
-  onMounted(() => window.addEventListener('keydown', onEscape))
-  onUnmounted(() => window.removeEventListener('keydown', onEscape))
+  // Échap et clic sur le voile ferment : gérés par `UiModal` (hôte), qui émet
+  // `close` → `closeRecal`. Pas de handler clavier ici, ce serait un doublon.
 
   return {
     preview, report, recalOpen, starting, recalError, shiftedStartIndex,

@@ -81,6 +81,10 @@
     </div>
 
     <router-view />
+
+    <!-- Import : modale globale (état de module `pendingPreview`), déclenchable
+         depuis l'accueil comme depuis l'aside de config. -->
+    <ImportCalibrationModal />
   </div>
 </template>
 
@@ -88,6 +92,7 @@
 import { ref, computed, provide, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import BaseButton from './components/ui/atoms/BaseButton.vue'
+import ImportCalibrationModal from './components/import/ImportCalibrationModal.vue'
 import { useRegistry } from './composables/useRegistry'
 
 const route = useRoute()

@@ -5,8 +5,9 @@ chargé à la demande (ne toucher qu'une famille n'en charge que le doc). Carte 
 
 - **`editor/`** — rendu paginé + édition : `FolioView` (UNIQUE éditeur, Paged.js
   en iframe), `EditorView`, `QuillBlock`, `ArticlePickerModal`. Voir `editor/CLAUDE.md`.
-- **`import/`** — import `.odt` : `ImportView`, `ImportButton`, `ImportCalibration`,
-  `CalibrationNode` (calibration + recalibration). Voir `import/CLAUDE.md`.
+- **`import/`** — import `.odt` : `ImportButton`, `ImportCalibrationModal` (modale
+  globale montée dans `App`), `ImportCalibration`, `CalibrationNode` (calibration +
+  recalibration, toujours en modale). Voir `import/CLAUDE.md`.
 - **`structure/`** — aside arborescente du document : `StructureView` /
   `StructureNode`. Voir `structure/CLAUDE.md`.
 - **`layout/`** — coquille d'un document ouvert : `DocumentLayout` (asides, cycle

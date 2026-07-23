@@ -1,9 +1,16 @@
 # Accueil & registre — `components/home/`
 
-`HomeView.vue` (route `/`) : l'accueil, qui EST l'écran du registre — la liste des
-documents (`DocumentList`) + le bouton d'import (`../import/ImportButton.vue`). Le
-registre n'a pas d'écran à lui : il vit ici et dans l'aside de la config (cf.
-`../layout/CLAUDE.md` pour l'arbitrage registre-vs-structure de l'aside).
+`HomeView.vue` (route `/`) : l'accueil, à **deux colonnes comme l'écran de
+config** — aside registre (`DocumentList` + `../import/ImportButton.vue`, fond
+`--c-aside-bck`, largeur 250 px, **toujours déployée** faute de doc-bar pour
+porter un chevron) ; main = un **module utilisateur** (placeholder, ancrage des
+futurs comptes) PUIS une présentation succincte des trois espaces (config /
+analyse / édition). Le registre n'a pas d'écran à lui : il vit ici et dans l'aside
+de la config (cf. `../layout/CLAUDE.md` pour l'arbitrage registre-vs-structure).
+Chaque colonne a sa propre `CustomScrollbar` (protocole flex éprouvé de
+`DocumentLayout`) ; l'aside de la home **duplique** ce chrome plutôt que de
+partager un composant — l'aside de `DocumentLayout` est couplée au chevron/rail et
+à `localStorage`, non requis ici.
 
 - **`../../composables/useRegistry.js` est un état de MODULE, pas d'instance** : la
   liste et le bouton d'import sont montés à deux endroits (accueil, aside de

@@ -16,8 +16,9 @@ dans la config ; les liens posés visent encore l'ancienne URL).
 
 - **`ConfigView.vue`** orchestre : en-tête (stats + suppression), boucle de
   `TypologySection`, socle « Règles par défaut », section Surlignages, footer
-  d'enregistrement. Héberge le flux de recalibration (un `preview` posé fait
-  prendre tout l'écran à la calibration).
+  d'enregistrement. Héberge le flux de recalibration (`RecalibrationModal`, une
+  modale `UiModal`) et **pose le CTA « Redéfinir les bornes » dans la doc-bar**
+  via `inject('documentBarAction')` (cf. `../layout/CLAUDE.md`).
 - **`../../composables/useTypologyConfig.js`** porte les données : inventaire,
   `styles`, `highlights`, `rules` (`{ default, byDepth }`), `settled`, les
   modèles (`useStructureShapes`), et le calcul des `sections` (une par zone,
@@ -30,14 +31,28 @@ dans la config ; les liens posés visent encore l'ancienne URL).
   réutilisée dans les deux cas. `styleRoles` est muté **en place** (comme
   `RuleSetForm` mute son `ruleSet`).
 
-## Recalibration — réduite aux bornes, dans le liminaire
+## Recalibration — deux déclencheurs, une modale
 
 `POST /documents/:id/recalibrate` rend un `PreviewResponse` ordinaire ;
 `ConfigView` monte alors le MÊME `ImportCalibration` (cf. `../import/CLAUDE.md`) en
-`mode="recalibration"`. Le `previewId` sait qu'il s'agit d'un remplacement, le
-commit repasse par la route de commit normale. Le déclencheur (« Reprendre les
-bornes du livre ») vit dans la section **Liminaire** : c'est elle qui définit où
-le liminaire s'arrête.
+`mode="recalibration"`, dans `RecalibrationModal` (une `UiModal`). Le `previewId`
+sait qu'il s'agit d'un remplacement, le commit repasse par la route de commit
+normale. **Deux déclencheurs, gardés tous les deux** :
+- le **CTA de la doc-bar** (« Redéfinir les bornes »), à la place du « Relancer
+  l'analyse » propre au dashboard — le même slot d'action globale, contextuel par
+  écran. `ConfigView` le pose via `inject('documentBarAction')` (un `ref` fourni
+  par `DocumentLayout`, lu par `DocumentBar`) tant que la config est montée ;
+- « Redéfinir le liminaire » dans la section **Liminaire** : contextuel — il
+  valide un aperçu de décalage de borne (`borderShift`), c'est elle qui définit
+  où le liminaire s'arrête.
+
+Les deux sont **barrés** si le `.odt` d'origine n'est pas conservé
+(`recalibratable`), avec une pastille `?` qui dit pourquoi.
+
+**Avertissement de recalibrage** (`bornesChanged`, `useCalibration`) : porte sur
+les bornes **ET** les niveaux forcés (un override change aussi l'arbre → analyses
+à relancer). Comparé à l'état en base et au niveau d'origine du titre — un réglage
+ramené à sa valeur ne compte pas, pour ne pas user la mise en garde.
 
 - **Niveaux de titre démotés** : la calibration ne différencie plus par défaut
   que liminaire / contenu / partie finale. Le réglage manuel −/+ reste dispo mais

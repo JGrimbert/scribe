@@ -16,7 +16,6 @@
 </template>
 
 <script setup>
-import { useRouter } from 'vue-router'
 import BaseButton from '../ui/atoms/BaseButton.vue'
 import { useRegistry } from '../../composables/useRegistry'
 
@@ -28,18 +27,19 @@ defineProps({
   block: { type: Boolean, default: false },
 })
 
-const router = useRouter()
 const { uploading, createPreview } = useRegistry()
 
 // L'échec est porté par `error` du registre, affiché par le parent (accueil ou
 // aside) : c'est là qu'il se lit, à côté de la liste qu'il n'a pas alimentée.
+// Succès : `createPreview` pose `pendingPreview`, que la modale globale
+// (`ImportCalibrationModal`, montée dans App) ouvre d'elle-même — plus de route.
 async function onFileChange(e) {
   const file = e.target.files[0]
   // Vidé avant tout await : sans ça, réimporter le MÊME fichier ne déclenche
   // aucun `change` (valeur inchangée pour l'input).
   e.target.value = ''
   if (!file) return
-  if (await createPreview(file)) router.push('/import')
+  await createPreview(file)
 }
 </script>
 

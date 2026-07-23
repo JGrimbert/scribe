@@ -165,7 +165,7 @@
 </template>
 
 <script setup>
-import { computed, inject, onMounted, watch } from 'vue'
+import { computed, inject, onMounted, onUnmounted, watch, watchEffect } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import BaseButton from '../ui/atoms/BaseButton.vue'
 import BaseSelect from '../ui/atoms/BaseSelect.vue'
@@ -187,6 +187,9 @@ import { totalOf, zoneSegments } from '../../script/zones'
 
 const route = useRoute()
 const router = useRouter()
+
+const NO_SOURCE_HINT =
+    "Recalibrage impossible : le .odt d'origine n'a pas été conservé (document importé avant cette fonctionnalité). Seul un réimport permet de refixer les bornes."
 
 const { documents, ensureLoaded, fetchDocuments, confirmAndDelete, deletingId } = useRegistry()
 const {
@@ -217,6 +220,25 @@ const deleting = computed(() => deletingId.value === route.params.id)
 // Tant que le registre n'est pas chargé on ne barre pas le bouton (il
 // clignoterait) ; le 404 du backend reste le filet.
 const recalibratable = computed(() => doc.value?.hasSource !== false)
+
+// Le CTA de recalibrage vit dans la doc-bar (zone d'action globale), à la place
+// du « Relancer l'analyse » propre à l'écran d'analyse : c'est le MÊME slot,
+// contextuel par écran. On y pose l'action tant que la config est montée ; la
+// doc-bar la rend, l'analyse reprend la main quand on quitte l'écran (unmount).
+// Barré si le `.odt` d'origine n'est pas conservé, le `title` disant pourquoi.
+const barAction = inject('documentBarAction', null)
+watchEffect(() => {
+  if (!barAction) return
+  barAction.value = {
+    label: 'Redéfinir les bornes',
+    icon: 'pi-refresh',
+    disabled: !recalibratable.value,
+    busy: starting.value,
+    title: recalibratable.value ? undefined : NO_SOURCE_HINT,
+    run: startRecalibration,
+  }
+})
+onUnmounted(() => { if (barAction) barAction.value = null })
 
 // Recharge trame/data chez DocumentLayout : une recalibration regénère tous les
 // ids de nœuds.

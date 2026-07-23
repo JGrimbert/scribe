@@ -3,14 +3,16 @@
 `App.vue` est un shell (menu + `<router-view>`), plus de toggle manuel entre
 vues. Routes (`index.js`, `vue-router`) :
 
-- **`/` — `HomeView.vue`** : porte d'entrée. La liste des manuscrits
-  (`DocumentList`) + le bouton d'import, centrés. **Pas de redirection** vers le
-  dernier document : `/` reste une destination réelle (icône « Accueil »).
-- **`/import` — `ImportView.vue`** : `ImportCalibration` en plein écran, hors
-  `DocumentLayout` (aucun document, rien à mettre dans une aside). **Garde de
-  route** (`beforeEnter`) : le preview ne vit qu'en mémoire des deux côtés
-  (`useRegistry`, et la `Map` du backend) — entrer par l'URL ou recharger renvoie
-  à l'accueil plutôt qu'un écran mort. Le commit navigue vers la config du
+- **`/` — `HomeView.vue`** : porte d'entrée, à **deux colonnes comme la config**
+  (aside registre `DocumentList` + import ; main = module utilisateur placeholder
+  puis présentation des espaces). **Pas de redirection** vers le dernier document :
+  `/` reste une destination réelle (icône « Accueil »).
+- **Import : plus de route ni d'écran dédiés.** La calibration d'import passe par
+  une **modale globale** (`../components/import/ImportCalibrationModal.vue`, montée
+  une fois dans `App.vue`), pilotée par `pendingPreview` (`useRegistry`) —
+  déclenchable depuis l'accueil comme depuis l'aside de config. Le preview ne vit
+  qu'en mémoire des deux côtés (module + `Map` backend) ; un rechargement le perd
+  et la modale se referme d'elle-même. Le commit navigue vers la config du
   document créé.
 - **`/documents/:id` — `DocumentLayout.vue`** : fetch unique de
   `GET /api/documents/:id`, fournit `trame`/`data` via `provide`/`inject` aux

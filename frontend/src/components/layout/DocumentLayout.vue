@@ -17,6 +17,7 @@
           :scoped="!isEditor"
           :validation-state="currentValidation"
           :validating="validating"
+          :bar-action="barAction"
           @toggle-sidebar="sidebarExpanded = !sidebarExpanded"
           @select="select"
           @toggle-validation="toggleValidation"
@@ -109,6 +110,12 @@ provide('documentTrame', trame)
 provide('documentData', data)
 provide('documentVisuals', visuals)
 provide('documentPage', page)
+
+// Action contextuelle de la doc-bar : le CTA global à droite. Une vue routée
+// (la config) la renseigne via inject ; null ailleurs, où la doc-bar retombe sur
+// son CTA d'analyse (« Relancer l'analyse »). Le même slot, un CTA par écran.
+const barAction = ref(null)
+provide('documentBarAction', barAction)
 
 // tat du shell (partagé sidebar + fil d'Ariane) 
 const SIDEBAR_KEY = 'scribe.sidebar.expanded'
