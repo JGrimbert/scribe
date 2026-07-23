@@ -1,10 +1,27 @@
 import { describe, it, expect } from 'vitest'
-import { aggregateByDepth, EMPTY_SIGNATURE, signatureLabel, toRoleRuns } from './shapes'
+import { aggregateByDepth, coarseSignature, isWritten, toRoleRuns } from './shapes'
 
-const shape = (nodeId, depth, runs, titre = nodeId) => ({ nodeId, titre, depth, isLeaf: true, runs, highlights: [] })
+const shape = (nodeId, depth, runs, { titre = nodeId, chars = 9999 } = {}) => ({
+  nodeId,
+  titre,
+  depth,
+  isLeaf: true,
+  runs,
+  chars,
+  highlights: [],
+})
 
-// Typologie de test : deux styles distincts partagent le rôle « corps ».
-const roles = { Paragraphes: 'corps', 'Text body': 'corps', 'mention sous titre': 'définition', Voir: 'renvoi' }
+// Typologie de test : deux styles distincts partagent « corps » ; « SousTitre »
+// est un sous-titre mal typé en « titre » (le cas chauve-souris).
+const roles = {
+  Paragraphes: 'corps',
+  'Text body': 'corps',
+  SousTitre: 'titre',
+  'mention sous titre': 'définition',
+  Citation: 'citation',
+  Ornement: 'ornement',
+  Voir: 'renvoi',
+}
 const roleOf = (styleName) => roles[styleName] ?? 'corps'
 
 describe('toRoleRuns', () => {
@@ -21,15 +38,49 @@ describe('toRoleRuns', () => {
   })
 })
 
-describe('signatureLabel', () => {
-  it('n’affiche le multiplicateur qu’au-delà de 1', () => {
-    // Le corps ne porte pas son ×N (bruit) ; les autres rôles, oui.
-    expect(signatureLabel([['définition', 1], ['corps', 4]])).toBe('définition · corps')
-    expect(signatureLabel([['chapeau', 2], ['corps', 3]])).toBe('chapeau×2 · corps')
+describe('isWritten', () => {
+  it('un nœud sans rôle substantiel (titre/ornement seuls, ou rien) n’est pas rédigé', () => {
+    expect(isWritten([])).toBe(false)
+    expect(isWritten([['titre', 1]])).toBe(false)
+    expect(isWritten([['ornement', 1]])).toBe(false)
+    expect(isWritten([['titre', 1], ['ornement', 1]])).toBe(false)
   })
 
-  it('nomme la forme vide', () => {
-    expect(signatureLabel([])).toBe(EMPTY_SIGNATURE)
+  it('un corps suffit à rendre un nœud rédigé', () => {
+    expect(isWritten([['corps', 1]])).toBe(true)
+    expect(isWritten([['titre', 1], ['définition', 1]])).toBe(true)
+  })
+})
+
+describe('coarseSignature', () => {
+  it('préfixe toujours un titre : le heading n’est jamais dans le corps', () => {
+    expect(coarseSignature([['définition', 1], ['corps', 2]])).toEqual(['titre', 'définition'])
+  })
+
+  it('un article pur (corps seul) garde un corps, pour ne pas se confondre avec un squelette', () => {
+    expect(coarseSignature([['corps', 3]])).toEqual(['titre', 'corps'])
+  })
+
+  it('ne renomme pas un second titre : un titre venu du corps disparaît', () => {
+    // « La chauve-souris » : un sous-titre mal typé en titre. Elle converge alors
+    // vers la même forme que « le blaireau » (titre · définition).
+    expect(coarseSignature([['titre', 1], ['définition', 1], ['corps', 2]])).toEqual(['titre', 'définition'])
+  })
+
+  it('retire le corps de remplissage et dédoublonne les rôles consécutifs', () => {
+    // Deux formes qui ne diffèrent que par un cycle « citation · corps » répété
+    // se rejoignent.
+    const a = coarseSignature([['titre', 1], ['corps', 1], ['citation', 1], ['corps', 1], ['citation', 1], ['corps', 1]])
+    const b = coarseSignature([['titre', 1], ['corps', 1], ['citation', 1], ['corps', 1]])
+    expect(a).toEqual(['titre', 'citation'])
+    expect(b).toEqual(['titre', 'citation'])
+  })
+
+  it('un corps final ne scinde pas deux formes identiques', () => {
+    const a = coarseSignature([['corps', 1], ['ornement', 1]])
+    const b = coarseSignature([['corps', 1], ['ornement', 1], ['corps', 1]])
+    expect(a).toEqual(['titre', 'ornement'])
+    expect(b).toEqual(['titre', 'ornement'])
   })
 })
 
@@ -48,32 +99,58 @@ describe('aggregateByDepth', () => {
     expect(groups[2].total).toBe(1)
   })
 
-  it('rassemble les nœuds de même forme en une signature', () => {
-    const runs = [['mention sous titre', 1], ['Paragraphes', 2]]
-    const groups = aggregateByDepth([shape('a', 2, runs), shape('b', 2, runs), shape('c', 2, [['Paragraphes', 1]])], roleOf)
+  it('rassemble les nœuds de même signature grossie', () => {
+    // Le blaireau et la chauve-souris (sous-titre mal typé) convergent.
+    const blaireau = [['mention sous titre', 1], ['Paragraphes', 2]]
+    const chauveSouris = [['SousTitre', 1], ['mention sous titre', 1], ['Paragraphes', 2]]
+    const groups = aggregateByDepth(
+      [shape('a', 2, blaireau), shape('b', 2, chauveSouris), shape('c', 2, [['Paragraphes', 1]])],
+      roleOf,
+    )
 
     const [dominant, autre] = groups[0].signatures
-    expect(dominant).toMatchObject({ label: 'définition · corps', count: 2, pct: 67 })
-    expect(autre).toMatchObject({ label: 'corps', count: 1 })
+    expect(dominant).toMatchObject({ label: 'titre · définition', count: 2, pct: 67 })
+    expect(autre).toMatchObject({ label: 'titre · corps', count: 1 })
     expect(dominant.nodes.map((n) => n.nodeId)).toEqual(['a', 'b'])
   })
 
-  it('compte les nœuds vides à part et ne les propose jamais comme modèle', () => {
-    // Le cas du témoin : « vide » est la forme la plus fréquente à tous les
-    // niveaux (228 articles sur 818). En faire un modèle reviendrait à proposer
-    // « un chapitre ne doit rien contenir ».
-    const groups = aggregateByDepth([shape('a', 2, []), shape('b', 2, []), shape('c', 2, [['Paragraphes', 1]])], roleOf)
+  it('compte les nœuds non rédigés à part et ne les propose jamais comme modèle', () => {
+    // Squelettes : rien, ou un titre seul, ou un filet. « vide » est la forme la
+    // plus fréquente à tous les niveaux (228/818 sur le témoin) ; en faire un
+    // modèle reviendrait à proposer « un chapitre ne doit rien contenir ».
+    const groups = aggregateByDepth(
+      [
+        shape('a', 2, []),
+        shape('b', 2, [['SousTitre', 1]]),
+        shape('o', 2, [['Ornement', 1]]),
+        shape('c', 2, [['Paragraphes', 1]]),
+      ],
+      roleOf,
+    )
 
-    expect(groups[0]).toMatchObject({ total: 3, empty: 2 })
-    expect(groups[0].signatures.map((s) => s.label)).toEqual(['corps'])
-    expect(groups[0].signatures.map((s) => s.label)).not.toContain(EMPTY_SIGNATURE)
+    expect(groups[0]).toMatchObject({ total: 4, empty: 3 })
+    expect(groups[0].signatures.map((s) => s.label)).toEqual(['titre · corps'])
   })
 
   it('rapporte les pourcentages aux nœuds ÉCRITS, pas au total', () => {
     // 1 seul nœud écrit sur 3 → sa forme régit 100 % de ce qui est rédigé.
-    // Rapporté au total, elle passerait pour marginale (33 %).
     const groups = aggregateByDepth([shape('a', 2, []), shape('b', 2, []), shape('c', 2, [['Paragraphes', 1]])], roleOf)
     expect(groups[0].signatures[0].pct).toBe(100)
+  })
+
+  it('écarte des modèles les nœuds sous le seuil « au moins N caractères » du niveau', () => {
+    const minCharsOf = (zoneKey) => (zoneKey === 'depth-2+' ? 500 : null)
+    const groups = aggregateByDepth(
+      [
+        shape('court', 2, [['Paragraphes', 1]], { chars: 100 }),
+        shape('long', 2, [['Paragraphes', 1]], { chars: 600 }),
+      ],
+      roleOf,
+      minCharsOf,
+    )
+    // Le court rejoint les non rédigés, seul le long définit un modèle.
+    expect(groups[0]).toMatchObject({ total: 2, empty: 1 })
+    expect(groups[0].signatures[0]).toMatchObject({ label: 'titre · corps', count: 1 })
   })
 
   it('trie par effectif décroissant', () => {
@@ -87,8 +164,8 @@ describe('aggregateByDepth', () => {
       roleOf,
     )
     expect(groups[0].signatures.map((s) => [s.label, s.count])).toEqual([
-      ['corps', 3],
-      ['renvoi', 1],
+      ['titre · corps', 3],
+      ['titre · renvoi', 1],
     ])
   })
 
@@ -110,7 +187,7 @@ describe('aggregateByDepth', () => {
     const avant = aggregateByDepth([shape('a', 2, runs)], roleOf)
     const apres = aggregateByDepth([shape('a', 2, runs)], (s) => (s === 'mention sous titre' ? 'chapeau' : 'corps'))
 
-    expect(avant[0].signatures[0].label).toBe('définition · corps')
-    expect(apres[0].signatures[0].label).toBe('chapeau · corps')
+    expect(avant[0].signatures[0].label).toBe('titre · définition')
+    expect(apres[0].signatures[0].label).toBe('titre · chapeau')
   })
 })

@@ -38,7 +38,7 @@ export function useTypologyConfig() {
 
   // Les modèles se recomposent contre `styles` (la typologie EN COURS
   // d'édition) : changer un rôle recompose les motifs dans le même tick.
-  const { groups: shapeGroups, error: shapesError, load: loadShapes } = useStructureShapes(styles)
+  const { groups: shapeGroups, error: shapesError, load: loadShapes } = useStructureShapes(styles, rules)
 
   const zoned = computed(() => hasZones(inventory.value.styles))
 

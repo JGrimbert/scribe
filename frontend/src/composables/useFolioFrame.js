@@ -1,7 +1,7 @@
 import { ref } from 'vue'
 import { buildFragmentRegistry, createFragmentApi } from '../script/fragment.js'
 import { createRegistry } from '../script/registry.js'
-import { buildVisualsCss } from '../script/folioStyles.js'
+import { buildVisualsCss, buildPageCss } from '../script/folioStyles.js'
 
 // URLs ABSOLUES : l'iframe sans `src` a une base `about:blank`. Le build UMD de
 // Paged.js est servi par un middleware dev (cf. vite.config.js).
@@ -115,7 +115,12 @@ export function useFolioFrame(props, { frameRef, frameDoc, blocks, section, onRe
     source.appendChild(article)
 
     const previewer = new win.Paged.Previewer()
-    return previewer.preview(source, [CSS_HREF], target).then((flow) => {
+    // Format de page du document (A5, marges du .odt) passé APRÈS paged.css pour
+    // que son @page l'emporte ; objet `{ nom: cssText }` = CSS inline (non fetché,
+    // cf. Polisher.add). Absent → paged.css garde son A5 par défaut.
+    const pageCss = buildPageCss(props.page)
+    const sheets = pageCss ? [CSS_HREF, { 'doc-page.css': pageCss }] : [CSS_HREF]
+    return previewer.preview(source, sheets, target).then((flow) => {
       if (props.mode === 'edit' && flow) {
         const owners = new Map([[props.nodeId, section.value]])
         const blockRegistry = createRegistry(owners, blocks.value, flow)

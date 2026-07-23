@@ -9,12 +9,10 @@ import { STRUCTURE_ZONES, zoneKeyOfDepth } from './zones'
 // former à mesure qu'on typologise, sans aller-retour réseau (cf.
 // analyse/structure-shapes.ts).
 
-// Un nœud sans texte propre n'a pas de forme — il n'est pas encore écrit. Le
-// distinguer n'est pas un détail : sur le manuscrit témoin, « vide » est la
-// signature la plus fréquente à TOUS les niveaux (228 articles sur 818). La
-// promouvoir en modèle reviendrait à proposer « un chapitre ne doit rien
-// contenir » comme règle. On la compte à part, et on ne la propose jamais.
-export const EMPTY_SIGNATURE = '(vide)'
+// Rôles qui ne « rédigent » pas un nœud : un nœud qui n'a QUE ceux-là (ou rien)
+// est un squelette — un titre seul, un filet — jamais un modèle. `corps` en est
+// exclu : un paragraphe de corps est du texte rédigé.
+const SKELETON_ROLES = new Set(['titre', 'ornement', 'ignorer'])
 
 // Traduit les runs de styles en runs de RÔLES, en refusionnant les voisins :
 // deux styles différents qui portent le même rôle ne font qu'un run (« corps ×5
@@ -31,29 +29,57 @@ export function toRoleRuns(runs, roleOf) {
   return out
 }
 
-// La signature lisible d'une forme : « chapeau · corps · renvoi ». Le rôle
-// « corps » ne porte jamais son ×N : c'est le remplissage attendu, son décompte
-// est du bruit — ce qui distingue une forme, ce sont les rôles saillants
-// (chapeau, définition, renvoi…), pas combien de paragraphes de corps suivent.
-export function signatureLabel(roleRuns) {
-  if (!roleRuns.length) return EMPTY_SIGNATURE
-  return roleRuns.map(([role, n]) => (n > 1 && role !== 'corps' ? `${role}×${n}` : role)).join(' · ')
+// Un nœud est rédigé s'il porte au moins un rôle substantiel (hors titre /
+// ornement / ignorer). Runs vides compris : `some` sur [] est faux.
+export function isWritten(roleRuns) {
+  return roleRuns.some(([role]) => !SKELETON_ROLES.has(role))
+}
+
+// La SIGNATURE GROSSIE d'une forme : le titre en tête, puis les rôles saillants
+// dans l'ordre. Trois réductions volontaires, pour que des formes proches se
+// rejoignent au lieu de peupler une longue traîne de quasi-doublons :
+//  - le titre du nœud (heading) n'est jamais dans `texte` : on le PRÉFIXE
+//    systématiquement. Un rôle « titre » venu du corps est l'anomalie d'un style
+//    mal typé (un sous-titre pris pour un titre) : on ne le RENOMME pas — il
+//    disparaît, la forme converge vers ce qu'elle devrait être ;
+//  - `corps` est du remplissage : retiré de la clé (sinon un corps final ou un
+//    cycle « citation · corps » répété scinderait deux formes identiques). Un
+//    article sans rôle saillant garde tout de même un « corps » pour ne pas se
+//    confondre avec un squelette (titre seul) ;
+//  - rôles consécutifs identiques dédoublonnés (une fois le corps retiré,
+//    « citation · corps · citation » devient « citation »).
+export function coarseSignature(roleRuns) {
+  const salient = []
+  let hasBody = false
+  for (const [role] of roleRuns) {
+    if (role === 'titre') continue
+    if (role === 'corps') {
+      hasBody = true
+      continue
+    }
+    if (salient[salient.length - 1] === role) continue
+    salient.push(role)
+  }
+  if (salient.length === 0) return hasBody ? ['titre', 'corps'] : ['titre']
+  return ['titre', ...salient]
 }
 
 /**
- * Regroupe les formes par niveau, puis par signature identique.
+ * Regroupe les formes par niveau, puis par signature grossie identique.
  *
- * Signatures EXACTES, pas de clustering — décision prise sur les chiffres du
- * témoin, pas par principe : 8 signatures y couvrent 87 à 100 % des nœuds de
- * chaque niveau. Les motifs sont littéraux ; un regroupement flou ne ferait que
- * brouiller ce qui est déjà net. À rouvrir seulement si un manuscrit montre une
- * longue traîne dispersée.
+ * Les nœuds NON RÉDIGÉS sont comptés à part (`empty`) et jamais proposés en
+ * modèle : squelettes (que titre/ornement — « vide » est la forme la plus
+ * fréquente à tous les niveaux) et, si le niveau porte un seuil « au moins N
+ * caractères », les nœuds sous ce seuil (`minCharsOf`). Le reste est groupé par
+ * signature grossie (cf. `coarseSignature`) : des formes qui ne diffèrent que
+ * par un corps de remplissage ou une répétition se rejoignent.
  *
- * @param shapes  [{ nodeId, titre, depth, isLeaf, runs, highlights }]
- * @param roleOf  (styleName) => rôle
+ * @param shapes      [{ nodeId, titre, depth, isLeaf, runs, chars, highlights }]
+ * @param roleOf      (styleName) => rôle
+ * @param minCharsOf  (zoneKey) => seuil de caractères du niveau, ou null
  * @returns [{ zone, total, empty, signatures: [{ key, label, roleRuns, count, pct, nodes }] }]
  */
-export function aggregateByDepth(shapes, roleOf) {
+export function aggregateByDepth(shapes, roleOf, minCharsOf = () => null) {
   const groups = STRUCTURE_ZONES.map((zone) => ({ zone, total: 0, empty: 0, signatures: [] }))
   const byKey = new Map(groups.map((g) => [g.zone.key, g]))
   const buckets = new Map()
@@ -63,17 +89,19 @@ export function aggregateByDepth(shapes, roleOf) {
     if (!group) continue
     group.total++
 
-    if (!shape.runs.length) {
+    const roleRuns = toRoleRuns(shape.runs, roleOf)
+    const minChars = minCharsOf(group.zone.key)
+    if (!isWritten(roleRuns) || (minChars != null && shape.chars < minChars)) {
       group.empty++
       continue
     }
 
-    const roleRuns = toRoleRuns(shape.runs, roleOf)
-    const label = signatureLabel(roleRuns)
+    const coarse = coarseSignature(roleRuns)
+    const label = coarse.join(' · ')
     const key = `${group.zone.key}|${label}`
     let bucket = buckets.get(key)
     if (!bucket) {
-      bucket = { key, label, roleRuns, count: 0, nodes: [] }
+      bucket = { key, label, roleRuns: coarse.map((role) => [role, 1]), count: 0, nodes: [] }
       buckets.set(key, bucket)
       group.signatures.push(bucket)
     }

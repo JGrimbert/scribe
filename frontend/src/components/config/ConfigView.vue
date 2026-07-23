@@ -58,6 +58,10 @@
 
     <UiNote v-if="loadError" variant="error">{{ loadError }}</UiNote>
 
+    <!-- Mise en page : propriété globale du livre, indépendante des styles —
+         affichée même sur un document sans inventaire (elle vient du .odt). -->
+    <PageFormatSection :page="documentPage" />
+
     <template v-if="inventory.styles.length">
       <TypologySection
           v-for="section in sections"
@@ -171,6 +175,7 @@ import UiNote from '../ui/molecules/UiNote.vue'
 import RuleSetForm from './RuleSetForm.vue'
 import StyleRolesTable from './StyleRolesTable.vue'
 import TypologySection from './TypologySection.vue'
+import PageFormatSection from './PageFormatSection.vue'
 import RecalibrationModal from './RecalibrationModal.vue'
 import LiminaireComposer from '../liminaire/LiminaireComposer.vue'
 import { useRegistry } from '../../composables/useRegistry'
@@ -194,6 +199,7 @@ const {
 // de l'endpoint typologie : c'est du contenu, pas de l'inventaire.
 const trame = inject('documentTrame', null)
 const documentData = inject('documentData', null)
+const documentPage = inject('documentPage', null)
 
 const { borderShift, canExtend, nextTitle, liminairePages } = useLiminaireBornes(trame, documentData, liminaireConfig)
 

@@ -35,6 +35,16 @@ function escapeAttrValue(name) {
   return name.replace(/["\\]/g, '\\$&')
 }
 
+// Format de page (dimensions + marges, en cm) → règle @page pour Paged.js.
+// Passée à preview() APRÈS paged.css : ses descripteurs @page l'emportent (les
+// règles @page fusionnent, la dernière déclaration gagne). Vide si pas de format
+// relevé → paged.css garde son A5 par défaut.
+export function buildPageCss(page) {
+  if (!page) return ''
+  const { widthCm, heightCm, marginTopCm, marginRightCm, marginBottomCm, marginLeftCm } = page
+  return `@page{size:${widthCm}cm ${heightCm}cm;margin:${marginTopCm}cm ${marginRightCm}cm ${marginBottomCm}cm ${marginLeftCm}cm;}`
+}
+
 // visuals (map nom→StyleVisual) → feuille de style pour l'iframe Paged.js.
 // Sélecteur préfixé `.pagedjs_page_content ` : spécificité (0,2,0), au-dessus des
 // règles génériques de paged.css (`article`, `article p`) qui, sinon,

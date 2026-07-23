@@ -84,6 +84,9 @@ const props = defineProps({
   // la feuille injectée dans l'iframe rend chaque bloc fidèle au .odt. Null =
   // look générique de paged.css (document sans styles.xml lu).
   visuals: { type: Object, default: null },
+  // Format de page du .odt (dimensions + marges, cf. PageFormat). Piloté en
+  // @page dans l'iframe. Null = A5 par défaut (paged.css).
+  page: { type: Object, default: null },
   // Debug : rendre visible le Quill flottant (sinon seul le miroir Folio l'est).
   quillVisible: { type: Boolean, default: false },
 })

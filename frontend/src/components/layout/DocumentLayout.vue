@@ -97,6 +97,7 @@ provideAnalyse()
 const trame = ref(null)
 const data = ref(null)
 const visuals = ref(null)
+const page = ref(null)
 const title = ref('')
 
 const docBarEl = ref(null)
@@ -107,6 +108,7 @@ const menuHeight = ref(0)
 provide('documentTrame', trame)
 provide('documentData', data)
 provide('documentVisuals', visuals)
+provide('documentPage', page)
 
 // tat du shell (partagé sidebar + fil d'Ariane) 
 const SIDEBAR_KEY = 'scribe.sidebar.expanded'
@@ -175,6 +177,7 @@ async function loadDocument(id, { silent = false } = {}) {
   trame.value = content.trame
   data.value = content.data
   visuals.value = content.visuals ?? null
+  page.value = content.page ?? null
   validations.value = content.validations ?? {}
   loadTypology(id) // non-awaité : le document s'affiche sans attendre cette réponse
 }

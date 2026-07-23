@@ -9,10 +9,10 @@
       <slot name="lead" />
     </header>
 
-    <!-- Niveau de chapitrage : trois colonnes en plein écran —
+    <!-- Niveau de chapitrage : deux colonnes en plein écran —
          1) aperçu d'une page (témoin du modèle sélectionné) + liste des modèles,
-         2) table des styles,
-         3) règles d'éligibilité. -->
+         2) table des styles (les exigences de rôle y remontent en colonne) puis,
+            dessous, les règles d'éligibilité qui ne visent aucun style. -->
     <template v-if="depthKey !== null">
       <div class="typo-cols">
         <!-- Col 1 : aperçu + modèles ------------------------------------------ -->
@@ -23,10 +23,19 @@
           <FolioView :data="data" :node-id="witnessNodeId" :depth="depthKey" />
 
           <div class="models">
+            <!-- Modèle EXIGÉ : la structure que ce niveau requiert, en lexique
+                 typographique. Bâti sur les rôles cochés « exigé » (table des
+                 styles) ; titre et corps l'encadrent toujours. C'est la
+                 prescription, distincte des modèles relevés dessous. -->
+            <div class="required-model">
+              <span class="required-label">Modèle exigé</span>
+              <code class="required-sig">{{ requiredModelLabel }}</code>
+            </div>
+
             <UiNote v-if="shapesError" variant="error">{{ shapesError }}</UiNote>
             <template v-else-if="activeSignature">
               <div class="models-head">
-                <span class="models-label">Modèles</span>
+                <span class="models-label">Modèles relevés</span>
                 <span class="models-meta">{{ shapeGroup.total - shapeGroup.empty }}/{{ shapeGroup.total }} rédigés</span>
               </div>
               <!-- Le corps ne porte jamais son ×N (cf. script/shapes.js). Chaque
@@ -50,23 +59,35 @@
           </div>
         </div>
 
-        <!-- Col 2 : la table des styles --------------------------------------- -->
-        <div class="col col--table">
-          <StyleRolesTable :styles="styles" :style-roles="styleRoles" />
-        </div>
+        <!-- Col 2 : table des styles (+ colonne « exigé ») puis règles ------- -->
+        <div class="col col--main">
+          <StyleRolesTable
+              :styles="styles"
+              :style-roles="styleRoles"
+              show-require
+              :rule-set="ruleSet ?? defaultRuleSet"
+              :rules-disabled="!ruleSet"
+          />
 
-        <!-- Col 3 : les règles d'éligibilité ---------------------------------- -->
-        <div class="col col--rules">
-          <h4 class="rules-title">Règles d'éligibilité</h4>
-          <label class="rule-override">
-            <input type="checkbox" :checked="!!ruleSet" @change="$emit('toggle-rules', depthKey)" />
-            <span>Des règles propres à ce niveau</span>
-          </label>
-          <!-- Quand le niveau suit le défaut, valeurs du défaut en grisé. -->
-          <RuleSetForm :rule-set="ruleSet ?? defaultRuleSet" :disabled="!ruleSet" />
-          <p v-if="!ruleSet" class="rules-scope">
-            Ce niveau suit les règles par défaut. Cocher part d'une copie du défaut.
-          </p>
+          <div class="rules-block">
+            <h4 class="rules-title">Règles d'éligibilité</h4>
+            <label class="rule-override">
+              <input type="checkbox" :checked="!!ruleSet" @change="$emit('toggle-rules', depthKey)" />
+              <span>Des règles propres à ce niveau</span>
+            </label>
+            <!-- Quand le niveau suit le défaut, valeurs du défaut en grisé. Ne
+                 restent ici que les rôles exigibles ABSENTS du niveau : les
+                 présents ont leur case dans la table. -->
+            <RuleSetForm
+                :rule-set="ruleSet ?? defaultRuleSet"
+                :disabled="!ruleSet"
+                :roles="absentRequirableRoles"
+                :show-table="!tablePresent"
+            />
+            <p v-if="!ruleSet" class="rules-scope">
+              Ce niveau suit les règles par défaut. Cocher part d'une copie du défaut.
+            </p>
+          </div>
         </div>
       </div>
     </template>
@@ -88,6 +109,7 @@ import FolioView from '../editor/FolioView.vue'
 import RuleSetForm from './RuleSetForm.vue'
 import StyleRolesTable from './StyleRolesTable.vue'
 import UiNote from '../ui/molecules/UiNote.vue'
+import { REQUIRABLE_ROLES } from '../../script/typology'
 
 const props = defineProps({
   zone: { type: Object, required: true },
@@ -128,6 +150,39 @@ const activeSignature = computed(() => {
 
 // Le témoin : le premier nœud concerné par le modèle actif.
 const witnessNodeId = computed(() => activeSignature.value?.nodes?.[0]?.nodeId ?? null)
+
+// Rôles exigibles ABSENTS du niveau : ceux qu'aucun style ne porte n'ont pas de
+// ligne où poser leur case, ils restent sous la table. Réactif sur les rôles
+// (le dropdown peut faire (dis)paraître un rôle) — miroir de la dédup côté table.
+const absentRequirableRoles = computed(() => {
+  const present = new Set()
+  for (const s of props.styles) {
+    const role = props.styleRoles[s.name]
+    if (REQUIRABLE_ROLES.includes(role)) present.add(role)
+  }
+  return REQUIRABLE_ROLES.filter((r) => !present.has(r))
+})
+
+// Un style de rôle tableau au niveau → « Un tableau des liens » remonte dans la
+// table (sinon elle reste sous la table).
+const tablePresent = computed(() =>
+    props.styles.some((s) => props.styleRoles[s.name] === 'tableau'),
+)
+
+// Ordre TYPOGRAPHIQUE des rôles exigibles dans le modèle prescrit (chapeau en
+// tête d'article, renvoi en fin) — indépendant de l'ordre de REQUIRABLE_ROLES.
+const REQUIRED_MODEL_ORDER = ['chapeau', 'définition', 'citation', 'renvoi']
+
+// Le modèle exigé : titre · <rôles requis, ordre typographique> · corps
+// (· tableau si requis). Bâti sur le jeu effectif (propre au niveau, sinon le
+// défaut) — se recompose quand on coche « exigé » dans la table.
+const requiredModelLabel = computed(() => {
+  const set = props.ruleSet ?? props.defaultRuleSet
+  const required = REQUIRED_MODEL_ORDER.filter((r) => set.requiresRoles.includes(r))
+  const tokens = ['titre', ...required, 'corps']
+  if (set.requiresTable) tokens.push('tableau')
+  return tokens.join(' · ')
+})
 </script>
 
 <style scoped>
@@ -156,11 +211,11 @@ const witnessNodeId = computed(() => activeSignature.value?.nodes?.[0]?.nodeId ?
   flex-shrink: 0;
 }
 
-/* Trois colonnes en plein écran ; `minmax(0, 1fr)` sur la table pour qu'elle
-   puisse rétrécir (sinon son contenu la fait déborder). */
+/* Deux colonnes en plein écran ; `minmax(0, 1fr)` sur la colonne principale pour
+   qu'elle puisse rétrécir (sinon la table la fait déborder). */
 .typo-cols {
   display: grid;
-  grid-template-columns: minmax(15em, 20em) minmax(0, 1fr) minmax(16em, 22em);
+  grid-template-columns: minmax(15em, 20em) minmax(0, 1fr);
   gap: var(--sp-5);
   align-items: start;
 }
@@ -179,6 +234,29 @@ const witnessNodeId = computed(() => activeSignature.value?.nodes?.[0]?.nodeId ?
 /* ── Col 1 : aperçu + modèles ─────────────────────────────────────────────── */
 .models {
   margin-top: var(--sp-3);
+}
+
+/* Le modèle exigé : la prescription, mise en avant au-dessus des relevés. */
+.required-model {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-2);
+  margin-bottom: var(--sp-3);
+}
+
+.required-label {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+
+.required-sig {
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+  padding: 0.15em 0.55em;
+  border: 1px solid var(--c-accent);
+  border-radius: var(--radius-md);
+  background: var(--c-accent-soft, var(--c-surface));
 }
 
 .models-head {
@@ -247,11 +325,11 @@ const witnessNodeId = computed(() => activeSignature.value?.nodes?.[0]?.nodeId ?
   opacity: var(--op-muted);
 }
 
-/* ── Col 3 : règles ───────────────────────────────────────────────────────── */
-.col--rules {
-  padding: var(--sp-4);
-  border: 1px solid var(--c-border);
-  border-radius: var(--radius-md);
+/* ── Col 2 : règles sous la table ─────────────────────────────────────────── */
+.rules-block {
+  margin-top: var(--sp-5);
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--c-border);
 }
 
 .rules-title {

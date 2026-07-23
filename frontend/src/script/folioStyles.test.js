@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildVisualsCss } from './folioStyles.js'
+import { buildVisualsCss, buildPageCss } from './folioStyles.js'
 
 describe('buildVisualsCss', () => {
   it('traduit un StyleVisual en règle préfixée .pagedjs_page_content', () => {
@@ -32,5 +32,23 @@ describe('buildVisualsCss', () => {
   it('rend une chaîne vide pour des visuals nuls/vides', () => {
     expect(buildVisualsCss(null)).toBe('')
     expect(buildVisualsCss({})).toBe('')
+  })
+})
+
+describe('buildPageCss', () => {
+  it('produit un @page size + margin (ordre haut/droite/bas/gauche)', () => {
+    const css = buildPageCss({
+      widthCm: 14.801,
+      heightCm: 21.001,
+      marginTopCm: 1,
+      marginRightCm: 2,
+      marginBottomCm: 1.199,
+      marginLeftCm: 2,
+    })
+    expect(css).toBe('@page{size:14.801cm 21.001cm;margin:1cm 2cm 1.199cm 2cm;}')
+  })
+
+  it('rend une chaîne vide sans format (repli paged.css A5)', () => {
+    expect(buildPageCss(null)).toBe('')
   })
 })

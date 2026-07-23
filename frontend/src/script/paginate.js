@@ -78,13 +78,20 @@ export function buildBlocks(sections) {
 
     for (const section of sections) {
         const titleTag = TITLE_TAG_BY_DEPTH[section.depth] ?? 'h6'
+        // Numéro de chapitre auto (« I. ») préfixé au titre, dans le même style
+        // (visuals du styleName). Porté par le nœud, pas un compteur CSS : un
+        // article ouvert seul garde son vrai numéro.
+        const num = section.outlineNumber ? `${section.outlineNumber} ` : ''
 
         blocks.push({
             id: `${section.id}__titre`,
             type: 'title',
             path: { kind: 'titre' },
             ownerId: section.id,
-            html: `<${titleTag}>${section.titre}</${titleTag}>`
+            // Style effectif du titre (« Heading 3 ») : stampé en data-style par
+            // useFolioFrame → rendu fidèle (centrage, corps) via la feuille visuals.
+            styleName: section.styleName,
+            html: `<${titleTag}>${num}${section.titre}</${titleTag}>`
         })
 
         ;(section.texte || []).forEach((entry, index) => {

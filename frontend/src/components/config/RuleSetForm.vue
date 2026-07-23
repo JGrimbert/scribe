@@ -19,12 +19,12 @@
       <span>caractères</span>
     </label>
 
-    <label class="rule">
+    <label v-if="showTable" class="rule">
       <input v-model="ruleSet.requiresTable" type="checkbox" :disabled="disabled" />
       <span>Un tableau des liens</span>
     </label>
 
-    <label v-for="role in REQUIRABLE_ROLES" :key="role" class="rule">
+    <label v-for="role in roles" :key="role" class="rule">
       <input type="checkbox" :checked="ruleSet.requiresRoles.includes(role)" :disabled="disabled" @change="toggleRole(role)" />
       <span>Un paragraphe « {{ role }} »</span>
     </label>
@@ -44,6 +44,13 @@ const props = defineProps({
   // Lecture seule : les cases sont affichées mais grisées (un niveau qui suit le
   // défaut montre les valeurs du défaut sans pouvoir les toucher).
   disabled: { type: Boolean, default: false },
+  // Rôles exigibles à rendre ici. Sous la table d'un niveau, on ne laisse que
+  // ceux ABSENTS du niveau (les présents ont leur case dans la table) ; le socle
+  // « Règles par défaut » les veut tous (défaut).
+  roles: { type: Array, default: () => REQUIRABLE_ROLES },
+  // « Un tableau des liens » : masqué sous la table quand un style tableau est
+  // présent au niveau (sa case a remonté dans la table).
+  showTable: { type: Boolean, default: true },
 })
 
 // Mémoire du seuil quand on décoche « au moins N caractères » : le décocher

@@ -5,6 +5,7 @@
         :data="data"
         :node-id="nodeId"
         :visuals="visuals"
+        :page="page"
         :quill-visible="quillVisible"
     />
   </div>
@@ -19,6 +20,7 @@ const route = useRoute()
 const trame = inject('documentTrame')
 const data = inject('documentData')
 const visuals = inject('documentVisuals')
+const page = inject('documentPage')
 const quillVisible = inject('quillVisible')
 
 // `/noeud` sans chapitre = « ouvre l'éditeur », sans dire où. C'est la seule
