@@ -16,6 +16,28 @@ export function useFolioScale(props, { rootRef, frameRef, frameDoc, onScaled }) 
   const scaleRef = ref(1)
   const scalePercent = computed(() => scaleRef.value * 100)
 
+  // Applique l'échelle + les dimensions du frame, mais SEULEMENT si elles changent
+  // vraiment (tolérance sub-pixel). `fitScale` peut être rappelé par le ResizeObserver
+  // que ses propres écritures de `frame.style.*` réveillent, et la relecture de
+  // `frame.style.width` est arrondie par le navigateur : sans cette garde, on
+  // réécrivait à chaque fois une valeur « différente » → re-layout de l'iframe (qui
+  // repeint son contenu avec une frame de retard) = clignotement. Idempotent → un seul
+  // paint, et la boucle du ResizeObserver s'éteint d'elle-même (2e passe = no-op).
+  function applyScale(scale, frameW, frameH) {
+    const frame = frameRef.value
+    const render = frameDoc()?.getElementById('render')
+    if (!frame || !render) return
+    const curW = parseFloat(frame.style.width) || 0
+    const curH = parseFloat(frame.style.height) || 0
+    const skip = Math.abs(curW - frameW) < 0.5 && Math.abs(curH - frameH) < 0.5 && Math.abs(scaleRef.value - scale) < 0.0005
+    if (skip) return
+    scaleRef.value = scale
+    render.style.transform = `scale(${scale})`
+    frame.style.width = `${frameW}px`
+    frame.style.height = `${frameH}px`
+    onScaled?.()
+  }
+
   function fitScale() {
     const doc = frameDoc()
     const pageEl = doc?.querySelector('.pagedjs_page')
@@ -39,20 +61,12 @@ export function useFolioScale(props, { rootRef, frameRef, frameDoc, onScaled }) 
         availH / pageEl.offsetHeight,
         1,
       )
-      scaleRef.value = scale
-      render.style.transform = `scale(${scale})`
-      frame.style.width = `${rowW * scale}px`
-      frame.style.height = `${pageEl.offsetHeight * scale}px`
-      onScaled?.()
+      applyScale(scale, rowW * scale, pageEl.offsetHeight * scale)
       return
     }
 
     const scale = Math.min(root.clientWidth / pageEl.offsetWidth, 1)
-    scaleRef.value = scale
-    render.style.transform = `scale(${scale})`
-    frame.style.width = `${pageEl.offsetWidth * scale}px`
-    frame.style.height = `${pageEl.offsetHeight * scale}px`
-    onScaled?.()
+    applyScale(scale, pageEl.offsetWidth * scale, pageEl.offsetHeight * scale)
   }
 
   let resizeObserver = null

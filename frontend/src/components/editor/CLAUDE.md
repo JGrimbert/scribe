@@ -32,10 +32,32 @@ dans `../../composables/CLAUDE.md`.
   la molette y naît (le conteneur parent ne la voit pas) ; le listener `wheel` du
   doc iframe (via `editListeners`, `passive:false`) la relaie à
   `CustomScrollbar.handleWheel` qui convertit `deltaY` en scroll horizontal.
-- **Anti-flicker** : `#render` (dans l'iframe) est masqué (`opacity`, transition
-  dans le boot CSS) pendant la repagination et révélé seulement après `fitScale`
-  (même tick) — sinon Paged.js peint la page à 100 % avant de la dézoomer.
-  `onReset` masque, `onPaginated` révèle (cf. `useFolioFrame`).
+- **Anti-flicker (double-buffer)** : chaque repagination rend dans un conteneur caché
+  (`opacity:0`) pendant que `#render` garde l'ancien rendu affiché (pas de page
+  blanche), puis swap. Trois pièges, tous résolus dans `useFolioFrame`/`useFolioScale` :
+  1. **Flash 100 %** — Paged.js peint à taille naturelle avant l'échelle : le tampon
+     caché absorbe ce paint, on ne révèle que le résultat mis à l'échelle.
+  2. **La page « change de taille » (le vrai coupable des pages 2+)** — Paged.js
+     ré-injecte son polyfill dans le `<head>` PARTAGÉ de l'iframe à CHAQUE pagination,
+     et ce polyfill remet `--pagedjs-width/height/margin-*` à leur défaut **US Letter**
+     avant que l'override `@page` (A5) ne repasse. Comme le double-buffer laisse
+     l'ancien rendu visible pendant la pagination, ce basculement se voyait à l'écran.
+     Corrigé en **épinglant** ces variables (`:root`, `!important`) dans le boot de
+     l'iframe — `buildPagePinCss(props.page)`, cf. `../../script/folioStyles.js`.
+  3. **Re-layout d'iframe parasite** — `fitScale` réécrivait `frame.style.width` à
+     chaque appel avec une valeur que le navigateur relit arrondie (donc « différente »)
+     → l'iframe se re-layoutait pour rien. `applyScale` est désormais **idempotent**
+     (skip si échelle+dimensions inchangées à la tolérance sub-pixel), ce qui éteint
+     aussi la 2ᵉ passe que le `ResizeObserver` de `useFolioScale` déclenchait.
+
+  On injecte un **clone inerte** du rendu (`cloneNode` ne recopie ni les `ResizeObserver`
+  que Paged laisse sur chaque page, ni les listeners) et on jette le tampon. Le registre
+  (`buildFragmentRegistry`) est construit AVANT le clone (il stampe les `data-frag-id`,
+  dont le clone hérite) et ne garde que des chaînes HTML — pas de référence DOM vivante.
+  `onReset` ne fait plus que vider le curseur, `onPaginated` recale l'échelle.
+  *Teardown Paged* : avant de jeter le tampon, `disconnectPagedObservers` détruit les
+  `Page` du previewer (`chunker.pages[].destroy()` → `removeListeners`), sinon le rAF
+  planifié par leur `ResizeObserver` tombe sur un nœud détaché et lève un `TypeError`.
 - **Liens internes** : un `<a class="lien-interne" href="internal:{id}">` (posé à
   l'import ODT ou par la toolbar Quill) navigue vers le nœud cible plutôt que
   d'activer l'édition (`onFrameClick` intercepte avant `onColumnClick`). La

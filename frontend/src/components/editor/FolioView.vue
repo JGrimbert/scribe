@@ -124,17 +124,6 @@ function frameOffset() {
   const r = frameRef.value?.getBoundingClientRect()
   return r ? { x: r.left, y: r.top } : { x: 0, y: 0 }
 }
-// Masque le rendu pendant la repagination : Paged.js rend d'abord la page à sa
-// taille naturelle (100 %), l'échelle n'étant appliquée qu'après (fitScale). Sans
-// ça, un paint intermédiaire montre la page à 100 % avant de la dézoomer (flicker
-// visible au changement de témoin dans la config). `opacity` (transition dans le
-// boot CSS de l'iframe) donne un fondu enchaîné ; opacity:0 préserve la mise en
-// page → fitScale peut mesurer (offset*). Révélé après fitScale, même tick.
-function setRenderVisible(visible) {
-  const render = frameDoc()?.getElementById('render')
-  if (render) render.style.opacity = visible ? '' : '0'
-}
-
 // Le nœud à rendre, et ses blocs (mêmes que l'éditeur via buildBlocks). `section`
 // est l'OWNER du registre : muté en place par l'édition (son `texte` est le même
 // tableau que data[nodeId], donc les modifs persistent).
@@ -163,10 +152,11 @@ const { registry, fragments, buildFrame, refresh, teardown } = useFolioFrame(pro
   frameDoc,
   blocks,
   section,
-  // Vider le curseur + masquer le rendu avant chaque repagination, recaler
-  // l'échelle puis révéler après (même tick que fitScale → pas de flash à 100 %).
-  onReset: () => { caret.clear(); setRenderVisible(false) },
-  onPaginated: () => { fitScale(); setRenderVisible(true) },
+  // Vider le curseur avant la repagination ; recaler l'échelle après. Le
+  // double-buffer de useFolioFrame (pagination dans un tampon caché, swap en un
+  // seul tick avec fitScale) évite tout flash/blanc — plus de masquage opacity ici.
+  onReset: () => caret.clear(),
+  onPaginated: () => fitScale(),
   // Les listeners du doc iframe (édition), résolus au (dé)montage — cf. editListeners.
   getEditListeners: () => editListeners,
 })

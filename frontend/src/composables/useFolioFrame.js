@@ -1,12 +1,25 @@
 import { ref } from 'vue'
 import { buildFragmentRegistry, createFragmentApi } from '../script/fragment.js'
 import { createRegistry } from '../script/registry.js'
-import { buildVisualsCss, buildPageCss } from '../script/folioStyles.js'
+import { buildVisualsCss, buildPageCss, buildPagePinCss } from '../script/folioStyles.js'
 
 // URLs ABSOLUES : l'iframe sans `src` a une base `about:blank`. Le build UMD de
 // Paged.js est servi par un middleware dev (cf. vite.config.js).
 const PAGED_SRC = new URL('/vendor/paged.js', window.location.href).href
 const CSS_HREF = new URL('/paged.css', window.location.href).href
+
+// Déconnecte les ResizeObserver que Paged.js pose sur chaque page (re-fragmentation
+// réactive au débordement). Ils survivent à preview() et planifient un rAF ; si on
+// jette le tampon avant qu'il ne s'exécute, il tombe sur un nœud détaché et lève un
+// `TypeError` (findEndToken → getAttribute sur null). `Page.destroy()` appelle
+// `removeListeners()` (déconnexion + `listening=false` → le callback baille). On passe
+// par les internes du previewer (`chunker.pages`), faute d'API publique de teardown ;
+// couplé à la version de pagedjs (dans node_modules), d'où les try/catch défensifs.
+function disconnectPagedObservers(previewer) {
+  try {
+    previewer?.chunker?.pages?.forEach((p) => { try { p.destroy() } catch { /* déjà démonté */ } })
+  } catch { /* API interne absente : au pire, le TypeError bénin réapparaît */ }
+}
 
 // Construit l'iframe Paged.js et la (re)pagine. En édition, (re)construit le
 // registre de blocs/fragments depuis le flow paginé (`registry`/`fragments`,
@@ -35,8 +48,12 @@ export function useFolioFrame(props, { frameRef, frameDoc, blocks, section, onRe
     // au pixel (pas de marge parasite ni de coupe). Bordure de page + filet
     // pointillé sur la zone de contenu = repère des marges du livre.
     const common = [
+      // Épingle la géométrie de page (:root, !important) : neutralise le polyfill
+      // *letter* que Paged ré-injecte dans ce head partagé à chaque pagination, qui
+      // sinon ferait basculer la taille du contenu VISIBLE (cf. buildPagePinCss).
+      buildPagePinCss(props.page),
       'html,body{margin:0;padding:0;background:transparent;overflow:hidden;}',
-      '#render{transform-origin:top left;transition:opacity .18s ease;}',
+      '#render{transform-origin:top left;}',
       '.pagedjs_page{background:#fff;box-shadow:0 1px 6px rgba(0,0,0,.15);border:1px solid #e2e2e2;}',
       // Justification garantie de la zone de texte (le livre est justifié) : c'est
       // aussi ce que syncQuill recopiera sur Quill (via getComputedStyle du
@@ -73,30 +90,37 @@ export function useFolioFrame(props, { frameRef, frameDoc, blocks, section, onRe
     const win = frame?.contentWindow
     if (!frameReady || !doc || !win?.Paged) return Promise.resolve()
 
-    const boot = doc.getElementById('__boot')
-    doc.head.querySelectorAll('style').forEach((el) => { if (el !== boot) el.remove() })
+    const render = doc.getElementById('render')
+    if (!render) return Promise.resolve()
 
-    // Feuille d'apparence des styles (fidélité .odt) : régénérée à chaque
-    // repagination (le boot et les styles de Paged.js tombent au-dessus), avant
-    // le preview pour que Paged.js la reprenne dans les pages rendues.
-    const visualsCss = buildVisualsCss(props.visuals)
-    if (visualsCss) {
-      const styleEl = doc.createElement('style')
-      styleEl.id = '__visuals'
-      styleEl.textContent = visualsCss
-      doc.head.appendChild(styleEl)
-    }
-
-    const target = doc.getElementById('render')
-    if (!target) return Promise.resolve()
-    target.style.transform = ''
-    target.innerHTML = ''
+    // Vide le curseur : le DOM du fragment courant va être remplacé.
     onReset?.()
 
     if (!blocks.value.length) {
+      doc.head.querySelectorAll('style').forEach((el) => { if (el.id !== '__boot') el.remove() })
+      render.innerHTML = ''
       registry.value = null
       fragments.value = null
       return Promise.resolve()
+    }
+
+    // Double-buffer : on ne touche NI à #render (l'ancien rendu reste affiché et
+    // stylé) NI aux styles de la génération précédente tant que le nouveau rendu
+    // n'est pas prêt. On pagine dans un conteneur caché, puis on swappe le contenu
+    // dans #render en un seul tick (fitScale posé dans la foulée par onPaginated).
+    // Résultat : jamais de page blanche ni de flash à 100 % entre deux
+    // repaginations (changement de chapitre, split/merge d'un paragraphe). Les
+    // styles de l'ancienne génération sont retirés APRÈS le swap (snapshot ici).
+    const staleStyles = [...doc.head.querySelectorAll('style')].filter((el) => el.id !== '__boot')
+
+    // Feuille d'apparence des styles (fidélité .odt), régénérée à chaque
+    // repagination, avant le preview pour que Paged.js la reprenne. Sans id :
+    // l'ancienne est dans staleStyles (retirée après le swap), la neuve lui survit.
+    const visualsCss = buildVisualsCss(props.visuals)
+    if (visualsCss) {
+      const styleEl = doc.createElement('style')
+      styleEl.textContent = visualsCss
+      doc.head.appendChild(styleEl)
     }
 
     // Article + `data-block-id` sur chaque bloc : l'`<article>` porte la typo du
@@ -109,7 +133,7 @@ export function useFolioFrame(props, { frameRef, frameDoc, blocks, section, onRe
       const root = tmp.firstElementChild
       if (!root) continue
       root.setAttribute('data-block-id', b.id)
-      // Clé d'apparence : la feuille __visuals cible `[data-style="…"]`. Préservé
+      // Clé d'apparence : la feuille d'apparence cible `[data-style="…"]`. Préservé
       // par Paged.js sur chaque fragment issu d'une coupure de page.
       if (b.styleName) root.setAttribute('data-style', b.styleName)
       article.appendChild(root)
@@ -117,13 +141,24 @@ export function useFolioFrame(props, { frameRef, frameDoc, blocks, section, onRe
     const source = doc.createElement('div')
     source.appendChild(article)
 
+    // Conteneur tampon caché : Paged.js y pagine à taille naturelle (100 %),
+    // invisible, PENDANT que #render garde l'ancien rendu affiché (pas de page
+    // blanche). opacity:0 (pas display:none) préserve la mise en page dont Paged.js
+    // a besoin pour découper les pages. Ce tampon est jeté après clonage (ci-dessous).
+    const buffer = doc.createElement('div')
+    buffer.style.cssText = 'position:absolute;top:0;left:0;opacity:0;pointer-events:none;'
+    doc.body.appendChild(buffer)
+
     const previewer = new win.Paged.Previewer()
     // Format de page du document (A5, marges du .odt) passé APRÈS paged.css pour
     // que son @page l'emporte ; objet `{ nom: cssText }` = CSS inline (non fetché,
     // cf. Polisher.add). Absent → paged.css garde son A5 par défaut.
     const pageCss = buildPageCss(props.page)
     const sheets = pageCss ? [CSS_HREF, { 'doc-page.css': pageCss }] : [CSS_HREF]
-    return previewer.preview(source, sheets, target).then((flow) => {
+    return previewer.preview(source, sheets, buffer).then((flow) => {
+      // Registre AVANT le clonage : buildFragmentRegistry stampe les data-frag-id
+      // sur les nœuds rendus (le clone en hérite) et ne capture que des chaînes HTML
+      // — aucune référence DOM vivante, donc le clone ne le casse pas.
       if (props.mode === 'edit' && flow) {
         const owners = new Map([[props.nodeId, section.value]])
         const blockRegistry = createRegistry(owners, blocks.value, flow)
@@ -131,11 +166,24 @@ export function useFolioFrame(props, { frameRef, frameDoc, blocks, section, onRe
         registry.value = blockRegistry
         fragments.value = createFragmentApi(blockRegistry, fragmentMap, blockFragments)
       }
+
+      // Paged.js laisse un ResizeObserver VIVANT sur chaque page (re-fragmentation
+      // réactive au débordement) qui survit à preview(). On injecte donc un CLONE INERTE
+      // (cloneNode ne recopie ni observers ni listeners) et on déconnecte les observers
+      // du tampon avant de le jeter. Swap + recalage d'échelle dans le même tick → un
+      // seul paint.
+      const clones = [...buffer.children].map((c) => c.cloneNode(true))
+      disconnectPagedObservers(previewer)
+      buffer.remove()
+      render.replaceChildren(...clones)
+      staleStyles.forEach((el) => el.remove())
       onPaginated?.()
     }).catch((e) => {
       console.warn('[FolioView] pagination échouée', e)
-      // Réconcilie l'échelle/visibilité même sur échec : sans ça le rendu, masqué
-      // par onReset avant la repagination, resterait invisible après une erreur.
+      disconnectPagedObservers(previewer)
+      // Échec : on jette le tampon et on garde l'ancien rendu (+ ses styles) intact.
+      // onPaginated réconcilie l'échelle sur le contenu resté en place.
+      buffer.remove()
       onPaginated?.()
     })
   }
