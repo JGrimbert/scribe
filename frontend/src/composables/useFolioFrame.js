@@ -36,7 +36,7 @@ export function useFolioFrame(props, { frameRef, frameDoc, blocks, section, onRe
     // pointillé sur la zone de contenu = repère des marges du livre.
     const common = [
       'html,body{margin:0;padding:0;background:transparent;overflow:hidden;}',
-      '#render{transform-origin:top left;}',
+      '#render{transform-origin:top left;transition:opacity .18s ease;}',
       '.pagedjs_page{background:#fff;box-shadow:0 1px 6px rgba(0,0,0,.15);border:1px solid #e2e2e2;}',
       // Justification garantie de la zone de texte (le livre est justifié) : c'est
       // aussi ce que syncQuill recopiera sur Quill (via getComputedStyle du
@@ -53,6 +53,9 @@ export function useFolioFrame(props, { frameRef, frameDoc, blocks, section, onRe
         doc.addEventListener('click', listeners.click)
         doc.addEventListener('mousedown', listeners.mousedown)
         doc.addEventListener('mouseup', listeners.mouseup)
+        // passive:false : un listener wheel sur `document` est passif par défaut,
+        // preventDefault y serait ignoré (on veut couper le scroll-chaining natif).
+        if (listeners.wheel) doc.addEventListener('wheel', listeners.wheel, { passive: false })
       }
     }
 
@@ -131,6 +134,9 @@ export function useFolioFrame(props, { frameRef, frameDoc, blocks, section, onRe
       onPaginated?.()
     }).catch((e) => {
       console.warn('[FolioView] pagination échouée', e)
+      // Réconcilie l'échelle/visibilité même sur échec : sans ça le rendu, masqué
+      // par onReset avant la repagination, resterait invisible après une erreur.
+      onPaginated?.()
     })
   }
 
@@ -142,6 +148,7 @@ export function useFolioFrame(props, { frameRef, frameDoc, blocks, section, onRe
         doc.removeEventListener('click', listeners.click)
         doc.removeEventListener('mousedown', listeners.mousedown)
         doc.removeEventListener('mouseup', listeners.mouseup)
+        if (listeners.wheel) doc.removeEventListener('wheel', listeners.wheel, { passive: false })
       }
     }
   }

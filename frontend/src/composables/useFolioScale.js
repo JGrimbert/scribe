@@ -9,7 +9,10 @@ const EDIT_PAD = 40
 // parent (indépendant du contenu → pas de boucle de rétroaction d'échelle). Un
 // ResizeObserver sur la racine relance le calcul. Les helpers DOM (rootRef,
 // frameRef, frameDoc) restent chez FolioView et sont injectés.
-export function useFolioScale(props, { rootRef, frameRef, frameDoc }) {
+// `onScaled` est notifié après chaque mise à l'échelle (le frame vient de changer
+// de largeur/hauteur) : la CustomScrollbar qui enveloppe la rangée de pages en
+// édition ne surveille pas le style inline du frame, il faut la remesurer.
+export function useFolioScale(props, { rootRef, frameRef, frameDoc, onScaled }) {
   const scaleRef = ref(1)
   const scalePercent = computed(() => scaleRef.value * 100)
 
@@ -26,7 +29,7 @@ export function useFolioScale(props, { rootRef, frameRef, frameDoc }) {
       const rowW = pagesArea ? pagesArea.scrollWidth : pageEl.offsetWidth
       // Ajusté sur la largeur (viser `visiblePages`) ET la hauteur (une page tient
       // verticalement) — le plus contraignant l'emporte. On retire le padding
-      // généreux autour des pages (EDIT_PAD, appliqué à .folio-scroll) pour que la
+      // généreux autour des pages (EDIT_PAD, appliqué à .folio-pad) pour que la
       // page tienne DANS cette respiration. `clientHeight` vient du flex parent
       // (indépendant du contenu → pas de boucle).
       const availW = root.clientWidth - 2 * EDIT_PAD
@@ -40,6 +43,7 @@ export function useFolioScale(props, { rootRef, frameRef, frameDoc }) {
       render.style.transform = `scale(${scale})`
       frame.style.width = `${rowW * scale}px`
       frame.style.height = `${pageEl.offsetHeight * scale}px`
+      onScaled?.()
       return
     }
 
@@ -48,6 +52,7 @@ export function useFolioScale(props, { rootRef, frameRef, frameDoc }) {
     render.style.transform = `scale(${scale})`
     frame.style.width = `${pageEl.offsetWidth * scale}px`
     frame.style.height = `${pageEl.offsetHeight * scale}px`
+    onScaled?.()
   }
 
   let resizeObserver = null

@@ -1,6 +1,6 @@
 <template>
   <div class="custom-scrollbar" ref="containerEl">
-    <div class="custom-scrollbar__content" ref="contentEl" @scroll="measure">
+    <div class="custom-scrollbar__content" ref="contentEl" @scroll="measure" @wheel="onWheel">
       <slot />
     </div>
 
@@ -56,6 +56,10 @@ const props = defineProps({
   // barre flottante qui recouvre le haut de la zone de scroll (DocumentBar).
   // N'affecte que la track : le contenu, lui, doit bien défiler dessous.
   topOffset: { type: Number, default: 0 },
+  // Rangée horizontale (ex : FolioView en édition) : la molette verticale défile
+  // l'axe x. N'agit que si seul x déborde ; le scroll horizontal natif du trackpad
+  // (deltaX dominant) reste prioritaire.
+  wheelToHorizontal: { type: Boolean, default: false },
 })
 
 const containerEl = ref(null)
@@ -177,6 +181,19 @@ function onTrackMouseDown(key, event) {
   scrollToThumbOffset(key, click - thumbLength(key) / 2)
 }
 
+// ── Molette : vertical → horizontal pour une rangée qui ne déborde que sur x ──
+function onWheel(event) {
+  if (!props.wheelToHorizontal) return
+  // Rien à rediriger si x ne déborde pas, ou si y déborde aussi (on garde alors le
+  // scroll vertical natif). Idem si le geste est déjà horizontal (trackpad).
+  if (!overflow('x') || overflow('y')) return
+  if (Math.abs(event.deltaX) >= Math.abs(event.deltaY)) return
+  // deltaMode 1 = lignes (souris à crans sous Firefox) → approximer en pixels.
+  const factor = event.deltaMode === 1 ? 16 : 1
+  event.preventDefault()
+  contentEl.value.scrollLeft += event.deltaY * factor
+}
+
 // ── Flèches : un cran au clic, répétition au maintien ──
 let holdTimer = null
 
@@ -232,7 +249,10 @@ onUnmounted(() => {
 // `measure` ne se déclenche que sur resize/mutation/mount : un parent qui
 // change `topOffset` après coup (UiTable, une fois la hauteur du thead connue)
 // doit pouvoir forcer le recalcul de la track.
-defineExpose({ measure })
+// `handleWheel` est exposé pour les cas où l'événement `wheel` ne peut pas
+// atteindre le conteneur nativement — typiquement FolioView, dont les pages
+// vivent dans une iframe qui capte la molette : elle relaie l'event ici.
+defineExpose({ measure, handleWheel: onWheel })
 </script>
 
 <style scoped>

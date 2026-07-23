@@ -1,7 +1,16 @@
 <template>
   <div ref="rootRef" class="folio-view" :class="`folio-view--${mode}`">
-    <div class="folio-scroll">
-      <iframe ref="frameRef" class="folio-frame" :title="mode === 'edit' ? 'Pages du chapitre' : 'Aperçu de page'" />
+    <!-- Édition : la rangée de pages défile horizontalement via la CustomScrollbar
+         (le DS proscrit les barres natives). Le padding vit sur .folio-pad (wrapper
+         shrink-wrap) pour que scrollWidth inclue la respiration des deux côtés. -->
+    <CustomScrollbar v-if="mode === 'edit'" ref="scrollbarRef" class="folio-scroll" wheel-to-horizontal>
+      <div class="folio-pad">
+        <iframe ref="frameRef" class="folio-frame" title="Pages du chapitre" />
+      </div>
+    </CustomScrollbar>
+    <!-- Aperçu : une seule page mise à l'échelle sur la largeur, aucun défilement. -->
+    <div v-else class="folio-scroll">
+      <iframe ref="frameRef" class="folio-frame" title="Aperçu de page" />
     </div>
     <p v-if="!hasContent" class="folio-empty">Aucun aperçu disponible.</p>
 
@@ -62,6 +71,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import QuillBlock from './QuillBlock.vue'
+import CustomScrollbar from '../ui/atoms/CustomScrollbar.vue'
 import { buildBlocks } from '../../script/paginate.js'
 import { syncQuillToFragment } from '../../script/syncQuill.js'
 import { useFakeCaret } from '../../composables/useFakeCaret.js'
@@ -93,6 +103,9 @@ const props = defineProps({
 
 const rootRef = ref(null)
 const frameRef = ref(null)
+// La CustomScrollbar de la rangée de pages (mode édition uniquement) : remesurée
+// après chaque fitScale, cf. onScaled ci-dessous.
+const scrollbarRef = ref(null)
 
 // Helpers DOM de l'iframe, propres au composant racine (cf. composables/CLAUDE.md :
 // findFragEl est injecté, pas recréé). Injectés dans les composables Folio/fragment.
@@ -111,6 +124,16 @@ function frameOffset() {
   const r = frameRef.value?.getBoundingClientRect()
   return r ? { x: r.left, y: r.top } : { x: 0, y: 0 }
 }
+// Masque le rendu pendant la repagination : Paged.js rend d'abord la page à sa
+// taille naturelle (100 %), l'échelle n'étant appliquée qu'après (fitScale). Sans
+// ça, un paint intermédiaire montre la page à 100 % avant de la dézoomer (flicker
+// visible au changement de témoin dans la config). `opacity` (transition dans le
+// boot CSS de l'iframe) donne un fondu enchaîné ; opacity:0 préserve la mise en
+// page → fitScale peut mesurer (offset*). Révélé après fitScale, même tick.
+function setRenderVisible(visible) {
+  const render = frameDoc()?.getElementById('render')
+  if (render) render.style.opacity = visible ? '' : '0'
+}
 
 // Le nœud à rendre, et ses blocs (mêmes que l'éditeur via buildBlocks). `section`
 // est l'OWNER du registre : muté en place par l'édition (son `texte` est le même
@@ -120,7 +143,15 @@ const hasContent = computed(() => !!item.value)
 const section = computed(() => (item.value ? { ...item.value, id: props.nodeId, depth: props.depth } : null))
 const blocks = computed(() => (section.value ? buildBlocks([section.value]) : []))
 
-const { scaleRef, scalePercent, fitScale } = useFolioScale(props, { rootRef, frameRef, frameDoc })
+const { scaleRef, scalePercent, fitScale } = useFolioScale(props, {
+  rootRef,
+  frameRef,
+  frameDoc,
+  // Le frame change de largeur/hauteur à chaque mise à l'échelle ; la
+  // CustomScrollbar ne l'observe pas (seulement sa propre taille + les mutations
+  // de contenu) → on la remesure. No-op en mode read (pas de scrollbar).
+  onScaled: () => scrollbarRef.value?.measure(),
+})
 
 const caret = useFakeCaret(findFragEl, frameOffset)
 const toolbar = useFloatingToolbar()
@@ -132,9 +163,10 @@ const { registry, fragments, buildFrame, refresh, teardown } = useFolioFrame(pro
   frameDoc,
   blocks,
   section,
-  // Vider le curseur avant chaque repagination, recaler l'échelle après.
-  onReset: () => caret.clear(),
-  onPaginated: () => fitScale(),
+  // Vider le curseur + masquer le rendu avant chaque repagination, recaler
+  // l'échelle puis révéler après (même tick que fitScale → pas de flash à 100 %).
+  onReset: () => { caret.clear(); setRenderVisible(false) },
+  onPaginated: () => { fitScale(); setRenderVisible(true) },
   // Les listeners du doc iframe (édition), résolus au (dé)montage — cf. editListeners.
   getEditListeners: () => editListeners,
 })
@@ -192,6 +224,13 @@ function onFrameClick(e) {
   onColumnClick(e)
 }
 
+// La molette au-dessus des pages naît dans le document de l'iframe (qui ne défile
+// pas : overflow hidden) — on la relaie à la CustomScrollbar pour convertir le
+// défilement vertical en horizontal sur la rangée de pages.
+function onFrameWheel(e) {
+  scrollbarRef.value?.handleWheel(e)
+}
+
 // Métriques ISO du fragment ACTIF : sans ça, la boîte Quill wrappe le texte
 // autrement que la page → décalages en navigation ↑/↓. useFragmentEditor ne
 // synchronise que le fragment QUITTÉ ; on complète ici pour l'actif. Déclenché
@@ -214,7 +253,7 @@ function syncActiveQuill() {
 // les résout au (dé)montage : onColumnMouseDown/Up viennent de useFragmentEditor,
 // onFrameClick d'ici — ils n'existent donc qu'à ce niveau.
 const editListeners = props.mode === 'edit'
-  ? { click: onFrameClick, mousedown: onColumnMouseDown, mouseup: onColumnMouseUp }
+  ? { click: onFrameClick, mousedown: onColumnMouseDown, mouseup: onColumnMouseUp, wheel: onFrameWheel }
   : null
 
 onMounted(buildFrame)
@@ -248,13 +287,15 @@ watch(() => [props.nodeId, props.depth], refresh)
   height: 100%;
 }
 
-.folio-view--edit .folio-scroll {
-  overflow-x: auto;
-  overflow-y: hidden;
-  /* Respiration généreuse autour des pages (cf. EDIT_PAD, que fitScale retire de
-     la place disponible). box-sizing pour que le 100% inclue ce padding. */
+/* Respiration généreuse autour de la rangée de pages (cf. EDIT_PAD, que fitScale
+   retire de la place disponible). Portée par un wrapper shrink-wrap (width:max-content,
+   pas inline-block : évite l'espace de baseline sous un inline-block, qui créerait un
+   débordement vertical d'où une track parasite) pour que scrollWidth inclue les 40px
+   des deux côtés. Le défilement lui-même est géré par la CustomScrollbar. */
+.folio-pad {
+  display: block;
+  width: max-content;
   padding: 40px;
-  box-sizing: border-box;
 }
 
 .folio-frame {

@@ -19,7 +19,23 @@ dans `../../composables/CLAUDE.md`.
 - **`fitScale`** ajuste l'échelle sur la largeur (viser `visiblePages`) ET la
   hauteur ; le `clientHeight` vient du flex parent (**indépendant du contenu →
   pas de boucle de rétroaction d'échelle**). `.folio-view--edit` doit garder une
-  hauteur définie indépendante du contenu.
+  hauteur définie indépendante du contenu. Il notifie `onScaled` après chaque
+  passe : le frame change de largeur, et la `CustomScrollbar` (ci-dessous) doit
+  être remesurée — elle ne surveille pas le style inline du frame.
+- **Scroll de la rangée de pages (édition)** géré par `CustomScrollbar`
+  (`../ui/atoms/`), pas par un `overflow` natif (le DS proscrit les barres
+  natives). Le padding `EDIT_PAD` (respiration autour des pages) vit sur le
+  wrapper `.folio-pad` (`width:max-content`) pour que `scrollWidth` l'inclue.
+  Le mode `read` (aperçu config) ne défile pas → pas de `CustomScrollbar`, pour
+  ne pas coller un `ResizeObserver`/`MutationObserver` à chaque aperçu (jusqu'à 3
+  sur l'écran config). **Molette → horizontal** : les pages étant dans l'iframe,
+  la molette y naît (le conteneur parent ne la voit pas) ; le listener `wheel` du
+  doc iframe (via `editListeners`, `passive:false`) la relaie à
+  `CustomScrollbar.handleWheel` qui convertit `deltaY` en scroll horizontal.
+- **Anti-flicker** : `#render` (dans l'iframe) est masqué (`opacity`, transition
+  dans le boot CSS) pendant la repagination et révélé seulement après `fitScale`
+  (même tick) — sinon Paged.js peint la page à 100 % avant de la dézoomer.
+  `onReset` masque, `onPaginated` révèle (cf. `useFolioFrame`).
 - **Liens internes** : un `<a class="lien-interne" href="internal:{id}">` (posé à
   l'import ODT ou par la toolbar Quill) navigue vers le nœud cible plutôt que
   d'activer l'édition (`onFrameClick` intercepte avant `onColumnClick`). La

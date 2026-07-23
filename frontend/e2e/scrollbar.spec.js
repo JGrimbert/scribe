@@ -78,16 +78,46 @@ test.describe('affichage conditionnel', () => {
   test('aucune track quand le contenu ne déborde pas', async ({ page }) => {
     await gotoEditor(page, { paragraphCount: 3 })
     // FolioView pagine dans une iframe : on attend la page rendue
-    // (`.pagedjs_page`) avant de vérifier que la CustomScrollbar de l'app reste
-    // absente. Le débordement horizontal éventuel de la rangée de folios est
-    // désormais interne à FolioView (`.folio-scroll`), plus porté par la
-    // scrollbar de l'app — d'où le retrait des tests de track/flèche horizontales.
+    // (`.pagedjs_page`) avant de vérifier qu'aucune track n'apparaît. Le
+    // débordement horizontal éventuel de la rangée de folios est porté par la
+    // CustomScrollbar interne à FolioView (elle enveloppe `.folio-scroll`), pas
+    // par la scrollbar de l'app. Ici, un seul folio → aucune track (ni x ni y).
     await expect(page.frameLocator('.folio-frame').locator('.pagedjs_page')).toHaveCount(1, { timeout: 15000 })
     await page.waitForTimeout(1500)
 
     await expect(page.locator(`${CONTENT} .custom-scrollbar__track--y`)).toBeHidden()
     await expect(page.locator(`${CONTENT} .custom-scrollbar__track--x`)).toBeHidden()
     await expect(page.locator(`${SIDEBAR} .custom-scrollbar__track--y`)).toBeHidden()
+  })
+})
+
+test.describe('molette → horizontal (FolioView édition)', () => {
+  // Les pages vivent dans une iframe qui capte la molette : FolioView relaie le
+  // wheel du document de l'iframe vers la CustomScrollbar (handleWheel), qui
+  // convertit deltaY en scroll horizontal de la rangée. On dispatche le WheelEvent
+  // DANS le document de l'iframe (ce qu'un vrai navigateur fait au survol des
+  // pages) : `page.mouse.wheel` de Playwright ne route pas la molette dans une
+  // iframe, alors que ce relais est justement le cœur du correctif à couvrir.
+  test('la molette au-dessus des pages défile la rangée horizontalement', async ({ page }) => {
+    await gotoEditor(page, { paragraphCount: 120 })
+    const content = page.locator('.folio-scroll .custom-scrollbar__content')
+    await expect(page.frameLocator('.folio-frame').locator('.pagedjs_page').first())
+        .toBeVisible({ timeout: 15000 })
+    await page.waitForTimeout(1500)
+
+    // Pré-condition : la rangée déborde bien horizontalement (sinon rien à tester).
+    const overflow = await content.evaluate((el) => el.scrollWidth - el.clientWidth)
+    expect(overflow, 'pas de débordement horizontal — augmenter paragraphCount').toBeGreaterThan(1)
+
+    const before = await content.evaluate((el) => el.scrollLeft)
+    const frame = await (await page.locator('.folio-frame').elementHandle()).contentFrame()
+    await frame.evaluate(() => {
+      document.dispatchEvent(new WheelEvent('wheel', { deltaY: 400, bubbles: true, cancelable: true }))
+    })
+    await page.waitForTimeout(200)
+    const after = await content.evaluate((el) => el.scrollLeft)
+
+    expect(after, 'la molette verticale ne défile pas la rangée horizontalement').toBeGreaterThan(before)
   })
 })
 
