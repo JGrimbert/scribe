@@ -109,6 +109,9 @@ function toVisual(style: RawStyle, fontFaces: Map<string, string>): StyleVisual 
   if (text['fo:font-weight']) v.bold = text['fo:font-weight'] === 'bold'
   if (text['fo:font-style']) v.italic = text['fo:font-style'] === 'italic'
   if (text['fo:color']) v.color = text['fo:color']
+  // Césure : text-property ODF. N'émis que si porté (comme le reste) → la fusion
+  // d'héritage le propage, et son absence signale « non défini » à la cascade Folio.
+  if (text['fo:hyphenate']) v.hyphenate = text['fo:hyphenate'] === 'true'
 
   if (para['fo:text-align']) v.align = para['fo:text-align']
   if (para['fo:margin-top']) v.marginTop = para['fo:margin-top']

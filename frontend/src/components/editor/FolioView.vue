@@ -97,6 +97,10 @@ const props = defineProps({
   // Format de page du .odt (dimensions + marges, cf. PageFormat). Piloté en
   // @page dans l'iframe. Null = A5 par défaut (paged.css).
   page: { type: Object, default: null },
+  // Réglages de césure (cascade Folio) : `{ global }` = défaut appliqué aux
+  // styles que le .odt ne déclare pas explicitement. Null = pas de césure globale
+  // (seuls les styles à fo:hyphenate="true" en portent).
+  hyphenation: { type: Object, default: null },
   // Debug : rendre visible le Quill flottant (sinon seul le miroir Folio l'est).
   quillVisible: { type: Boolean, default: false },
 })

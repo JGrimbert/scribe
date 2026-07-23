@@ -1,7 +1,7 @@
 import { ref } from 'vue'
 import { buildFragmentRegistry, createFragmentApi } from '../script/fragment.js'
 import { createRegistry } from '../script/registry.js'
-import { buildVisualsCss, buildPageCss, buildPagePinCss } from '../script/folioStyles.js'
+import { buildVisualsCss, buildHyphenationCss, buildPageCss, buildPagePinCss } from '../script/folioStyles.js'
 
 // URLs ABSOLUES : l'iframe sans `src` a une base `about:blank`. Le build UMD de
 // Paged.js est servi par un middleware dev (cf. vite.config.js).
@@ -39,7 +39,9 @@ export function useFolioFrame(props, { frameRef, frameDoc, blocks, section, onRe
     const doc = frameDoc()
     if (!doc) return
     doc.open()
-    doc.write('<!doctype html><html><head><meta charset="utf-8"></head><body><div id="render"></div></body></html>')
+    // `lang="fr"` : sans langue déclarée, `hyphens:auto` est inerte (le navigateur
+    // ne choisit pas de dictionnaire de césure). Le corpus est francophone.
+    doc.write('<!doctype html><html lang="fr"><head><meta charset="utf-8"></head><body><div id="render"></div></body></html>')
     doc.close()
 
     const boot = doc.createElement('style')
@@ -120,6 +122,16 @@ export function useFolioFrame(props, { frameRef, frameDoc, blocks, section, onRe
     if (visualsCss) {
       const styleEl = doc.createElement('style')
       styleEl.textContent = visualsCss
+      doc.head.appendChild(styleEl)
+    }
+
+    // Césure : cascade valeur .odt du style > défaut global (props.hyphenation).
+    // Même cycle de vie que la feuille d'apparence (régénérée, sans id → l'ancienne
+    // part avec staleStyles après le swap).
+    const hyphenationCss = buildHyphenationCss(props.visuals, { global: props.hyphenation?.global })
+    if (hyphenationCss) {
+      const styleEl = doc.createElement('style')
+      styleEl.textContent = hyphenationCss
       doc.head.appendChild(styleEl)
     }
 

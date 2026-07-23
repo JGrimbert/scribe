@@ -246,6 +246,11 @@ export interface StyleVisual {
   textIndent?: string
   lineHeight?: string
   pageBreakBefore?: boolean
+  // Césure (fo:hyphenate). Présent SSI le style — ou un ancêtre — la déclare
+  // explicitement : c'est la notion « défini » de la cascade côté Folio (valeur
+  // .odt du style > surcharge de rôle > défaut global). Un style muet reste
+  // `undefined` pour laisser le niveau moins spécifique décider.
+  hyphenate?: boolean
 }
 
 // Le format de page du livre, lu sur le master-page « Standard ». Sans lui, une

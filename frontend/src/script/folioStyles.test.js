@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildVisualsCss, buildPageCss } from './folioStyles.js'
+import { buildVisualsCss, buildHyphenationCss, buildPageCss } from './folioStyles.js'
 
 describe('buildVisualsCss', () => {
   it('traduit un StyleVisual en règle préfixée .pagedjs_page_content', () => {
@@ -32,6 +32,38 @@ describe('buildVisualsCss', () => {
   it('rend une chaîne vide pour des visuals nuls/vides', () => {
     expect(buildVisualsCss(null)).toBe('')
     expect(buildVisualsCss({})).toBe('')
+  })
+})
+
+describe('buildHyphenationCss', () => {
+  const visuals = {
+    Standard: { fontSize: '11pt' }, // muet sur la césure
+    Corps: { hyphenate: true }, // explicitement césuré
+    Titre: { hyphenate: false }, // explicitement non césuré
+  }
+
+  it('global OFF : ne césure que les styles explicitement à true', () => {
+    const css = buildHyphenationCss(visuals, { global: false })
+    expect(css).toBe('.pagedjs_page_content [data-style="Corps"]{-webkit-hyphens:auto;hyphens:auto}')
+  })
+
+  it('global ON : césure d’ensemble + exceptions manual pour les styles à false', () => {
+    const css = buildHyphenationCss(visuals, { global: true })
+    expect(css).toContain('.pagedjs_page_content{-webkit-hyphens:auto;hyphens:auto}')
+    expect(css).toContain('[data-style="Titre"]{-webkit-hyphens:manual;hyphens:manual}')
+    // Un style muet n'a pas d'exception : le défaut global le prend.
+    expect(css).not.toContain('[data-style="Standard"]')
+    // Un style déjà à true n'a pas besoin d'exception non plus.
+    expect(css).not.toContain('[data-style="Corps"]')
+  })
+
+  it('défaut global absent = OFF', () => {
+    expect(buildHyphenationCss(visuals)).toBe('.pagedjs_page_content [data-style="Corps"]{-webkit-hyphens:auto;hyphens:auto}')
+  })
+
+  it('rend une chaîne vide sans visuals ou sans césure déclarée', () => {
+    expect(buildHyphenationCss(null)).toBe('')
+    expect(buildHyphenationCss({ Standard: { fontSize: '11pt' } }, { global: false })).toBe('')
   })
 })
 

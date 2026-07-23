@@ -70,6 +70,34 @@ export function buildPagePinCss(page) {
     + '}'
 }
 
+// Césure → feuille pour l'iframe Paged.js. Cascade par style :
+// valeur .odt EXPLICITE du style (`visuals[name].hyphenate`) > défaut global.
+// (La surcharge par rôle Scribe s'insère entre les deux en phase 2.)
+// `hyphens:auto` n'agit que si un `lang` est posé sur le contenu (cf.
+// useFolioFrame, `lang="fr"` sur le <html> de l'iframe) et se voit surtout sur du
+// texte justifié — la zone de contenu l'est déjà.
+//
+// Deux stratégies d'émission selon le défaut, pour ne cibler que les exceptions :
+//  - global ON  : césure d'ensemble sur `.pagedjs_page_content`, + `manual` pour
+//    les styles que le .odt déclare explicitement à false ;
+//  - global OFF : rien d'ensemble, + `auto` pour les styles explicitement à true.
+export function buildHyphenationCss(visuals, { global = false } = {}) {
+  const explicit = Object.entries(visuals || {})
+    .filter(([, v]) => v.hyphenate != null)
+  const rules = []
+  if (global) {
+    rules.push('.pagedjs_page_content{-webkit-hyphens:auto;hyphens:auto}')
+    for (const [name, v] of explicit) {
+      if (!v.hyphenate) rules.push(`.pagedjs_page_content [data-style="${escapeAttrValue(name)}"]{-webkit-hyphens:manual;hyphens:manual}`)
+    }
+  } else {
+    for (const [name, v] of explicit) {
+      if (v.hyphenate) rules.push(`.pagedjs_page_content [data-style="${escapeAttrValue(name)}"]{-webkit-hyphens:auto;hyphens:auto}`)
+    }
+  }
+  return rules.join('\n')
+}
+
 // visuals (map nom→StyleVisual) → feuille de style pour l'iframe Paged.js.
 // Sélecteur préfixé `.pagedjs_page_content ` : spécificité (0,2,0), au-dessus des
 // règles génériques de paged.css (`article`, `article p`) qui, sinon,

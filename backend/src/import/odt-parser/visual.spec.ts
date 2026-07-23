@@ -23,10 +23,11 @@ const STYLES_XML = `<?xml version="1.0"?>
     </style:style>
     <style:style style:name="Heading" style:family="paragraph" style:parent-style-name="Standard">
       <style:paragraph-properties fo:margin-top="0.423cm" fo:margin-bottom="0.212cm"/>
+      <style:text-properties fo:hyphenate="true"/>
     </style:style>
     <style:style style:name="Heading_20_1" style:family="paragraph" style:parent-style-name="Heading">
       <style:paragraph-properties fo:text-align="center" fo:break-before="page"/>
-      <style:text-properties style:font-name="Georgia2" fo:font-size="18pt" fo:font-weight="bold"/>
+      <style:text-properties style:font-name="Georgia2" fo:font-size="18pt" fo:font-weight="bold" fo:hyphenate="false"/>
     </style:style>
     <style:style style:name="Puces_20__3f_" style:family="paragraph" style:parent-style-name="Standard"/>
     <style:style style:name="Souligne" style:family="text">
@@ -98,6 +99,15 @@ describe('buildVisualStyles', () => {
   it('rend fo:break-before en booléen', () => {
     expect(visuals['Heading 1'].pageBreakBefore).toBe(true)
     expect(visuals['Standard'].pageBreakBefore).toBeUndefined()
+  })
+
+  it('rend fo:hyphenate en booléen, propagé par héritage, undefined si jamais déclaré', () => {
+    // La cascade Folio distingue « défini » (le style ou un ancêtre le porte) de
+    // « muet » (laisse le niveau moins spécifique décider).
+    expect(visuals['Heading'].hyphenate).toBe(true) // déclaré
+    expect(visuals['Heading 1'].hyphenate).toBe(false) // l'enfant surcharge à false
+    expect(visuals['Puces ?'].hyphenate).toBeUndefined() // parent Standard muet
+    expect(visuals['Standard'].hyphenate).toBeUndefined() // jamais déclaré
   })
 })
 
