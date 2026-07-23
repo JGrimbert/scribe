@@ -70,6 +70,14 @@ model Document {
   // la page pour survivre au recalibrage. NULL = rien tagué.
   liminaireConfig Json?
 
+  // styleDefaults : réglages typographiques GÉNÉRAUX décidés par l'utilisateur,
+  // appliqués par-dessus les styles du .odt — { hyphenation: { global } }, cf.
+  // documents/style-defaults.ts. Première propriété : la césure (défaut global de
+  // la cascade Folio, cf. frontend script/folioStyles). Séparé de styleInventory
+  // (un relevé d'import) : c'est une DÉCISION, même nature que liminaireConfig.
+  // NULL = aucun réglage (la cascade retombe sur les seules valeurs du .odt).
+  styleDefaults   Json?
+
   nodes           Node[]
   analysis        DocumentAnalysis?
   source          DocumentSource?

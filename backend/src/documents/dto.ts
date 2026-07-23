@@ -1,5 +1,6 @@
 import { DataMap, ImportCorrections, OutlineEntry, PageFormat, StyleInventory, StyleVisual, Trame } from '../import/odt-parser'
 import { DocumentTypology, StyleRole } from './typology'
+import { StyleDefaults } from './style-defaults'
 
 export interface PreviewResponse {
   previewId: string
@@ -86,6 +87,10 @@ export interface DocumentContent {
   // alignement…). Vides pour un document importé avant la lecture de styles.xml.
   visuals: Record<string, StyleVisual>
   page: PageFormat | null
+  // Réglages typographiques généraux (décision utilisateur, cf. style-defaults.ts) :
+  // la couche Folio applique la césure au-dessus des styles du .odt. Toujours
+  // normalisé (jamais null) — un document sans réglage rend les défauts.
+  hyphenation: StyleDefaults['hyphenation']
 }
 
 export type NodeValidationState = 'validé' | 'périmé'

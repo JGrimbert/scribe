@@ -35,6 +35,10 @@ export function useTypologyConfig() {
   // reparse régénère) — persistée à part (colonne `liminaireConfig`), branchée
   // au save/load à l'étape suivante.
   const liminaireConfig = reactive({})
+  // Réglages typographiques généraux (césure…), persistés à part
+  // (`GET/PUT /documents/:id/style-defaults`). Appliqués par la couche Folio
+  // au-dessus des styles du .odt. Muté en place comme `rules`/`liminaireConfig`.
+  const styleDefaults = reactive({ hyphenation: { global: false } })
 
   // Les modèles se recomposent contre `styles` (la typologie EN COURS
   // d'édition) : changer un rôle recompose les motifs dans le même tick.
@@ -100,14 +104,16 @@ export function useTypologyConfig() {
     loadShapes(id)
 
     try {
-      const [typoRes, rulesRes, limRes] = await Promise.all([
+      const [typoRes, rulesRes, limRes, defaultsRes] = await Promise.all([
         fetch(`/api/documents/${id}/typology`),
         fetch(`/api/documents/${id}/rules`),
         fetch(`/api/documents/${id}/liminaire-config`),
+        fetch(`/api/documents/${id}/style-defaults`),
       ])
       if (!typoRes.ok) throw new Error(`HTTP ${typoRes.status}`)
       if (!rulesRes.ok) throw new Error(`HTTP ${rulesRes.status}`)
       if (!limRes.ok) throw new Error(`HTTP ${limRes.status}`)
+      if (!defaultsRes.ok) throw new Error(`HTTP ${defaultsRes.status}`)
 
       const data = await typoRes.json()
       inventory.value = data.inventory
@@ -124,6 +130,10 @@ export function useTypologyConfig() {
       // n'existent peut-être plus.
       for (const k of Object.keys(liminaireConfig)) delete liminaireConfig[k]
       Object.assign(liminaireConfig, await limRes.json())
+
+      // Normalisé côté backend (toujours la forme complète) : on l'écrase tel quel.
+      const defaults = await defaultsRes.json()
+      styleDefaults.hyphenation.global = defaults.hyphenation.global
     } catch (e) {
       loadError.value = `Impossible de charger la configuration : ${e.message}`
     } finally {
@@ -144,6 +154,7 @@ export function useTypologyConfig() {
         // `liminaireConfig` est un proxy réactif imbriqué : désérialisé en
         // profondeur comme `rules`. Le backend normalise (jette 'auto'/vides).
         put(id, 'liminaire-config', JSON.parse(JSON.stringify(liminaireConfig))),
+        put(id, 'style-defaults', JSON.parse(JSON.stringify(styleDefaults))),
       ])
       settled.value = typoBody.settled
       saved.value = true
@@ -169,11 +180,11 @@ export function useTypologyConfig() {
 
   // Toute modification efface l'accusé d'enregistrement : sinon il resterait
   // affiché au-dessus de changements qui, eux, ne le sont pas.
-  watch([styles, highlights, rules, liminaireConfig], () => { saved.value = false })
+  watch([styles, highlights, rules, liminaireConfig, styleDefaults], () => { saved.value = false })
 
   return {
     loading, loadError, saveError, saving, saved, settled,
-    inventory, styles, highlights, rules, liminaireConfig, zoned,
+    inventory, styles, highlights, rules, liminaireConfig, styleDefaults, zoned,
     sections, unzonedStyles, shapeGroups, shapesError,
     load, save, toggleDepth,
   }

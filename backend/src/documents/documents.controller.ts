@@ -4,6 +4,7 @@ import { DocumentsService } from './documents.service'
 import { StructureShapes } from '../analyse/structure-shapes'
 import { DocumentRules } from './rules'
 import { LiminaireConfig } from './liminaire-config'
+import { StyleDefaults } from './style-defaults'
 import {
   CommitImportRequest,
   CommitResponse,
@@ -103,6 +104,18 @@ export class DocumentsController {
   @Put(':id/liminaire-config')
   saveLiminaireConfig(@Param('id') id: string, @Body() body: unknown): Promise<LiminaireConfig> {
     return this.documentsService.saveLiminaireConfig(id, body)
+  }
+
+  // Réglages typographiques généraux (césure…), décidés par style-defaults.ts.
+  // Appliqués par-dessus les styles du .odt par la couche Folio.
+  @Get(':id/style-defaults')
+  getStyleDefaults(@Param('id') id: string): Promise<StyleDefaults> {
+    return this.documentsService.getStyleDefaults(id)
+  }
+
+  @Put(':id/style-defaults')
+  saveStyleDefaults(@Param('id') id: string, @Body() body: unknown): Promise<StyleDefaults> {
+    return this.documentsService.saveStyleDefaults(id, body)
   }
 
   // Validation manuelle d'un chapitre (cf. NodeValidation, schema.prisma).

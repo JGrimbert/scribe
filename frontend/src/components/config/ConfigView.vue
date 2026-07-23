@@ -58,9 +58,10 @@
 
     <UiNote v-if="loadError" variant="error">{{ loadError }}</UiNote>
 
-    <!-- Mise en page : propriété globale du livre, indépendante des styles —
-         affichée même sur un document sans inventaire (elle vient du .odt). -->
-    <PageFormatSection :page="documentPage" />
+    <!-- Mise en page : propriétés globales du livre, indépendantes des styles —
+         format de page (lu du .odt) + réglages typographiques généraux (césure…).
+         Affiché même sur un document sans inventaire (le format vient du .odt). -->
+    <LayoutSection :page="documentPage" :style-defaults="styleDefaults" />
 
     <template v-if="inventory.styles.length">
       <TypologySection
@@ -175,7 +176,7 @@ import UiNote from '../ui/molecules/UiNote.vue'
 import RuleSetForm from './RuleSetForm.vue'
 import StyleRolesTable from './StyleRolesTable.vue'
 import TypologySection from './TypologySection.vue'
-import PageFormatSection from './PageFormatSection.vue'
+import LayoutSection from './LayoutSection.vue'
 import RecalibrationModal from './RecalibrationModal.vue'
 import LiminaireComposer from '../liminaire/LiminaireComposer.vue'
 import { useRegistry } from '../../composables/useRegistry'
@@ -194,7 +195,7 @@ const NO_SOURCE_HINT =
 const { documents, ensureLoaded, fetchDocuments, confirmAndDelete, deletingId } = useRegistry()
 const {
   loading, loadError, saveError, saving, saved, settled,
-  inventory, styles, highlights, rules, liminaireConfig, zoned,
+  inventory, styles, highlights, rules, liminaireConfig, styleDefaults, zoned,
   sections, unzonedStyles, shapesError, load, save, toggleDepth,
 } = useTypologyConfig()
 

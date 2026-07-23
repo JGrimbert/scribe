@@ -18,6 +18,7 @@ import { collectShapes, StructureShapes } from '../analyse/structure-shapes'
 import { DocumentTypology, isTypologySettled, suggestTypology, typologyErrors } from './typology'
 import { DocumentRules, normalizeRules, rulesErrors } from './rules'
 import { LiminaireConfig, liminaireConfigErrors, normalizeLiminaireConfig } from './liminaire-config'
+import { StyleDefaults, normalizeStyleDefaults, styleDefaultsErrors } from './style-defaults'
 import { PreviousValidation, RebuiltNode, remapNodeIds, remapValidations } from './recalibration'
 import {
   CommitImportRequest,
@@ -460,6 +461,7 @@ export class DocumentsService {
       validations,
       visuals: inventory?.visuals ?? {},
       page: inventory?.page ?? null,
+      hyphenation: normalizeStyleDefaults(document.styleDefaults).hyphenation,
     }
   }
 
@@ -594,6 +596,27 @@ export class DocumentsService {
       data: { liminaireConfig: config as unknown as Prisma.InputJsonValue },
     })
     return config
+  }
+
+  async getStyleDefaults(id: string): Promise<StyleDefaults> {
+    const document = await this.prisma.document.findUnique({ where: { id }, select: { styleDefaults: true } })
+    if (!document) throw new NotFoundException(`Document ${id} introuvable`)
+    return normalizeStyleDefaults(document.styleDefaults)
+  }
+
+  async saveStyleDefaults(id: string, body: unknown): Promise<StyleDefaults> {
+    const document = await this.prisma.document.findUnique({ where: { id }, select: { id: true } })
+    if (!document) throw new NotFoundException(`Document ${id} introuvable`)
+
+    const errors = styleDefaultsErrors(body)
+    if (errors.length) throw new BadRequestException(errors)
+
+    const defaults = normalizeStyleDefaults(body)
+    await this.prisma.document.update({
+      where: { id },
+      data: { styleDefaults: defaults as unknown as Prisma.InputJsonValue },
+    })
+    return defaults
   }
 
   // nodeId → contentHash au moment de la validation. Consommé aussi par

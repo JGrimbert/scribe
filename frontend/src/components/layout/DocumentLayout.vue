@@ -99,6 +99,7 @@ const trame = ref(null)
 const data = ref(null)
 const visuals = ref(null)
 const page = ref(null)
+const hyphenation = ref(null)
 const title = ref('')
 
 const docBarEl = ref(null)
@@ -110,6 +111,7 @@ provide('documentTrame', trame)
 provide('documentData', data)
 provide('documentVisuals', visuals)
 provide('documentPage', page)
+provide('documentHyphenation', hyphenation)
 
 // Action contextuelle de la doc-bar : le CTA global à droite. Une vue routée
 // (la config) la renseigne via inject ; null ailleurs, où la doc-bar retombe sur
@@ -185,6 +187,7 @@ async function loadDocument(id, { silent = false } = {}) {
   data.value = content.data
   visuals.value = content.visuals ?? null
   page.value = content.page ?? null
+  hyphenation.value = content.hyphenation ?? null
   validations.value = content.validations ?? {}
   loadTypology(id) // non-awaité : le document s'affiche sans attendre cette réponse
 }
