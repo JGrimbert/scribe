@@ -1,6 +1,6 @@
 import * as unzipper from 'unzipper'
 import * as xpath from 'xpath'
-import { ListItemEntry, PageStart } from './types'
+import { ListItemEntry, OutlineFormat, PageStart } from './types'
 
 export const NS = {
   text: 'urn:oasis:names:tc:opendocument:xmlns:text:1.0',
@@ -217,6 +217,26 @@ export function nodeTextWithLinks(node: any, table?: StyleTable): string {
     text += nodeTextWithLinks(child, table)
   }
   return text
+}
+
+// Format de numérotation des titres, lu de `<text:outline-style>` (styles.xml).
+// Rend `null` si le document ne définit aucun niveau numéroté (numérotation
+// désactivée, ou styles.xml absent) — le titre n'aura alors pas de numéro.
+export function readOutlineFormat(stylesDoc: any): OutlineFormat | null {
+  if (!stylesDoc) return null
+  const levels = select('//*[local-name()="outline-level-style"]', stylesDoc) as any[]
+  const format: OutlineFormat = {}
+  for (const el of levels) {
+    const level = parseInt(el.getAttribute('text:level') || '0', 10)
+    if (!level) continue
+    format[level] = {
+      numFormat: el.getAttribute('style:num-format') || '',
+      prefix: el.getAttribute('style:num-prefix') || '',
+      suffix: el.getAttribute('style:num-suffix') || '',
+      displayLevels: parseInt(el.getAttribute('text:display-levels') || '1', 10) || 1,
+    }
+  }
+  return Object.keys(format).length ? format : null
 }
 
 export function headingLevel(paraNode: any): number {

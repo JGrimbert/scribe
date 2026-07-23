@@ -48,6 +48,11 @@ const SUGGESTIONS: [RegExp, StyleRole][] = [
   // des paragraphes DANS une cellule de tableau, pas une ligne de sommaire.
   [/^table (contents|heading)/i, 'tableau'],
   [/contents|index|sommaire/i, 'ignorer'],
+  // Avant la règle « titre » : un « sous-titre » CONTIENT « titre » mais n'est pas
+  // un titre de structure. Sur le témoin, « mention sous titre » porte les courtes
+  // définitions sous le titre — d'où « définition » et non « titre » (qui polluait
+  // les modèles avec un faux titre, cf. structure-shapes).
+  [/sous.?titre|sub.?title/i, 'définition'],
   [/heading|titre|title/i, 'titre'],
   [/chapeau|premier paragraphe|intro/i, 'chapeau'],
   [/citation|quotation|quote/i, 'citation'],

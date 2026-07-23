@@ -1,6 +1,7 @@
-import { FlatNode, ImportCorrections, PageStart, ParsedNode, ParsedResult, StyleInventory, TexteEntry, ZoneKey } from './types'
+import { FlatNode, ImportCorrections, OutlineFormat, PageStart, ParsedNode, ParsedResult, StyleInventory, TexteEntry, ZoneKey } from './types'
 import { makeUniqueSlug, extractRomain, computeStats, stripHtmlTags } from './text-utils'
 import { ventilateInventory, zoneOfDepth } from './zones'
+import { computeOutlineNumbers } from './outline-numbering'
 
 const EMPTY_INVENTORY: StyleInventory = { styles: [], highlights: [] }
 
@@ -52,10 +53,15 @@ export function buildParsedResult(
   // internes aux tableaux, que la passe 1 aplatit en données (cf.
   // inventory.ts). Il vient donc de buildFlatNodes, qui a lu le XML.
   inventory: StyleInventory = EMPTY_INVENTORY,
+  // Format de numérotation des titres (`<text:outline-style>`). Calculé sur les
+  // niveaux BRUTS et l'ordre document — indépendant des corrections, comme
+  // LibreOffice qui numérote sans les connaître.
+  outlineFormat: OutlineFormat | null = null,
 ): { result: ParsedResult; bookmarks: Map<string, ParsedNode> } {
   const structureStartIndex = corrections?.structureStartIndex ?? 0
   const structureEndIndex = corrections?.structureEndIndex
   const levelOverrides = corrections?.levelOverrides ?? {}
+  const outlineNumbers = computeOutlineNumbers(flatNodes, outlineFormat)
 
   const result: ParsedResult = {
     inventory,
@@ -188,6 +194,10 @@ export function buildParsedResult(
         titre: text,
         slug,
         numeroRomain: extractRomain(text),
+        // Style effectif du titre (pour le rendu fidèle Folio) et son numéro de
+        // chapitre auto — calculé sur le niveau BRUT du titre, pas l'override.
+        styleName: node.effectiveStyle || null,
+        outlineNumber: outlineNumbers.get(node.index) ?? null,
         texte: [],
         citations: [],
         pistes: [],

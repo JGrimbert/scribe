@@ -67,6 +67,8 @@ export function harmonize(result: ParsedResult, bookmarks?: Map<string, ParsedNo
       level,
       titre: node.titre,
       slug: node.slug,
+      styleName: node.styleName,
+      outlineNumber: node.outlineNumber,
       texte: node.texte,
       connexe: buildConnexe(node.tableau, node.pistes),
       indexGlobal: node.indexGlobal,

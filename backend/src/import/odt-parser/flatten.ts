@@ -1,6 +1,6 @@
 import { DOMParser } from 'xmldom'
 import * as xpath from 'xpath'
-import { FlatNode, ListItemEntry, PageStart, StyleInventory } from './types'
+import { FlatNode, ListItemEntry, OutlineFormat, PageStart, StyleInventory } from './types'
 import {
   NS,
   select,
@@ -16,6 +16,7 @@ import {
   extractTocTexts,
   extractTable,
   extractInnerStyles,
+  readOutlineFormat,
 } from './xml'
 import { buildStyleInventory } from './inventory'
 
@@ -41,6 +42,7 @@ export function buildFlatNodes(xmlContent: string, stylesXml?: string): {
   sectionsRencontrees: number
   tocTexts: string[]
   inventory: StyleInventory
+  outlineFormat: OutlineFormat | null
 } {
   const doc = new DOMParser().parseFromString(xmlContent, 'text/xml')
   const stylesDoc = stylesXml ? new DOMParser().parseFromString(stylesXml, 'text/xml') : null
@@ -206,5 +208,6 @@ export function buildFlatNodes(xmlContent: string, stylesXml?: string): {
     sectionsRencontrees,
     tocTexts,
     inventory: buildStyleInventory(doc, styleTable, stylesDoc),
+    outlineFormat: readOutlineFormat(stylesDoc),
   }
 }

@@ -44,8 +44,8 @@ export interface PreviewParse {
 
 // ─── Parser principal ─────────────────────────────────────────────────────
 export function parseOdtXml(xmlContent: string, corrections?: ImportCorrections, stylesXml?: string): ParsedResult {
-  const { flatNodes, meta, sectionsRencontrees, inventory } = buildFlatNodes(xmlContent, stylesXml)
-  return buildParsedResult(flatNodes, meta, sectionsRencontrees, corrections, inventory).result
+  const { flatNodes, meta, sectionsRencontrees, inventory, outlineFormat } = buildFlatNodes(xmlContent, stylesXml)
+  return buildParsedResult(flatNodes, meta, sectionsRencontrees, corrections, inventory, outlineFormat).result
 }
 
 // ─── Aperçu (calibration) : parse sans construire la structure finale ─────
@@ -66,8 +66,8 @@ export async function parseOdtBuffer(buffer: Buffer, corrections?: ImportCorrect
   // visual.ts). Toléré absent : un .odt sans styles.xml reste parsable pour sa
   // structure, qui est l'essentiel.
   const stylesXml = await readOdtStylesXml(buffer).catch(() => undefined)
-  const { flatNodes, meta, sectionsRencontrees, inventory } = buildFlatNodes(xmlContent, stylesXml)
-  const { result, bookmarks } = buildParsedResult(flatNodes, meta, sectionsRencontrees, corrections, inventory)
+  const { flatNodes, meta, sectionsRencontrees, inventory, outlineFormat } = buildFlatNodes(xmlContent, stylesXml)
+  const { result, bookmarks } = buildParsedResult(flatNodes, meta, sectionsRencontrees, corrections, inventory, outlineFormat)
   const { data, trame } = harmonize(result, bookmarks)
   return { result, data, trame }
 }

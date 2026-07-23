@@ -7,7 +7,7 @@ import { isTypologySettled, suggestRole, suggestTypology } from './typology'
 describe('suggestRole', () => {
   it.each([
     ['Heading 3', 'titre'],
-    ['mention sous titre', 'titre'],
+    ['mention sous titre', 'définition'],
     ['Citation paragraphe', 'citation'],
     ['Quotations', 'citation'],
     ['Definition', 'définition'],

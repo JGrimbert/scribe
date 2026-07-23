@@ -1,4 +1,6 @@
 import { DataMap, TrameNode } from '../import/odt-parser'
+import { computeStats } from '../import/odt-parser/text-utils'
+import { plainNodeText } from './plain-text'
 
 // La FORME de chaque nœud : la séquence des styles de ses paragraphes, dans
 // l'ordre. C'est la matière première des « modèles de structure » — les
@@ -36,6 +38,11 @@ export interface NodeShape {
   depth: number
   isLeaf: boolean
   runs: StyleRun[]
+  // Caractères du texte PROPRE du nœud (hors enfants), mesurés comme la règle
+  // d'éligibilité « au moins N caractères » (conformity.ts). Le frontend écarte
+  // des modèles les nœuds sous le seuil du niveau : un article trop court ne
+  // définit pas une forme.
+  chars: number
   // Couleurs de surlignage portées par ce nœud, dédoublonnées : la présence
   // d'une annotation est un fait binaire par nœud, la compter n'apporte rien à
   // une signature de structure (et la ferait éclater en variantes inutiles).
@@ -92,6 +99,7 @@ export function collectShapes(trame: AxesTree, data: DataMap): StructureShapes {
         depth,
         isLeaf: node.children.length === 0,
         runs: toRuns(item.texte.map((entry) => entry.styleName ?? '')),
+        chars: computeStats(plainNodeText(item.texte)).caracteres,
         highlights: highlightsOf(item.texte),
       })
     }

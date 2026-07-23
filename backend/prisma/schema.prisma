@@ -122,6 +122,17 @@ model Node {
   mots        Int?
   caracteres  Int?
 
+  // Style ODT EFFECTIF du titre (« Heading 3 », décodé) : clé de la feuille
+  // `visuals` côté Folio pour un titre fidèle au .odt (centrage, corps). Distinct
+  // de Paragraph.styleName (un titre n'est pas un paragraphe). Nullable : les
+  // documents importés avant cette colonne n'en ont pas (seul un réimport la
+  // remplit).
+  styleName    String?
+  // Numéro de chapitre AUTO reconstruit du `<text:outline-style>` (« I. »,
+  // « (a) »…). Porté par le nœud — pas un compteur CSS, qui repartirait à I.
+  // dès qu'un article est ouvert seul. Nullable (idem).
+  outlineNumber String?
+
   paragraphs  Paragraph[]
   validation  NodeValidation?
 

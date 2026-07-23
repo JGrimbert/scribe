@@ -41,6 +41,15 @@ export interface ParsedNode {
   titre: string
   slug: string
   numeroRomain: string | null
+  // Style EFFECTIF du titre (« Heading 3 », décodé) : clé de la feuille
+  // `visuals` côté Folio pour rendre le titre fidèle au .odt (centrage, corps).
+  // Distinct du styleName des paragraphes (qui vit sur chaque TexteEntry) — un
+  // titre n'est pas une entrée de `texte`.
+  styleName: string | null
+  // Numéro de chapitre AUTO reconstruit depuis `<text:outline-style>` (« I. »,
+  // « (a) »…) et la position du titre dans la numérotation. Porté par le nœud —
+  // pas un compteur CSS, qui repartirait à I. dès qu'un article est affiché seul.
+  outlineNumber: string | null
   texte: TexteEntry[]
   citations: string[]
   pistes: string[]
@@ -81,6 +90,10 @@ export interface HarmonizedItem {
   level: number // profondeur (0 = racine), remplace l'ancien type 'axe'|'bloc'|'article'
   titre: string
   slug: string
+  // Style effectif + numéro de chapitre auto du titre (cf. ParsedNode).
+  // Optionnels : absents des documents importés avant leur introduction.
+  styleName?: string | null
+  outlineNumber?: string | null
   texte: TexteEntry[]
   connexe: { tableau: string[][] | null; pistes: string[] } | null
   indexGlobal: number | null
@@ -263,6 +276,21 @@ export interface OutlineEntry {
   empty: boolean
   hasPageBreak: boolean
 }
+
+// ─── Numérotation des titres (chapitrage auto ODT) ────────────────────────
+//
+// `<text:outline-style>` (styles.xml) dit COMMENT numéroter chaque niveau de
+// titre : format (romain/arabe/alpha), préfixe/suffixe, et combien de niveaux
+// afficher. Ex. témoin : niveau 3 = format « I », suffixe « . » → « I. ».
+export interface OutlineLevelFormat {
+  numFormat: string // '1' arabe | 'a'/'A' alpha | 'i'/'I' romain | '' aucun
+  prefix: string
+  suffix: string
+  displayLevels: number // 1 = numéro du seul niveau courant ; >1 = « 1.2.3 »
+}
+
+// Indexé par niveau de titre (1-based, comme text:outline-level).
+export type OutlineFormat = Record<number, OutlineLevelFormat>
 
 export interface ImportCorrections {
   // Index (dans FlatNode[]) du premier nœud appartenant à la vraie structure.
