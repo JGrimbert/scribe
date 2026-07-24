@@ -245,6 +245,20 @@ export interface StyleVisual {
   marginBottom?: string
   textIndent?: string
   lineHeight?: string
+  // Retraits gauche/droite du paragraphe (fo:margin-left/right).
+  marginLeft?: string
+  marginRight?: string
+  // Petites capitales (fo:font-variant = 'small-caps' | 'normal') et interlettrage
+  // (fo:letter-spacing) — propriétés de caractère.
+  fontVariant?: string
+  letterSpacing?: string
+  // Flux : nombre minimal de lignes isolées tolérées en bas (orphans) / haut
+  // (widows) de page (fo:orphans/fo:widows). Et « garder avec le paragraphe
+  // suivant » (fo:keep-with-next → CSS break-after:avoid) : empêche un titre de
+  // rester seul en bas de page.
+  widows?: number
+  orphans?: number
+  keepWithNext?: boolean
   pageBreakBefore?: boolean
   // Césure (fo:hyphenate). Présent SSI le style — ou un ancêtre — la déclare
   // explicitement : c'est la notion « défini » de la cascade côté Folio (valeur

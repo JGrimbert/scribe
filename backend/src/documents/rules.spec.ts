@@ -9,7 +9,7 @@ import {
   rulesFor,
 } from './rules'
 
-const set = (over = {}) => ({ minChars: null, forbidAnnotations: false, requiresRoles: [], requiresTable: false, ...over })
+const set = (over = {}) => ({ minChars: null, forbidAnnotations: false, requiresRoles: [], requiresTable: false, requiresStyles: [], requiresAdjacency: [], ...over })
 
 describe('depthKeyOf', () => {
   it('plafonne à 2 : au-delà, tout est « article »', () => {
@@ -47,7 +47,7 @@ describe('normalizeRules — compatibilité', () => {
     // réglages que l'utilisateur a pris le temps de poser.
     const legacy = { minChars: 500, forbidAnnotations: true, requiresRoles: ['définition'], requiresTable: true }
     expect(normalizeRules(legacy)).toEqual({
-      default: { minChars: 500, forbidAnnotations: true, requiresRoles: ['définition'], requiresTable: true },
+      default: { minChars: 500, forbidAnnotations: true, requiresRoles: ['définition'], requiresTable: true, requiresStyles: [], requiresAdjacency: [] },
       byDepth: {},
     })
   })

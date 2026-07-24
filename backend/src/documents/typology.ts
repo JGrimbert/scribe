@@ -1,4 +1,4 @@
-import { StyleInventory } from '../import/odt-parser'
+import { StyleInventory, ZONE_KEYS, ZoneKey } from '../import/odt-parser'
 
 // Typologie des styles d'un document : quel RÔLE joue chaque style ODT, et que
 // signifie chaque couleur de surlignage. Propre à un document — deux manuscrits
@@ -31,11 +31,28 @@ export const HIGHLIGHT_ROLES = ['annotation', 'emphase', 'ignorer'] as const
 
 export type HighlightRole = (typeof HIGHLIGHT_ROLES)[number]
 
+// Style DÉCLARÉ par l'utilisateur, absent du .odt : une ligne ajoutée à la main
+// dans le tableau de config (bouton « + »). Il ne sera jamais rencontré dans le
+// contenu (donc toujours non satisfait s'il est « exigé » — risque assumé), mais
+// il porte une place dans le livre (zone + ligne d'ancrage) que la map nom→rôle
+// ne sait pas dire — d'où cette liste à part.
+export interface DeclaredStyle {
+  name: string
+  role: StyleRole
+  zoneKey: ZoneKey
+  // Nom du style APRÈS lequel s'insérer dans la zone ; null = en tête.
+  afterName: string | null
+}
+
 export interface DocumentTypology {
   // Par nom de style effectif → rôle. Les styles absents de la carte n'ont pas
   // encore été arbitrés (cf. isTypologySettled).
   styles: Record<string, StyleRole>
   highlights: Record<string, HighlightRole>
+  // Styles déclarés à la main (hors inventaire). Le rôle vit AUSSI dans `styles`
+  // (pour que conformité/exigé/succession les visent sans cas particulier) ;
+  // cette liste ne porte que ce que la map ignore : leur place.
+  declaredStyles?: DeclaredStyle[]
 }
 
 // Suggestions par nom de style. Ce ne sont QUE des propositions : c'est
@@ -99,13 +116,32 @@ export function suggestTypology(inventory: StyleInventory): DocumentTypology {
 // suite. Idem pour un style absent de l'inventaire : c'est un client qui parle
 // d'un document qu'il n'a pas.
 export function typologyErrors(
-  body: { styles: Record<string, string>; highlights: Record<string, string> },
+  body: { styles: Record<string, string>; highlights: Record<string, string>; declaredStyles?: DeclaredStyle[] },
   inventory: StyleInventory,
 ): string[] {
   const errors: string[] = []
-  const knownStyles = new Set(inventory.styles.map((s) => s.name))
+  const inventoryStyles = new Set(inventory.styles.map((s) => s.name))
   const knownColors = new Set(inventory.highlights.map((h) => h.color))
 
+  // Les styles DÉCLARÉS élargissent le vocabulaire accepté : une ligne ajoutée à
+  // la main est légitime, même absente de l'inventaire. On valide d'abord la
+  // liste, puis on autorise ses noms dans la map.
+  const declared = body.declaredStyles ?? []
+  const declaredNames = new Set<string>()
+  for (const d of declared) {
+    if (!d || typeof d.name !== 'string' || !d.name.trim()) {
+      errors.push('Style déclaré sans nom')
+      continue
+    }
+    if (inventoryStyles.has(d.name)) errors.push(`Style déclaré en doublon de l'inventaire : « ${d.name} »`)
+    if (declaredNames.has(d.name)) errors.push(`Style déclaré en double : « ${d.name} »`)
+    if (!STYLE_ROLES.includes(d.role)) errors.push(`Rôle inconnu : « ${d.role} » (style déclaré « ${d.name} »)`)
+    if (!ZONE_KEYS.includes(d.zoneKey)) errors.push(`Zone inconnue : « ${d.zoneKey} » (style déclaré « ${d.name} »)`)
+    if (d.afterName != null && typeof d.afterName !== 'string') errors.push(`Ancre invalide pour le style déclaré « ${d.name} »`)
+    declaredNames.add(d.name)
+  }
+
+  const knownStyles = new Set([...inventoryStyles, ...declaredNames])
   for (const [name, role] of Object.entries(body.styles ?? {})) {
     if (!knownStyles.has(name)) errors.push(`Style inconnu dans ce document : « ${name} »`)
     if (!STYLE_ROLES.includes(role as StyleRole)) errors.push(`Rôle inconnu : « ${role} » (style « ${name} »)`)

@@ -30,6 +30,11 @@ const STYLES_XML = `<?xml version="1.0"?>
       <style:text-properties style:font-name="Georgia2" fo:font-size="18pt" fo:font-weight="bold" fo:hyphenate="false"/>
     </style:style>
     <style:style style:name="Puces_20__3f_" style:family="paragraph" style:parent-style-name="Standard"/>
+    <style:style style:name="Spacieux" style:family="paragraph" style:parent-style-name="Standard">
+      <style:paragraph-properties fo:margin-left="1cm" fo:margin-right="0.5cm"
+          fo:widows="3" fo:orphans="2" fo:keep-with-next="always"/>
+      <style:text-properties fo:font-variant="small-caps" fo:letter-spacing="0.05cm"/>
+    </style:style>
     <style:style style:name="Souligne" style:family="text">
       <style:text-properties fo:font-style="italic"/>
     </style:style>
@@ -99,6 +104,19 @@ describe('buildVisualStyles', () => {
   it('rend fo:break-before en booléen', () => {
     expect(visuals['Heading 1'].pageBreakBefore).toBe(true)
     expect(visuals['Standard'].pageBreakBefore).toBeUndefined()
+  })
+
+  it('lit retraits G/D, petites capitales et interlettrage', () => {
+    expect(visuals['Spacieux']).toMatchObject({
+      marginLeft: '1cm',
+      marginRight: '0.5cm',
+      fontVariant: 'small-caps',
+      letterSpacing: '0.05cm',
+    })
+  })
+
+  it('lit veuves/orphelines (nombres) et garder-avec-le-suivant (booléen)', () => {
+    expect(visuals['Spacieux']).toMatchObject({ widows: 3, orphans: 2, keepWithNext: true })
   })
 
   it('rend fo:hyphenate en booléen, propagé par héritage, undefined si jamais déclaré', () => {

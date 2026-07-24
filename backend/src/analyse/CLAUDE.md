@@ -69,6 +69,14 @@ explicite si éteint). `GET /documents/:id/analyse` renvoie toujours 200, volets
     RuleSet>> }` — la clé 2 vaut « 2 et au-delà », même regroupement que
     `zoneOfDepth`. `byDepth` **remplace** `default`, ne le complète pas (fusionner
     rendrait impossible de RETIRER un critère à une profondeur).
+  - **Critères d'un `RuleSet`** : `minChars`, `forbidAnnotations`, `requiresRoles`
+    (rôle typologique), `requiresTable` (lu dans `connexe.tableau`), plus deux
+    ajouts édités **ligne par ligne** dans la table de config :
+    `requiresStyles` (style NOMMÉ présent, `key: style:<nom>`) et
+    `requiresAdjacency` (paires `[a,b]` : chaque paragraphe de style `a`
+    immédiatement suivi d'un `b` — vacuément vrai si `a` absent ; `key: adj:a>b`).
+    Les noms de style étant propres au document, ces deux-là ne sont **pas**
+    validés contre un vocabulaire fermé (à la différence des rôles).
   - **Qui est jugé** : les feuilles, sauf si un jeu explicite existe pour une
     profondeur (alors ses nœuds sont jugés, feuilles ou non) → `judgedCount`.
   - **Critères étiquetés par niveau seulement s'il y a un réglage par profondeur**

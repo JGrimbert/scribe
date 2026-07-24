@@ -1,6 +1,7 @@
 import { DataMap, ImportCorrections, OutlineEntry, PageFormat, StyleInventory, StyleVisual, Trame } from '../import/odt-parser'
-import { DocumentTypology, StyleRole } from './typology'
+import { DeclaredStyle, DocumentTypology, StyleRole } from './typology'
 import { StyleDefaults } from './style-defaults'
+import { StyleOverrides } from './style-overrides'
 
 export interface PreviewResponse {
   previewId: string
@@ -93,6 +94,15 @@ export interface DocumentContent {
   hyphenation: StyleDefaults['hyphenation']
 }
 
+// L'éditeur de styles (panneau de config) a besoin des deux : la valeur .odt
+// d'origine (`base`, placeholder / point de retour) et la surcharge Scribe
+// courante (`overrides`, éditable). Le rendu, lui, ne reçoit que le merge des deux
+// (cf. DocumentContent.visuals) — pas cette forme.
+export interface StyleOverridesResponse {
+  overrides: StyleOverrides
+  base: Record<string, StyleVisual>
+}
+
 export type NodeValidationState = 'validé' | 'périmé'
 
 export interface NodeValidationResponse {
@@ -115,4 +125,6 @@ export interface TypologyResponse {
 export interface SaveTypologyRequest {
   styles: Record<string, StyleRole>
   highlights: Record<string, string>
+  // Styles ajoutés à la main (hors inventaire), avec leur place. Cf. typology.ts.
+  declaredStyles?: DeclaredStyle[]
 }

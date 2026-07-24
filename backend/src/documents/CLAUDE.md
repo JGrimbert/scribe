@@ -37,6 +37,13 @@ avant écriture en base). Le parseur qu'il pilote vit dans `../import/odt-parser
   - `settled` compare la typologie à l'inventaire plutôt que d'être un booléen
     « déjà configuré » : un style apparu depuis (réimport) repasse le document en
     « non arbitré ».
+  - **Styles DÉCLARÉS** (`declaredStyles`, `typology.ts`) : le bouton « + » du
+    tableau ajoute un style hors `.odt` (nom libre + rôle + zone + ancre). La
+    garde « style inconnu » de `typologyErrors` est **assouplie** pour les
+    accepter dans la map (le vocabulaire des NOMS est ouvert, seul celui des rôles
+    reste fermé) ; `isTypologySettled` n'est pas affecté (il ne vérifie que
+    inventaire ⊆ typologie). Un tel style n'étant jamais rencontré dans le
+    contenu, l'« exiger » échoue toujours en conformité — risque assumé.
 - **`GET /documents/:id/structure-shapes`** — la FORME de chaque nœud (séquence
   des styles en RLE). Dérivé, calculé au GET, jamais persisté. Servi ici (son
   consommateur est l'écran de typologie) ; détails et pourquoi-RLE dans

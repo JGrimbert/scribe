@@ -27,9 +27,23 @@ dans la config ; les liens posés visent encore l'ancienne URL).
   `AnalyseBlock aside="right"` pour les zones de chapitrage, puis les règles
   dessous ; styles seuls pour liminaire/final. Slot `#lead` pour la reprise des
   bornes dans le liminaire.
-- **`StyleRolesTable.vue`** — table style · extrait · rôle, scopée à une zone,
-  réutilisée dans les deux cas. `styleRoles` est muté **en place** (comme
-  `RuleSetForm` mute son `ruleSet`).
+- **`StyleRolesTable.vue`** — table style · (succession) · rôle · (exigé), scopée
+  à une zone, réutilisée dans les deux cas. `styleRoles` est muté **en place**.
+  Sous chapitrage (`show-require` + `depth-key`), deux contrôles d'éligibilité par
+  ligne : la case **« exigé »** (par STYLE → `requiresStyles`) et, entre style et
+  rôle, la puce **`SuccessionLink`** chevauchant la bordure avec la ligne suivante
+  (paire → `requiresAdjacency`). Les deux appellent `toggleRequireStyle`/
+  `toggleAdjacency` **injectés** (fournis par `ConfigView`, mutent `rules` dans le
+  composable) — comme `openStyleEditor`, pour ne pas remonter d'événement sur deux
+  profondeurs. Plus d'encart « Règles d'éligibilité » : tout se règle en ligne.
+  Un bouton **« + »** (au survol, dans la gouttière de gauche, avec `zone-key`)
+  ouvre un popover **téléporté dans `<body>`** (sinon rogné par l'`overflow` d'
+  `UiTable`) : nom libre + rôle → `addDeclaredStyle`. Une ligne déclarée s'affiche
+  en italique, avec un « × » (`removeDeclaredStyle`). Voir `declaredStyles` ci-dessous.
+  La table est **resserrée sur son contenu** (`.ui-table-box` en `fit-content`, la
+  `.ui-table` interne forcée en `width: max-content` — surtout PAS `auto`, qui pour
+  un `<table>` remplit la largeur dispo ; overrides via classe doublée pour battre
+  la spécificité d'`UiTable`), laissant l'espace à droite libre.
 
 ## Recalibration — deux déclencheurs, une modale
 
@@ -82,20 +96,22 @@ persistées qu'à l'enregistrement** : ce qu'on voit est une proposition.
   colonne étroite qui porte SA bordure (card autonome). Le mode normal veut
   l'inverse (asides sans bordure propre) : le travers qu'on évitait ici était un
   double trait cadre + séparateur. Voir `../analyse/CLAUDE.md` pour `AnalyseBlock`.
-- **Répartition main/aside** : le `main` porte la **table des styles** (style ·
-  extrait · rôle) PUIS les **modèles inlinés**, discrets (une ligne de
-  signatures, pas une card). L'aside porte les **règles d'éligibilité**. Changer
-  un rôle recompose les modèles dans le même tick — d'où leur présence côté styles.
+- **Répartition main/aside** : le `main` porte la **table des styles** (rôle +
+  éligibilité par ligne) PUIS les **modèles inlinés**, discrets (une ligne de
+  signatures, pas une card). L'aside porte l'aperçu. Changer un rôle recompose
+  les modèles dans le même tick — d'où leur présence côté styles.
 - **Ordre des styles = ordre d'apparition** (`firstIndex`, cf. backend
   `inventory.ts`), pas par fréquence. Repli sur le poids/count pour les documents
   importés avant `firstIndex` (styleInventory figé ; un recalibrage le repeuple).
 - **Modèles inlinés** : le rôle `corps` ne porte jamais son `×N`
   (`../../script/shapes.js`) — remplissage attendu, décompte = bruit.
-- **Règles toujours affichées** : chaque niveau montre le toggle « des règles
-  propres à ce niveau » + `RuleSetForm` (émet `toggle-rules`, `ConfigView` appelle
-  `toggleDepth`). Un niveau qui suit le défaut montre les **valeurs du défaut en
-  grisé** (`RuleSetForm disabled`) plutôt qu'un vide. Cocher un niveau part d'une
-  **copie du défaut**.
+- **Éligibilité en ligne (plus d'encart)** : chaque ligne de chapitrage porte sa
+  case **« exigé »** (par style) et sa puce de **succession** (paire de styles
+  voisins). Marquer l'un OU l'autre **matérialise** au vol le jeu du niveau
+  (`byDepth[depth]`, copie du défaut ; cf. `ensureDepth`) et le **purge** dès que
+  les deux tableaux redeviennent vides — sinon un jeu fantôme étiquetterait le
+  dashboard par niveau. Le **socle « Règles par défaut »** (minChars,
+  annotations, rôles, tableau) reste, lui, dans un `RuleSetForm` en bas d'écran.
 - **Surlignages + Non situés en bas** : section globale des surlignages (par
   couleur, `HIGHLIGHT_ROLES`) ; les styles « Non situés » (paragraphes vides :
   filets, ornements — ni nœuds, ni modèles, ni règles) juste dessous, à typer eux
@@ -113,8 +129,8 @@ est liminaire). Chaque zone est SA section, mais l'ordre/regroupement vient de
 `zones.js`. Trois points :
 - chaque style n'apparaît **qu'une fois**, dans sa zone dominante — la ligne
   porte le `v-model` du rôle, un doublon donnerait deux contrôles pour une
-  décision. Table réduite à style · extrait · rôle (usages et `StackedBar`
-  retirés, bruit face au rôle) ;
+  décision. Colonnes : style · (succession) · rôle · (exigé) ; l'extrait, les
+  usages et `StackedBar` retirés (bruit face au rôle), texte non sélectionnable ;
 - section **« Non situés »** pour les styles que la ventilation ne place nulle
   part (paragraphes vides, `sum(byZone) <= count` côté backend) ;
 - **fallback plat** si `byZone` absent (document importé avant la ventilation) —
@@ -139,16 +155,23 @@ aller-retour (cf. `../../../../backend/CLAUDE.md`). Trois pièges :
 
 `GET`/`PUT /documents/:id/rules`. Indicatives — « Valider » reste actif quoi
 qu'il arrive, seul le compte de conformes du dashboard en dépend (backend pour le
-pourquoi chiffré). Un **jeu par niveau** ; le formulaire est `RuleSetForm.vue`,
-réutilisé tel quel :
-- `RuleSetForm` **mute son `ruleSet` en place**, délibérément : le parent détient
-  l'objet réactif, remonter chaque case par `update:modelValue` recréerait des
-  objets pour rien (jusqu'à quatre jeux vivants). Porte son propre brouillon de
-  seuil — un draft partagé afficherait le seuil d'un niveau dans le champ d'un
-  autre ;
-- cocher « des règles propres à ce niveau » part d'une **copie du défaut**, pas
-  d'un jeu vide (on règle par écart au défaut) ;
+pourquoi chiffré). Un **jeu par niveau** (`RuleSet`, cf. backend `rules.ts`) —
+deux voies d'édition, plus d'encart « propres à ce niveau » :
+- **par ligne dans la table** (chapitrage) : case « exigé » → `requiresStyles`
+  (style NOMMÉ, pas un rôle), puce → `requiresAdjacency` (paire ordonnée). Les
+  deux passent par `toggleRequireStyle`/`toggleAdjacency` du composable, qui
+  matérialise/purge `byDepth[depth]` (cf. `ensureDepth`/`pruneDepth`) ;
+- **le socle « Règles par défaut »** (`RuleSetForm.vue`, bas d'écran) édite
+  `rules.default` : minChars, annotations, `requiresRoles`, `requiresTable`. Il
+  **mute son `ruleSet` en place** (le parent détient l'objet réactif) et porte son
+  brouillon de seuil. Il ne touche PAS `requiresStyles`/`requiresAdjacency` — ces
+  deux-là ne se règlent qu'en ligne, par niveau ;
 - `save()` sérialise par `JSON.parse(JSON.stringify(rules))` : `rules` est un
   proxy réactif **imbriqué**, un spread de surface enverrait des proxies ;
-- vocabulaires fermés (`STYLE_ROLES`, `REQUIRABLE_ROLES`) et libellés de niveau
-  (`DEPTH_TABS`) dans `../../script/typology.js`, alignés sur le backend.
+- `byDepth` **remplace** `default` (ne le complète pas) : matérialiser un niveau
+  copie donc minChars/annotations du défaut — attention à la dérive si le défaut
+  change ensuite (édge case documenté, jeu purgé sitôt les deux tableaux vides) ;
+- vocabulaires fermés (`STYLE_ROLES`, `REQUIRABLE_ROLES`) dans
+  `../../script/typology.js`, alignés sur le backend. Les noms de STYLE, eux, sont
+  ouverts (propres au document) — `requiresStyles`/`requiresAdjacency` non validés
+  contre une liste fermée.

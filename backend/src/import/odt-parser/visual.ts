@@ -112,12 +112,19 @@ function toVisual(style: RawStyle, fontFaces: Map<string, string>): StyleVisual 
   // Césure : text-property ODF. N'émis que si porté (comme le reste) → la fusion
   // d'héritage le propage, et son absence signale « non défini » à la cascade Folio.
   if (text['fo:hyphenate']) v.hyphenate = text['fo:hyphenate'] === 'true'
+  if (text['fo:font-variant']) v.fontVariant = text['fo:font-variant']
+  if (text['fo:letter-spacing']) v.letterSpacing = text['fo:letter-spacing']
 
   if (para['fo:text-align']) v.align = para['fo:text-align']
   if (para['fo:margin-top']) v.marginTop = para['fo:margin-top']
   if (para['fo:margin-bottom']) v.marginBottom = para['fo:margin-bottom']
+  if (para['fo:margin-left']) v.marginLeft = para['fo:margin-left']
+  if (para['fo:margin-right']) v.marginRight = para['fo:margin-right']
   if (para['fo:text-indent']) v.textIndent = para['fo:text-indent']
   if (para['fo:line-height']) v.lineHeight = para['fo:line-height']
+  if (para['fo:widows']) { const n = parseInt(para['fo:widows'], 10); if (!Number.isNaN(n)) v.widows = n }
+  if (para['fo:orphans']) { const n = parseInt(para['fo:orphans'], 10); if (!Number.isNaN(n)) v.orphans = n }
+  if (para['fo:keep-with-next']) v.keepWithNext = para['fo:keep-with-next'] !== 'auto'
   if (para['fo:break-before']) v.pageBreakBefore = para['fo:break-before'] !== 'auto'
 
   return v

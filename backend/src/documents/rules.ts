@@ -26,6 +26,15 @@ export interface RuleSet {
   // `connexe.tableau` par le parseur et n'apparaissent JAMAIS dans texte[] —
   // un `requiresRoles: ['tableau']` mesurerait toujours 0.
   requiresTable: boolean
+  // Styles NOMMÉS dont au moins un paragraphe doit porter la marque. Distinct de
+  // `requiresRoles` : on vise ici un style précis du .odt, pas son rôle — la case
+  // « exigé » de chaque ligne du tableau de config. Vocabulaire OUVERT (les noms
+  // de style sont propres au document), donc non validé contre une liste fermée.
+  requiresStyles: string[]
+  // Paires de styles qui doivent toujours se succéder : chaque paragraphe du 1er
+  // style est immédiatement suivi d'un paragraphe du 2nd. La contrainte de
+  // « succession » posée par la puce entre deux lignes du tableau.
+  requiresAdjacency: [string, string][]
 }
 
 // Profondeur d'un nœud, plafonnée : 0 = axe, 1 = bloc sémantique, 2 = article
@@ -73,6 +82,8 @@ export const DEFAULT_RULE_SET: RuleSet = {
   forbidAnnotations: true,
   requiresRoles: [],
   requiresTable: false,
+  requiresStyles: [],
+  requiresAdjacency: [],
 }
 
 // `byDepth` vide : sans réglage explicite, le comportement est exactement celui
@@ -97,6 +108,8 @@ function normalizeRuleSet(body: Partial<RuleSet> | null | undefined): RuleSet {
     forbidAnnotations: body?.forbidAnnotations ?? false,
     requiresRoles: body?.requiresRoles ?? [],
     requiresTable: body?.requiresTable ?? false,
+    requiresStyles: Array.isArray(body?.requiresStyles) ? body.requiresStyles : [],
+    requiresAdjacency: Array.isArray(body?.requiresAdjacency) ? body.requiresAdjacency : [],
   }
 }
 
@@ -114,7 +127,7 @@ function normalizeRuleSet(body: Partial<RuleSet> | null | undefined): RuleSet {
 export function normalizeRules(body: unknown | null): DocumentRules {
   // Cloné : DEFAULT_RULES est partagé, le rendre tel quel exposerait les
   // défauts du process à la mutation d'un appelant.
-  if (body == null) return { default: { ...DEFAULT_RULE_SET, requiresRoles: [] }, byDepth: {} }
+  if (body == null) return { default: { ...DEFAULT_RULE_SET, requiresRoles: [], requiresStyles: [], requiresAdjacency: [] }, byDepth: {} }
 
   if (isLegacyFlat(body)) return { default: normalizeRuleSet(body as Partial<RuleSet>), byDepth: {} }
 
@@ -139,6 +152,19 @@ function ruleSetErrors(body: Partial<RuleSet> | undefined, scope: string): strin
   }
   for (const role of body.requiresRoles ?? []) {
     if (!STYLE_ROLES.includes(role)) errors.push(`${scope} : rôle inconnu « ${role} »`)
+  }
+  // Styles nommés : vocabulaire OUVERT (propre au document), donc pas de contrôle
+  // contre une liste fermée comme pour les rôles — on ne valide que la forme.
+  if (body.requiresStyles && !Array.isArray(body.requiresStyles)) {
+    errors.push(`${scope} : requiresStyles doit être une liste de noms de style`)
+  }
+  if (body.requiresAdjacency && !Array.isArray(body.requiresAdjacency)) {
+    errors.push(`${scope} : requiresAdjacency doit être une liste de paires de styles`)
+  }
+  for (const pair of body.requiresAdjacency ?? []) {
+    if (!Array.isArray(pair) || pair.length !== 2 || pair.some((s) => typeof s !== 'string')) {
+      errors.push(`${scope} : chaque succession doit être une paire [style, style]`)
+    }
   }
   return errors
 }

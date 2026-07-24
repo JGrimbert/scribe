@@ -77,7 +77,9 @@
           :rule-set="section.depthKey !== null ? (rules.byDepth[section.depthKey] ?? null) : null"
           :default-rule-set="rules.default"
           :data="documentData"
-          @toggle-rules="toggleDepth"
+          :visuals="effectiveVisuals"
+          :page="documentPage"
+          :hyphenation="styleDefaults.hyphenation"
       >
         <!-- Les deux bornes du livre se reprennent depuis le composer : c'est
              le dernier vis-à-vis du liminaire qui dit où il s'arrête. Étendre
@@ -162,11 +164,18 @@
       Aucun style relevé pour ce document. Il a été importé avant que le parseur ne les relève — le
       <code>.odt</code> d'origine n'étant pas conservé, seul un réimport peut les récupérer.
     </UiNote>
+
+    <StyleEditorPanel
+        :style-name="editingStyle"
+        :base="editingStyle ? styleBase[editingStyle] : null"
+        :overrides="styleOverrides"
+        @close="editingStyle = null"
+    />
   </div>
 </template>
 
 <script setup>
-import { computed, inject, onMounted, onUnmounted, watch, watchEffect } from 'vue'
+import { computed, inject, onMounted, onUnmounted, provide, ref, watch, watchEffect } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import BaseButton from '../ui/atoms/BaseButton.vue'
 import BaseSelect from '../ui/atoms/BaseSelect.vue'
@@ -177,6 +186,7 @@ import RuleSetForm from './RuleSetForm.vue'
 import StyleRolesTable from './StyleRolesTable.vue'
 import TypologySection from './TypologySection.vue'
 import LayoutSection from './LayoutSection.vue'
+import StyleEditorPanel from './StyleEditorPanel.vue'
 import RecalibrationModal from './RecalibrationModal.vue'
 import LiminaireComposer from '../liminaire/LiminaireComposer.vue'
 import { useRegistry } from '../../composables/useRegistry'
@@ -196,8 +206,28 @@ const { documents, ensureLoaded, fetchDocuments, confirmAndDelete, deletingId } 
 const {
   loading, loadError, saveError, saving, saved, settled,
   inventory, styles, highlights, rules, liminaireConfig, styleDefaults, zoned,
-  sections, unzonedStyles, shapesError, load, save, toggleDepth,
+  styleOverrides, styleBase, effectiveVisuals,
+  sections, unzonedStyles, shapesError, load, save, toggleRequireStyle, toggleAdjacency,
+  addDeclaredStyle, removeDeclaredStyle,
 } = useTypologyConfig()
+
+// Édition d'apparence : le style ouvert dans le panneau (null = fermé). Fourni
+// aux tables de styles (StyleRolesTable) par injection ; elles appellent
+// `openStyleEditor(name)`. Le badge « modifié » lit `styleOverrides`.
+const editingStyle = ref(null)
+provide('openStyleEditor', (name) => { editingStyle.value = name })
+provide('styleOverrides', styleOverrides)
+
+// Mutations des règles éditées ligne par ligne dans StyleRolesTable (case
+// « exigé » par style, puce de succession). Fournies plutôt que remontées par
+// événement : la table est réutilisée à deux profondeurs (cf. openStyleEditor).
+provide('toggleRequireStyle', toggleRequireStyle)
+provide('toggleAdjacency', toggleAdjacency)
+
+// Ajout/retrait d'un style déclaré à la main (bouton « + » du tableau). Fournis
+// comme les toggles ci-dessus — la table est réutilisée à deux profondeurs.
+provide('addDeclaredStyle', addDeclaredStyle)
+provide('removeDeclaredStyle', removeDeclaredStyle)
 
 // Les entrées liminaire viennent de la trame (fournie par DocumentLayout), pas
 // de l'endpoint typologie : c'est du contenu, pas de l'inventaire.

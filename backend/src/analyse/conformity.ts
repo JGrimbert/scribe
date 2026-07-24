@@ -78,6 +78,21 @@ function hasRole(item: HarmonizedItem, typology: DocumentTypology, role: string)
   return item.texte.some((entry) => entry.styleName && typology.styles[entry.styleName] === role)
 }
 
+function hasStyle(item: HarmonizedItem, styleName: string): boolean {
+  return item.texte.some((entry) => entry.styleName === styleName)
+}
+
+// « A toujours suivi de B » : tout paragraphe de style A a pour voisin immédiat
+// un paragraphe de style B. Vacuément vrai si A n'apparaît pas — on n'exige pas
+// la présence de A, seulement que, PRÉSENT, il soit suivi de B.
+function adjacencyHolds(item: HarmonizedItem, a: string, b: string): boolean {
+  const t = item.texte
+  for (let i = 0; i < t.length; i++) {
+    if (t[i].styleName === a && (i + 1 >= t.length || t[i + 1].styleName !== b)) return false
+  }
+  return true
+}
+
 function buildCriteria(rules: RuleSet, typology: DocumentTypology): Criterion[] {
   const criteria: Criterion[] = []
 
@@ -113,6 +128,22 @@ function buildCriteria(rules: RuleSet, typology: DocumentTypology): Criterion[] 
       key: `role:${role}`,
       label: `un paragraphe « ${role} »`,
       test: (item) => hasRole(item, typology, role),
+    })
+  }
+
+  for (const styleName of rules.requiresStyles ?? []) {
+    criteria.push({
+      key: `style:${styleName}`,
+      label: `un paragraphe « ${styleName} »`,
+      test: (item) => hasStyle(item, styleName),
+    })
+  }
+
+  for (const [a, b] of rules.requiresAdjacency ?? []) {
+    criteria.push({
+      key: `adj:${a}>${b}`,
+      label: `« ${a} » toujours suivi de « ${b} »`,
+      test: (item) => adjacencyHolds(item, a, b),
     })
   }
 

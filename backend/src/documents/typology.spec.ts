@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { StyleInventory } from '../import/odt-parser'
-import { isTypologySettled, suggestRole, suggestTypology } from './typology'
+import { isTypologySettled, suggestRole, suggestTypology, typologyErrors } from './typology'
 
 // Les cas sont pris tels quels dans le manuscrit témoin : ce sont ces
 // noms-là que la suggestion doit savoir lire.
@@ -72,5 +72,43 @@ describe('isTypologySettled', () => {
   it('redevient non arbitrée quand une couleur de surlignage apparaît', () => {
     const typology = { styles: { Voir: 'renvoi' as const, Paragraphes: 'corps' as const }, highlights: {} }
     expect(isTypologySettled(typology, inv)).toBe(false)
+  })
+})
+
+describe('typologyErrors — styles déclarés', () => {
+  const inv = inventory(['Paragraphes'])
+
+  it('refuse un style hors inventaire non déclaré', () => {
+    const errs = typologyErrors({ styles: { Inventé: 'corps' }, highlights: {} }, inv)
+    expect(errs.some((e) => e.includes('Style inconnu'))).toBe(true)
+  })
+
+  it('accepte un style hors inventaire s’il est déclaré', () => {
+    const body = {
+      styles: { Paragraphes: 'corps' as const, Renvoi: 'renvoi' as const },
+      highlights: {},
+      declaredStyles: [{ name: 'Renvoi', role: 'renvoi' as const, zoneKey: 'depth-0' as const, afterName: 'Paragraphes' }],
+    }
+    expect(typologyErrors(body, inv)).toEqual([])
+  })
+
+  it('refuse un style déclaré au rôle ou à la zone invalides', () => {
+    const body = {
+      styles: {},
+      highlights: {},
+      declaredStyles: [{ name: 'X', role: 'nope' as any, zoneKey: 'ailleurs' as any, afterName: null }],
+    }
+    const errs = typologyErrors(body, inv)
+    expect(errs.some((e) => e.includes('Rôle inconnu'))).toBe(true)
+    expect(errs.some((e) => e.includes('Zone inconnue'))).toBe(true)
+  })
+
+  it('refuse un style déclaré en doublon de l’inventaire', () => {
+    const body = {
+      styles: {},
+      highlights: {},
+      declaredStyles: [{ name: 'Paragraphes', role: 'corps' as const, zoneKey: 'depth-0' as const, afterName: null }],
+    }
+    expect(typologyErrors(body, inv).some((e) => e.includes('doublon de l\'inventaire'))).toBe(true)
   })
 })

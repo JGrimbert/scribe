@@ -26,5 +26,5 @@ export const DEPTH_TABS = [
 ]
 
 export function emptyRuleSet() {
-  return { minChars: null, forbidAnnotations: false, requiresRoles: [], requiresTable: false }
+  return { minChars: null, forbidAnnotations: false, requiresRoles: [], requiresTable: false, requiresStyles: [], requiresAdjacency: [] }
 }

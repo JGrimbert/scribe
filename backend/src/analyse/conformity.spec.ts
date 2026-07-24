@@ -121,6 +121,40 @@ describe('assessConformity', () => {
     expect(r2.criteria.find((c) => c.key === 'role:définition')!.label).toBe('un paragraphe « définition »')
   })
 
+  it('exige un style nommé précis (case « exigé » de la table)', () => {
+    const { trame, data } = build([
+      H(1, 'Axe'),
+      H(2, 'Avec Definition'),
+      P(long(), { effectiveStyle: 'Paragraphes' }),
+      P('A.− ZOOL. Petit mammifère', { effectiveStyle: 'Definition' }),
+    ])
+    const r = assessConformity(trame, data, typology, rules({ requiresStyles: ['Definition'] }))
+    expect(r.conformCount).toBe(1)
+
+    const { trame: t2, data: d2 } = build([H(1, 'Axe'), H(2, 'Sans'), P(long(), { effectiveStyle: 'Paragraphes' })])
+    const r2 = assessConformity(t2, d2, typology, rules({ requiresStyles: ['Definition'] }))
+    expect(r2.failures[0].failed).toEqual(['style:Definition'])
+    expect(r2.criteria.find((c) => c.key === 'style:Definition')!.label).toBe('un paragraphe « Definition »')
+  })
+
+  it('exige que deux styles se succèdent toujours (puce de succession)', () => {
+    // Paragraphes doit toujours être immédiatement suivi de Definition.
+    const ok = build([
+      H(1, 'Axe'),
+      H(2, 'Bien ordonné'),
+      P(long(), { effectiveStyle: 'Paragraphes' }),
+      P('def', { effectiveStyle: 'Definition' }),
+    ])
+    const r = assessConformity(ok.trame, ok.data, typology, rules({ requiresAdjacency: [['Paragraphes', 'Definition']] }))
+    expect(r.conformCount).toBe(1)
+
+    // Paragraphes suivi de rien (dernier paragraphe) → la succession casse.
+    const ko = build([H(1, 'Axe'), H(2, 'Mal ordonné'), P(long(), { effectiveStyle: 'Paragraphes' })])
+    const r2 = assessConformity(ko.trame, ko.data, typology, rules({ requiresAdjacency: [['Paragraphes', 'Definition']] }))
+    expect(r2.failures[0].failed).toEqual(['adj:Paragraphes>Definition'])
+    expect(r2.criteria.find((c) => c.key === 'adj:Paragraphes>Definition')!.label).toBe('« Paragraphes » toujours suivi de « Definition »')
+  })
+
   it('cumule les critères manquants sur un même chapitre', () => {
     const { trame, data } = build([H(1, 'Axe'), H(2, 'Tout faux'), P('court', { highlight: '#ffff00' })])
     const r = assessConformity(trame, data, typology, rules({ requiresTable: true, requiresRoles: ['définition'] }))

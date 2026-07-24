@@ -20,7 +20,14 @@
           <!-- PERF à surveiller : une iframe pagedjs (~900 Ko UMD) par section,
                jusqu'à 3 sur cet écran. Pistes (mutualiser un pagedjs, paginer à la
                demande) documentées en mémoire si le chargement devient lourd. -->
-          <FolioView :data="data" :node-id="witnessNodeId" :depth="depthKey" />
+          <FolioView
+              :data="data"
+              :node-id="witnessNodeId"
+              :depth="depthKey"
+              :visuals="visuals"
+              :page="page"
+              :hyphenation="hyphenation"
+          />
 
           <div class="models">
             <!-- Modèle EXIGÉ : la structure que ce niveau requiert, en lexique
@@ -59,35 +66,17 @@
           </div>
         </div>
 
-        <!-- Col 2 : table des styles (+ colonne « exigé ») puis règles ------- -->
+        <!-- Col 2 : table des styles (rôle · exigé · succession). Les critères
+             d'éligibilité se règlent désormais ligne par ligne dans la table. -->
         <div class="col col--main">
           <StyleRolesTable
               :styles="styles"
               :style-roles="styleRoles"
               show-require
+              :depth-key="depthKey"
+              :zone-key="zone.key"
               :rule-set="ruleSet ?? defaultRuleSet"
-              :rules-disabled="!ruleSet"
           />
-
-          <div class="rules-block">
-            <h4 class="rules-title">Règles d'éligibilité</h4>
-            <label class="rule-override">
-              <input type="checkbox" :checked="!!ruleSet" @change="$emit('toggle-rules', depthKey)" />
-              <span>Des règles propres à ce niveau</span>
-            </label>
-            <!-- Quand le niveau suit le défaut, valeurs du défaut en grisé. Ne
-                 restent ici que les rôles exigibles ABSENTS du niveau : les
-                 présents ont leur case dans la table. -->
-            <RuleSetForm
-                :rule-set="ruleSet ?? defaultRuleSet"
-                :disabled="!ruleSet"
-                :roles="absentRequirableRoles"
-                :show-table="!tablePresent"
-            />
-            <p v-if="!ruleSet" class="rules-scope">
-              Ce niveau suit les règles par défaut. Cocher part d'une copie du défaut.
-            </p>
-          </div>
         </div>
       </div>
     </template>
@@ -106,10 +95,8 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import FolioView from '../editor/FolioView.vue'
-import RuleSetForm from './RuleSetForm.vue'
 import StyleRolesTable from './StyleRolesTable.vue'
 import UiNote from '../ui/molecules/UiNote.vue'
-import { REQUIRABLE_ROLES } from '../../script/typology'
 
 const props = defineProps({
   zone: { type: Object, required: true },
@@ -128,9 +115,12 @@ const props = defineProps({
   defaultRuleSet: { type: Object, required: true },
   // Le contenu du document (keyé par nodeId) : l'aperçu rend le nœud témoin.
   data: { type: Object, default: null },
+  // Apparence EFFECTIVE (base .odt + surcharges en cours), format de page et césure :
+  // l'aperçu témoin les applique → feedback live des retouches de style.
+  visuals: { type: Object, default: null },
+  page: { type: Object, default: null },
+  hyphenation: { type: Object, default: null },
 })
-
-defineEmits(['toggle-rules'])
 
 // Modèle sélectionné (pilote l'aperçu). `null` → repli sur le premier, le témoin
 // par défaut. `shapeGroup` est recalculé à CHAQUE édition de rôle (nouvel objet) :
@@ -150,24 +140,6 @@ const activeSignature = computed(() => {
 
 // Le témoin : le premier nœud concerné par le modèle actif.
 const witnessNodeId = computed(() => activeSignature.value?.nodes?.[0]?.nodeId ?? null)
-
-// Rôles exigibles ABSENTS du niveau : ceux qu'aucun style ne porte n'ont pas de
-// ligne où poser leur case, ils restent sous la table. Réactif sur les rôles
-// (le dropdown peut faire (dis)paraître un rôle) — miroir de la dédup côté table.
-const absentRequirableRoles = computed(() => {
-  const present = new Set()
-  for (const s of props.styles) {
-    const role = props.styleRoles[s.name]
-    if (REQUIRABLE_ROLES.includes(role)) present.add(role)
-  }
-  return REQUIRABLE_ROLES.filter((r) => !present.has(r))
-})
-
-// Un style de rôle tableau au niveau → « Un tableau des liens » remonte dans la
-// table (sinon elle reste sous la table).
-const tablePresent = computed(() =>
-    props.styles.some((s) => props.styleRoles[s.name] === 'tableau'),
-)
 
 // Ordre TYPOGRAPHIQUE des rôles exigibles dans le modèle prescrit (chapeau en
 // tête d'article, renvoi en fin) — indépendant de l'ordre de REQUIRABLE_ROLES.
@@ -323,33 +295,5 @@ const requiredModelLabel = computed(() => {
 .model-pct {
   font-variant-numeric: tabular-nums;
   opacity: var(--op-muted);
-}
-
-/* ── Col 2 : règles sous la table ─────────────────────────────────────────── */
-.rules-block {
-  margin-top: var(--sp-5);
-  padding-top: var(--sp-4);
-  border-top: 1px solid var(--c-border);
-}
-
-.rules-title {
-  margin: 0 0 var(--sp-3);
-  font-size: var(--fs-md);
-  font-weight: 600;
-}
-
-.rule-override {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  font-size: var(--fs-md);
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.rules-scope {
-  margin: var(--sp-3) 0 0;
-  color: var(--c-ink2);
-  font-size: var(--fs-sm);
 }
 </style>

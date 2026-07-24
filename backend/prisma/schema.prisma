@@ -78,6 +78,14 @@ model Document {
   // NULL = aucun réglage (la cascade retombe sur les seules valeurs du .odt).
   styleDefaults   Json?
 
+  // styleOverrides : surcharges d'apparence PAR STYLE décidées par l'utilisateur
+  // (police, corps, interligne, alignement, gras/italique, césure), par-dessus les
+  // visuals du .odt — { [styleName]: Partial<StyleVisual> }, cf.
+  // documents/style-overrides.ts. Le .odt (styleInventory.visuals) reste immuable :
+  // le rendu merge les deux. Séparé, réversible, non écrasé par une recalibration.
+  // NULL = aucune surcharge (le rendu suit le .odt tel quel).
+  styleOverrides  Json?
+
   nodes           Node[]
   analysis        DocumentAnalysis?
   source          DocumentSource?

@@ -5,6 +5,7 @@ import { StructureShapes } from '../analyse/structure-shapes'
 import { DocumentRules } from './rules'
 import { LiminaireConfig } from './liminaire-config'
 import { StyleDefaults } from './style-defaults'
+import { StyleOverrides } from './style-overrides'
 import {
   CommitImportRequest,
   CommitResponse,
@@ -13,6 +14,7 @@ import {
   NodeValidationResponse,
   PreviewResponse,
   SaveTypologyRequest,
+  StyleOverridesResponse,
   TypologyResponse,
 } from './dto'
 
@@ -116,6 +118,18 @@ export class DocumentsController {
   @Put(':id/style-defaults')
   saveStyleDefaults(@Param('id') id: string, @Body() body: unknown): Promise<StyleDefaults> {
     return this.documentsService.saveStyleDefaults(id, body)
+  }
+
+  // Surcharges d'apparence par style (police, corps, césure…), par-dessus le .odt.
+  // Le GET rend la valeur .odt (base) + la surcharge courante ; cf. style-overrides.ts.
+  @Get(':id/style-overrides')
+  getStyleOverrides(@Param('id') id: string): Promise<StyleOverridesResponse> {
+    return this.documentsService.getStyleOverrides(id)
+  }
+
+  @Put(':id/style-overrides')
+  saveStyleOverrides(@Param('id') id: string, @Body() body: unknown): Promise<StyleOverrides> {
+    return this.documentsService.saveStyleOverrides(id, body)
   }
 
   // Validation manuelle d'un chapitre (cf. NodeValidation, schema.prisma).

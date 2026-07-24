@@ -257,6 +257,24 @@ onBeforeUnmount(teardown)
 // (appelé par useFragmentEditor) — pas besoin d'observer le contenu ici, ce qui
 // éviterait de repaginer deux fois après une frappe.
 watch(() => [props.nodeId, props.depth], refresh)
+
+// Changement d'apparence/césure (aperçu de config édité en direct) : repagine, mais
+// DÉBOUNCÉ — la frappe dans un champ (corps, interligne) sinon repaginerait à chaque
+// caractère, sur jusqu'à 3 iframes. `props.visuals` est un nouvel objet à chaque
+// retouche (cf. effectiveVisuals), une comparaison de référence suffit.
+let styleTimer = null
+// `hyphenation.global` explicitement : dans la config il est muté EN PLACE (même
+// référence d'objet), une comparaison de l'objet seul le raterait.
+watch(() => [props.visuals, props.hyphenation, props.hyphenation?.global], () => {
+  if (!frameReadyForStyle()) return
+  clearTimeout(styleTimer)
+  styleTimer = setTimeout(refresh, 250)
+})
+onBeforeUnmount(() => clearTimeout(styleTimer))
+// Évite une repagination avant le premier rendu (buildFrame s'en charge déjà).
+function frameReadyForStyle() {
+  return !!frameRef.value?.contentDocument
+}
 </script>
 
 <style scoped>

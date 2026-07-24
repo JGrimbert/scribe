@@ -33,6 +33,13 @@ describe('buildVisualsCss', () => {
     expect(buildVisualsCss(null)).toBe('')
     expect(buildVisualsCss({})).toBe('')
   })
+
+  it('émet widows/orphans et break-after:avoid (garder avec le suivant)', () => {
+    const css = buildVisualsCss({ Titre: { widows: 3, orphans: 2, keepWithNext: true } })
+    expect(css).toContain('widows:3')
+    expect(css).toContain('orphans:2')
+    expect(css).toContain('break-after:avoid')
+  })
 })
 
 describe('buildHyphenationCss', () => {

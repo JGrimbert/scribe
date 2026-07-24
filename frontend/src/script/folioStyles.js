@@ -13,8 +13,14 @@ const PROP_MAP = {
   align: 'text-align',
   marginTop: 'margin-top',
   marginBottom: 'margin-bottom',
+  marginLeft: 'margin-left',
+  marginRight: 'margin-right',
   textIndent: 'text-indent',
   lineHeight: 'line-height',
+  fontVariant: 'font-variant',
+  letterSpacing: 'letter-spacing',
+  widows: 'widows',
+  orphans: 'orphans',
 }
 
 function declarations(v) {
@@ -25,6 +31,9 @@ function declarations(v) {
   if (v.bold) decls.push('font-weight:bold')
   if (v.italic) decls.push('font-style:italic')
   if (v.pageBreakBefore) decls.push('break-before:page')
+  // « Garder avec le suivant » : empêche une coupure de page APRÈS ce bloc (un
+  // titre ne reste pas seul en bas de page, détaché de son paragraphe).
+  if (v.keepWithNext) decls.push('break-after:avoid')
   return decls.join(';')
 }
 

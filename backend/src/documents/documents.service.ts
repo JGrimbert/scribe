@@ -19,6 +19,7 @@ import { DocumentTypology, isTypologySettled, suggestTypology, typologyErrors } 
 import { DocumentRules, normalizeRules, rulesErrors } from './rules'
 import { LiminaireConfig, liminaireConfigErrors, normalizeLiminaireConfig } from './liminaire-config'
 import { StyleDefaults, normalizeStyleDefaults, styleDefaultsErrors } from './style-defaults'
+import { StyleOverrides, mergeVisuals, normalizeStyleOverrides, styleOverridesErrors } from './style-overrides'
 import { PreviousValidation, RebuiltNode, remapNodeIds, remapValidations } from './recalibration'
 import {
   CommitImportRequest,
@@ -29,6 +30,7 @@ import {
   NodeValidationState,
   PreviewResponse,
   SaveTypologyRequest,
+  StyleOverridesResponse,
   TypologyResponse,
 } from './dto'
 
@@ -459,7 +461,10 @@ export class DocumentsService {
       trame: { axes, liminaire, final },
       data,
       validations,
-      visuals: inventory?.visuals ?? {},
+      // Apparence EFFECTIVE = visuals du .odt + surcharges Scribe (mergées). La
+      // couche Folio les applique telles quelles ; la césure par style suit du coup
+      // la cascade (surcharge > .odt > global) sans logique dédiée au rendu.
+      visuals: mergeVisuals(inventory?.visuals ?? {}, normalizeStyleOverrides(document.styleOverrides)),
       page: inventory?.page ?? null,
       hyphenation: normalizeStyleDefaults(document.styleDefaults).hyphenation,
     }
@@ -617,6 +622,37 @@ export class DocumentsService {
       data: { styleDefaults: defaults as unknown as Prisma.InputJsonValue },
     })
     return defaults
+  }
+
+  // Renvoie de quoi éditer l'apparence : la valeur .odt d'origine (base, en
+  // lecture seule côté panneau) ET la surcharge Scribe courante (éditable). Le
+  // rendu, lui, ne consomme que le merge (getContent) — pas cette forme.
+  async getStyleOverrides(id: string): Promise<StyleOverridesResponse> {
+    const document = await this.prisma.document.findUnique({
+      where: { id },
+      select: { styleInventory: true, styleOverrides: true },
+    })
+    if (!document) throw new NotFoundException(`Document ${id} introuvable`)
+    const inventory = document.styleInventory as unknown as StyleInventory | null
+    return {
+      overrides: normalizeStyleOverrides(document.styleOverrides),
+      base: inventory?.visuals ?? {},
+    }
+  }
+
+  async saveStyleOverrides(id: string, body: unknown): Promise<StyleOverrides> {
+    const document = await this.prisma.document.findUnique({ where: { id }, select: { id: true } })
+    if (!document) throw new NotFoundException(`Document ${id} introuvable`)
+
+    const errors = styleOverridesErrors(body)
+    if (errors.length) throw new BadRequestException(errors)
+
+    const overrides = normalizeStyleOverrides(body)
+    await this.prisma.document.update({
+      where: { id },
+      data: { styleOverrides: overrides as unknown as Prisma.InputJsonValue },
+    })
+    return overrides
   }
 
   // nodeId → contentHash au moment de la validation. Consommé aussi par
