@@ -41,10 +41,18 @@ export function useTypologyConfig() {
   // reparse régénère) — persistée à part (colonne `liminaireConfig`), branchée
   // au save/load à l'étape suivante.
   const liminaireConfig = reactive({})
-  // Réglages typographiques généraux (césure…), persistés à part
+  // Réglages typographiques généraux (césure, format de page…), persistés à part
   // (`GET/PUT /documents/:id/style-defaults`). Appliqués par la couche Folio
   // au-dessus des styles du .odt. Muté en place comme `rules`/`liminaireConfig`.
-  const styleDefaults = reactive({ hyphenation: { global: false } })
+  const styleDefaults = reactive({
+    hyphenation: { global: false },
+    pageSize: null,
+    pageMargins: null,
+    runningTitles: {
+      header: { enabled: false, recto: 'chapitre', verso: 'titre', heightCm: null, justification: 'regard' },
+      footer: { enabled: false, recto: 'folio', verso: 'folio', heightCm: null, justification: 'centre' },
+    },
+  })
   // Surcharges d'apparence PAR STYLE (police, corps, césure…), éditées dans le
   // panneau de style, persistées à part (`GET/PUT /documents/:id/style-overrides`).
   // `styleOverrides` = map éditable { [style]: Partial<StyleVisual> } (mutée en
@@ -264,6 +272,11 @@ export function useTypologyConfig() {
       // Normalisé côté backend (toujours la forme complète) : on l'écrase tel quel.
       const defaults = await defaultsRes.json()
       styleDefaults.hyphenation.global = defaults.hyphenation.global
+      styleDefaults.pageSize = defaults.pageSize ? { ...defaults.pageSize } : null
+      styleDefaults.pageMargins = defaults.pageMargins ? { ...defaults.pageMargins } : null
+      // Remplacé en profondeur (bandes) : un rechargement repart de la base.
+      Object.assign(styleDefaults.runningTitles.header, defaults.runningTitles.header)
+      Object.assign(styleDefaults.runningTitles.footer, defaults.runningTitles.footer)
 
       // Remplacé, pas fusionné (comme liminaireConfig) : un rechargement repart de
       // la base. `base` (valeurs .odt) est en lecture seule.

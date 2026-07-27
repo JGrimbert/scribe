@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildVisualsCss, buildHyphenationCss, buildPageCss } from './folioStyles.js'
+import { buildVisualsCss, buildHyphenationCss, buildPageCss, buildRunningTitlesCss, runningReserves } from './folioStyles.js'
 
 describe('buildVisualsCss', () => {
   it('traduit un StyleVisual en règle préfixée .pagedjs_page_content', () => {
@@ -75,19 +75,114 @@ describe('buildHyphenationCss', () => {
 })
 
 describe('buildPageCss', () => {
-  it('produit un @page size + margin (ordre haut/droite/bas/gauche)', () => {
-    const css = buildPageCss({
-      widthCm: 14.801,
-      heightCm: 21.001,
-      marginTopCm: 1,
-      marginRightCm: 2,
-      marginBottomCm: 1.199,
-      marginLeftCm: 2,
-    })
-    expect(css).toBe('@page{size:14.801cm 21.001cm;margin:1cm 2cm 1.199cm 2cm;}')
+  const odt = { widthCm: 14.801, heightCm: 21.001, marginTopCm: 1, marginRightCm: 2, marginBottomCm: 1.199, marginLeftCm: 2 }
+
+  it('produit un @page size + margin .odt (ordre haut/droite/bas/gauche)', () => {
+    expect(buildPageCss(odt)).toBe('@page{size:14.801cm 21.001cm;margin:1cm 2cm 1.199cm 2cm;}')
   })
 
-  it('rend une chaîne vide sans format (repli paged.css A5)', () => {
+  it('rend une chaîne vide sans format ni marges (repli paged.css A5)', () => {
     expect(buildPageCss(null)).toBe('')
+  })
+
+  it('marges MIROIR : recto (intérieur à gauche) + verso inversé', () => {
+    const css = buildPageCss(odt, { topCm: 2, bottomCm: 2, innerCm: 1.5, outerCm: 3 })
+    // recto : haut / extérieur(droite) / bas / intérieur(gauche)
+    expect(css).toContain('@page{size:14.801cm 21.001cm;margin:2cm 3cm 2cm 1.5cm;}')
+    // verso : miroir (intérieur à droite, extérieur à gauche)
+    expect(css).toContain('@page:left{margin:2cm 1.5cm 2cm 3cm;}')
+  })
+
+  it('marges miroir symétriques : pas de règle @page:left superflue', () => {
+    const css = buildPageCss(odt, { topCm: 2, bottomCm: 2, innerCm: 2, outerCm: 2 })
+    expect(css).not.toContain('@page:left')
+  })
+
+  it('réserves des titres courants : ajoutées au haut/bas seulement (le corps se réduit)', () => {
+    const css = buildPageCss({ ...odt, marginTopCm: 2, marginBottomCm: 2 }, null, { top: 1, bottom: 1.2 })
+    // haut = 2 + 1 = 3 ; bas = 2 + 1.2 = 3.2 ; droite/gauche inchangées
+    expect(css).toBe('@page{size:14.801cm 21.001cm;margin:3cm 2cm 3.2cm 2cm;}')
+  })
+})
+
+describe('runningReserves', () => {
+  const band = (o = {}) => ({ enabled: false, recto: 'chapitre', verso: 'titre', heightCm: null, justification: 'centre', ...o })
+  const rt = (o = {}) => ({ header: band(), footer: band(), ...o })
+
+  it('rien d’actif → aucune réserve', () => {
+    expect(runningReserves(null)).toEqual({ top: 0, bottom: 0 })
+    expect(runningReserves(rt())).toEqual({ top: 0, bottom: 0 })
+  })
+
+  it('en-tête → réserve en haut (hauteur défaut 0,6 + blanc 0,4 = 1)', () => {
+    expect(runningReserves(rt({ header: band({ enabled: true }) }))).toEqual({ top: 1, bottom: 0 })
+    expect(runningReserves(rt({ header: band({ enabled: true, heightCm: 1 }) })).top).toBeCloseTo(1.4)
+  })
+
+  it('pied → réserve en bas (hauteur fixée + blanc)', () => {
+    expect(runningReserves(rt({ footer: band({ enabled: true, heightCm: 0.8 }) })).bottom).toBeCloseTo(1.2)
+    expect(runningReserves(rt({ footer: band({ enabled: true }) }))).toEqual({ top: 0, bottom: 1 })
+  })
+})
+
+describe('buildRunningTitlesCss', () => {
+  const opts = { bookTitle: 'Le Livre', chapterTitle: "L'aube" }
+  const band = (o = {}) => ({ enabled: false, recto: 'chapitre', verso: 'titre', heightCm: null, justification: 'centre', ...o })
+  const rt = (o = {}) => ({ header: band(), footer: band(), ...o })
+
+  it('rend rien si tout est désactivé ou absent', () => {
+    expect(buildRunningTitlesCss(null, opts)).toBe('')
+    expect(buildRunningTitlesCss(rt(), opts)).toBe('')
+  })
+
+  it('en-tête centré : verso = titre du livre (paires), recto = chapitre (impaires)', () => {
+    const css = buildRunningTitlesCss(rt({ header: band({ enabled: true }) }), opts)
+    expect(css).toContain('@page:right{@top-center{content:"L\'aube";')
+    expect(css).toContain('@page:left{@top-center{content:"Le Livre";')
+  })
+
+  it('justification « en regard » : bord extérieur (droite recto, gauche verso)', () => {
+    const css = buildRunningTitlesCss(rt({ header: band({ enabled: true, justification: 'regard' }) }), opts)
+    expect(css).toContain('@page:right{@top-right{content:"L\'aube";')
+    expect(css).toContain('@page:left{@top-left{content:"Le Livre";')
+    // Pas de contenu au centre (le seul @top-center est la suppression :first).
+    expect(css).not.toContain('@top-center{content:"')
+  })
+
+  it('folio = contenu du pied ; « ? » placeholder', () => {
+    const centre = buildRunningTitlesCss(rt({ footer: band({ enabled: true, recto: 'folio', verso: 'folio' }) }), opts)
+    expect(centre).toContain('@page:right{@bottom-center{content:"?";')
+    expect(centre).toContain('@page:left{@bottom-center{content:"?";')
+
+    const regard = buildRunningTitlesCss(rt({ footer: band({ enabled: true, recto: 'folio', verso: 'folio', justification: 'regard' }) }), opts)
+    expect(regard).toContain('@page:right{@bottom-right{content:"?";')
+    expect(regard).toContain('@page:left{@bottom-left{content:"?";')
+  })
+
+  it('l’en-tête colle au bas de sa marge, le pied au haut (vers l’empagement)', () => {
+    const h = buildRunningTitlesCss(rt({ header: band({ enabled: true }) }), opts)
+    expect(h).toContain('vertical-align:bottom')
+    expect(h).toContain('padding-bottom:0.4cm')
+    const f = buildRunningTitlesCss(rt({ footer: band({ enabled: true, recto: 'titre', verso: 'titre' }) }), opts)
+    expect(f).toContain('vertical-align:top')
+    expect(f).toContain('padding-top:0.4cm')
+  })
+
+  it('supprime toutes les margin boxes sur la première page (chapitre)', () => {
+    const css = buildRunningTitlesCss(rt({ header: band({ enabled: true }) }), opts)
+    expect(css).toContain('@page:first{')
+    expect(css).toContain('@top-center{content:none}')
+    expect(css).toContain('@bottom-right{content:none}')
+  })
+
+  it('« aucun » n’émet pas de margin box pour ce côté', () => {
+    const css = buildRunningTitlesCss(rt({ header: band({ enabled: true, verso: 'aucun', recto: 'chapitre' }) }), opts)
+    expect(css).toContain('@page:right{@top-center{content:"L\'aube"')
+    expect(css).not.toContain('@page:left{@top-center')
+  })
+
+  it('échappe les guillemets du titre', () => {
+    const css = buildRunningTitlesCss(rt({ header: band({ enabled: true, recto: 'aucun', verso: 'titre' }) }), { bookTitle: 'a"b', chapterTitle: '' })
+    expect(css).toContain('content:"a\\"b"')
   })
 })

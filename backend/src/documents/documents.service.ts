@@ -18,7 +18,7 @@ import { collectShapes, StructureShapes } from '../analyse/structure-shapes'
 import { DocumentTypology, isTypologySettled, suggestTypology, typologyErrors } from './typology'
 import { DocumentRules, normalizeRules, rulesErrors } from './rules'
 import { LiminaireConfig, liminaireConfigErrors, normalizeLiminaireConfig } from './liminaire-config'
-import { StyleDefaults, normalizeStyleDefaults, styleDefaultsErrors } from './style-defaults'
+import { StyleDefaults, applyPageSize, normalizeStyleDefaults, styleDefaultsErrors } from './style-defaults'
 import { StyleOverrides, mergeVisuals, normalizeStyleOverrides, styleOverridesErrors } from './style-overrides'
 import { PreviousValidation, RebuiltNode, remapNodeIds, remapValidations } from './recalibration'
 import {
@@ -448,6 +448,7 @@ export class DocumentsService {
     // Vides tant que le document n'a pas été (ré)importé après la lecture de
     // styles.xml — le rendu retombe alors sur le look générique de paged.css.
     const inventory = document.styleInventory as unknown as StyleInventory | null
+    const defaults = normalizeStyleDefaults(document.styleDefaults)
 
     const validations: Record<string, NodeValidationState> = {}
     for (const [nodeId, hash] of await this.getValidations(id)) {
@@ -465,8 +466,14 @@ export class DocumentsService {
       // couche Folio les applique telles quelles ; la césure par style suit du coup
       // la cascade (surcharge > .odt > global) sans logique dédiée au rendu.
       visuals: mergeVisuals(inventory?.visuals ?? {}, normalizeStyleOverrides(document.styleOverrides)),
-      page: inventory?.page ?? null,
-      hyphenation: normalizeStyleDefaults(document.styleDefaults).hyphenation,
+      // Page EFFECTIVE : dimensions choisies par l'utilisateur (pageSize) par-dessus
+      // le relevé .odt — même logique de merge que visuals, le rendu ne voit que le
+      // résultat.
+      page: applyPageSize(inventory?.page ?? null, defaults.pageSize),
+      pageOdt: inventory?.page ?? null,
+      pageMargins: defaults.pageMargins,
+      hyphenation: defaults.hyphenation,
+      runningTitles: defaults.runningTitles,
     }
   }
 

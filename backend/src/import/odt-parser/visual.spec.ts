@@ -148,6 +148,76 @@ describe('readPageFormat', () => {
         xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"/>`
     expect(readPageFormat(parse(noMaster))).toBeUndefined()
   })
+
+  it('relève les en-têtes/pieds : texte, champs, variante verso, zone désactivée', () => {
+    const xml = `<?xml version="1.0"?>
+<office:document-styles
+    xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+    xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+    xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0"
+    xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:automatic-styles>
+    <style:page-layout style:name="Mpm1">
+      <style:page-layout-properties fo:page-width="14.8cm" fo:page-height="21cm"/>
+    </style:page-layout>
+  </office:automatic-styles>
+  <office:master-styles>
+    <style:master-page style:name="Standard" style:page-layout-name="Mpm1">
+      <style:header>
+        <text:p><text:chapter text:display="name" text:outline-level="1">L'aube</text:chapter></text:p>
+      </style:header>
+      <style:header-left>
+        <text:p>Mon titre de livre</text:p>
+      </style:header-left>
+      <style:footer style:display="false">
+        <text:p><text:page-number>1</text:page-number></text:p>
+      </style:footer>
+    </style:master-page>
+  </office:master-styles>
+</office:document-styles>`
+    const page = readPageFormat(parse(xml))
+    expect(page?.header).toEqual({ text: "L'aube", fields: ['chapter'] })
+    expect(page?.headerLeft).toEqual({ text: 'Mon titre de livre', fields: [] })
+    // `style:display="false"` : désactivée dans LibreOffice = absente du relevé.
+    expect(page?.footer).toBeUndefined()
+    expect(page?.footerLeft).toBeUndefined()
+  })
+
+  it('relève les dimensions de bande (min-height, espacement) depuis le page-layout', () => {
+    const xml = `<?xml version="1.0"?>
+<office:document-styles
+    xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+    xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+    xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0"
+    xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:automatic-styles>
+    <style:page-layout style:name="Mpm1">
+      <style:page-layout-properties fo:page-width="14.8cm" fo:page-height="21cm"/>
+      <style:header-style>
+        <style:header-footer-properties fo:min-height="0.8cm" fo:margin-bottom="0.5cm"/>
+      </style:header-style>
+      <style:footer-style>
+        <style:header-footer-properties fo:min-height="0.6cm" fo:margin-top="0.4cm"/>
+      </style:footer-style>
+    </style:page-layout>
+  </office:automatic-styles>
+  <office:master-styles>
+    <style:master-page style:name="Standard" style:page-layout-name="Mpm1">
+      <style:header><text:p><text:title>T</text:title></text:p></style:header>
+      <style:footer><text:p><text:page-number>1</text:page-number></text:p></style:footer>
+    </style:master-page>
+  </office:master-styles>
+</office:document-styles>`
+    const page = readPageFormat(parse(xml))
+    expect(page?.header).toMatchObject({ heightCm: 0.8, spacingCm: 0.5 })
+    expect(page?.footer).toMatchObject({ heightCm: 0.6, spacingCm: 0.4 })
+  })
+
+  it('sans zone déclarée, aucune clé d’en-tête/pied', () => {
+    const page = readPageFormat(parse(STYLES_XML))
+    expect(page?.header).toBeUndefined()
+    expect(page?.footer).toBeUndefined()
+  })
 })
 
 describe('toCm', () => {

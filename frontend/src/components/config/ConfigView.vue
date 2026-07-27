@@ -61,7 +61,7 @@
     <!-- Mise en page : propriétés globales du livre, indépendantes des styles —
          format de page (lu du .odt) + réglages typographiques généraux (césure…).
          Affiché même sur un document sans inventaire (le format vient du .odt). -->
-    <LayoutSection :page="documentPage" :style-defaults="styleDefaults" />
+    <LayoutSection :page="documentPageOdt" :style-defaults="styleDefaults" />
 
     <template v-if="inventory.styles.length">
       <TypologySection
@@ -78,8 +78,11 @@
           :default-rule-set="rules.default"
           :data="documentData"
           :visuals="effectiveVisuals"
-          :page="documentPage"
+          :page="previewPage"
+          :margins="previewMargins"
           :hyphenation="styleDefaults.hyphenation"
+          :running-titles="previewRunningTitles"
+          :book-title="doc?.title ?? ''"
       >
         <!-- Les deux bornes du livre se reprennent depuis le composer : c'est
              le dernier vis-à-vis du liminaire qui dit où il s'arrête. Étendre
@@ -194,6 +197,7 @@ import { useTypologyConfig } from '../../composables/useTypologyConfig'
 import { useLiminaireBornes } from '../../composables/useLiminaireBornes'
 import { useRecalibration } from '../../composables/useRecalibration'
 import { HIGHLIGHT_ROLES } from '../../script/typology'
+import { effectiveMargins, effectivePage } from '../../script/pageFormats'
 import { totalOf, zoneSegments } from '../../script/zones'
 
 const route = useRoute()
@@ -233,7 +237,25 @@ provide('removeDeclaredStyle', removeDeclaredStyle)
 // de l'endpoint typologie : c'est du contenu, pas de l'inventaire.
 const trame = inject('documentTrame', null)
 const documentData = inject('documentData', null)
-const documentPage = inject('documentPage', null)
+// Le relevé .odt BRUT (pas la page mergée `documentPage`, réservée au rendu de
+// l'éditeur) : la config doit montrer l'original et merger elle-même le format
+// EN COURS d'édition pour ses aperçus.
+const documentPageOdt = inject('documentPageOdt', null)
+
+// Page EFFECTIVE pour les aperçus témoins : le format en cours d'édition
+// (styleDefaults.pageSize) par-dessus le relevé .odt — feedback immédiat, avant
+// enregistrement, comme effectiveVisuals.
+const previewPage = computed(() => effectivePage(documentPageOdt?.value ?? null, styleDefaults.pageSize))
+
+// Marges miroir EN COURS d'édition (ou dérivées du .odt). Spread → nouvel objet à
+// chaque édition (pageMargins est muté en place), pour que l'aperçu détecte le
+// changement par référence.
+const previewMargins = computed(() => ({ ...effectiveMargins(documentPageOdt?.value ?? null, styleDefaults.pageMargins) }))
+
+// Titres courants EN COURS d'édition : clone profond → nouvel objet (et sous-objets)
+// à chaque édition, l'aperçu témoin détecte le changement par référence (comme
+// previewPage/effectiveVisuals). `runningTitles` est muté en place (nested).
+const previewRunningTitles = computed(() => JSON.parse(JSON.stringify(styleDefaults.runningTitles)))
 
 const { borderShift, canExtend, nextTitle, liminairePages } = useLiminaireBornes(trame, documentData, liminaireConfig)
 

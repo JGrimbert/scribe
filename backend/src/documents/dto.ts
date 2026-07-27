@@ -87,11 +87,24 @@ export interface DocumentContent {
   // couche Folio les applique pour un rendu FIDÈLE au .odt (police, corps,
   // alignement…). Vides pour un document importé avant la lecture de styles.xml.
   visuals: Record<string, StyleVisual>
+  // `page` est la page EFFECTIVE (dimensions choisies par l'utilisateur — pageSize
+  // — par-dessus le relevé .odt, cf. applyPageSize) : le rendu la consomme telle
+  // quelle. `pageOdt` reste le relevé brut, pour l'écran de config (libellé
+  // « Original (.odt) », marges) — même couple que visuals mergés / base des
+  // overrides.
   page: PageFormat | null
+  pageOdt: PageFormat | null
+  // Marges MIROIR (recto/verso) choisies par l'utilisateur, ou null = marges .odt
+  // symétriques. La couche Folio les applique en @page:left/@page:right.
+  pageMargins: StyleDefaults['pageMargins']
   // Réglages typographiques généraux (décision utilisateur, cf. style-defaults.ts) :
   // la couche Folio applique la césure au-dessus des styles du .odt. Toujours
   // normalisé (jamais null) — un document sans réglage rend les défauts.
   hyphenation: StyleDefaults['hyphenation']
+  // Titres courants (en-tête/pied/folio) : la couche Folio les rend en margin
+  // boxes Paged.js, supprimés sur liminaire / premières pages de chapitre / pages
+  // blanches. Normalisé (jamais null).
+  runningTitles: StyleDefaults['runningTitles']
 }
 
 // L'éditeur de styles (panneau de config) a besoin des deux : la valeur .odt

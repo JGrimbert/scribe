@@ -1,5 +1,5 @@
 import * as unzipper from 'unzipper'
-import { PageFormat, StyleVisual } from './types'
+import { PageFormat, RunningZone, StyleVisual } from './types'
 import { decodeOdtStyleName, select } from './xml'
 
 // ─── Ce à quoi les styles RESSEMBLENT ─────────────────────────────────────
@@ -214,7 +214,7 @@ export function readPageFormat(stylesDoc: any): PageFormat | undefined {
   // laisserait le frontend inventer une page.
   if (!widthCm || !heightCm) return undefined
 
-  return {
+  const format: PageFormat = {
     widthCm,
     heightCm,
     marginTopCm: toCm(props.getAttribute('fo:margin-top')) ?? 0,
@@ -222,4 +222,62 @@ export function readPageFormat(stylesDoc: any): PageFormat | undefined {
     marginLeftCm: toCm(props.getAttribute('fo:margin-left')) ?? 0,
     marginRightCm: toCm(props.getAttribute('fo:margin-right')) ?? 0,
   }
+
+  // Dimensions des bandes : dans le page-layout (`style:header-style` /
+  // `style:footer-style` → `style:header-footer-properties`), pas dans le
+  // master-page. Partagées par les variantes recto/verso d'une même bande.
+  const headerDims = readBandDims(layout, 'header-style')
+  const footerDims = readBandDims(layout, 'footer-style')
+
+  // Zones assignées seulement si relevées : pas de clé `undefined` persistée
+  // dans le styleInventory.
+  const header = readRunningZone(master, 'header', headerDims)
+  const headerLeft = readRunningZone(master, 'header-left', headerDims)
+  const footer = readRunningZone(master, 'footer', footerDims)
+  const footerLeft = readRunningZone(master, 'footer-left', footerDims)
+  if (header) format.header = header
+  if (headerLeft) format.headerLeft = headerLeft
+  if (footer) format.footer = footer
+  if (footerLeft) format.footerLeft = footerLeft
+
+  return format
+}
+
+// ─── En-têtes / pieds de page du master-page ──────────────────────────────
+//
+// Les zones vivent en ENFANTS du master-page (`style:header`, `style:footer`,
+// variantes `-left` pour le verso quand recto et verso diffèrent). On ne relève
+// que l'essentiel pour la config des titres courants : le texte aplati, les
+// champs dynamiques (numéro de page, nom de chapitre, titre du document) et les
+// dimensions de la bande (lues à part, dans le page-layout).
+
+const RUNNING_FIELD_NAMES = ['page-number', 'chapter', 'title']
+
+// Hauteur mini + espacement d'une bande, depuis son `style:*-style`. `fo:min-height`
+// = hauteur ; l'espacement vers le corps est `fo:margin-bottom` (en-tête) ou
+// `fo:margin-top` (pied) — on prend le premier margin non nul rencontré.
+function readBandDims(layout: any, styleTag: string): { heightCm?: number; spacingCm?: number } {
+  const style = layout && (select(`*[local-name()="${styleTag}"]`, layout) as any[])[0]
+  const props = style && (select('*[local-name()="header-footer-properties"]', style) as any[])[0]
+  if (!props) return {}
+  const heightCm = toCm(props.getAttribute('fo:min-height')) ?? undefined
+  const spacingCm = toCm(props.getAttribute('fo:margin-bottom')) ?? toCm(props.getAttribute('fo:margin-top')) ?? undefined
+  return { heightCm: heightCm ?? undefined, spacingCm: spacingCm ?? undefined }
+}
+
+function readRunningZone(master: any, tag: string, dims: { heightCm?: number; spacingCm?: number }): RunningZone | undefined {
+  const el = (select(`*[local-name()="${tag}"]`, master) as any[])[0]
+  // `style:display="false"` : la zone existe dans le XML mais LibreOffice la
+  // désactive — même statut qu'absente.
+  if (!el || el.getAttribute('style:display') === 'false') return undefined
+
+  const text = String(el.textContent ?? '').replace(/\s+/g, ' ').trim()
+  const fields = RUNNING_FIELD_NAMES.filter(
+    (name) => (select(`.//*[local-name()="${name}"]`, el) as any[]).length > 0,
+  )
+  if (!text && !fields.length) return undefined
+  const zone: RunningZone = { text, fields }
+  if (dims.heightCm != null) zone.heightCm = dims.heightCm
+  if (dims.spacingCm != null) zone.spacingCm = dims.spacingCm
+  return zone
 }

@@ -98,8 +98,13 @@ provideAnalyse()
 const trame = ref(null)
 const data = ref(null)
 const visuals = ref(null)
+// `page` = page effective (format choisi mergé par le backend), pour le rendu ;
+// `pageOdt` = relevé .odt brut, pour l'écran de config (cf. dto DocumentContent).
 const page = ref(null)
+const pageOdt = ref(null)
+const pageMargins = ref(null)
 const hyphenation = ref(null)
+const runningTitles = ref(null)
 const title = ref('')
 
 const docBarEl = ref(null)
@@ -111,7 +116,11 @@ provide('documentTrame', trame)
 provide('documentData', data)
 provide('documentVisuals', visuals)
 provide('documentPage', page)
+provide('documentPageOdt', pageOdt)
+provide('documentPageMargins', pageMargins)
 provide('documentHyphenation', hyphenation)
+provide('documentRunningTitles', runningTitles)
+provide('documentTitle', title)
 
 // Action contextuelle de la doc-bar : le CTA global à droite. Une vue routée
 // (la config) la renseigne via inject ; null ailleurs, où la doc-bar retombe sur
@@ -187,7 +196,10 @@ async function loadDocument(id, { silent = false } = {}) {
   data.value = content.data
   visuals.value = content.visuals ?? null
   page.value = content.page ?? null
+  pageOdt.value = content.pageOdt ?? null
+  pageMargins.value = content.pageMargins ?? null
   hyphenation.value = content.hyphenation ?? null
+  runningTitles.value = content.runningTitles ?? null
   validations.value = content.validations ?? {}
   loadTypology(id) // non-awaité : le document s'affiche sans attendre cette réponse
 }

@@ -1,7 +1,7 @@
 import { ref } from 'vue'
 import { buildFragmentRegistry, createFragmentApi } from '../script/fragment.js'
 import { createRegistry } from '../script/registry.js'
-import { buildVisualsCss, buildHyphenationCss, buildPageCss, buildPagePinCss } from '../script/folioStyles.js'
+import { buildVisualsCss, buildHyphenationCss, buildPageCss, buildPagePinCss, buildRunningTitlesCss, runningReserves } from '../script/folioStyles.js'
 
 // URLs ABSOLUES : l'iframe sans `src` a une base `about:blank`. Le build UMD de
 // Paged.js est servi par un middleware dev (cf. vite.config.js).
@@ -50,10 +50,6 @@ export function useFolioFrame(props, { frameRef, frameDoc, blocks, section, onRe
     // au pixel (pas de marge parasite ni de coupe). Bordure de page + filet
     // pointillé sur la zone de contenu = repère des marges du livre.
     const common = [
-      // Épingle la géométrie de page (:root, !important) : neutralise le polyfill
-      // *letter* que Paged ré-injecte dans ce head partagé à chaque pagination, qui
-      // sinon ferait basculer la taille du contenu VISIBLE (cf. buildPagePinCss).
-      buildPagePinCss(props.page),
       'html,body{margin:0;padding:0;background:transparent;overflow:hidden;}',
       '#render{transform-origin:top left;}',
       '.pagedjs_page{background:#fff;box-shadow:0 1px 6px rgba(0,0,0,.15);border:1px solid #e2e2e2;}',
@@ -65,6 +61,16 @@ export function useFolioFrame(props, { frameRef, frameDoc, blocks, section, onRe
     const layout = props.mode === 'edit' ? '' : '.pagedjs_pages{display:block;} .pagedjs_page{margin:0;}'
     boot.textContent = common + layout
     doc.head.appendChild(boot)
+
+    // Épingle la géométrie de page (:root, !important) : neutralise le polyfill
+    // *letter* que Paged ré-injecte dans ce head partagé à chaque pagination, qui
+    // sinon ferait basculer la taille du contenu VISIBLE (cf. buildPagePinCss).
+    // Feuille À PART de __boot : props.page peut changer (select de format de la
+    // config) — refresh() la met à jour, alors que __boot est figé au montage.
+    const pin = doc.createElement('style')
+    pin.id = '__pagepin'
+    pin.textContent = buildPagePinCss(props.page, props.margins, runningReserves(props.runningTitles))
+    doc.head.appendChild(pin)
 
     if (props.mode === 'edit') {
       const listeners = getEditListeners?.()
@@ -98,8 +104,14 @@ export function useFolioFrame(props, { frameRef, frameDoc, blocks, section, onRe
     // Vide le curseur : le DOM du fragment courant va être remplacé.
     onReset?.()
 
+    // Recale le pin de géométrie sur la page COURANTE (le format a pu changer
+    // depuis buildFrame) — avant la pagination, pour que l'ancien rendu affiché
+    // bascule tout de suite à la nouvelle taille.
+    const pin = doc.getElementById('__pagepin')
+    if (pin) pin.textContent = buildPagePinCss(props.page, props.margins, runningReserves(props.runningTitles))
+
     if (!blocks.value.length) {
-      doc.head.querySelectorAll('style').forEach((el) => { if (el.id !== '__boot') el.remove() })
+      doc.head.querySelectorAll('style').forEach((el) => { if (el.id !== '__boot' && el.id !== '__pagepin') el.remove() })
       render.innerHTML = ''
       registry.value = null
       fragments.value = null
@@ -113,7 +125,7 @@ export function useFolioFrame(props, { frameRef, frameDoc, blocks, section, onRe
     // Résultat : jamais de page blanche ni de flash à 100 % entre deux
     // repaginations (changement de chapitre, split/merge d'un paragraphe). Les
     // styles de l'ancienne génération sont retirés APRÈS le swap (snapshot ici).
-    const staleStyles = [...doc.head.querySelectorAll('style')].filter((el) => el.id !== '__boot')
+    const staleStyles = [...doc.head.querySelectorAll('style')].filter((el) => el.id !== '__boot' && el.id !== '__pagepin')
 
     // Feuille d'apparence des styles (fidélité .odt), régénérée à chaque
     // repagination, avant le preview pour que Paged.js la reprenne. Sans id :
@@ -162,11 +174,20 @@ export function useFolioFrame(props, { frameRef, frameDoc, blocks, section, onRe
     doc.body.appendChild(buffer)
 
     const previewer = new win.Paged.Previewer()
-    // Format de page du document (A5, marges du .odt) passé APRÈS paged.css pour
-    // que son @page l'emporte ; objet `{ nom: cssText }` = CSS inline (non fetché,
-    // cf. Polisher.add). Absent → paged.css garde son A5 par défaut.
-    const pageCss = buildPageCss(props.page)
-    const sheets = pageCss ? [CSS_HREF, { 'doc-page.css': pageCss }] : [CSS_HREF]
+    // Format de page du document (A5, marges du .odt) + titres courants (margin
+    // boxes @page), passés APRÈS paged.css pour que leurs @page l'emportent ;
+    // objet `{ nom: cssText }` = CSS inline (non fetché, cf. Polisher.add).
+    // Les margin boxes @top-center/@bottom-center sont un polyfill Paged.js : elles
+    // DOIVENT passer par les sheets que le previewer traite, pas un <style> brut
+    // (le navigateur ignorerait @top-center). Le nom du chapitre vient du nœud rendu.
+    const docPageCss = [
+      buildPageCss(props.page, props.margins, runningReserves(props.runningTitles)),
+      buildRunningTitlesCss(props.runningTitles, {
+        bookTitle: props.bookTitle,
+        chapterTitle: section.value?.titre ?? '',
+      }),
+    ].filter(Boolean).join('\n')
+    const sheets = docPageCss ? [CSS_HREF, { 'doc-page.css': docPageCss }] : [CSS_HREF]
     return previewer.preview(source, sheets, buffer).then((flow) => {
       // Registre AVANT le clonage : buildFragmentRegistry stampe les data-frag-id
       // sur les nœuds rendus (le clone en hérite) et ne capture que des chaînes HTML

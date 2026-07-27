@@ -26,7 +26,10 @@
               :depth="depthKey"
               :visuals="visuals"
               :page="page"
+              :margins="margins"
               :hyphenation="hyphenation"
+              :running-titles="runningTitles"
+              :book-title="bookTitle"
           />
 
           <div class="models">
@@ -119,7 +122,13 @@ const props = defineProps({
   // l'aperçu témoin les applique → feedback live des retouches de style.
   visuals: { type: Object, default: null },
   page: { type: Object, default: null },
+  // Marges miroir EN COURS d'édition (aperçu témoin).
+  margins: { type: Object, default: null },
   hyphenation: { type: Object, default: null },
+  // Titres courants (en cours d'édition) + titre du livre : l'aperçu témoin rend
+  // les margin boxes @page → feedback live du réglage des titres courants.
+  runningTitles: { type: Object, default: null },
+  bookTitle: { type: String, default: '' },
 })
 
 // Modèle sélectionné (pilote l'aperçu). `null` → repli sur le premier, le témoin

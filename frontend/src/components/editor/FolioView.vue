@@ -97,10 +97,18 @@ const props = defineProps({
   // Format de page du .odt (dimensions + marges, cf. PageFormat). Piloté en
   // @page dans l'iframe. Null = A5 par défaut (paged.css).
   page: { type: Object, default: null },
+  // Marges MIROIR (`{ topCm, bottomCm, innerCm, outerCm }`) : recto/verso inversés
+  // en @page:left/@page:right. Null = marges symétriques du .odt (`page`).
+  margins: { type: Object, default: null },
   // Réglages de césure (cascade Folio) : `{ global }` = défaut appliqué aux
   // styles que le .odt ne déclare pas explicitement. Null = pas de césure globale
   // (seuls les styles à fo:hyphenate="true" en portent).
   hyphenation: { type: Object, default: null },
+  // Titres courants + folio (`{ enabled, verso, recto, folio }`, cf.
+  // style-defaults) : la couche Folio les rend en margin boxes @page. Null =
+  // désactivés. `bookTitle` alimente l'en-tête ; le nom du chapitre vient du nœud.
+  runningTitles: { type: Object, default: null },
+  bookTitle: { type: String, default: '' },
   // Debug : rendre visible le Quill flottant (sinon seul le miroir Folio l'est).
   quillVisible: { type: Boolean, default: false },
 })
@@ -265,7 +273,13 @@ watch(() => [props.nodeId, props.depth], refresh)
 let styleTimer = null
 // `hyphenation.global` explicitement : dans la config il est muté EN PLACE (même
 // référence d'objet), une comparaison de l'objet seul le raterait.
-watch(() => [props.visuals, props.hyphenation, props.hyphenation?.global], () => {
+// `props.page` : nouvel objet à chaque changement de format (cf. previewPage,
+// ConfigView) — même comparaison de référence que visuals. `runningTitles` est
+// muté EN PLACE dans la config (comme hyphenation) : on surveille ses champs.
+watch(() => [
+  props.visuals, props.hyphenation, props.hyphenation?.global, props.page, props.margins,
+  props.runningTitles, runningTitlesSignature(props.runningTitles), props.bookTitle,
+], () => {
   if (!frameReadyForStyle()) return
   clearTimeout(styleTimer)
   styleTimer = setTimeout(refresh, 250)
@@ -274,6 +288,15 @@ onBeforeUnmount(() => clearTimeout(styleTimer))
 // Évite une repagination avant le premier rendu (buildFrame s'en charge déjà).
 function frameReadyForStyle() {
   return !!frameRef.value?.contentDocument
+}
+
+// Signature plate des titres courants : dans la config, `runningTitles` est muté
+// EN PLACE (nested), une comparaison de référence raterait les changements. On
+// sérialise les champs qui pilotent le rendu.
+function runningTitlesSignature(rt) {
+  if (!rt) return ''
+  const band = (b) => (b ? `${b.enabled}|${b.recto}|${b.verso}|${b.heightCm}|${b.justification}` : '')
+  return `${band(rt.header)}#${band(rt.footer)}`
 }
 </script>
 

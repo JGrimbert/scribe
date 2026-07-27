@@ -6,7 +6,10 @@
         :node-id="nodeId"
         :visuals="visuals"
         :page="page"
+        :margins="margins"
         :hyphenation="hyphenation"
+        :running-titles="runningTitles"
+        :book-title="bookTitle"
         :quill-visible="quillVisible"
     />
   </div>
@@ -22,7 +25,10 @@ const trame = inject('documentTrame')
 const data = inject('documentData')
 const visuals = inject('documentVisuals')
 const page = inject('documentPage')
+const margins = inject('documentPageMargins')
 const hyphenation = inject('documentHyphenation')
+const runningTitles = inject('documentRunningTitles')
+const bookTitle = inject('documentTitle')
 const quillVisible = inject('quillVisible')
 
 // `/noeud` sans chapitre = « ouvre l'éditeur », sans dire où. C'est la seule

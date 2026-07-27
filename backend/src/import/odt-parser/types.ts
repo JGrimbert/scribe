@@ -270,6 +270,18 @@ export interface StyleVisual {
 // Le format de page du livre, lu sur le master-page « Standard ». Sans lui, une
 // vignette est au mauvais ratio — et ça se voit immédiatement. Le témoin est en
 // A5 (14,801 × 21,001 cm), pas en A4 : la valeur par défaut de la couche Folio.
+// Relevé d'une zone d'en-tête ou de pied de page du master-page « Standard » :
+// le texte aplati et les champs dynamiques rencontrés ('page-number', 'chapter',
+// 'title'), plus les dimensions du style:header-footer-properties (hauteur mini
+// et espacement vers le corps, en cm). Sert à pré-remplir la config des titres
+// courants (LayoutSection) — le rendu Folio n'en consomme rien directement.
+export interface RunningZone {
+  text: string
+  fields: string[]
+  heightCm?: number
+  spacingCm?: number
+}
+
 export interface PageFormat {
   widthCm: number
   heightCm: number
@@ -277,6 +289,14 @@ export interface PageFormat {
   marginBottomCm: number
   marginLeftCm: number
   marginRightCm: number
+  // En-têtes/pieds déclarés dans le .odt. `*Left` = variante verso quand recto et
+  // verso diffèrent (pages en vis-à-vis LibreOffice). Absents si non déclarés,
+  // désactivés (style:display="false") ou vides — et sur tout document importé
+  // avant ce relevé (une recalibration le repeuple).
+  header?: RunningZone
+  headerLeft?: RunningZone
+  footer?: RunningZone
+  footerLeft?: RunningZone
 }
 
 export interface StyleInventory {
