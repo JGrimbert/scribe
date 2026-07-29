@@ -75,12 +75,14 @@ export function runningReserves(runningTitles) {
 
 // Guides « maquette » de l'aperçu de FORMAT (pages vides, `bodyCross`) : l'aperçu
 // est un GABARIT — on ne veut QUE du gris typographique. Empagement lisible + croix
-// du corps ; en-tête/pied matérialisés par des BARRES GRISES (pas de vrai titre
-// courant ni folio, masqués via `.pagedjs_margin-content`). Les pages étant VIDES,
-// `overflow:visible` sur la zone de contenu laisse les barres, posées dans le blanc
-// de tête/pied (hors zone de contenu), s'afficher sans être rognées.
+// du corps ; en-tête/pied matérialisés par un RECTANGLE GRIS schématique (pas un
+// vrai titre courant ni folio, masqués via `.pagedjs_margin-content`). Les pages
+// étant VIDES, `overflow:visible` sur la zone de contenu laisse le rectangle, posé
+// dans le blanc de tête/pied (hors zone de contenu), s'afficher sans être rogné.
 const GUIDE_LINE = '#b8b8b8'
-const GUIDE_FILL = '#c9c9c9' // gris typographique des barres en-tête/pied
+const GUIDE_FILL = '#c9c9c9' // gris typographique du rectangle en-tête/pied
+const GUIDE_TEXT_WIDTH = '40%' // titre courant : ligne courte (pas toute la largeur)
+const GUIDE_FOLIO_WIDTH = '1.2cm' // numéro de page : largeur d'un folio
 const BODY_CROSS =
   'linear-gradient(to top right,transparent calc(50% - .5px),#d9d9d9 calc(50% - .5px),#d9d9d9 calc(50% + .5px),transparent calc(50% + .5px)),'
   + 'linear-gradient(to bottom right,transparent calc(50% - .5px),#d9d9d9 calc(50% - .5px),#d9d9d9 calc(50% + .5px),transparent calc(50% + .5px))'
@@ -92,14 +94,39 @@ export function buildFormatGuidesCss(runningTitles) {
     // Que du gris typographique : pas de vrai titre courant / folio sur le format.
     '.pagedjs_margin-content{display:none;}',
   ]
-  // La barre grise colle au bord de l'empagement (au-dessus/au-dessous du corps),
-  // séparée du corps par le blanc `RUNNING_GAP_CM` (cf. runningReserves).
-  if (rt.header?.enabled) {
-    parts.push(`.pagedjs_page_content::before{content:"";position:absolute;left:0;right:0;bottom:calc(100% + ${RUNNING_GAP_CM}cm);height:${bandHeightCm(rt.header)}cm;background:${GUIDE_FILL};}`)
+
+  // Une bande = un CADRE bordé pleine largeur (matérialise la zone en-tête/pied,
+  // comme `.band` du PageDiagram), calé au bord de l'empagement (séparé du corps par
+  // le blanc `RUNNING_GAP_CM`, cf. runningReserves). Le gris typographique est peint
+  // À L'INTÉRIEUR, en background, seulement si le côté porte un contenu : largeur d'une
+  // ligne de titre (`40%`) ou d'un folio (`1.2cm`). Placement : `centre` = centré ;
+  // `regard` = bord EXTÉRIEUR, en miroir. En planche (mode spread), le recto (page
+  // impaire = `pagedjs_right_page`) s'affiche à GAUCHE et le verso (`pagedjs_left_page`)
+  // à DROITE — « extérieur » (loin de la reliure) = gauche au recto, droite au verso
+  // (cf. `swapParity`, buildRunningTitlesCss).
+  const addBand = (band, pseudo, offset) => {
+    if (!band?.enabled) return
+    parts.push(
+      `.pagedjs_page_content::${pseudo}{content:"";position:absolute;left:0;right:0;`
+      + `${offset}:calc(100% + ${RUNNING_GAP_CM}cm);height:${bandHeightCm(band)}cm;`
+      + `border:1px solid ${GUIDE_LINE};box-sizing:border-box;background-repeat:no-repeat;}`,
+    )
+    const regard = band.justification === 'regard'
+    const side = (pageClass, content, outer) => {
+      if (!content || content === 'aucun') return
+      const width = content === 'folio' ? GUIDE_FOLIO_WIDTH : GUIDE_TEXT_WIDTH
+      const posX = regard ? outer : 'center'
+      parts.push(
+        `.${pageClass} .pagedjs_page_content::${pseudo}{`
+        + `background-image:linear-gradient(${GUIDE_FILL},${GUIDE_FILL});`
+        + `background-size:${width} 100%;background-position:${posX} center;}`,
+      )
+    }
+    side('pagedjs_right_page', band.recto, 'left')
+    side('pagedjs_left_page', band.verso, 'right')
   }
-  if (rt.footer?.enabled) {
-    parts.push(`.pagedjs_page_content::after{content:"";position:absolute;left:0;right:0;top:calc(100% + ${RUNNING_GAP_CM}cm);height:${bandHeightCm(rt.footer)}cm;background:${GUIDE_FILL};}`)
-  }
+  addBand(rt.header, 'before', 'bottom')
+  addBand(rt.footer, 'after', 'top')
   return parts.join('')
 }
 

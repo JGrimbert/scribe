@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildVisualsCss, buildHyphenationCss, buildPageCss, buildRunningTitlesCss, runningReserves } from './folioStyles.js'
+import { buildVisualsCss, buildHyphenationCss, buildPageCss, buildRunningTitlesCss, buildFormatGuidesCss, runningReserves } from './folioStyles.js'
 
 describe('buildVisualsCss', () => {
   it('traduit un StyleVisual en règle préfixée .pagedjs_page_content', () => {
@@ -194,5 +194,55 @@ describe('buildRunningTitlesCss', () => {
   it('échappe les guillemets du titre', () => {
     const css = buildRunningTitlesCss(rt({ header: band({ enabled: true, recto: 'aucun', verso: 'titre' }) }), { bookTitle: 'a"b', chapterTitle: '' })
     expect(css).toContain('content:"a\\"b"')
+  })
+})
+
+describe('buildFormatGuidesCss', () => {
+  const band = (o = {}) => ({ enabled: false, recto: 'chapitre', verso: 'titre', heightCm: null, justification: 'centre', ...o })
+  const rt = (o = {}) => ({ header: band(), footer: band(), ...o })
+
+  it('bandes désactivées : croix + masquage seuls, aucun cadre', () => {
+    const css = buildFormatGuidesCss(rt())
+    expect(css).toContain('.pagedjs_margin-content{display:none;}')
+    expect(css).not.toContain('::before')
+    expect(css).not.toContain('::after')
+  })
+
+  it('en-tête : CADRE bordé pleine largeur conservé + gris interne centré réduit', () => {
+    const css = buildFormatGuidesCss(rt({ header: band({ enabled: true }) }))
+    // Le cadre : pleine largeur, bordé (ne PAS le supprimer).
+    expect(css).toContain('.pagedjs_page_content::before{')
+    expect(css).toMatch(/::before\{[^}]*left:0;right:0;/)
+    expect(css).toMatch(/::before\{[^}]*border:1px solid/)
+    // Le gris typographique interne : largeur d'une ligne, centré.
+    expect(css).toContain('background-size:40% 100%')
+    expect(css).toContain('background-position:center center')
+  })
+
+  it('« en regard » : gris interne au bord extérieur, en miroir (recto gauche, verso droite)', () => {
+    const css = buildFormatGuidesCss(rt({ header: band({ enabled: true, justification: 'regard' }) }))
+    expect(css).toMatch(/\.pagedjs_right_page[^}]*background-position:left center;/)
+    expect(css).toMatch(/\.pagedjs_left_page[^}]*background-position:right center;/)
+  })
+
+  it('respecte « aucun » : cadre présent mais aucun gris du côté sans contenu', () => {
+    const css = buildFormatGuidesCss(rt({ header: band({ enabled: true, recto: 'chapitre', verso: 'aucun' }) }))
+    expect(css).toContain('.pagedjs_page_content::before{') // cadre toujours là
+    expect(css).toContain('.pagedjs_right_page .pagedjs_page_content::before')
+    expect(css).not.toContain('.pagedjs_left_page .pagedjs_page_content::before')
+  })
+
+  it('folio en pied → gris à la largeur d’un numéro de page (pas 40%)', () => {
+    const css = buildFormatGuidesCss(rt({ footer: band({ enabled: true, recto: 'folio', verso: 'folio' }) }))
+    expect(css).toContain('.pagedjs_page_content::after{')
+    expect(css).toContain('background-size:1.2cm 100%')
+    expect(css).not.toContain('background-size:40% 100%')
+  })
+
+  it('pied → ::after ancré sous l’empagement, hauteur fixée respectée', () => {
+    const css = buildFormatGuidesCss(rt({ footer: band({ enabled: true, heightCm: 0.8 }) }))
+    expect(css).toContain('.pagedjs_page_content::after')
+    expect(css).toContain('top:calc(100% + 0.4cm)')
+    expect(css).toContain('height:0.8cm')
   })
 })
