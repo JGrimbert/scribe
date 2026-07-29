@@ -3,6 +3,8 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 // Respiration autour des pages en édition (px). Doit rester synchro avec le
 // padding de .folio-scroll (fitScale la retire de la place disponible).
 const EDIT_PAD = 40
+// Respiration autour de la planche double-page (px), retirée de la place dispo.
+const SPREAD_PAD = 12
 
 // L'échelle du rendu Folio. `fitScale` ajuste sur la largeur (viser `visiblePages`)
 // ET la hauteur — le plus contraignant l'emporte ; le `clientHeight` vient du flex
@@ -62,6 +64,23 @@ export function useFolioScale(props, { rootRef, frameRef, frameDoc, onScaled }) 
         1,
       )
       applyScale(scale, rowW * scale, pageEl.offsetHeight * scale)
+      return
+    }
+
+    if (props.mode === 'spread') {
+      // Double-page en LECTURE : la planche d'ouverture (les `visiblePages`
+      // premières pages) ajustée en hauteur ET en largeur, sans l'appareil
+      // d'édition. La frame est bornée à la largeur de la planche → les pages
+      // suivantes sont clippées (overflow:hidden de .folio-view--spread). Les
+      // offsets de layout ignorent le `transform:scale` en cours (boîte naturelle).
+      const pages = doc.querySelectorAll('.pagedjs_page')
+      const shown = Math.min(pages.length, Math.ceil(props.visiblePages))
+      const last = pages[shown - 1] ?? pageEl
+      const spreadW = last.offsetLeft + last.offsetWidth - pageEl.offsetLeft
+      const availW = root.clientWidth - 2 * SPREAD_PAD
+      const availH = root.clientHeight - 2 * SPREAD_PAD
+      const scale = Math.min(availW / spreadW, availH / pageEl.offsetHeight, 1)
+      applyScale(scale, spreadW * scale, pageEl.offsetHeight * scale)
       return
     }
 

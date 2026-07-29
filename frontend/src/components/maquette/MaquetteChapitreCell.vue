@@ -4,7 +4,7 @@
        une OUVERTURE de chapitre (bandeau de titre + descente du corps). La largeur
        du titre décroît avec la profondeur (un sous-niveau porte un titre plus
        court). Aucun mot réel : on ne montre que la silhouette typographique. -->
-  <div class="chap-cell">
+  <div class="chap-cell" :style="{ '--maq-ratio': ratio }">
     <div class="chap-folio is-left">
       <div class="greek">
         <span v-for="(w, i) in versoLines" :key="i" class="greek-line" :style="{ width: w }"></span>
@@ -27,6 +27,8 @@ import { computed } from 'vue'
 const props = defineProps({
   // Profondeur du niveau (0/1/2) : pilote la largeur du bandeau de titre.
   depthKey: { type: Number, default: 0 },
+  // Ratio largeur/hauteur d'une page (défaut A5 portrait).
+  ratio: { type: Number, default: 148 / 210 },
 })
 
 // Largeurs de lignes pseudo-aléatoires mais STABLES (dérivées de l'index) : une
@@ -40,14 +42,16 @@ const titleWidth = computed(() => `${Math.max(34, 62 - props.depthKey * 12)}%`)
 
 <style scoped>
 .chap-cell {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  display: flex;
   gap: 2px;
-  width: min(100%, 22em);
+  height: 100%;
+  justify-content: center;
 }
 
 .chap-folio {
-  height: 9em;
+  flex: 0 0 auto;
+  height: 100%;
+  aspect-ratio: var(--maq-ratio, 0.7);
   padding: 0.9em 0.8em;
   border: 1px solid var(--c-border);
   border-radius: var(--radius-sm);

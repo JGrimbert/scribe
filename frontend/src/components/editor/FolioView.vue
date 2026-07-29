@@ -317,9 +317,24 @@ function runningTitlesSignature(rt) {
   overflow: hidden;
 }
 
+/* Double-page (lecture) : hauteur venue du parent flex (indépendante du contenu
+   → pas de boucle d'échelle, comme --edit), planche centrée, pages au-delà de la
+   planche clippées. Le parent doit être une colonne flex qui lui donne une hauteur. */
+.folio-view--spread {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
 .folio-scroll {
   width: 100%;
   height: 100%;
+}
+
+.folio-view--spread .folio-scroll {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* Respiration généreuse autour de la rangée de pages (cf. EDIT_PAD, que fitScale

@@ -1,7 +1,7 @@
 <template>
   <!-- Un vis-à-vis liminaire dans l'accordéon Maquette : les deux folios physiques
        (verso · recto), rendus par LiminaireFolio comme dans LiminaireAccordeon. -->
-  <div class="lim-cell">
+  <div class="lim-cell" :style="{ '--maq-ratio': ratio }">
     <div
         v-for="(cell, ci) in [spread.left, spread.right]"
         :key="ci"
@@ -20,6 +20,8 @@ const props = defineProps({
   spread: { type: Object, required: true },
   types: { type: Object, required: true },
   suggestions: { type: Object, required: true },
+  // Ratio largeur/hauteur d'une page (défaut A5 portrait).
+  ratio: { type: Number, default: 148 / 210 },
 })
 
 function typeOf(cell) {
@@ -33,14 +35,24 @@ function suggestionOf(cell) {
 
 <style scoped>
 .lim-cell {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  display: flex;
   gap: 2px;
-  width: min(100%, 22em);
+  height: 100%;
+  justify-content: center;
 }
 
 .lim-slot {
   display: flex;
+  height: 100%;
+}
+
+/* La cellule impose la HAUTEUR (celle du cran) et le ratio de la page effective ;
+   LiminaireFolio, sinon dimensionné en largeur (max-width + aspect 1/1.414), suit. */
+.lim-slot :deep(.folio) {
+  height: 100%;
+  width: auto;
+  max-width: none;
+  aspect-ratio: var(--maq-ratio, 0.7);
 }
 
 /* La reliure : le bord intérieur (droite du verso, gauche du recto) plus marqué —

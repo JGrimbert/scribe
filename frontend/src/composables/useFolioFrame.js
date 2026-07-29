@@ -58,7 +58,9 @@ export function useFolioFrame(props, { frameRef, frameDoc, blocks, section, onRe
       // fragment). Les titres restent courts, l'effet ne s'y voit pas.
       '.pagedjs_page_content{outline:1px dotted #d6d6d6;text-align:justify;}',
     ].join('')
-    const layout = props.mode === 'edit' ? '' : '.pagedjs_pages{display:block;} .pagedjs_page{margin:0;}'
+    // `read` empile les pages (aperçu vertical d'UNE page) ; `edit`/`spread`
+    // gardent la rangée horizontale de paged.css (pages côte à côte).
+    const layout = props.mode === 'read' ? '.pagedjs_pages{display:block;} .pagedjs_page{margin:0;}' : ''
     boot.textContent = common + layout
     doc.head.appendChild(boot)
 

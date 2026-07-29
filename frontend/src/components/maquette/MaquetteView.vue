@@ -11,6 +11,9 @@
     <div class="maquette__panels">
       <AnalyseBlock aside="right" bare>
         <template #main>
+          <!-- Scroll propre à la colonne (le DS proscrit les barres natives) : la
+               page ne scrolle plus globalement, chaque colonne défile chez elle. -->
+          <CustomScrollbar class="maquette__col">
           <!-- Source 1 — l'aperçu au centre, dimensions au-dessus, marges en cadre. -->
           <section v-if="focusedSourceKey === 'maquette'" class="maquette__main">
             <h2 class="maquette__title">Maquette — format de page</h2>
@@ -51,29 +54,18 @@
             />
           </section>
 
-          <!-- Borne de fin du liminaire (jalon focusé). -->
-          <section v-else-if="focusedRole === 'liminaire-border'" class="maquette__main">
-            <h2 class="maquette__title">Fin du liminaire</h2>
-            <UiCallout v-if="limBorderShift > 0" tone="error" title="Aperçu — rien n'est enregistré">
-              Liminaire étendu de {{ limBorderShift }} chapitre{{ limBorderShift > 1 ? 's' : '' }}. Seul un
-              recalibrage déplace la borne pour de bon — le câblage de persistance viendra ensuite.
-            </UiCallout>
-            <p class="maquette__placeholder">
-              Étends ou réduis le liminaire depuis la borne, dans le dock ci-dessous ; les vis-à-vis se
-              recomposent en direct.
-            </p>
-          </section>
-
-          <!-- Sources restantes / jalons nus — placeholder. -->
+          <!-- Sources restantes — placeholder. -->
           <section v-else class="maquette__main">
             <h2 class="maquette__title">{{ focusedTitle }}</h2>
             <p class="maquette__placeholder">
               Inputs du composant relatif à la source focusée — à câbler.
             </p>
           </section>
+          </CustomScrollbar>
         </template>
 
         <template #aside>
+          <CustomScrollbar class="maquette__col">
           <aside v-if="focusedSourceKey === 'maquette'" class="maquette__aside">
             <h3 class="maquette__aside-title">En-têtes et pieds</h3>
             <div class="fmt-bands">
@@ -81,12 +73,20 @@
               <RunningBandControl :band="styleDefaults.runningTitles.footer" label="Pied de page" icon="pi-angle-down" symmetric allow-folio always-open />
             </div>
           </aside>
-          <aside
-              v-else-if="focusedSourceKey === 'liminaire' || focusedRole === 'liminaire-border'"
-              class="maquette__aside"
-          >
+          <aside v-else-if="focusedSourceKey === 'liminaire'" class="maquette__aside">
             <h3 class="maquette__aside-title">Éligibilité</h3>
             <LiminaireEligibilite :elig="limElig" />
+
+            <!-- Fin du liminaire : étendre/exclure, migré du jalon (désormais
+                 informatif) vers l'aside, tout en bas du flux. -->
+            <h3 class="maquette__aside-title maquette__aside-title--spaced">Fin du liminaire</h3>
+            <MaquetteLiminaireJalon
+                :can-extend="limCanExtend"
+                :next-title="limNextTitle"
+                :border-shift="limBorderShift"
+                @extend="extendLiminaire"
+                @exclude="excludeLiminaire"
+            />
           </aside>
           <!-- Chapitrage : la table des styles (rôle · exigé · succession) à droite. -->
           <aside v-else-if="focusedSourceKey === 'chapitrage' && focusedSection" class="maquette__aside">
@@ -103,6 +103,7 @@
           <aside v-else class="maquette__aside">
             <p class="maquette__placeholder">Aperçu / réglages secondaires — à câbler.</p>
           </aside>
+          </CustomScrollbar>
         </template>
       </AnalyseBlock>
     </div>
@@ -119,7 +120,9 @@
         >
           <!-- La cellule du vis-à-vis dépend de la source : la maquette montre un
                aperçu de page, le liminaire ses folios physiques, le chapitrage un
-               vis-à-vis greeké, les autres un vis-à-vis nu. -->
+               vis-à-vis greeké, les autres un vis-à-vis nu. Toutes au ratio de la
+               page effective (previewRatio). L'accordéon rend lui-même les onglets
+               d'entrée de série (jalons informatifs), plus de slot #jalon. -->
           <template #spread="{ cran }">
             <PageDiagram
                 v-if="cran.sourceKey === 'maquette'"
@@ -133,26 +136,14 @@
                 :spread="limSpreads[cran.spreadIndex]"
                 :types="limTypes"
                 :suggestions="limSuggestions"
+                :ratio="previewRatio"
             />
             <MaquetteChapitreCell
                 v-else-if="cran.sourceKey === 'chapitrage'"
                 :depth-key="cran.depthKey"
+                :ratio="previewRatio"
             />
-            <MaquetteSpreadCell v-else />
-          </template>
-
-          <!-- Les jalons : la borne de fin du liminaire porte l'action étendre/
-               exclure ; les autres restent de simples marqueurs. -->
-          <template #jalon="{ cran }">
-            <MaquetteLiminaireJalon
-                v-if="cran.role === 'liminaire-border'"
-                :can-extend="limCanExtend"
-                :next-title="limNextTitle"
-                :border-shift="limBorderShift"
-                @extend="extendLiminaire"
-                @exclude="excludeLiminaire"
-            />
-            <MaquetteJalonCard v-else :label="cran.label" />
+            <MaquetteSpreadCell v-else :ratio="previewRatio" />
           </template>
         </MaquetteAccordeon>
       </div>
@@ -178,8 +169,8 @@ import MaquetteLiminaireCell from './MaquetteLiminaireCell.vue'
 import MaquetteChapitreCell from './MaquetteChapitreCell.vue'
 import MaquetteChapitrage from './MaquetteChapitrage.vue'
 import MaquetteLiminaireJalon from './MaquetteLiminaireJalon.vue'
-import MaquetteJalonCard from './MaquetteJalonCard.vue'
 import AnalyseBlock from '../analyse/AnalyseBlock.vue'
+import CustomScrollbar from '../ui/atoms/CustomScrollbar.vue'
 import RunningBandControl from '../config/RunningBandControl.vue'
 import PageDiagram from '../config/PageDiagram.vue'
 import StyleRolesTable from '../config/StyleRolesTable.vue'
@@ -187,7 +178,6 @@ import StyleEditorPanel from '../config/StyleEditorPanel.vue'
 import AccordeonControls from '../liminaire/AccordeonControls.vue'
 import LiminaireDecoupage from '../liminaire/LiminaireDecoupage.vue'
 import LiminaireEligibilite from '../liminaire/LiminaireEligibilite.vue'
-import UiCallout from '../ui/atoms/UiCallout.vue'
 import { effectivePage, effectiveMargins } from '../../script/pageFormats'
 import { useTypologyConfig } from '../../composables/useTypologyConfig'
 import { useLiminaireBornes } from '../../composables/useLiminaireBornes'
@@ -256,42 +246,47 @@ const chapSections = computed(() =>
     .map((s) => ({ ...s, ruleSet: rules.byDepth[s.depthKey] ?? null, defaultRuleSet: rules.default })),
 )
 
-// ── Crans : maquette · [vis-à-vis liminaire] · [niveaux de chapitrage], jalons
-// intercalés. Liminaire et chapitrage portent AUTANT de crans que de vis-à-vis /
-// de niveaux (dynamique). Chaque cran mémorise de quoi retrouver son contenu.
-const crans = computed(() => {
+// ── Séries : Format · Liminaire · Chapitrage n°1 · n°2… Chaque série est une
+// suite de vis-à-vis, précédée dans l'accordéon de son onglet d'entrée (jalon
+// informatif). Le liminaire porte autant de vis-à-vis que de planches, le
+// chapitrage une par niveau.
+const series = computed(() => {
   const out = []
-  const push = (sourceKey, label, extra = {}) => out.push({ kind: 'spread', sourceKey, label, ...extra })
-  const jalon = (label) => out.push({ kind: 'jalon', label })
-
-  push('maquette', 'Maquette')
-  jalon('Maquette → Liminaire')
+  out.push({ key: 'format', label: 'Format', spreads: [{ sourceKey: 'maquette' }] })
 
   const sp = limSpreads.value
-  if (sp.length) sp.forEach((_, i) => push('liminaire', 'Liminaire', { spreadIndex: i }))
-  else push('liminaire', 'Liminaire', { spreadIndex: 0 })
+  out.push({
+    key: 'liminaire',
+    label: 'Liminaire',
+    spreads: (sp.length ? sp : [null]).map((_, i) => ({ sourceKey: 'liminaire', spreadIndex: i })),
+  })
 
-  // Ce jalon EST la borne de fin du liminaire : il porte l'action étendre/exclure.
-  const chs = chapSections.value
-  out.push({ kind: 'jalon', label: `Liminaire → ${chs[0]?.zone.label ?? 'Chapitrage'}`, role: 'liminaire-border' })
+  chapSections.value.forEach((sec, i) => {
+    out.push({
+      key: `chap-${i}`,
+      label: `Chapitrage n°${i + 1}`,
+      spreads: [{ sourceKey: 'chapitrage', sectionIndex: i, depthKey: sec.depthKey }],
+    })
+  })
+  return out
+})
 
-  chs.forEach((sec, i) => {
-    if (i > 0) jalon(`${chs[i - 1].zone.label} → ${sec.zone.label}`)
-    push('chapitrage', sec.zone.label, { sectionIndex: i, depthKey: sec.depthKey })
+// Liste PLATE des vis-à-vis = l'unité de focus. Chaque cran porte de quoi
+// retrouver son contenu ET sa série (l'accordéon rend l'onglet d'entrée devant
+// le premier cran de chaque série).
+const crans = computed(() => {
+  const out = []
+  series.value.forEach((s, si) => {
+    s.spreads.forEach((sp, spi) => {
+      out.push({ ...sp, seriesIndex: si, seriesKey: s.key, seriesLabel: s.label, isSeriesStart: spi === 0 })
+    })
   })
   return out
 })
 
 const focusedCran = computed(() => crans.value[focused.value] ?? null)
-// Clé de la source focusée (null sur un jalon → panneau placeholder).
 const focusedSourceKey = computed(() => focusedCran.value?.sourceKey ?? null)
-// Rôle du cran focusé (les jalons peuvent en porter un, ex. la borne liminaire).
-const focusedRole = computed(() => focusedCran.value?.role ?? null)
-const focusedTitle = computed(() => {
-  const cran = focusedCran.value
-  if (!cran) return ''
-  return cran.kind === 'jalon' ? `Jalon · ${cran.label}` : cran.label
-})
+const focusedTitle = computed(() => focusedCran.value?.seriesLabel ?? '')
 
 // Section de chapitrage focusée (null hors d'un cran chapitrage).
 const focusedSection = computed(() => {
@@ -300,20 +295,11 @@ const focusedSection = computed(() => {
   return chapSections.value[cran.sectionIndex] ?? null
 })
 
-// Étendre/exclure recompose les vis-à-vis liminaire (donc les crans) : on garde le
-// focus SUR la borne pour que la scène reste centrée sur le geste en cours.
-function focusBorderJalon() {
-  const i = crans.value.findIndex((c) => c.role === 'liminaire-border')
-  if (i >= 0) focused.value = i
-}
-function extendLiminaire() {
-  limBorderShift.value++
-  focusBorderJalon()
-}
-function excludeLiminaire() {
-  if (limBorderShift.value > 0) limBorderShift.value--
-  focusBorderJalon()
-}
+// Fin du liminaire (migrée du jalon vers l'aside — le jalon n'est plus qu'un
+// marqueur informatif) : étendre absorbe le chapitre suivant, exclure relâche le
+// dernier. Aperçu seul (recomposition des crans dans le même tick, non persisté).
+function extendLiminaire() { limBorderShift.value++ }
+function excludeLiminaire() { if (limBorderShift.value > 0) limBorderShift.value-- }
 
 // Focus liminaire LOCAL (index de planche) dérivé du focus global, et l'inverse.
 const limStart = computed(() => crans.value.findIndex((c) => c.sourceKey === 'liminaire'))
@@ -337,6 +323,13 @@ const previewPage = computed(() => effectivePage(fmtPage.value, styleDefaults.pa
 const previewMargins = computed(() => ({ ...effectiveMargins(fmtPage.value, styleDefaults.pageMargins) }))
 const previewRunningTitles = computed(() => JSON.parse(JSON.stringify(styleDefaults.runningTitles)))
 
+// Ratio largeur/hauteur de la page effective : les cellules de l'accordéon
+// l'adoptent pour partager le FORMAT des folios du main (A5 par défaut).
+const previewRatio = computed(() => {
+  const p = previewPage.value
+  return p && p.widthCm && p.heightCm ? p.widthCm / p.heightCm : 148 / 210
+})
+
 // ── Persistance : l'action « Enregistrer » vit dans la doc-bar (slot d'action
 // globale, contextuel par écran), comme la config y pose « Redéfinir les bornes ».
 const barAction = inject('documentBarAction', null)
@@ -353,24 +346,52 @@ onUnmounted(() => { if (barAction) barAction.value = null })
 </script>
 
 <style scoped>
+/* Colonne flex : doc-bar réservée en haut, panneaux au milieu (scroll par
+   colonne), dock en bas — tout trois fixes, seul le contenu d'une colonne défile. */
 .maquette {
-  position: relative;
+  display: flex;
+  flex-direction: column;
   height: 100%;
   overflow: hidden;
+  /* Le haut ne passe plus sous la doc-bar flottante (aligné sur ConfigView). */
+  padding-top: calc(var(--bar-size) + 1.25em);
 }
 
+/* Prend la hauteur restante ; ne scrolle PAS globalement (chaque colonne porte sa
+   propre CustomScrollbar). Padding horizontal seul — le haut vient de .maquette. */
 .maquette__panels {
-  height: 100%;
-  overflow: auto;
-  padding: var(--sp-5);
-  /* Réserve la place du dock (hors flux) pour que rien ne se cache dessous. */
-  padding-bottom: 16em;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0 var(--sp-5);
 }
 
+/* Le split remplit la hauteur des panneaux et étire ses colonnes (le mode bare
+   les alignait en haut) → chaque CustomScrollbar de colonne a un parent borné. */
+.maquette__panels :deep(.split) {
+  height: 100%;
+  margin-bottom: 0;
+  align-items: stretch;
+}
+
+.maquette__panels :deep(.split-main),
+.maquette__panels :deep(.split-right) {
+  min-height: 0;
+}
+
+/* La CustomScrollbar remplit sa colonne ; son parent bare peut la figer en
+   flex:0 0 auto — height:100% (interne) la laisse quand même occuper toute la colonne. */
+.maquette__col {
+  height: 100%;
+}
+
+/* Chaque section de source remplit AU MOINS la colonne (pour que le FolioView
+   double-page reçoive une hauteur bornée) et déborde en scroll si besoin. */
 .maquette__main {
   display: flex;
   flex-direction: column;
   gap: var(--sp-4);
+  min-height: 100%;
 }
 
 .maquette__title {
@@ -392,6 +413,14 @@ onUnmounted(() => { if (barAction) barAction.value = null })
   font-weight: 600;
 }
 
+/* Deuxième titre d'une même colonne aside (ex. « Fin du liminaire ») : séparé du
+   bloc précédent. */
+.maquette__aside-title--spaced {
+  margin-top: var(--sp-4);
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--c-border);
+}
+
 .maquette__placeholder {
   margin: 0;
   color: var(--c-ink2);
@@ -404,30 +433,32 @@ onUnmounted(() => { if (barAction) barAction.value = null })
   gap: var(--sp-2);
 }
 
-/* Aperçu de page dans la cellule d'accordéon : borné à la largeur d'un vis-à-vis. */
+/* Aperçu de page dans la cellule d'accordéon : ajusté sur la HAUTEUR du cran (le
+   SVG double-page suit son ratio), pour partager le format des autres cellules. */
 .maq-format-cell {
-  width: min(100%, 22em);
+  height: 100%;
   margin: 0;
 }
 
-/* Dock hors du flux, collé au bord bas. Fond transparent (les folios flottent au
-   ras des panneaux). Structure flex 2:1 identique à `.split` : l'accordéon ne
-   couvre que la zone main. */
+.maq-format-cell :deep(svg) {
+  height: 100%;
+  width: auto;
+  max-width: none;
+}
+
+/* Dock EN FLUX en bas de la colonne (il réserve sa hauteur, les panneaux prennent
+   le reste). Fond transparent. Structure flex 2:1 identique à `.split` : l'accordéon
+   ne couvre que la zone main. */
 .maquette__dock {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  flex: 0 0 auto;
   display: flex;
   gap: var(--sp-4);
   padding: 0 var(--sp-5) var(--sp-4);
-  pointer-events: none;
 }
 
 .maquette__dock-main {
   flex: 2 1 0;
   min-width: 0;
-  pointer-events: auto;
 }
 
 .maquette__dock-aside {
