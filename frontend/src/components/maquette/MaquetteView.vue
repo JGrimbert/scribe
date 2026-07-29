@@ -35,6 +35,19 @@
             <LiminaireDecoupage :pages="limFocusedPages" :config="liminaireConfig" :empty-label="limEmptyLabel" />
           </section>
 
+          <!-- Borne de fin du liminaire (jalon focusé). -->
+          <section v-else-if="focusedRole === 'liminaire-border'" class="maquette__main">
+            <h2 class="maquette__title">Fin du liminaire</h2>
+            <UiCallout v-if="limBorderShift > 0" tone="error" title="Aperçu — rien n'est enregistré">
+              Liminaire étendu de {{ limBorderShift }} chapitre{{ limBorderShift > 1 ? 's' : '' }}. Seul un
+              recalibrage déplace la borne pour de bon — le câblage de persistance viendra ensuite.
+            </UiCallout>
+            <p class="maquette__placeholder">
+              Étends ou réduis le liminaire depuis la borne, dans le dock ci-dessous ; les vis-à-vis se
+              recomposent en direct.
+            </p>
+          </section>
+
           <!-- Sources 3-4 — placeholder. -->
           <section v-else class="maquette__main">
             <h2 class="maquette__title">{{ focusedTitle }}</h2>
@@ -52,7 +65,10 @@
               <RunningBandControl :band="fmt.runningTitles.footer" label="Pied de page" icon="pi-angle-down" symmetric allow-folio always-open />
             </div>
           </aside>
-          <aside v-else-if="focusedSourceKey === 'liminaire'" class="maquette__aside">
+          <aside
+              v-else-if="focusedSourceKey === 'liminaire' || focusedRole === 'liminaire-border'"
+              class="maquette__aside"
+          >
             <h3 class="maquette__aside-title">Éligibilité</h3>
             <LiminaireEligibilite :elig="limElig" />
           </aside>
@@ -92,6 +108,20 @@
             />
             <MaquetteSpreadCell v-else />
           </template>
+
+          <!-- Les jalons : la borne de fin du liminaire porte l'action étendre/
+               exclure ; les autres restent de simples marqueurs. -->
+          <template #jalon="{ cran }">
+            <MaquetteLiminaireJalon
+                v-if="cran.role === 'liminaire-border'"
+                :can-extend="limCanExtend"
+                :next-title="limNextTitle"
+                :border-shift="limBorderShift"
+                @extend="extendLiminaire"
+                @exclude="excludeLiminaire"
+            />
+            <MaquetteJalonCard v-else :label="cran.label" />
+          </template>
         </MaquetteAccordeon>
       </div>
       <div class="maquette__dock-aside" aria-hidden="true"></div>
@@ -106,12 +136,15 @@ import MaquetteAccordeon from './MaquetteAccordeon.vue'
 import MaquetteSpreadCell from './MaquetteSpreadCell.vue'
 import MaquetteFormatFrame from './MaquetteFormatFrame.vue'
 import MaquetteLiminaireCell from './MaquetteLiminaireCell.vue'
+import MaquetteLiminaireJalon from './MaquetteLiminaireJalon.vue'
+import MaquetteJalonCard from './MaquetteJalonCard.vue'
 import AnalyseBlock from '../analyse/AnalyseBlock.vue'
 import RunningBandControl from '../config/RunningBandControl.vue'
 import PageDiagram from '../config/PageDiagram.vue'
 import AccordeonControls from '../liminaire/AccordeonControls.vue'
 import LiminaireDecoupage from '../liminaire/LiminaireDecoupage.vue'
 import LiminaireEligibilite from '../liminaire/LiminaireEligibilite.vue'
+import UiCallout from '../ui/atoms/UiCallout.vue'
 import { effectivePage, effectiveMargins } from '../../script/pageFormats'
 import { useTypologyConfig } from '../../composables/useTypologyConfig'
 import { useLiminaireBornes } from '../../composables/useLiminaireBornes'
@@ -130,7 +163,14 @@ const documentTitle = inject('documentTitle', null)
 const { liminaireConfig, load } = useTypologyConfig()
 onMounted(() => { if (route.params.id) load(route.params.id) })
 
-const { liminairePages } = useLiminaireBornes(trame, documentData, liminaireConfig)
+// borderShift = déplacement LOCAL de la borne de fin (aperçu, non persisté). Étendre
+// absorbe le chapitre suivant dans le liminaire, exclure relâche le dernier.
+const {
+  liminairePages,
+  borderShift: limBorderShift,
+  canExtend: limCanExtend,
+  nextTitle: limNextTitle,
+} = useLiminaireBornes(trame, documentData, liminaireConfig)
 
 const focused = ref(0)
 
@@ -160,7 +200,8 @@ const crans = computed(() => {
   const sp = limSpreads.value
   if (sp.length) sp.forEach((_, i) => push('liminaire', 'Liminaire', { spreadIndex: i }))
   else push('liminaire', 'Liminaire', { spreadIndex: 0 })
-  jalon('Liminaire → Chapitrage n1')
+  // Ce jalon EST la borne de fin du liminaire : il porte l'action étendre/exclure.
+  out.push({ kind: 'jalon', label: 'Liminaire → Chapitrage n1', role: 'liminaire-border' })
 
   push('chap1', 'Chapitrage n1')
   jalon('Chapitrage n1 → Chapitrage n2')
@@ -171,11 +212,28 @@ const crans = computed(() => {
 const focusedCran = computed(() => crans.value[focused.value] ?? null)
 // Clé de la source focusée (null sur un jalon → panneau placeholder).
 const focusedSourceKey = computed(() => focusedCran.value?.sourceKey ?? null)
+// Rôle du cran focusé (les jalons peuvent en porter un, ex. la borne liminaire).
+const focusedRole = computed(() => focusedCran.value?.role ?? null)
 const focusedTitle = computed(() => {
   const cran = focusedCran.value
   if (!cran) return ''
   return cran.kind === 'jalon' ? `Jalon · ${cran.label}` : cran.label
 })
+
+// Étendre/exclure recompose les vis-à-vis liminaire (donc les crans) : on garde le
+// focus SUR la borne pour que la scène reste centrée sur le geste en cours.
+function focusBorderJalon() {
+  const i = crans.value.findIndex((c) => c.role === 'liminaire-border')
+  if (i >= 0) focused.value = i
+}
+function extendLiminaire() {
+  limBorderShift.value++
+  focusBorderJalon()
+}
+function excludeLiminaire() {
+  if (limBorderShift.value > 0) limBorderShift.value--
+  focusBorderJalon()
+}
 
 // Focus liminaire LOCAL (index de planche) dérivé du focus global, et l'inverse.
 const limStart = computed(() => crans.value.findIndex((c) => c.sourceKey === 'liminaire'))

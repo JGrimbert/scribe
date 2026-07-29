@@ -32,14 +32,12 @@
           <div class="maq-source-tag">{{ cran.label }}</div>
         </template>
 
-        <!-- Jalon = frontière entre deux sources, un cran d'action (comme le cran
-             terminal du liminaire). Placeholder tant que les sources ne sont pas
-             câblées. -->
-        <div v-else class="maq-jalon-card">
-          <i class="pi pi-flag-fill" aria-hidden="true"></i>
-          <span class="maq-jalon-label">{{ cran.label }}</span>
-          <button type="button" class="maq-jalon-action" @click.stop>Action</button>
-        </div>
+        <!-- Jalon = frontière entre deux sources, un cran d'action. Son rendu est
+             délégué au parent (une frontière peut porter un geste — ex. étendre le
+             liminaire) ; défaut = simple marqueur. -->
+        <slot v-else name="jalon" :cran="cran">
+          <MaquetteJalonCard :label="cran.label" />
+        </slot>
       </div>
     </div>
 
@@ -55,6 +53,7 @@
 import { computed } from 'vue'
 import AccordeonRail from '../liminaire/AccordeonRail.vue'
 import MaquetteSpreadCell from './MaquetteSpreadCell.vue'
+import MaquetteJalonCard from './MaquetteJalonCard.vue'
 import { useWheelStepper } from '../../composables/useWheelStepper'
 
 const props = defineProps({
@@ -140,7 +139,7 @@ const { onWheel } = useWheelStepper({
   }
 
   &.is-jalon {
-    width: min(12em, 100%);
+    width: min(16em, 100%);
   }
 }
 
@@ -169,38 +168,4 @@ const { onWheel } = useWheelStepper({
   color: var(--c-ink2);
 }
 
-.maq-jalon-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--sp-2);
-  height: 9em;
-  padding: var(--sp-3);
-  border: 1px dashed var(--c-border);
-  border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--c-accent-alt-darker) 5%, var(--c-surface));
-
-  i {
-    color: var(--c-accent-alt-darker);
-    font-size: var(--fs-lg);
-  }
-}
-
-.maq-jalon-label {
-  text-align: center;
-  font-size: var(--fs-xs);
-  color: var(--c-ink2);
-}
-
-.maq-jalon-action {
-  margin-top: auto;
-  padding: var(--sp-1) var(--sp-3);
-  border: 1px solid var(--c-border);
-  border-radius: var(--radius-sm);
-  background: var(--c-surface0);
-  color: inherit;
-  font: inherit;
-  font-size: var(--fs-xs);
-  cursor: pointer;
-}
 </style>
