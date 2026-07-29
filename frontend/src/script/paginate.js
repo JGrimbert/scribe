@@ -136,3 +136,42 @@ export function buildBlocks(sections) {
 
     return blocks
 }
+
+// Blocs d'une PLANCHE d'imposition (aperçu maquette) : une liste ordonnée de pages
+// à rendre côte à côte dans UN seul flow Paged.js, à l'échelle du mode `spread`.
+// Chaque page est un « slot » : `content` (ses entrées, styleName → visuals, sans
+// titre), ou `blank`/`cover`/`empty` (page réelle vide, éventuellement libellée).
+// Le premier bloc de chaque slot (sauf le 1er) porte `breakBefore` → useFolioFrame
+// force un `break-before:page`, donc N slots = N pages exactement (chaque page de
+// contenu tient sur une page physique du .odt, on ne recompose pas).
+export function buildImpositionBlocks(pages) {
+    const blocks = []
+
+    ;(pages || []).forEach((page, pi) => {
+        const first = pi > 0 // marque de saut sur la 1re boîte du slot
+
+        if (page.kind === 'content' && (page.entries?.length)) {
+            page.entries.forEach((entry, index) => {
+                const e = typeof entry === 'string' ? { type: 'paragraph', text: entry } : entry
+                blocks.push({
+                    id: `imp_${pi}_${index}`,
+                    styleName: e.styleName,
+                    breakBefore: first && index === 0,
+                    html: renderTexteEntry(e),
+                })
+            })
+            return
+        }
+
+        // blank | cover | empty (ou content sans entrée) : une page réelle vide.
+        const kind = page.kind === 'content' ? 'empty' : page.kind
+        const label = page.label ? `<span class="imp-slot-label">${page.label}</span>` : ''
+        blocks.push({
+            id: `imp_${pi}_slot`,
+            breakBefore: first,
+            html: `<div class="imp-slot imp-slot--${kind}">${label}</div>`,
+        })
+    })
+
+    return blocks
+}

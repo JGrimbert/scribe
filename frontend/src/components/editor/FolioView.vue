@@ -72,7 +72,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import QuillBlock from './QuillBlock.vue'
 import CustomScrollbar from '../ui/atoms/CustomScrollbar.vue'
-import { buildBlocks } from '../../script/paginate.js'
+import { buildBlocks, buildImpositionBlocks } from '../../script/paginate.js'
 import { syncQuillToFragment } from '../../script/syncQuill.js'
 import { useFakeCaret } from '../../composables/useFakeCaret.js'
 import { useFloatingToolbar } from '../../composables/useFloatingToolbar.js'
@@ -109,6 +109,14 @@ const props = defineProps({
   // désactivés. `bookTitle` alimente l'en-tête ; le nom du chapitre vient du nœud.
   runningTitles: { type: Object, default: null },
   bookTitle: { type: String, default: '' },
+  // Planche d'IMPOSITION (aperçu maquette, mode `spread`) : liste ordonnée de
+  // pages `{ kind: 'content'|'blank'|'cover'|'empty', entries?, label? }` rendues
+  // côte à côte dans un seul flow. Quand fournie, elle remplace la pagination du
+  // nœud (nodeId/data ignorés). Cf. buildImpositionBlocks.
+  spreadPages: { type: Array, default: null },
+  // Trace la croix « maquette » (diagonales) sur l'empagement de chaque page —
+  // réservé à l'aperçu de format (pages vides).
+  bodyCross: { type: Boolean, default: false },
   // Debug : rendre visible le Quill flottant (sinon seul le miroir Folio l'est).
   quillVisible: { type: Boolean, default: false },
 })
@@ -140,9 +148,12 @@ function frameOffset() {
 // est l'OWNER du registre : muté en place par l'édition (son `texte` est le même
 // tableau que data[nodeId], donc les modifs persistent).
 const item = computed(() => (props.nodeId ? props.data?.[props.nodeId] : null))
-const hasContent = computed(() => !!item.value)
+const hasContent = computed(() => !!item.value || (props.spreadPages?.length ?? 0) > 0)
 const section = computed(() => (item.value ? { ...item.value, id: props.nodeId, depth: props.depth } : null))
-const blocks = computed(() => (section.value ? buildBlocks([section.value]) : []))
+const blocks = computed(() => {
+  if (props.spreadPages) return buildImpositionBlocks(props.spreadPages)
+  return section.value ? buildBlocks([section.value]) : []
+})
 
 const { scaleRef, scalePercent, fitScale } = useFolioScale(props, {
   rootRef,
@@ -264,7 +275,7 @@ onBeforeUnmount(teardown)
 // Changement de nœud/niveau : repagine. L'édition, elle, repagine via refresh()
 // (appelé par useFragmentEditor) — pas besoin d'observer le contenu ici, ce qui
 // éviterait de repaginer deux fois après une frappe.
-watch(() => [props.nodeId, props.depth], refresh)
+watch(() => [props.nodeId, props.depth, props.spreadPages, props.bodyCross], refresh)
 
 // Changement d'apparence/césure (aperçu de config édité en direct) : repagine, mais
 // DÉBOUNCÉ — la frappe dans un champ (corps, interligne) sinon repaginerait à chaque

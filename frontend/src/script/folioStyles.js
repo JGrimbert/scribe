@@ -73,6 +73,36 @@ export function runningReserves(runningTitles) {
   return { top, bottom }
 }
 
+// Guides « maquette » de l'aperçu de FORMAT (pages vides, `bodyCross`) : l'aperçu
+// est un GABARIT — on ne veut QUE du gris typographique. Empagement lisible + croix
+// du corps ; en-tête/pied matérialisés par des BARRES GRISES (pas de vrai titre
+// courant ni folio, masqués via `.pagedjs_margin-content`). Les pages étant VIDES,
+// `overflow:visible` sur la zone de contenu laisse les barres, posées dans le blanc
+// de tête/pied (hors zone de contenu), s'afficher sans être rognées.
+const GUIDE_LINE = '#b8b8b8'
+const GUIDE_FILL = '#c9c9c9' // gris typographique des barres en-tête/pied
+const BODY_CROSS =
+  'linear-gradient(to top right,transparent calc(50% - .5px),#d9d9d9 calc(50% - .5px),#d9d9d9 calc(50% + .5px),transparent calc(50% + .5px)),'
+  + 'linear-gradient(to bottom right,transparent calc(50% - .5px),#d9d9d9 calc(50% - .5px),#d9d9d9 calc(50% + .5px),transparent calc(50% + .5px))'
+
+export function buildFormatGuidesCss(runningTitles) {
+  const rt = runningTitles || {}
+  const parts = [
+    `.pagedjs_page_content{position:relative;overflow:visible;outline:1px solid ${GUIDE_LINE};background-image:${BODY_CROSS};}`,
+    // Que du gris typographique : pas de vrai titre courant / folio sur le format.
+    '.pagedjs_margin-content{display:none;}',
+  ]
+  // La barre grise colle au bord de l'empagement (au-dessus/au-dessous du corps),
+  // séparée du corps par le blanc `RUNNING_GAP_CM` (cf. runningReserves).
+  if (rt.header?.enabled) {
+    parts.push(`.pagedjs_page_content::before{content:"";position:absolute;left:0;right:0;bottom:calc(100% + ${RUNNING_GAP_CM}cm);height:${bandHeightCm(rt.header)}cm;background:${GUIDE_FILL};}`)
+  }
+  if (rt.footer?.enabled) {
+    parts.push(`.pagedjs_page_content::after{content:"";position:absolute;left:0;right:0;top:calc(100% + ${RUNNING_GAP_CM}cm);height:${bandHeightCm(rt.footer)}cm;background:${GUIDE_FILL};}`)
+  }
+  return parts.join('')
+}
+
 // Format de page (dimensions + marges) → règles @page pour Paged.js. Passées à
 // preview() APRÈS paged.css : leurs descripteurs @page l'emportent (les règles
 // @page fusionnent, la dernière gagne). Avec marges MIROIR (`margins`), la base
@@ -183,7 +213,12 @@ const RUNNING_BOX_BASE = 'font-size:9pt;color:#666;'
 const TOP_BOX = `${RUNNING_BOX_BASE}vertical-align:bottom;padding-bottom:${RUNNING_GAP_CM}cm;`
 const BOTTOM_BOX = `${RUNNING_BOX_BASE}vertical-align:top;padding-top:${RUNNING_GAP_CM}cm;`
 
-export function buildRunningTitlesCss(running, { bookTitle = '', chapterTitle = '' } = {}) {
+// `swapParity` : dans l'aperçu de planche (mode `spread`), les pages sont affichées
+// dans l'ordre séquentiel (page 1 recto à GAUCHE, page 2 verso à DROITE), inversé
+// d'une vraie planche livre (verso à gauche, recto à droite). Pour que le folio et
+// les titres courants tombent au bon coin (extérieur), on échange la PAGE ciblée
+// (@page:left ↔ :right) — le côté logique et le contenu, eux, ne changent pas.
+export function buildRunningTitlesCss(running, { bookTitle = '', chapterTitle = '', swapParity = false } = {}) {
   if (!running) return ''
   const { header, footer } = running
   if (!header?.enabled && !footer?.enabled) return ''
@@ -191,7 +226,7 @@ export function buildRunningTitlesCss(running, { bookTitle = '', chapterTitle = 
   const contentFor = (which) => {
     if (which === 'titre') return cssString(bookTitle)
     if (which === 'chapitre') return cssString(chapterTitle)
-    if (which === 'folio') return '"?"' // numéro de page (placeholder)
+    if (which === 'folio') return '"XX"' // numéro de page (placeholder ; XX à paginer)
     return 'none' // 'aucun'
   }
   const rules = []
@@ -204,7 +239,8 @@ export function buildRunningTitlesCss(running, { bookTitle = '', chapterTitle = 
     const place = (side, pageSel, value) => {
       if (value === 'none') return
       const pos = regard ? (side === 'recto' ? 'right' : 'left') : 'center'
-      rules.push(`@page:${pageSel}{@${edge}-${pos}{content:${value};${box}}}`)
+      const sel = swapParity ? (pageSel === 'right' ? 'left' : 'right') : pageSel
+      rules.push(`@page:${sel}{@${edge}-${pos}{content:${value};${box}}}`)
     }
     place('recto', 'right', contentFor(band.recto))
     place('verso', 'left', contentFor(band.verso))

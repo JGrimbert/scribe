@@ -149,14 +149,24 @@ describe('buildRunningTitlesCss', () => {
     expect(css).not.toContain('@top-center{content:"')
   })
 
-  it('folio = contenu du pied ; « ? » placeholder', () => {
+  it('folio = contenu du pied ; « XX » placeholder', () => {
     const centre = buildRunningTitlesCss(rt({ footer: band({ enabled: true, recto: 'folio', verso: 'folio' }) }), opts)
-    expect(centre).toContain('@page:right{@bottom-center{content:"?";')
-    expect(centre).toContain('@page:left{@bottom-center{content:"?";')
+    expect(centre).toContain('@page:right{@bottom-center{content:"XX";')
+    expect(centre).toContain('@page:left{@bottom-center{content:"XX";')
 
     const regard = buildRunningTitlesCss(rt({ footer: band({ enabled: true, recto: 'folio', verso: 'folio', justification: 'regard' }) }), opts)
-    expect(regard).toContain('@page:right{@bottom-right{content:"?";')
-    expect(regard).toContain('@page:left{@bottom-left{content:"?";')
+    expect(regard).toContain('@page:right{@bottom-right{content:"XX";')
+    expect(regard).toContain('@page:left{@bottom-left{content:"XX";')
+  })
+
+  it('swapParity échange la PAGE ciblée (planche), pas le côté logique', () => {
+    // regard : recto→droite, verso→gauche ; swap → recto sur @page:left, verso sur :right.
+    const css = buildRunningTitlesCss(
+      rt({ footer: band({ enabled: true, recto: 'folio', verso: 'folio', justification: 'regard' }) }),
+      { ...opts, swapParity: true },
+    )
+    expect(css).toContain('@page:left{@bottom-right{content:"XX";')
+    expect(css).toContain('@page:right{@bottom-left{content:"XX";')
   })
 
   it('l’en-tête colle au bas de sa marge, le pied au haut (vers l’empagement)', () => {

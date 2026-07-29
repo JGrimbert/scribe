@@ -1,7 +1,21 @@
 import { ref } from 'vue'
 import { buildFragmentRegistry, createFragmentApi } from '../script/fragment.js'
 import { createRegistry } from '../script/registry.js'
-import { buildVisualsCss, buildHyphenationCss, buildPageCss, buildPagePinCss, buildRunningTitlesCss, runningReserves } from '../script/folioStyles.js'
+import { buildVisualsCss, buildHyphenationCss, buildPageCss, buildPagePinCss, buildRunningTitlesCss, buildFormatGuidesCss, runningReserves } from '../script/folioStyles.js'
+
+// Force un saut de page AVANT chaque slot d'une planche d'imposition (sauf le 1er) :
+// Paged.js n'honore les `break-before` que depuis une FEUILLE traitée par son
+// polisher — un `style=""` inline sur l'élément est ignoré. La classe est stampée
+// sur le 1er bloc de chaque slot (cf. buildImpositionBlocks / breakBefore).
+const IMPOSITION_CSS = '.imp-break{break-before:page;}'
+
+// Hachures bleutées des pages blanche / de garde — mêmes couleurs que le carrousel
+// (LiminaireFolio) : fond `aliceblue` (--c-folio-bg) rayé d'un filet tiré de
+// `--c-border` (#e0d8cc). Valeurs littérales : l'iframe est isolée (about:blank),
+// les tokens CSS de l'app n'y sont pas résolus.
+const HATCH_CSS =
+  'repeating-linear-gradient(45deg,aliceblue,aliceblue 9px,'
+  + 'color-mix(in srgb,#e0d8cc 55%,aliceblue) 9px,color-mix(in srgb,#e0d8cc 55%,aliceblue) 10px)'
 
 // URLs ABSOLUES : l'iframe sans `src` a une base `about:blank`. Le build UMD de
 // Paged.js est servi par un middleware dev (cf. vite.config.js).
@@ -35,6 +49,10 @@ export function useFolioFrame(props, { frameRef, frameDoc, blocks, section, onRe
   const fragments = ref(null)
   let frameReady = false
 
+  // Styles à NE PAS balayer entre deux repaginations : le boot, l'épingle de
+  // géométrie et les guides de format (mis à jour en place, pas régénérés).
+  const isPersistentStyle = (el) => el.id === '__boot' || el.id === '__pagepin' || el.id === '__formatguides'
+
   function buildFrame() {
     const doc = frameDoc()
     if (!doc) return
@@ -57,6 +75,23 @@ export function useFolioFrame(props, { frameRef, frameDoc, blocks, section, onRe
       // aussi ce que syncQuill recopiera sur Quill (via getComputedStyle du
       // fragment). Les titres restent courts, l'effet ne s'y voit pas.
       '.pagedjs_page_content{outline:1px dotted #d6d6d6;text-align:justify;}',
+      // Pages non-textuelles d'une planche d'imposition (blanc / garde / vide de
+      // format). Le slot est un conteneur centré ; les pages blanc/garde le centrent
+      // verticalement via la zone de contenu (hauteur définie, cf. ci-dessous).
+      '.imp-slot{display:flex;justify-content:center;}',
+      // Une page vide de FORMAT doit exister dans le flow même sans contenu.
+      '.imp-slot--empty{min-height:2cm;}',
+      // Libellé « Page blanche / de garde » : sur son propre fond (comme le
+      // carrousel), lisible sur les rayures, et de taille lisible (pas minuscule).
+      '.imp-slot-label{background:aliceblue;padding:.25em .7em;border-radius:3px;font-style:italic;color:#5b6572;font-size:1rem;}',
+      // Pages blanche / de garde : hachures bleutées sur TOUTE la page (comme le
+      // carrousel, cf. LiminaireFolio : aliceblue + filet issu de --c-border), ni
+      // bordure, ni ombre, ni empagement, ni titre courant/folio. Les classes sont
+      // posées sur les .pagedjs_page concernées après pagination (marquage DOM).
+      // La zone de contenu passe en flex centré → le libellé est centré (V+H).
+      `.pagedjs_page.folio-blank,.pagedjs_page.folio-cover{background:${HATCH_CSS};border:none;box-shadow:none;}`,
+      '.folio-blank .pagedjs_page_content,.folio-cover .pagedjs_page_content{outline:none;display:flex;align-items:center;justify-content:center;}',
+      '.folio-blank .pagedjs_margin-content,.folio-cover .pagedjs_margin-content{display:none;}',
     ].join('')
     // `read` empile les pages (aperçu vertical d'UNE page) ; `edit`/`spread`
     // gardent la rangée horizontale de paged.css (pages côte à côte).
@@ -73,6 +108,15 @@ export function useFolioFrame(props, { frameRef, frameDoc, blocks, section, onRe
     pin.id = '__pagepin'
     pin.textContent = buildPagePinCss(props.page, props.margins, runningReserves(props.runningTitles))
     doc.head.appendChild(pin)
+
+    // Guides de l'aperçu de format : feuille À PART (comme le pin), toujours créée
+    // et remplie/vidée par refresh selon `bodyCross`. Persistante → survit au ménage
+    // des styles d'une repagination et suit `bodyCross` sur l'instance unifiée
+    // (source qui change sans démonter le FolioView).
+    const guides = doc.createElement('style')
+    guides.id = '__formatguides'
+    guides.textContent = props.bodyCross ? buildFormatGuidesCss(props.runningTitles) : ''
+    doc.head.appendChild(guides)
 
     if (props.mode === 'edit') {
       const listeners = getEditListeners?.()
@@ -112,8 +156,13 @@ export function useFolioFrame(props, { frameRef, frameDoc, blocks, section, onRe
     const pin = doc.getElementById('__pagepin')
     if (pin) pin.textContent = buildPagePinCss(props.page, props.margins, runningReserves(props.runningTitles))
 
+    // Guides de format : présents seulement en `bodyCross` (sinon vidés) ; suivent
+    // les titres courants édités en direct (aside).
+    const guides = doc.getElementById('__formatguides')
+    if (guides) guides.textContent = props.bodyCross ? buildFormatGuidesCss(props.runningTitles) : ''
+
     if (!blocks.value.length) {
-      doc.head.querySelectorAll('style').forEach((el) => { if (el.id !== '__boot' && el.id !== '__pagepin') el.remove() })
+      doc.head.querySelectorAll('style').forEach((el) => { if (!isPersistentStyle(el)) el.remove() })
       render.innerHTML = ''
       registry.value = null
       fragments.value = null
@@ -127,7 +176,7 @@ export function useFolioFrame(props, { frameRef, frameDoc, blocks, section, onRe
     // Résultat : jamais de page blanche ni de flash à 100 % entre deux
     // repaginations (changement de chapitre, split/merge d'un paragraphe). Les
     // styles de l'ancienne génération sont retirés APRÈS le swap (snapshot ici).
-    const staleStyles = [...doc.head.querySelectorAll('style')].filter((el) => el.id !== '__boot' && el.id !== '__pagepin')
+    const staleStyles = [...doc.head.querySelectorAll('style')].filter((el) => !isPersistentStyle(el))
 
     // Feuille d'apparence des styles (fidélité .odt), régénérée à chaque
     // repagination, avant le preview pour que Paged.js la reprenne. Sans id :
@@ -162,6 +211,10 @@ export function useFolioFrame(props, { frameRef, frameDoc, blocks, section, onRe
       // Clé d'apparence : la feuille d'apparence cible `[data-style="…"]`. Préservé
       // par Paged.js sur chaque fragment issu d'une coupure de page.
       if (b.styleName) root.setAttribute('data-style', b.styleName)
+      // Planche d'imposition : le 1er bloc d'un slot force sa page (cf.
+      // buildImpositionBlocks). Classe (pas style inline) → règle IMPOSITION_CSS
+      // passée au polisher, seule voie que Paged.js honore pour un break forcé.
+      if (b.breakBefore) root.classList.add('imp-break')
       article.appendChild(root)
     }
     const source = doc.createElement('div')
@@ -187,9 +240,18 @@ export function useFolioFrame(props, { frameRef, frameDoc, blocks, section, onRe
       buildRunningTitlesCss(props.runningTitles, {
         bookTitle: props.bookTitle,
         chapterTitle: section.value?.titre ?? '',
+        // Planche (mode spread) : pages en ordre séquentiel → parité inversée d'une
+        // vraie planche. On échange @page:left/:right pour que folio/titres tombent
+        // au bon coin extérieur (rien d'autre ne change).
+        swapParity: props.mode === 'spread',
       }),
     ].filter(Boolean).join('\n')
-    const sheets = docPageCss ? [CSS_HREF, { 'doc-page.css': docPageCss }] : [CSS_HREF]
+    const sheets = [CSS_HREF]
+    if (docPageCss) sheets.push({ 'doc-page.css': docPageCss })
+    // Règle de saut d'imposition dans une feuille traitée par le polisher (cf.
+    // IMPOSITION_CSS) — indispensable pour que les slots se répartissent sur des
+    // pages distinctes (le style inline est ignoré par le chunker Paged.js).
+    if (props.spreadPages) sheets.push({ 'imposition.css': IMPOSITION_CSS })
     return previewer.preview(source, sheets, buffer).then((flow) => {
       // Registre AVANT le clonage : buildFragmentRegistry stampe les data-frag-id
       // sur les nœuds rendus (le clone en hérite) et ne capture que des chaînes HTML
@@ -200,6 +262,17 @@ export function useFolioFrame(props, { frameRef, frameDoc, blocks, section, onRe
         const { fragmentMap, blockFragments } = buildFragmentRegistry(flow)
         registry.value = blockRegistry
         fragments.value = createFragmentApi(blockRegistry, fragmentMap, blockFragments)
+      }
+
+      // Planche d'imposition : marque les .pagedjs_page portant un slot blanc/garde
+      // (avant le clonage → les clones héritent la classe) pour leur appliquer les
+      // hachures pleine page. Impossible à cibler en CSS (la classe du slot vit
+      // DANS la page, pas sur elle) → marquage DOM.
+      if (props.spreadPages) {
+        buffer.querySelectorAll('.pagedjs_page').forEach((pg) => {
+          if (pg.querySelector('.imp-slot--blank')) pg.classList.add('folio-blank')
+          else if (pg.querySelector('.imp-slot--cover')) pg.classList.add('folio-cover')
+        })
       }
 
       // Paged.js laisse un ResizeObserver VIVANT sur chaque page (re-fragmentation

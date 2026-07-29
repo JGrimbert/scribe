@@ -1,73 +1,56 @@
 <template>
-  <!-- Cadre de format : l'aperçu au centre, les 4 marges posées sur ses bords
-       (tête/pied/petit fond/grand fond), les dimensions au-dessus. Les inputs
-       ENTOURENT l'aperçu, chacun près du bord qu'il règle. `styleDefaults` est
-       muté en place (comme dans la config). -->
-  <div class="mff">
-    <!-- Dimensions + unité, au-dessus du cadre. -->
-    <div class="mff-dims">
-      <label class="mff-dims-field mff-dims-field--grow">
-        <span class="mff-label">Dimensions</span>
+  <!-- Contrôles du format de page, montés en TÊTE de l'aside (le main ne garde que
+       le diagramme nu). Dimensions puis marges miroir, en champs normaux.
+       `styleDefaults` est muté en place (comme dans la config). -->
+  <div class="mfc">
+    <div class="mfc-group">
+      <label class="mfc-field mfc-field--grow">
+        <span class="mfc-label">Dimensions</span>
         <BaseSelect v-model="selectedKey">
           <option value="">Original (.odt)</option>
           <option v-for="f in PAGE_FORMATS" :key="f.key" :value="f.key">{{ f.label }}</option>
           <option value="custom">Personnaliser…</option>
         </BaseSelect>
       </label>
-      <label class="mff-dims-field">
-        <span class="mff-label">Unité</span>
+      <label class="mfc-field mfc-field--unit">
+        <span class="mfc-label">Unité</span>
         <BaseSelect v-model="unit">
           <option v-for="un in UNITS" :key="un.key" :value="un.key">{{ un.label }}</option>
         </BaseSelect>
       </label>
     </div>
 
-    <div v-if="isCustom" class="mff-custom">
-      <label class="mff-field">
-        <span class="mff-field-label">Largeur</span>
-        <span class="mff-input">
+    <div v-if="isCustom" class="mfc-dims">
+      <label class="mfc-num">
+        <span class="mfc-num-label">Largeur</span>
+        <span class="mfc-input">
           <input type="number" min="0" :step="step" inputmode="decimal"
                  :value="toUnit(effective && effective.widthCm)"
                  @input="setDimension('widthCm', $event.target.value)" />
-          <span class="mff-unit">{{ unit }}</span>
+          <span class="mfc-unit">{{ unit }}</span>
         </span>
       </label>
-      <label class="mff-field">
-        <span class="mff-field-label">Hauteur</span>
-        <span class="mff-input">
+      <label class="mfc-num">
+        <span class="mfc-num-label">Hauteur</span>
+        <span class="mfc-input">
           <input type="number" min="0" :step="step" inputmode="decimal"
                  :value="toUnit(effective && effective.heightCm)"
                  @input="setDimension('heightCm', $event.target.value)" />
-          <span class="mff-unit">{{ unit }}</span>
+          <span class="mfc-unit">{{ unit }}</span>
         </span>
       </label>
     </div>
 
-    <!-- Le folio agrandi, chaque libellé+input de marge posé DANS sa zone : tête
-         en haut, pied en bas, petit fond au centre (reliure), grand fond au bord
-         extérieur. La croix barre le corps (repère maquette). -->
-    <div class="mff-stage">
-      <PageDiagram
-          class="mff-diagram"
-          :page-size="effective"
-          :margins="marginsView"
-          :running-titles="styleDefaults.runningTitles"
-          show-body-cross
-      />
-      <div
-          v-for="m in MARGINS"
-          :key="m.key"
-          class="mff-margin"
-          :class="`mff-margin--${m.area}`"
-      >
-        <span class="mff-field-label">{{ m.label }}</span>
-        <span class="mff-input">
+    <div class="mfc-margins">
+      <label v-for="m in MARGINS" :key="m.key" class="mfc-num">
+        <span class="mfc-num-label">{{ m.label }}</span>
+        <span class="mfc-input">
           <input type="number" min="0" :step="step" inputmode="decimal"
                  :value="toUnit(marginsView[m.key])"
                  @input="setMargin(m.key, $event.target.value)" />
-          <span class="mff-unit">{{ unit }}</span>
+          <span class="mfc-unit">{{ unit }}</span>
         </span>
-      </div>
+      </label>
     </div>
   </div>
 </template>
@@ -75,27 +58,24 @@
 <script setup>
 import { computed, ref } from 'vue'
 import BaseSelect from '../ui/atoms/BaseSelect.vue'
-import PageDiagram from '../config/PageDiagram.vue'
 import { PAGE_FORMATS, effectiveMargins, effectivePage, matchFormat } from '../../script/pageFormats'
 
 const props = defineProps({
   // PageFormat du .odt (cf. backend/odt-parser).
   page: { type: Object, default: null },
-  // Muté en place (pageSize, pageMargins, runningTitles), détenu par le parent.
+  // Muté en place (pageSize, pageMargins), détenu par le parent.
   styleDefaults: { type: Object, required: true },
 })
 
-// Chaque marge sur son bord de l'aperçu — « petit fond » = intérieur (reliure),
-// « grand fond » = extérieur.
+// « petit fond » = intérieur (reliure), « grand fond » = extérieur.
 const MARGINS = [
-  { key: 'topCm', label: 'Blanc de tête', area: 'tete' },
-  { key: 'innerCm', label: 'Petit fond', area: 'pf' },
-  { key: 'outerCm', label: 'Grand fond', area: 'gf' },
-  { key: 'bottomCm', label: 'Blanc de pied', area: 'pied' },
+  { key: 'topCm', label: 'Blanc de tête' },
+  { key: 'bottomCm', label: 'Blanc de pied' },
+  { key: 'innerCm', label: 'Petit fond' },
+  { key: 'outerCm', label: 'Grand fond' },
 ]
 
-// Unité d'affichage : le modèle reste en cm, converti à la volée. Partagée entre
-// dimensions et marges.
+// Unité d'affichage : le modèle reste en cm, converti à la volée.
 const UNITS = [
   { key: 'mm', label: 'mm', perCm: 10, dec: 1 },
   { key: 'cm', label: 'cm', perCm: 1, dec: 2 },
@@ -164,100 +144,63 @@ function setMargin(key, raw) {
 </script>
 
 <style scoped>
-.mff {
+.mfc {
   display: flex;
   flex-direction: column;
   gap: var(--sp-3);
-  align-items: center;
 }
 
-.mff-dims {
+.mfc-group {
   display: flex;
   gap: var(--sp-2);
   align-items: flex-end;
-  width: 100%;
-  max-width: 30em;
 }
 
-.mff-dims-field {
+.mfc-field {
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
 
-.mff-dims-field--grow {
+.mfc-field--grow {
   flex: 1 1 auto;
   min-width: 0;
 }
 
-.mff-dims-field :deep(.base-select) {
+.mfc-field--unit {
+  flex: 0 0 auto;
+}
+
+.mfc-field :deep(.base-select) {
   width: 100%;
 }
 
-.mff-custom {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--sp-2);
-  width: 100%;
-  max-width: 30em;
-}
-
-.mff-label {
+.mfc-label {
   font-size: var(--fs-sm);
   font-weight: 600;
   color: var(--c-ink2);
 }
 
-/* Le folio agrandi, les inputs de marge posés en overlay dans leur zone. */
-.mff-stage {
-  position: relative;
-  width: min(100%, 40em);
+.mfc-dims,
+.mfc-margins {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-2);
 }
 
-.mff-diagram {
-  width: 100%;
-}
-
-.mff-diagram :deep(.diagram),
-.mff-diagram :deep(svg) {
-  margin: 0;
-  width: 100%;
-  max-width: none;
-}
-
-/* Chaque input de marge dans sa zone. `--tete` en haut, `--pied` en bas,
-   `--pf` (petit fond) au centre/reliure, `--gf` (grand fond) au bord extérieur. */
-.mff-margin {
-  position: absolute;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  z-index: 1;
-  padding: 2px 5px;
-  border-radius: var(--radius-sm);
-  /* Fond léger : le libellé reste lisible posé sur le folio. */
-  background: color-mix(in srgb, var(--c-surface) 82%, transparent);
-}
-
-.mff-margin--tete { top: 0; left: 50%; transform: translate(-50%, -10%); }
-.mff-margin--pied { bottom: 0; left: 50%; transform: translate(-50%, 10%); }
-.mff-margin--pf { top: 50%; left: 50%; transform: translate(-50%, -50%); }
-.mff-margin--gf { top: 50%; left: 0; transform: translate(-40%, -50%); }
-
-.mff-field {
+.mfc-num {
   display: flex;
   flex-direction: column;
   gap: 3px;
 }
 
-.mff-field-label {
+.mfc-num-label {
   font-size: var(--fs-xs);
   color: var(--c-ink2);
   white-space: nowrap;
 }
 
-.mff-input {
+.mfc-input {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -267,8 +210,9 @@ function setMargin(key, raw) {
   padding: 0 0.5em;
 }
 
-.mff-input input {
-  width: 3.4em;
+.mfc-input input {
+  width: 100%;
+  min-width: 0;
   border: none;
   background: none;
   color: inherit;
@@ -279,11 +223,11 @@ function setMargin(key, raw) {
   text-align: center;
 }
 
-.mff-input input:focus {
+.mfc-input input:focus {
   outline: none;
 }
 
-.mff-unit {
+.mfc-unit {
   font-size: var(--fs-xs);
   color: var(--c-ink2);
 }

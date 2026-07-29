@@ -14,31 +14,31 @@
           <!-- Scroll propre à la colonne (le DS proscrit les barres natives) : la
                page ne scrolle plus globalement, chaque colonne défile chez elle. -->
           <CustomScrollbar class="maquette__col">
-          <!-- Source 1 — l'aperçu au centre, dimensions au-dessus, marges en cadre. -->
-          <section v-if="focusedSourceKey === 'maquette'" class="maquette__main">
-            <h2 class="maquette__title">Maquette — format de page</h2>
-            <MaquetteFormatFrame :page="fmtPage" :style-defaults="styleDefaults" />
-          </section>
-
-          <!-- Source 2 — Liminaire (hybride) : la planche focusée (schéma
-               d'imposition + vrai Paged.js pour le contenu) ; les contrôles
-               type/côté + découpage se révèlent AU SURVOL de l'aperçu. -->
-          <section v-else-if="focusedSourceKey === 'liminaire'" class="maquette__main">
-            <h2 class="maquette__title">Liminaire</h2>
-            <div class="lim-hover">
-              <MaquetteLiminaireSpread
-                  :spread="limFocusedSpread"
-                  :types="limTypes"
-                  :suggestions="limSuggestions"
+          <!-- UN SEUL FolioView persistant pour les 3 sources : ses props changent
+               (spreadPages pour format/liminaire, nodeId pour chapitrage, bodyCross
+               pour format), mais l'iframe n'est jamais démontée → le double-buffer
+               garde l'ancien rendu affiché pendant la repagination = AUCUN
+               clignotement, gabarit/marges strictement identiques d'une source à
+               l'autre. Les contrôles liminaire se superposent au survol. -->
+          <section class="maquette__main">
+            <div class="folio-stage" :class="{ 'folio-stage--lim': isLiminaire }">
+              <FolioView
+                  class="maq-folio"
+                  mode="spread"
+                  :visible-pages="2"
+                  :body-cross="isFormat"
+                  :spread-pages="mainSpreadPages"
+                  :node-id="mainNodeId"
+                  :depth="mainDepth"
+                  :data="documentData"
                   :visuals="effectiveVisuals"
                   :page="previewPage"
                   :margins="previewMargins"
                   :hyphenation="styleDefaults.hyphenation"
                   :running-titles="previewRunningTitles"
                   :book-title="bookTitle"
-                  :ratio="previewRatio"
               />
-              <div class="lim-hover__controls">
+              <div v-if="isLiminaire" class="lim-hover__controls">
                 <AccordeonControls
                     :spreads="limSpreads"
                     :focused="limFocused"
@@ -55,37 +55,16 @@
               </div>
             </div>
           </section>
-
-          <!-- Source 3 — Chapitrage : aperçu témoin + modèles du niveau focusé. -->
-          <section v-else-if="focusedSourceKey === 'chapitrage' && focusedSection" class="maquette__main">
-            <h2 class="maquette__title">{{ focusedSection.zone.label }}</h2>
-            <MaquetteChapitrage
-                :section="focusedSection"
-                :shapes-error="shapesError"
-                :data="documentData"
-                :visuals="effectiveVisuals"
-                :page="previewPage"
-                :margins="previewMargins"
-                :hyphenation="styleDefaults.hyphenation"
-                :running-titles="previewRunningTitles"
-                :book-title="bookTitle"
-            />
-          </section>
-
-          <!-- Sources restantes — placeholder. -->
-          <section v-else class="maquette__main">
-            <h2 class="maquette__title">{{ focusedTitle }}</h2>
-            <p class="maquette__placeholder">
-              Inputs du composant relatif à la source focusée — à câbler.
-            </p>
-          </section>
           </CustomScrollbar>
         </template>
 
         <template #aside>
           <CustomScrollbar class="maquette__col">
           <aside v-if="focusedSourceKey === 'maquette'" class="maquette__aside">
-            <h3 class="maquette__aside-title">En-têtes et pieds</h3>
+            <h3 class="maquette__aside-title">Format</h3>
+            <MaquetteFormatControls :page="fmtPage" :style-defaults="styleDefaults" />
+
+            <h3 class="maquette__aside-title maquette__aside-title--spaced">En-têtes et pieds</h3>
             <div class="fmt-bands">
               <RunningBandControl :band="styleDefaults.runningTitles.header" label="En-tête" icon="pi-angle-up" always-open />
               <RunningBandControl :band="styleDefaults.runningTitles.footer" label="Pied de page" icon="pi-angle-down" symmetric allow-folio always-open />
@@ -186,11 +165,10 @@ import { ref, computed, inject, provide, onMounted, onUnmounted, watchEffect } f
 import { useRoute } from 'vue-router'
 import MaquetteAccordeon from './MaquetteAccordeon.vue'
 import MaquetteSpreadCell from './MaquetteSpreadCell.vue'
-import MaquetteFormatFrame from './MaquetteFormatFrame.vue'
+import MaquetteFormatControls from './MaquetteFormatControls.vue'
 import MaquetteLiminaireCell from './MaquetteLiminaireCell.vue'
 import MaquetteChapitreCell from './MaquetteChapitreCell.vue'
-import MaquetteChapitrage from './MaquetteChapitrage.vue'
-import MaquetteLiminaireSpread from './MaquetteLiminaireSpread.vue'
+import FolioView from '../editor/FolioView.vue'
 import MaquetteLiminaireJalon from './MaquetteLiminaireJalon.vue'
 import AnalyseBlock from '../analyse/AnalyseBlock.vue'
 import CustomScrollbar from '../ui/atoms/CustomScrollbar.vue'
@@ -216,7 +194,7 @@ const documentData = inject('documentData', null)
 const documentTitle = inject('documentTitle', null)
 
 const {
-  styles, rules, liminaireConfig, styleDefaults, sections, shapesError,
+  styles, rules, liminaireConfig, styleDefaults, sections,
   styleOverrides, styleBase, effectiveVisuals, saving,
   toggleRequireStyle, toggleAdjacency, addDeclaredStyle, removeDeclaredStyle,
   load, save,
@@ -309,7 +287,6 @@ const crans = computed(() => {
 
 const focusedCran = computed(() => crans.value[focused.value] ?? null)
 const focusedSourceKey = computed(() => focusedCran.value?.sourceKey ?? null)
-const focusedTitle = computed(() => focusedCran.value?.seriesLabel ?? '')
 
 // Section de chapitrage focusée (null hors d'un cran chapitrage).
 const focusedSection = computed(() => {
@@ -318,9 +295,15 @@ const focusedSection = computed(() => {
   return chapSections.value[cran.sectionIndex] ?? null
 })
 
+// Nœud témoin de l'aperçu chapitrage : premier nœud de la 1re signature relevée du
+// niveau (témoin par défaut — le picker de modèles n'existe pas encore).
+const witnessNodeId = computed(() => {
+  const sigs = focusedSection.value?.shapeGroup?.signatures ?? []
+  return sigs[0]?.nodes?.[0]?.nodeId ?? null
+})
+
 // Modèle exigé du niveau focusé : titre · <rôles requis, ordre typographique> ·
-// corps (· tableau), sur le jeu de règles effectif. Rendu dans l'aside (déplacé
-// du main d'origine, cf. MaquetteChapitrage).
+// corps (· tableau), sur le jeu de règles effectif. Rendu dans l'aside chapitrage.
 const REQUIRED_MODEL_ORDER = ['chapeau', 'définition', 'citation', 'renvoi']
 const requiredModelLabel = computed(() => {
   const sec = focusedSection.value
@@ -357,11 +340,43 @@ const documentPageOdt = inject('documentPageOdt', null)
 const fmtPage = computed(() => documentPageOdt?.value ?? null)
 
 // Format/marges/titres EFFECTIFS = relevé .odt + surcharges EN COURS (styleDefaults,
-// muté en place par MaquetteFormatFrame/RunningBandControl). Nouvel objet à chaque
+// muté en place par MaquetteFormatControls/RunningBandControl). Nouvel objet à chaque
 // édition (spread / clone profond) → les aperçus détectent le changement par référence.
 const previewPage = computed(() => effectivePage(fmtPage.value, styleDefaults.pageSize))
 const previewMargins = computed(() => ({ ...effectiveMargins(fmtPage.value, styleDefaults.pageMargins) }))
 const previewRunningTitles = computed(() => JSON.parse(JSON.stringify(styleDefaults.runningTitles)))
+
+// Double-page vide de l'aperçu de format : deux pages sans contenu (l'empagement +
+// la croix maquette sont dessinés par FolioView via `body-cross`). Constant.
+const formatSpreadPages = [{ kind: 'empty' }, { kind: 'empty' }]
+
+// ── Alimentation de l'UNIQUE FolioView selon la source focusée ───────────────
+const isFormat = computed(() => focusedSourceKey.value === 'maquette')
+const isLiminaire = computed(() => focusedSourceKey.value === 'liminaire')
+
+// Une cellule d'imposition → un slot de planche. Cellule nulle = face intérieure de
+// couverture (garde). On garde TOUTES les entrées de contenu (blancs/ornements
+// inclus : ce sont les espacements et ornements de la mise en page liminaire).
+function limSlotFor(cell) {
+  if (!cell) return { kind: 'cover', label: 'Page de garde' }
+  if (cell.cover) return { kind: 'cover', label: 'Page de garde' }
+  if (cell.blank) return { kind: 'blank', label: cell.implicit ? 'blanche · parité' : 'Page blanche' }
+  return { kind: 'content', entries: cell.page?.entries ?? [] }
+}
+const limSpreadPages = computed(() => {
+  const s = limFocusedSpread.value
+  return s ? [limSlotFor(s.left), limSlotFor(s.right)] : []
+})
+
+// Props pilotées par la source : format/liminaire passent une planche (spreadPages),
+// le chapitrage un nœud témoin (nodeId + depth). Mutuellement exclusifs.
+const mainSpreadPages = computed(() => {
+  if (isFormat.value) return formatSpreadPages
+  if (isLiminaire.value) return limSpreadPages.value
+  return null
+})
+const mainNodeId = computed(() => (focusedSourceKey.value === 'chapitrage' ? witnessNodeId.value : null))
+const mainDepth = computed(() => (focusedSourceKey.value === 'chapitrage' ? (focusedSection.value?.depthKey ?? 0) : 0))
 
 // Ratio largeur/hauteur de la page effective : les cellules de l'accordéon
 // l'adoptent pour partager le FORMAT des folios du main (A5 par défaut).
@@ -434,10 +449,11 @@ onUnmounted(() => { if (barAction) barAction.value = null })
   min-height: 100%;
 }
 
-.maquette__title {
-  margin: 0;
-  font-size: var(--fs-lg);
-  font-weight: 600;
+/* Folio de format : remplit le main comme le FolioView du chapitrage (flex:1),
+   pour un gabarit iso d'une source à l'autre. */
+.maq-folio {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .maquette__aside {
@@ -484,14 +500,17 @@ onUnmounted(() => { if (barAction) barAction.value = null })
   gap: var(--sp-2);
 }
 
-/* Aperçu hybride du liminaire : les contrôles (type/côté + découpage) se révèlent
-   au survol, masqués sinon (l'aperçu doit rester lisible au repos). */
-.lim-hover {
+/* Scène du FolioView unique : remplit le main, sert de repère au overlay absolu
+   des contrôles liminaire. Même hauteur bornée pour les 3 sources → échelle iso. */
+.folio-stage {
   position: relative;
   display: flex;
-  justify-content: center;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
+/* Contrôles liminaire (type/côté + découpage) : révélés AU SURVOL de la scène,
+   masqués sinon (l'aperçu doit rester lisible au repos). */
 .lim-hover__controls {
   position: absolute;
   left: 50%;
@@ -511,8 +530,8 @@ onUnmounted(() => { if (barAction) barAction.value = null })
   transition: opacity 0.15s ease;
 }
 
-.lim-hover:hover .lim-hover__controls,
-.lim-hover:focus-within .lim-hover__controls {
+.folio-stage--lim:hover .lim-hover__controls,
+.folio-stage--lim:focus-within .lim-hover__controls {
   opacity: 1;
   pointer-events: auto;
 }
