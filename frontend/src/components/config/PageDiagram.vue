@@ -15,6 +15,12 @@
         <!-- En-tête / pied : au sommet / au bas de l'empagement (dedans). -->
         <rect v-if="p.header" class="band" :x="p.header.x" :y="p.header.y" :width="p.header.w" :height="p.header.h" />
         <rect v-if="p.footer" class="band" :x="p.footer.x" :y="p.footer.y" :width="p.footer.w" :height="p.footer.h" />
+        <!-- Croix du CORPS (hors en-tête/pied) : deux obliques reliant les coins
+             opposés — repère « maquette » de la zone de texte à remplir. -->
+        <template v-if="showBodyCross && p.body">
+          <line class="body-cross" :x1="p.body.x" :y1="p.body.y" :x2="p.body.x + p.body.w" :y2="p.body.y + p.body.h" />
+          <line class="body-cross" :x1="p.body.x" :y1="p.body.y + p.body.h" :x2="p.body.x + p.body.w" :y2="p.body.y" />
+        </template>
         <!-- Folio : rectangle grisé DANS sa bande (pleine hauteur), sans chiffre. -->
         <rect v-for="(f, i) in p.folios" :key="i" class="folio" :x="f.x" :y="f.y" :width="f.w" :height="f.h" rx="1.5" />
         <text class="side" :x="p.x + g.PW / 2" :y="g.pageY + g.PH + 18" text-anchor="middle">{{ p.label }}</text>
@@ -33,6 +39,8 @@ const props = defineProps({
   margins: { type: Object, default: null },
   // { header, footer } — cf. style-defaults (le folio est un contenu de bande).
   runningTitles: { type: Object, default: null },
+  // Trace la croix du corps (hors en-tête/pied) — réservé à la maquette.
+  showBodyCross: { type: Boolean, default: false },
 })
 
 const PH = 300 // hauteur de page en unités SVG ; la largeur suit le ratio
@@ -97,7 +105,13 @@ const g = computed(() => {
 
     const folios = [folioInBand(rt.header, header, isVerso), folioInBand(rt.footer, footer, isVerso)].filter(Boolean)
 
-    return { side, x: pageX, label, emp, header, footer, folios }
+    // Corps de texte = empagement moins en-tête (haut) et pied (bas) : la surface
+    // que la croix « maquette » barre.
+    const bodyTop = header ? header.y + header.h : emp.y
+    const bodyBottom = footer ? footer.y : emp.y + emp.h
+    const body = { x: emp.x, y: bodyTop, w: emp.w, h: bodyBottom - bodyTop }
+
+    return { side, x: pageX, label, emp, header, footer, folios, body }
   }
 
   const pages = [
@@ -147,6 +161,13 @@ const ariaLabel = 'Aperçu de la mise en page recto/verso : marges, en-tête, pi
   fill: none;
   stroke: var(--c-border);
   stroke-width: 1;
+}
+
+/* Croix du corps : fines obliques gris clair, comme l'empagement. */
+.body-cross {
+  stroke: var(--c-border);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
 }
 
 /* Folio : seul élément grisé, avec la même ombre que les pages. */

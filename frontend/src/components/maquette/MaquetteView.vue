@@ -20,22 +20,40 @@
             <MaquetteFormatFrame :page="fmtPage" :style-defaults="styleDefaults" />
           </section>
 
-          <!-- Source 2 — Liminaire : type/côté du vis-à-vis focusé + son découpage. -->
+          <!-- Source 2 — Liminaire (hybride) : la planche focusée (schéma
+               d'imposition + vrai Paged.js pour le contenu) ; les contrôles
+               type/côté + découpage se révèlent AU SURVOL de l'aperçu. -->
           <section v-else-if="focusedSourceKey === 'liminaire'" class="maquette__main">
             <h2 class="maquette__title">Liminaire</h2>
-            <AccordeonControls
-                :spreads="limSpreads"
-                :focused="limFocused"
-                :types="limTypes"
-                :suggestions="limSuggestions"
-                :sides="limSides"
-                :expected-sides="limExpectedSides"
-                :conflicts="limConflicts"
-                @update:focused="setLimFocused"
-                @set-type="limSetType"
-                @set-side="limSetSide"
-            />
-            <LiminaireDecoupage :pages="limFocusedPages" :config="liminaireConfig" :empty-label="limEmptyLabel" />
+            <div class="lim-hover">
+              <MaquetteLiminaireSpread
+                  :spread="limFocusedSpread"
+                  :types="limTypes"
+                  :suggestions="limSuggestions"
+                  :visuals="effectiveVisuals"
+                  :page="previewPage"
+                  :margins="previewMargins"
+                  :hyphenation="styleDefaults.hyphenation"
+                  :running-titles="previewRunningTitles"
+                  :book-title="bookTitle"
+                  :ratio="previewRatio"
+              />
+              <div class="lim-hover__controls">
+                <AccordeonControls
+                    :spreads="limSpreads"
+                    :focused="limFocused"
+                    :types="limTypes"
+                    :suggestions="limSuggestions"
+                    :sides="limSides"
+                    :expected-sides="limExpectedSides"
+                    :conflicts="limConflicts"
+                    @update:focused="setLimFocused"
+                    @set-type="limSetType"
+                    @set-side="limSetSide"
+                />
+                <LiminaireDecoupage :pages="limFocusedPages" :config="liminaireConfig" :empty-label="limEmptyLabel" />
+              </div>
+            </div>
           </section>
 
           <!-- Source 3 — Chapitrage : aperçu témoin + modèles du niveau focusé. -->
@@ -88,9 +106,13 @@
                 @exclude="excludeLiminaire"
             />
           </aside>
-          <!-- Chapitrage : la table des styles (rôle · exigé · succession) à droite. -->
+          <!-- Chapitrage : le modèle exigé (déplacé du main) puis la table des
+               styles (rôle · exigé · succession). -->
           <aside v-else-if="focusedSourceKey === 'chapitrage' && focusedSection" class="maquette__aside">
-            <h3 class="maquette__aside-title">Styles &amp; rôles</h3>
+            <h3 class="maquette__aside-title">Modèle exigé</h3>
+            <code class="maq-required-sig">{{ requiredModelLabel }}</code>
+
+            <h3 class="maquette__aside-title maquette__aside-title--spaced">Styles &amp; rôles</h3>
             <StyleRolesTable
                 :styles="focusedSection.styles"
                 :style-roles="styles"
@@ -168,6 +190,7 @@ import MaquetteFormatFrame from './MaquetteFormatFrame.vue'
 import MaquetteLiminaireCell from './MaquetteLiminaireCell.vue'
 import MaquetteChapitreCell from './MaquetteChapitreCell.vue'
 import MaquetteChapitrage from './MaquetteChapitrage.vue'
+import MaquetteLiminaireSpread from './MaquetteLiminaireSpread.vue'
 import MaquetteLiminaireJalon from './MaquetteLiminaireJalon.vue'
 import AnalyseBlock from '../analyse/AnalyseBlock.vue'
 import CustomScrollbar from '../ui/atoms/CustomScrollbar.vue'
@@ -295,6 +318,20 @@ const focusedSection = computed(() => {
   return chapSections.value[cran.sectionIndex] ?? null
 })
 
+// Modèle exigé du niveau focusé : titre · <rôles requis, ordre typographique> ·
+// corps (· tableau), sur le jeu de règles effectif. Rendu dans l'aside (déplacé
+// du main d'origine, cf. MaquetteChapitrage).
+const REQUIRED_MODEL_ORDER = ['chapeau', 'définition', 'citation', 'renvoi']
+const requiredModelLabel = computed(() => {
+  const sec = focusedSection.value
+  if (!sec) return ''
+  const set = sec.ruleSet ?? sec.defaultRuleSet ?? rules.default
+  const required = REQUIRED_MODEL_ORDER.filter((r) => set.requiresRoles.includes(r))
+  const tokens = ['titre', ...required, 'corps']
+  if (set.requiresTable) tokens.push('tableau')
+  return tokens.join(' · ')
+})
+
 // Fin du liminaire (migrée du jalon vers l'aside — le jalon n'est plus qu'un
 // marqueur informatif) : étendre absorbe le chapitre suivant, exclure relâche le
 // dernier. Aperçu seul (recomposition des crans dans le même tick, non persisté).
@@ -310,6 +347,9 @@ function setLimFocused(localIndex) {
   const last = Math.max(0, limSpreads.value.length - 1)
   focused.value = limStart.value + Math.min(Math.max(localIndex, 0), last)
 }
+
+// La planche liminaire focusée (objet { left, right }) — alimente l'aperçu hybride.
+const limFocusedSpread = computed(() => limSpreads.value[limFocused.value] ?? null)
 
 // ── Source 1 : format de page ──────────────────────────────────────────────
 // Relevé .odt brut (fourni par DocumentLayout), point de départ de l'aperçu.
@@ -427,10 +467,54 @@ onUnmounted(() => { if (barAction) barAction.value = null })
   font-size: var(--fs-sm);
 }
 
+/* Signature du modèle exigé (aside chapitrage), reprise de l'ancien main. */
+.maq-required-sig {
+  align-self: flex-start;
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+  padding: 0.15em 0.55em;
+  border: 1px solid var(--c-accent);
+  border-radius: var(--radius-md);
+  background: var(--c-accent-soft, var(--c-surface));
+}
+
 .fmt-bands {
   display: flex;
   flex-direction: column;
   gap: var(--sp-2);
+}
+
+/* Aperçu hybride du liminaire : les contrôles (type/côté + découpage) se révèlent
+   au survol, masqués sinon (l'aperçu doit rester lisible au repos). */
+.lim-hover {
+  position: relative;
+  display: flex;
+  justify-content: center;
+}
+
+.lim-hover__controls {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  transform: translate(-50%, 0);
+  width: min(100%, 40em);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--c-surface) 94%, transparent);
+  backdrop-filter: var(--c-backdrop-filter-blur);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+.lim-hover:hover .lim-hover__controls,
+.lim-hover:focus-within .lim-hover__controls {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 /* Aperçu de page dans la cellule d'accordéon : ajusté sur la HAUTEUR du cran (le

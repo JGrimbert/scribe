@@ -43,14 +43,22 @@
       </label>
     </div>
 
-    <!-- Le cadre : marge de tête (haut), petit/grand fond (côtés), pied (bas),
-         l'aperçu au centre. -->
-    <div class="mff-frame">
+    <!-- Le folio agrandi, chaque libellé+input de marge posé DANS sa zone : tête
+         en haut, pied en bas, petit fond au centre (reliure), grand fond au bord
+         extérieur. La croix barre le corps (repère maquette). -->
+    <div class="mff-stage">
+      <PageDiagram
+          class="mff-diagram"
+          :page-size="effective"
+          :margins="marginsView"
+          :running-titles="styleDefaults.runningTitles"
+          show-body-cross
+      />
       <div
           v-for="m in MARGINS"
           :key="m.key"
           class="mff-margin"
-          :style="{ gridArea: m.area }"
+          :class="`mff-margin--${m.area}`"
       >
         <span class="mff-field-label">{{ m.label }}</span>
         <span class="mff-input">
@@ -59,10 +67,6 @@
                  @input="setMargin(m.key, $event.target.value)" />
           <span class="mff-unit">{{ unit }}</span>
         </span>
-      </div>
-
-      <div class="mff-preview">
-        <PageDiagram :page-size="effective" :margins="marginsView" :running-titles="styleDefaults.runningTitles" />
       </div>
     </div>
   </div>
@@ -204,38 +208,42 @@ function setMargin(key, raw) {
   color: var(--c-ink2);
 }
 
-/* Le cadre : 3 colonnes (fond · aperçu · fond) × 3 rangées (tête · aperçu · pied),
-   chaque marge dans son aire, centrée sur son bord. */
-.mff-frame {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  grid-template-rows: auto auto auto;
-  grid-template-areas:
-    ".   tete .  "
-    "pf  prev gf "
-    ".   pied .  ";
-  align-items: center;
-  justify-items: center;
-  column-gap: var(--sp-3);
-  row-gap: var(--sp-2);
+/* Le folio agrandi, les inputs de marge posés en overlay dans leur zone. */
+.mff-stage {
+  position: relative;
+  width: min(100%, 40em);
 }
 
-.mff-preview {
-  grid-area: prev;
-  width: min(100%, 22em);
-}
-
-.mff-preview :deep(.diagram) {
-  margin: 0;
+.mff-diagram {
   width: 100%;
 }
 
+.mff-diagram :deep(.diagram),
+.mff-diagram :deep(svg) {
+  margin: 0;
+  width: 100%;
+  max-width: none;
+}
+
+/* Chaque input de marge dans sa zone. `--tete` en haut, `--pied` en bas,
+   `--pf` (petit fond) au centre/reliure, `--gf` (grand fond) au bord extérieur. */
 .mff-margin {
+  position: absolute;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 3px;
+  gap: 2px;
+  z-index: 1;
+  padding: 2px 5px;
+  border-radius: var(--radius-sm);
+  /* Fond léger : le libellé reste lisible posé sur le folio. */
+  background: color-mix(in srgb, var(--c-surface) 82%, transparent);
 }
+
+.mff-margin--tete { top: 0; left: 50%; transform: translate(-50%, -10%); }
+.mff-margin--pied { bottom: 0; left: 50%; transform: translate(-50%, 10%); }
+.mff-margin--pf { top: 50%; left: 50%; transform: translate(-50%, -50%); }
+.mff-margin--gf { top: 50%; left: 0; transform: translate(-40%, -50%); }
 
 .mff-field {
   display: flex;
