@@ -1,23 +1,41 @@
 <template>
   <!-- Écran Maquette. Deux colonnes (2/3 main · 1/3 aside) qui se remplissent des
-       inputs de la SOURCE focusée dans l'accordéon ; en bas, hors du flux et
-       collé au bord, un dock accordéon (pellicule de crans). ITÉRATION 1 :
-       coquille — sources factices, main/aside en placeholder. -->
+       inputs de la SOURCE focusée dans l'accordéon ; en bas, hors du flux et collé
+       au bord, un dock accordéon (pellicule de crans). ITÉRATION 2 : source 1
+       (« config › maquette ») câblée pour de vrai (format + en-tête), sources 2-4
+       encore en placeholder. Câblage VISUEL : `fmt` est local, lié à l'aperçu,
+       PAS persisté (pas de save pour l'instant). -->
   <div class="maquette">
     <div class="maquette__panels">
       <AnalyseBlock aside="right" bare>
         <template #main>
-          <section class="maquette__main">
+          <!-- Source 1 — l'aperçu au centre, dimensions au-dessus, marges en cadre
+               autour (cf. MaquetteFormatFrame). Les en-têtes/pieds sont dans l'aside. -->
+          <section v-if="focusedSourceKey === 'maquette'" class="maquette__main">
+            <h2 class="maquette__title">Maquette — format de page</h2>
+            <MaquetteFormatFrame :page="fmtPage" :style-defaults="fmt" />
+          </section>
+
+          <!-- Sources 2-4 — placeholder. -->
+          <section v-else class="maquette__main">
             <h2 class="maquette__title">{{ focusedTitle }}</h2>
             <p class="maquette__placeholder">
               Inputs du composant relatif à la source focusée — à câbler.
             </p>
           </section>
         </template>
+
         <template #aside>
-          <section class="maquette__aside">
+          <aside v-if="focusedSourceKey === 'maquette'" class="maquette__aside">
+            <h3 class="maquette__aside-title">En-têtes et pieds</h3>
+            <div class="fmt-bands">
+              <RunningBandControl :band="fmt.runningTitles.header" label="En-tête" icon="pi-angle-up" always-open />
+              <RunningBandControl :band="fmt.runningTitles.footer" label="Pied de page" icon="pi-angle-down" symmetric allow-folio always-open />
+            </div>
+          </aside>
+          <aside v-else class="maquette__aside">
             <p class="maquette__placeholder">Aperçu / réglages secondaires — à câbler.</p>
-          </section>
+          </aside>
         </template>
       </AnalyseBlock>
     </div>
@@ -31,7 +49,20 @@
             :crans="crans"
             :focused="focused"
             @update:focused="focused = $event"
-        />
+        >
+          <!-- La cellule du vis-à-vis dépend de la source : la maquette montre un
+               vrai aperçu de page (bordures + en-tête), les autres un vis-à-vis nu. -->
+          <template #spread="{ cran }">
+            <PageDiagram
+                v-if="cran.sourceKey === 'maquette'"
+                class="maq-format-cell"
+                :page-size="fmtEffective.pageSize"
+                :margins="fmtEffective.margins"
+                :running-titles="fmt.runningTitles"
+            />
+            <MaquetteSpreadCell v-else />
+          </template>
+        </MaquetteAccordeon>
       </div>
       <div class="maquette__dock-aside" aria-hidden="true"></div>
     </div>
@@ -39,13 +70,17 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, reactive, computed, inject } from 'vue'
 import MaquetteAccordeon from './MaquetteAccordeon.vue'
+import MaquetteSpreadCell from './MaquetteSpreadCell.vue'
 import AnalyseBlock from '../analyse/AnalyseBlock.vue'
+import MaquetteFormatFrame from './MaquetteFormatFrame.vue'
+import RunningBandControl from '../config/RunningBandControl.vue'
+import PageDiagram from '../config/PageDiagram.vue'
+import { effectivePage, effectiveMargins } from '../../script/pageFormats'
 
-// ITÉRATION 1 — sources FACTICES. Chaque source = une série de vis-à-vis ;
-// `spreads` en fixe le nombre. Le câblage réel (format, liminaire, modèles de
-// chapitrage) viendra source par source.
+// Chaque source = une série de vis-à-vis ; `spreads` en fixe le nombre. Source 1
+// câblée (format) ; 2-4 encore factices.
 const sources = [
   { key: 'maquette', label: 'Maquette', spreads: 1 },
   { key: 'liminaire', label: 'Liminaire', spreads: 3 },
@@ -70,11 +105,38 @@ const crans = computed(() => {
 
 const focused = ref(0)
 
+const focusedCran = computed(() => crans.value[focused.value] ?? null)
+// Clé de la source focusée (null sur un jalon → panneau placeholder).
+const focusedSourceKey = computed(() => focusedCran.value?.sourceKey ?? null)
 const focusedTitle = computed(() => {
-  const cran = crans.value[focused.value]
+  const cran = focusedCran.value
   if (!cran) return ''
   return cran.kind === 'jalon' ? `Jalon · ${cran.label}` : cran.label
 })
+
+// ── Source 1 : format de page ──────────────────────────────────────────────
+// Relevé .odt brut (fourni par DocumentLayout), point de départ de l'aperçu.
+const documentPageOdt = inject('documentPageOdt', null)
+const fmtPage = computed(() => documentPageOdt?.value ?? null)
+
+// styleDefaults LOCAL (même forme que useTypologyConfig) — muté en place par
+// PageFormatSection/RunningBandControl, lié à l'aperçu. Non persisté (câblage
+// visuel d'abord).
+const fmt = reactive({
+  hyphenation: { global: false },
+  pageSize: null,
+  pageMargins: null,
+  runningTitles: {
+    header: { enabled: false, recto: 'chapitre', verso: 'titre', heightCm: null, justification: 'regard' },
+    footer: { enabled: false, recto: 'folio', verso: 'folio', heightCm: null, justification: 'centre' },
+  },
+})
+
+// Format EFFECTIF = relevé .odt + surcharges en cours (mergés), pour l'aperçu.
+const fmtEffective = computed(() => ({
+  pageSize: effectivePage(fmtPage.value, fmt.pageSize),
+  margins: effectiveMargins(fmtPage.value, fmt.pageMargins),
+}))
 </script>
 
 <style scoped>
@@ -92,20 +154,47 @@ const focusedTitle = computed(() => {
   padding-bottom: 16em;
 }
 
+.maquette__main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
 .maquette__title {
-  margin: 0 0 var(--sp-2);
+  margin: 0;
   font-size: var(--fs-lg);
   font-weight: 600;
 }
 
 .maquette__aside {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
   padding: var(--sp-4);
+}
+
+.maquette__aside-title {
+  margin: 0;
+  font-size: var(--fs-md);
+  font-weight: 600;
 }
 
 .maquette__placeholder {
   margin: 0;
   color: var(--c-ink2);
   font-size: var(--fs-sm);
+}
+
+.fmt-bands {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+/* Aperçu de page dans la cellule d'accordéon : borné à la largeur d'un vis-à-vis. */
+.maq-format-cell {
+  width: min(100%, 22em);
+  margin: 0;
 }
 
 /* Dock hors du flux, collé au bord bas. Fond transparent (les folios flottent au

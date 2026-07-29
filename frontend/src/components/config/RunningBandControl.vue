@@ -5,7 +5,7 @@
       <span class="band-name"><i :class="`pi ${icon}`" aria-hidden="true"></i>{{ label }}</span>
     </label>
 
-    <div v-if="band.enabled" class="band-body">
+    <div v-if="band.enabled || alwaysOpen" class="band-body">
       <!-- Symétrique (pied de page) : un seul contenu, identique recto/verso. -->
       <label v-if="symmetric" class="row">
         <span class="row-label">Contenu</span>
@@ -63,6 +63,9 @@ const props = defineProps({
   symmetric: { type: Boolean, default: false },
   // Propose « Numéro de page » (folio) comme contenu (le pied, par convention).
   allowFolio: { type: Boolean, default: false },
+  // Corps toujours visible, sans repli sur `enabled` : la case reste une bascule
+  // d'activation mais les options ne se cachent plus (écran Maquette, aside).
+  alwaysOpen: { type: Boolean, default: false },
 })
 
 // En mode symétrique, un contenu unique piloté par recto (verso suit).

@@ -23,10 +23,12 @@
         </div>
 
         <template v-if="cran.kind === 'spread'">
-          <div class="maq-spread">
-            <div class="maq-folio is-left"></div>
-            <div class="maq-folio is-right"></div>
-          </div>
+          <!-- La cellule du vis-à-vis est déléguée au parent (une source décide de
+               son rendu) ; défaut = vis-à-vis nu. L'accordéon ne porte que la
+               scène (position/échelle/profondeur). -->
+          <slot name="spread" :cran="cran">
+            <MaquetteSpreadCell />
+          </slot>
           <div class="maq-source-tag">{{ cran.label }}</div>
         </template>
 
@@ -52,6 +54,7 @@
 <script setup>
 import { computed } from 'vue'
 import AccordeonRail from '../liminaire/AccordeonRail.vue'
+import MaquetteSpreadCell from './MaquetteSpreadCell.vue'
 import { useWheelStepper } from '../../composables/useWheelStepper'
 
 const props = defineProps({
@@ -140,25 +143,6 @@ const { onWheel } = useWheelStepper({
     width: min(12em, 100%);
   }
 }
-
-/* Une planche = un livre ouvert : deux folios se rejoignant au centre. */
-.maq-spread {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 2px;
-  width: min(100%, 22em);
-}
-
-.maq-folio {
-  height: 9em;
-  border: 1px solid var(--c-border);
-  border-radius: var(--radius-sm);
-  background: var(--c-surface);
-}
-
-/* La reliure : le bord intérieur (droite du verso, gauche du recto) plus marqué. */
-.is-left { border-right-width: 2px; border-top-right-radius: 0; border-bottom-right-radius: 0; }
-.is-right { border-left-width: 2px; border-top-left-radius: 0; border-bottom-left-radius: 0; }
 
 .maq-source-tag {
   margin-top: var(--sp-1);
