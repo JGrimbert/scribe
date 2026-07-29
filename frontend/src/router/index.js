@@ -4,6 +4,7 @@ import DocumentLayout from '../components/layout/DocumentLayout.vue'
 import AnalyseView from '../components/analyse/AnalyseView.vue'
 import EditorView from '../components/editor/EditorView.vue'
 import ConfigView from '../components/config/ConfigView.vue'
+import MaquetteView from '../components/maquette/MaquetteView.vue'
 
 const routes = [
   { path: '/', name: 'home', component: HomeView },
@@ -14,6 +15,7 @@ const routes = [
     children: [
       { path: '', name: 'document', component: AnalyseView },
       { path: 'config', name: 'config', component: ConfigView },
+      { path: 'maquette', name: 'maquette', component: MaquetteView },
       // L'ancien écran de typologie a fondu dans la config (plus de volets).
       // Redirection plutôt que suppression : les liens posés (dashboard,
       // favoris) visent encore /styles.
