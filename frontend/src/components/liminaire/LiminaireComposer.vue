@@ -69,25 +69,14 @@
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { ref, watch } from 'vue'
 import AnalyseBlock from '../analyse/AnalyseBlock.vue'
 import BaseButton from '../ui/atoms/BaseButton.vue'
 import UiCallout from '../ui/atoms/UiCallout.vue'
 import LiminaireAccordeon from './LiminaireAccordeon.vue'
 import LiminaireDecoupage from './LiminaireDecoupage.vue'
 import LiminaireEligibilite from './LiminaireEligibilite.vue'
-import { LIMINAIRE_BY_KEY } from '../../script/liminaire-vocab'
-import { computeImposition, toSpreads, pagesOfSpread } from '../../script/liminaire-imposition'
-import { deriveEligibility } from '../../script/liminaire-eligibilite'
-import {
-  expectedSideOf,
-  isConflicting,
-  setPageSide,
-  setPageType,
-  sideOfPage,
-  typeOfPage,
-} from '../../script/liminaire-config'
-import { suggestAll } from '../../script/liminaire-suggest'
+import { useLiminaireComposition } from '../../composables/useLiminaireComposition'
 
 const props = defineProps({
   pages: { type: Array, required: true },
@@ -111,95 +100,27 @@ const props = defineProps({
 
 defineEmits(['extend', 'exclude', 'redefine'])
 
-const elig = computed(() => deriveEligibility(props.pages, props.config))
-
-// Folios physiques (avec blanches implicites de parité) regroupés en planches.
-// Chaque page reçoit son côté choisi ET la convention de son type (l'ancre de
-// parité), cf. effectiveSide.
-const spreads = computed(() =>
-  toSpreads(
-    computeImposition(
-      props.pages.map((p) => ({
-        ...p,
-        side: sideOfPage(props.config, p),
-        typeSide: LIMINAIRE_BY_KEY.get(typeOfPage(props.config, p))?.side ?? 'auto',
-      })),
-    ),
-  ),
-)
-
-// Suggestions DÉTERMINISTES (style-name + mots-clés + titre), instantanées. Une
-// proposition, pas une décision : rien n'est persisté tant que l'utilisateur ne
-// l'applique pas (même philosophie que la typologie des styles).
-const deterministic = computed(() => suggestAll(props.pages, { title: props.title }))
-
-// L'accordéon est présentationnel : il reçoit types et suggestions résolus,
-// keyés par page, plutôt que la config brute.
-const types = computed(() =>
-  Object.fromEntries(props.pages.map((p) => [p.key, typeOfPage(props.config, p)])),
-)
-
-const suggestions = computed(() =>
-  Object.fromEntries(
-    props.pages
-      .filter((p) => deterministic.value[p.key])
-      .map((p) => [p.key, { key: deterministic.value[p.key].key, why: deterministic.value[p.key].why }]),
-  ),
-)
-
-// Le côté vit désormais dans l'accordéon, contre le type qui le conditionne —
-// il n'a plus sa place dans le découpage, qui ne parle que de frontières.
-const sides = computed(() =>
-  Object.fromEntries(props.pages.map((p) => [p.key, sideOfPage(props.config, p)])),
-)
-
-const expectedSides = computed(() =>
-  Object.fromEntries(props.pages.map((p) => [p.key, expectedSideOf(props.config, p)])),
-)
-
-const conflicts = computed(() =>
-  Object.fromEntries(props.pages.map((p) => [p.key, isConflicting(props.config, p)])),
-)
-
-// Des handlers nommés, pas des appels inline : l'événement porte DEUX arguments
-// (page, valeur) et un template n'expose que le premier via `$event`.
-function onSetType(page, value) {
-  setPageType(props.config, page, value)
-}
-
-function onSetSide(page, value) {
-  setPageSide(props.config, page, value)
-}
-
 // ─── Focus : partagé entre l'accordéon et le découpage ───────────────────────
 // Il vit ici, et non dans l'accordéon, précisément parce que le découpage en
 // dépend — c'est le seul état que les deux colonnes ont en commun.
 const focused = ref(0)
 
-// Le cran terminal (étendre le liminaire) occupe la position `spreads.length`.
-const slideCount = computed(() => spreads.value.length + 1)
+// Toute la composition (spreads/types/sides/éligibilité/découpage focusé) est
+// extraite dans un composable partagé avec l'écran Maquette.
+const {
+  elig, spreads, types, suggestions, sides, expectedSides, conflicts,
+  onSetType, onSetSide, slideCount, focusedPages, emptyLabel,
+} = useLiminaireComposition({
+  pages: () => props.pages,
+  config: () => props.config,
+  title: () => props.title,
+  focused: () => focused.value,
+})
 
 // Les frontières bougent (fusion/scission) → le focus peut sortir de la liste.
 watch(slideCount, (n) => {
   if (focused.value > n - 1) focused.value = Math.max(0, n - 1)
 })
-
-const focusedPages = computed(() => pagesOfSpread(spreads.value[focused.value]))
-
-const onExtendSlide = computed(() => focused.value === spreads.value.length)
-
-const scopeLabel = computed(() => {
-  if (onExtendSlide.value) return 'Fin du liminaire'
-  const nums = focusedPages.value.map((p) => p.ordinal + 1)
-  if (!nums.length) return `Vis-à-vis ${focused.value + 1}`
-  return nums.length > 1 ? `Pages ${nums[0]} et ${nums[nums.length - 1]}` : `Page ${nums[0]}`
-})
-
-const emptyLabel = computed(() =>
-  onExtendSlide.value
-    ? "Ce cran n'est pas une page : il étend le liminaire."
-    : 'Ce vis-à-vis ne porte que des blanches de parité — rien à découper.',
-)
 </script>
 
 <style scoped>
