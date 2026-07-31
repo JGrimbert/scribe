@@ -10,48 +10,47 @@
     <!-- Colonne gauche (2/3) : aperçu témoin + dock accordéon, sous la doc-bar. -->
     <div class="maquette__left">
       <div class="maquette__panels">
-        <!-- Scroll propre à la colonne (le DS proscrit les barres natives). UN SEUL
-             FolioView persistant pour les 3 sources : ses props changent, mais
-             l'iframe n'est jamais démontée → double-buffer, AUCUN clignotement,
-             gabarit/marges strictement identiques d'une source à l'autre. Les
-             contrôles liminaire se superposent au survol. -->
-        <CustomScrollbar class="maquette__col">
-          <section class="maquette__main">
-            <div class="folio-stage" :class="{ 'folio-stage--lim': isLiminaire }">
-              <FolioView
-                  class="maq-folio"
-                  mode="spread"
-                  :visible-pages="2"
-                  :body-cross="isFormat"
-                  :spread-pages="mainSpreadPages"
-                  :node-id="mainNodeId"
-                  :depth="mainDepth"
-                  :data="documentData"
-                  :visuals="effectiveVisuals"
-                  :page="previewPage"
-                  :margins="previewMargins"
-                  :hyphenation="styleDefaults.hyphenation"
-                  :running-titles="previewRunningTitles"
-                  :book-title="bookTitle"
+        <!-- Aperçu témoin : ni scroll ni overflow:hidden — le FolioView (spread)
+             s'ajuste à la hauteur bornée de la bande. UN SEUL FolioView persistant
+             pour les 3 sources : ses props changent, mais l'iframe n'est jamais
+             démontée → double-buffer, AUCUN clignotement, gabarit/marges
+             strictement identiques d'une source à l'autre. Les contrôles liminaire
+             se superposent au survol. -->
+        <section class="maquette__main">
+          <div class="folio-stage" :class="{ 'folio-stage--lim': isLiminaire }">
+            <FolioView
+                class="maq-folio"
+                mode="spread"
+                :visible-pages="2"
+                :body-cross="isFormat"
+                :spread-pages="mainSpreadPages"
+                :node-id="mainNodeId"
+                :depth="mainDepth"
+                :data="documentData"
+                :visuals="effectiveVisuals"
+                :page="previewPage"
+                :margins="previewMargins"
+                :hyphenation="styleDefaults.hyphenation"
+                :running-titles="previewRunningTitles"
+                :book-title="bookTitle"
+            />
+            <div v-if="isLiminaire" class="lim-hover__controls">
+              <AccordeonControls
+                  :spreads="limSpreads"
+                  :focused="limFocused"
+                  :types="limTypes"
+                  :suggestions="limSuggestions"
+                  :sides="limSides"
+                  :expected-sides="limExpectedSides"
+                  :conflicts="limConflicts"
+                  @update:focused="setLimFocused"
+                  @set-type="limSetType"
+                  @set-side="limSetSide"
               />
-              <div v-if="isLiminaire" class="lim-hover__controls">
-                <AccordeonControls
-                    :spreads="limSpreads"
-                    :focused="limFocused"
-                    :types="limTypes"
-                    :suggestions="limSuggestions"
-                    :sides="limSides"
-                    :expected-sides="limExpectedSides"
-                    :conflicts="limConflicts"
-                    @update:focused="setLimFocused"
-                    @set-type="limSetType"
-                    @set-side="limSetSide"
-                />
-                <LiminaireDecoupage :pages="limFocusedPages" :config="liminaireConfig" :empty-label="limEmptyLabel" />
-              </div>
+              <LiminaireDecoupage :pages="limFocusedPages" :config="liminaireConfig" :empty-label="limEmptyLabel" />
             </div>
-          </section>
-        </CustomScrollbar>
+          </div>
+        </section>
       </div>
 
       <!-- Dock EN FLUX, calé sous le main (pleine largeur de la colonne gauche).
@@ -441,7 +440,6 @@ onUnmounted(() => { if (section) section.value = null })
   gap: var(--sp-4);
   height: 100%;
   overflow: hidden;
-  padding: 0 var(--sp-5);
 }
 
 /* Colonne gauche : aperçu témoin (flex:1) + dock (hauteur propre), tous deux
@@ -455,26 +453,23 @@ onUnmounted(() => { if (section) section.value = null })
   padding-top: calc(var(--bar-size) + 1.25em);
 }
 
-/* Bande de l'aperçu : prend la hauteur restante, ne scrolle pas globalement
-   (sa CustomScrollbar porte le débordement). */
+/* Bande de l'aperçu : prend la hauteur restante, colonne flex sans overflow —
+   le FolioView (spread) s'ajuste tout seul, pas de scroll ni de scrollbar. */
 .maquette__panels {
   flex: 1 1 auto;
   min-height: 0;
-  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
-/* La CustomScrollbar remplit la bande de l'aperçu. */
-.maquette__col {
-  height: 100%;
-}
-
-/* La section de source remplit AU MOINS la colonne (pour que le FolioView
-   double-page reçoive une hauteur bornée) et déborde en scroll si besoin. */
+/* La section de source remplit EXACTEMENT la bande (hauteur bornée pour le
+   FolioView double-page), sans jamais déborder. */
 .maquette__main {
   display: flex;
   flex-direction: column;
   gap: var(--sp-4);
-  min-height: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 /* Folio de format : remplit le main comme le FolioView du chapitrage (flex:1),

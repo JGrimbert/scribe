@@ -331,7 +331,7 @@ onMounted(() => {
 
 /* Replié : le rail garde la largeur d'une barre, le contenu récupère le reste. */
 .document-layout__sidebar--rail {
-  width: var(--bar-size);
+  width: 0;
 }
 
 /* Même décrochement que `.structure-panel` : la barre est en absolu au-dessus

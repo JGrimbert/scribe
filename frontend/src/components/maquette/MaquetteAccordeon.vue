@@ -8,7 +8,7 @@
        devant sa première page. La liste plate des crans arrive déjà construite
        (chaque cran porte sa section : `sectionKey`/`sectionLabel`/`isSectionStart`). -->
   <div class="maq-accordeon">
-    <div ref="stageEl" class="maq-stage" @wheel.prevent="onWheel">
+    <div ref="stageEl" class="maq-stage" :style="stageStyle" @wheel.prevent="onWheel">
       <!-- Pellicule posée à plat, centrée et réduite d'un bloc pour tenir ENTIÈRE dans
            la scène (aucune coupure). Les positions internes (crans/jalons) sont fixes
            en em ; seul le translate + l'échelle globale (fitScale) bougent. -->
@@ -130,6 +130,14 @@ const fitScale = computed(() => {
   return !sw || stripW <= sw ? 1 : sw / stripW
 })
 
+// Hauteur de la scène = celle du feuillet focusé (top 2.4em + 10.5em + talon),
+// RÉDUITE par fitScale comme la pellicule. Sans ça, à fitScale < 1 (beaucoup de
+// crans) les feuillets — ancrés en tête et rétrécis — laissaient un grand vide
+// sous eux dans une scène restée à pleine hauteur ; la scène colle désormais à
+// leur bas. Vaut 13.2em au repos (fitScale=1, avant mesure).
+const STAGE_H = 13.2
+const stageStyle = computed(() => ({ height: `${(STAGE_H * fitScale.value).toFixed(3)}em` }))
+
 // Pellicule ancrée à gauche:50% (origine left-top) : on la réduit (fitScale) puis on
 // la recentre horizontalement (translate d'une demi-largeur réduite).
 const stripStyle = computed(() => {
@@ -178,8 +186,8 @@ const { onWheel } = useWheelStepper({
 
 .maq-stage {
   position: relative;
-  /* Talon serré sous le feuillet focusé (top 2.4em + 10.5em = 12.9em). */
-  height: 13.2em;
+  /* Hauteur pilotée en inline (stageStyle) : talon serré sous le feuillet focusé
+     (top 2.4em + 10.5em = 12.9em), le tout réduit par fitScale. */
   overflow: hidden;
 }
 
