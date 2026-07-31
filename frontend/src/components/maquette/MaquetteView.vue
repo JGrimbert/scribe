@@ -1,25 +1,21 @@
 <template>
-  <!-- Écran Maquette. Deux colonnes (2/3 main · 1/3 aside) qui se remplissent des
-       inputs de la SOURCE focusée dans l'accordéon ; en bas, hors du flux et collé
-       au bord, un dock accordéon (pellicule de crans).
-       ITÉRATION 4 : sources 1 (format) · 2 (Liminaire) · 3 (Chapitrage, un cran
-       par niveau) branchées. La table des styles vit dans l'aside, l'aperçu témoin
-       dans le main. Persistance via l'action « Enregistrer » de la doc-bar
-       (`save` du composable) ; la borne liminaire reste un aperçu (recalibration
-       seule la déplace, non branchée ici). -->
+  <!-- Écran Maquette. Colonne gauche (2/3) : l'aperçu témoin (UN FolioView
+       persistant) surmontant le dock accordéon (pellicule de crans), tous deux
+       sous la doc-bar. Colonne droite (1/3) : l'aside PLEINE HAUTEUR, qui défile
+       SOUS la doc-bar et empile TOUS les modules de toutes les sections
+       (Format · Liminaire · un bloc par niveau de chapitrage). Le cran focusé
+       dans l'accordéon fait remonter sa section en tête (scroll-spy).
+       Persistance via l'action « Enregistrer » de la doc-bar (`save`). -->
   <div class="maquette">
-    <div class="maquette__panels">
-      <AnalyseBlock aside="right" bare>
-        <template #main>
-          <!-- Scroll propre à la colonne (le DS proscrit les barres natives) : la
-               page ne scrolle plus globalement, chaque colonne défile chez elle. -->
-          <CustomScrollbar class="maquette__col">
-          <!-- UN SEUL FolioView persistant pour les 3 sources : ses props changent
-               (spreadPages pour format/liminaire, nodeId pour chapitrage, bodyCross
-               pour format), mais l'iframe n'est jamais démontée → le double-buffer
-               garde l'ancien rendu affiché pendant la repagination = AUCUN
-               clignotement, gabarit/marges strictement identiques d'une source à
-               l'autre. Les contrôles liminaire se superposent au survol. -->
+    <!-- Colonne gauche (2/3) : aperçu témoin + dock accordéon, sous la doc-bar. -->
+    <div class="maquette__left">
+      <div class="maquette__panels">
+        <!-- Scroll propre à la colonne (le DS proscrit les barres natives). UN SEUL
+             FolioView persistant pour les 3 sources : ses props changent, mais
+             l'iframe n'est jamais démontée → double-buffer, AUCUN clignotement,
+             gabarit/marges strictement identiques d'une source à l'autre. Les
+             contrôles liminaire se superposent au survol. -->
+        <CustomScrollbar class="maquette__col">
           <section class="maquette__main">
             <div class="folio-stage" :class="{ 'folio-stage--lim': isLiminaire }">
               <FolioView
@@ -55,76 +51,18 @@
               </div>
             </div>
           </section>
-          </CustomScrollbar>
-        </template>
+        </CustomScrollbar>
+      </div>
 
-        <template #aside>
-          <CustomScrollbar class="maquette__col">
-          <aside v-if="focusedSourceKey === 'maquette'" class="maquette__aside">
-            <h3 class="maquette__aside-title">Format</h3>
-            <MaquetteFormatControls :page="fmtPage" :style-defaults="styleDefaults" />
-
-            <h3 class="maquette__aside-title maquette__aside-title--spaced">En-têtes et pieds</h3>
-            <div class="fmt-bands">
-              <RunningBandControl :band="styleDefaults.runningTitles.header" label="En-tête" icon="pi-angle-up" always-open />
-              <RunningBandControl :band="styleDefaults.runningTitles.footer" label="Pied de page" icon="pi-angle-down" symmetric allow-folio always-open />
-            </div>
-          </aside>
-          <aside v-else-if="focusedSourceKey === 'liminaire'" class="maquette__aside">
-            <h3 class="maquette__aside-title">Éligibilité</h3>
-            <LiminaireEligibilite :elig="limElig" />
-
-            <!-- Fin du liminaire : étendre/exclure, migré du jalon (désormais
-                 informatif) vers l'aside, tout en bas du flux. -->
-            <h3 class="maquette__aside-title maquette__aside-title--spaced">Fin du liminaire</h3>
-            <MaquetteLiminaireJalon
-                :can-extend="limCanExtend"
-                :next-title="limNextTitle"
-                :border-shift="limBorderShift"
-                @extend="extendLiminaire"
-                @exclude="excludeLiminaire"
-            />
-          </aside>
-          <!-- Chapitrage : le modèle exigé (déplacé du main) puis la table des
-               styles (rôle · exigé · succession). -->
-          <aside v-else-if="focusedSourceKey === 'chapitrage' && focusedSection" class="maquette__aside">
-            <h3 class="maquette__aside-title">Modèle exigé</h3>
-            <code class="maq-required-sig">{{ requiredModelLabel }}</code>
-
-            <h3 class="maquette__aside-title maquette__aside-title--spaced">Styles &amp; rôles</h3>
-            <StyleRolesTable
-                :styles="focusedSection.styles"
-                :style-roles="styles"
-                show-require
-                :depth-key="focusedSection.depthKey"
-                :zone-key="focusedSection.zone.key"
-                :rule-set="focusedSection.ruleSet ?? rules.default"
-            />
-          </aside>
-          <aside v-else class="maquette__aside">
-            <p class="maquette__placeholder">Aperçu / réglages secondaires — à câbler.</p>
-          </aside>
-          </CustomScrollbar>
-        </template>
-      </AnalyseBlock>
-    </div>
-
-    <!-- Dock hors flux, calé sur la seule zone main (2/3) : même structure flex
-         2:1 que `.split` au-dessus, l'aside n'est qu'un espaceur pour que
-         l'accordéon s'aligne sous main et s'arrête à 2/3. -->
-    <div class="maquette__dock">
-      <div class="maquette__dock-main">
+      <!-- Dock EN FLUX, calé sous le main (pleine largeur de la colonne gauche).
+           L'accordéon rend lui-même ses onglets d'entrée de série (jalons). -->
+      <div class="maquette__dock">
         <MaquetteAccordeon
             :crans="crans"
             :focused="focused"
             :ratio="previewRatio"
             @update:focused="focused = $event"
         >
-          <!-- La cellule du vis-à-vis dépend de la source : la maquette montre un
-               aperçu de page, le liminaire ses folios physiques, le chapitrage un
-               vis-à-vis greeké, les autres un vis-à-vis nu. Toutes au ratio de la
-               page effective (previewRatio). L'accordéon rend lui-même les onglets
-               d'entrée de série (jalons informatifs), plus de slot #jalon. -->
           <template #spread="{ cran }">
             <PageDiagram
                 v-if="cran.sourceKey === 'maquette'"
@@ -149,7 +87,67 @@
           </template>
         </MaquetteAccordeon>
       </div>
-      <div class="maquette__dock-aside" aria-hidden="true"></div>
+    </div>
+
+    <!-- Aside (1/3) PLEINE HAUTEUR : sans cadre propre, elle défile SOUS la
+         doc-bar (top-offset de la track + scroll-margin-top des blocs). Tous les
+         modules sont empilés ; le cran focusé fait remonter sa section (watch). -->
+    <div class="maquette__aside-col">
+      <CustomScrollbar :top-offset="42">
+        <aside ref="asideEl" class="maquette__aside">
+          <section class="maquette__aside-block" data-block="format">
+            <h3 class="maquette__aside-title">Format</h3>
+            <MaquetteFormatControls :page="fmtPage" :style-defaults="styleDefaults" />
+
+            <h3 class="maquette__aside-title maquette__aside-title--spaced">En-têtes et pieds</h3>
+            <div class="fmt-bands">
+              <RunningBandControl :band="styleDefaults.runningTitles.header" label="En-tête" icon="pi-angle-up" always-open />
+              <RunningBandControl :band="styleDefaults.runningTitles.footer" label="Pied de page" icon="pi-angle-down" symmetric allow-folio always-open />
+            </div>
+          </section>
+
+          <section class="maquette__aside-block" data-block="liminaire">
+            <h3 class="maquette__aside-title">Éligibilité</h3>
+            <LiminaireEligibilite :elig="limElig" />
+
+            <!-- Fin du liminaire : étendre/exclure (le jalon n'est plus qu'informatif). -->
+            <h3 class="maquette__aside-title maquette__aside-title--spaced">Fin du liminaire</h3>
+            <MaquetteLiminaireJalon
+                :can-extend="limCanExtend"
+                :next-title="limNextTitle"
+                :border-shift="limBorderShift"
+                @extend="extendLiminaire"
+                @exclude="excludeLiminaire"
+            />
+          </section>
+
+          <!-- Un bloc par niveau de chapitrage : modèle exigé puis table des
+               styles (rôle · exigé · succession). -->
+          <section
+              v-for="(sec, i) in chapSections"
+              :key="`chap-${i}`"
+              class="maquette__aside-block"
+              :data-block="`chap-${i}`"
+          >
+            <h3 class="maquette__aside-title">Chapitrage n°{{ i + 1 }} — Modèle exigé</h3>
+            <code class="maq-required-sig">{{ requiredModelOf(sec) }}</code>
+
+            <h3 class="maquette__aside-title maquette__aside-title--spaced">Styles &amp; rôles</h3>
+            <StyleRolesTable
+                :styles="sec.styles"
+                :style-roles="styles"
+                show-require
+                :depth-key="sec.depthKey"
+                :zone-key="sec.zone.key"
+                :rule-set="sec.ruleSet ?? rules.default"
+            />
+          </section>
+
+          <p v-if="!chapSections.length" class="maquette__placeholder">
+            Aucun niveau de chapitrage relevé.
+          </p>
+        </aside>
+      </CustomScrollbar>
     </div>
 
     <StyleEditorPanel
@@ -162,7 +160,7 @@
 </template>
 
 <script setup>
-import { ref, computed, inject, provide, onMounted, onUnmounted, watchEffect } from 'vue'
+import { ref, computed, inject, provide, onMounted, onUnmounted, watch, watchEffect, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import MaquetteAccordeon from './MaquetteAccordeon.vue'
 import MaquetteSpreadCell from './MaquetteSpreadCell.vue'
@@ -171,7 +169,6 @@ import MaquetteLiminaireCell from './MaquetteLiminaireCell.vue'
 import MaquetteChapitreCell from './MaquetteChapitreCell.vue'
 import FolioView from '../editor/FolioView.vue'
 import MaquetteLiminaireJalon from './MaquetteLiminaireJalon.vue'
-import AnalyseBlock from '../analyse/AnalyseBlock.vue'
 import CustomScrollbar from '../ui/atoms/CustomScrollbar.vue'
 import RunningBandControl from '../config/RunningBandControl.vue'
 import PageDiagram from '../config/PageDiagram.vue'
@@ -311,6 +308,18 @@ const focusedSection = computed(() => {
   return chapSections.value[cran.sectionIndex] ?? null
 })
 
+// ── Aside : scroll-spy. Tous les modules (Format · Liminaire · un bloc par
+// niveau de chapitrage) sont empilés ; changer de partie (le cran focusé change
+// de série) fait remonter la section correspondante en tête, sous la doc-bar
+// (l'offset de barre est porté par scroll-margin-top en CSS).
+const asideEl = ref(null)
+function scrollAsideToFocused() {
+  const key = focusedCran.value?.seriesKey
+  const target = key ? asideEl.value?.querySelector(`[data-block="${key}"]`) : null
+  target?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+watch(() => focusedCran.value?.seriesKey, () => nextTick(scrollAsideToFocused))
+
 // Nœud témoin de l'aperçu chapitrage : premier nœud de la 1re signature relevée du
 // niveau (témoin par défaut — le picker de modèles n'existe pas encore).
 const witnessNodeId = computed(() => {
@@ -318,18 +327,18 @@ const witnessNodeId = computed(() => {
   return sigs[0]?.nodes?.[0]?.nodeId ?? null
 })
 
-// Modèle exigé du niveau focusé : titre · <rôles requis, ordre typographique> ·
-// corps (· tableau), sur le jeu de règles effectif. Rendu dans l'aside chapitrage.
+// Modèle exigé d'un niveau : titre · <rôles requis, ordre typographique> · corps
+// (· tableau), sur le jeu de règles effectif. Rendu dans chaque bloc chapitrage
+// de l'aside.
 const REQUIRED_MODEL_ORDER = ['chapeau', 'définition', 'citation', 'renvoi']
-const requiredModelLabel = computed(() => {
-  const sec = focusedSection.value
+function requiredModelOf(sec) {
   if (!sec) return ''
   const set = sec.ruleSet ?? sec.defaultRuleSet ?? rules.default
   const required = REQUIRED_MODEL_ORDER.filter((r) => set.requiresRoles.includes(r))
   const tokens = ['titre', ...required, 'corps']
   if (set.requiresTable) tokens.push('tableau')
   return tokens.join(' · ')
-})
+}
 
 // Fin du liminaire (migrée du jalon vers l'aside — le jalon n'est plus qu'un
 // marqueur informatif) : étendre absorbe le chapitre suivant, exclure relâche le
@@ -423,46 +432,43 @@ onUnmounted(() => { if (section) section.value = null })
 </script>
 
 <style scoped>
-/* Colonne flex : doc-bar réservée en haut, panneaux au milieu (scroll par
-   colonne), dock en bas — tout trois fixes, seul le contenu d'une colonne défile. */
+/* Rangée : colonne gauche (2/3, aperçu + dock, sous la doc-bar) · aside (1/3,
+   pleine hauteur, défile SOUS la barre). La page ne scrolle pas globalement —
+   chaque colonne porte sa propre CustomScrollbar. */
 .maquette {
   display: flex;
-  flex-direction: column;
+  align-items: stretch;
+  gap: var(--sp-4);
   height: 100%;
-  overflow: hidden;
-  /* Le haut ne passe plus sous la doc-bar flottante (aligné sur ConfigView). */
-  padding-top: calc(var(--bar-size) + 1.25em);
-}
-
-/* Prend la hauteur restante ; ne scrolle PAS globalement (chaque colonne porte sa
-   propre CustomScrollbar). Padding horizontal seul — le haut vient de .maquette. */
-.maquette__panels {
-  flex: 1 1 auto;
-  min-height: 0;
   overflow: hidden;
   padding: 0 var(--sp-5);
 }
 
-/* Le split remplit la hauteur des panneaux et étire ses colonnes (le mode bare
-   les alignait en haut) → chaque CustomScrollbar de colonne a un parent borné. */
-.maquette__panels :deep(.split) {
-  height: 100%;
-  margin-bottom: 0;
-  align-items: stretch;
-}
-
-.maquette__panels :deep(.split-main),
-.maquette__panels :deep(.split-right) {
+/* Colonne gauche : aperçu témoin (flex:1) + dock (hauteur propre), tous deux
+   sous la doc-bar (padding-top réserve sa hauteur, aligné sur ConfigView). */
+.maquette__left {
+  flex: 2 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
   min-height: 0;
+  padding-top: calc(var(--bar-size) + 1.25em);
 }
 
-/* La CustomScrollbar remplit sa colonne ; son parent bare peut la figer en
-   flex:0 0 auto — height:100% (interne) la laisse quand même occuper toute la colonne. */
+/* Bande de l'aperçu : prend la hauteur restante, ne scrolle pas globalement
+   (sa CustomScrollbar porte le débordement). */
+.maquette__panels {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* La CustomScrollbar remplit la bande de l'aperçu. */
 .maquette__col {
   height: 100%;
 }
 
-/* Chaque section de source remplit AU MOINS la colonne (pour que le FolioView
+/* La section de source remplit AU MOINS la colonne (pour que le FolioView
    double-page reçoive une hauteur bornée) et déborde en scroll si besoin. */
 .maquette__main {
   display: flex;
@@ -478,11 +484,31 @@ onUnmounted(() => { if (section) section.value = null })
   min-height: 0;
 }
 
+/* Colonne aside : pleine hauteur, sans cadre propre. Sa CustomScrollbar défile
+   SOUS la doc-bar (top-offset = hauteur de barre). */
+.maquette__aside-col {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 100%;
+}
+
+/* Contenu défilant de l'aside : les modules empilés. Le padding-tête réserve la
+   hauteur de la doc-bar (au repos, Format est visible sous la barre ; il glisse
+   dessous au scroll). */
 .maquette__aside {
   display: flex;
   flex-direction: column;
+  gap: var(--sp-5);
+  padding: calc(var(--bar-size) + 1.25em) var(--sp-4) var(--sp-5);
+}
+
+/* Un bloc = une section de l'aside. scroll-margin-top tient compte de la doc-bar
+   quand le scroll-spy amène ce bloc en tête (scrollIntoView block:start). */
+.maquette__aside-block {
+  display: flex;
+  flex-direction: column;
   gap: var(--sp-3);
-  padding: var(--sp-4);
+  scroll-margin-top: calc(var(--bar-size) + 1.25em);
 }
 
 .maquette__aside-title {
@@ -491,7 +517,7 @@ onUnmounted(() => { if (section) section.value = null })
   font-weight: 600;
 }
 
-/* Deuxième titre d'une même colonne aside (ex. « Fin du liminaire ») : séparé du
+/* Deuxième titre d'un même bloc aside (ex. « Fin du liminaire ») : séparé du
    bloc précédent. */
 .maquette__aside-title--spaced {
   margin-top: var(--sp-4);
@@ -505,7 +531,7 @@ onUnmounted(() => { if (section) section.value = null })
   font-size: var(--fs-sm);
 }
 
-/* Signature du modèle exigé (aside chapitrage), reprise de l'ancien main. */
+/* Signature du modèle exigé (bloc chapitrage). */
 .maq-required-sig {
   align-self: flex-start;
   font-family: var(--font-ui);
@@ -571,22 +597,10 @@ onUnmounted(() => { if (section) section.value = null })
   max-width: none;
 }
 
-/* Dock EN FLUX en bas de la colonne (il réserve sa hauteur, les panneaux prennent
-   le reste). Fond transparent. Structure flex 2:1 identique à `.split` : l'accordéon
-   ne couvre que la zone main. */
+/* Dock EN FLUX en bas de la colonne gauche (il réserve sa hauteur, l'aperçu
+   prend le reste). L'accordéon le remplit (la colonne est déjà à 2/3). */
 .maquette__dock {
   flex: 0 0 auto;
-  display: flex;
-  gap: var(--sp-4);
-  padding: 0 var(--sp-5) var(--sp-4);
-}
-
-.maquette__dock-main {
-  flex: 2 1 0;
-  min-width: 0;
-}
-
-.maquette__dock-aside {
-  flex: 1 1 0;
+  padding: 0 0 var(--sp-4);
 }
 </style>
