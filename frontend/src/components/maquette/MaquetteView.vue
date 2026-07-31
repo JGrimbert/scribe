@@ -117,6 +117,7 @@
         <MaquetteAccordeon
             :crans="crans"
             :focused="focused"
+            :ratio="previewRatio"
             @update:focused="focused = $event"
         >
           <!-- La cellule du vis-à-vis dépend de la source : la maquette montre un
@@ -272,14 +273,29 @@ const series = computed(() => {
   return out
 })
 
-// Liste PLATE des vis-à-vis = l'unité de focus. Chaque cran porte de quoi
-// retrouver son contenu ET sa série (l'accordéon rend l'onglet d'entrée devant
-// le premier cran de chaque série).
+// Section d'accordéon d'une série : Format · Liminaire · Chapitrage (tous les
+// niveaux de chapitrage fondus en UNE section, sans séparation visuelle interne).
+function sectionOf(seriesKey) {
+  if (seriesKey === 'format') return { key: 'format', label: 'Format' }
+  if (seriesKey === 'liminaire') return { key: 'liminaire', label: 'Liminaire' }
+  return { key: 'chapitrage', label: 'Chapitrage' }
+}
+
+// Liste PLATE des vis-à-vis = l'unité de focus. Chaque cran porte de quoi retrouver
+// son contenu, sa SÉRIE (pour le fil d'Ariane : « Chapitrage n°2 ») ET sa SECTION
+// (pour l'accordéon : intervalle + onglet-jalon par section).
 const crans = computed(() => {
   const out = []
+  let prevSection = null
   series.value.forEach((s, si) => {
-    s.spreads.forEach((sp, spi) => {
-      out.push({ ...sp, seriesIndex: si, seriesKey: s.key, seriesLabel: s.label, isSeriesStart: spi === 0 })
+    const sec = sectionOf(s.key)
+    s.spreads.forEach((sp) => {
+      const isSectionStart = sec.key !== prevSection
+      prevSection = sec.key
+      out.push({
+        ...sp, seriesIndex: si, seriesKey: s.key, seriesLabel: s.label,
+        sectionKey: sec.key, sectionLabel: sec.label, isSectionStart,
+      })
     })
   })
   return out
