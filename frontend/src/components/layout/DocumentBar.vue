@@ -9,31 +9,36 @@
     </button>
 
     <nav class="breadcrumb" aria-label="Fil d'Ariane">
-      <!-- Inerte (span, pas bouton) : on est déjà sur cet écran, il n'y a rien
-           à y naviguer — c'est un titre, pas un maillon. -->
-      <template v-if="screenLabel">
-        <span class="crumb crumb--screen">{{ screenLabel }}</span>
-        <i class="pi pi-angle-right crumb-sep"></i>
-      </template>
-
+      <!-- Ordre : projet › chapitrage › page › section. La feuille (dernier
+           maillon effectif) porte l'accent, les intermédiaires restent neutres. -->
       <button
           class="crumb crumb--root"
-          :class="{ 'crumb--current': !currentNodeId }"
           :title="scoped ? 'Analyser le livre entier' : title"
           @click="$emit('select', null)"
       >
         {{ title || 'Livre' }}
       </button>
 
+      <!-- Chapitrage : chemin de nœuds (chapitre ouvert en édition, scope en analyse). -->
       <template v-for="crumb in crumbs" :key="crumb.id">
         <i class="pi pi-angle-right crumb-sep"></i>
-        <button
-            class="crumb"
-            :class="{ 'crumb--current': crumb.id === currentNodeId }"
-            @click="$emit('select', crumb.id)"
-        >
+        <button class="crumb" @click="$emit('select', crumb.id)">
           {{ crumb.titre }}
         </button>
+      </template>
+
+      <!-- Page : inerte (span, pas bouton) — on y est déjà, rien à y naviguer.
+           Feuille accentuée tant qu'aucune section ne la suit. -->
+      <template v-if="screenLabel">
+        <i class="pi pi-angle-right crumb-sep"></i>
+        <span class="crumb crumb--screen" :class="{ 'crumb--current': !section }">{{ screenLabel }}</span>
+      </template>
+
+      <!-- Section en cours DANS la page (feuille) : nuage de mots… en analyse,
+           Format/Liminaire/Chapitrage en maquette. Inerte. -->
+      <template v-if="section">
+        <i class="pi pi-angle-right crumb-sep"></i>
+        <span class="crumb crumb--section crumb--current">{{ section }}</span>
       </template>
     </nav>
 
@@ -117,6 +122,9 @@ const props = defineProps({
   // Action contextuelle de l'écran, posée dans le CTA global à droite à la place
   // du bouton d'analyse. `{ label, icon, disabled, busy, title, run }` ou null.
   barAction: { type: Object, default: null },
+  // Section en cours DANS la page (dernier maillon du fil d'Ariane) : posée par
+  // la vue routée (scroll-spy en analyse, cran focusé en maquette). null ailleurs.
+  section: { type: String, default: null },
 })
 
 defineEmits(['toggle-sidebar', 'select', 'toggle-validation'])
@@ -285,19 +293,29 @@ const checklistVisible = computed(() => props.scoped && !!running && running.val
   flex-shrink: 0;
 }
 
-/* Titre de l'écran : ni survol ni clic, mais la métrique des crumbs pour que la
-   ligne reste d'un seul tenant. */
-.crumb--screen {
+/* Page et section : maillons inertes (ni clic ni survol). L'accent de feuille
+   vient de `crumb--current`, posé sur le dernier maillon effectif — la page tant
+   qu'aucune section ne la suit, la section sinon. */
+.crumb--screen,
+.crumb--section {
   flex-shrink: 0;
-  opacity: 1;
-  font-weight: 600;
-  color: var(--c-bar-accent);
   cursor: default;
 }
 
 .crumb:hover {
   opacity: 1;
   background: var(--c-hover);
+}
+
+/* Les maillons inertes ne réagissent pas au survol (le fond `--c-hover` les
+   ferait passer pour cliquables) ; un maillon non-feuille garde son opacité douce. */
+.crumb--screen:hover,
+.crumb--section:hover {
+  background: transparent;
+}
+
+.crumb--screen:not(.crumb--current):hover {
+  opacity: var(--op-soft);
 }
 
 .crumb--current {

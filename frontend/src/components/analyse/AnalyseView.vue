@@ -1,5 +1,5 @@
 <template>
-  <div class="analyse-view">
+  <div class="analyse-view" ref="rootEl">
     <!-- Bandeau global : présent dès l'arrivée (tuiles « — » tant que les
          données manquent), même pendant le chargement de l'analyse. Une tuile
          par stat + relance séquentielle de toutes les analyses (chaque card
@@ -17,25 +17,27 @@
 
     <UiNote v-if="error" variant="error">{{ error }}</UiNote>
 
+    <!-- Chaque card est enrobée d'un `<section data-label>` : le scroll-spy
+         (IntersectionObserver, cf. script) lit ce libellé pour poser le dernier
+         maillon du fil d'Ariane (« section en cours dans la page »). -->
     <template v-else>
-
-      <VocabulaireCard />
-      <LexicalCard />
-      <ThemesCard />
-      <AnomaliesCard />
-      <SemanticCard/>
+      <section class="analyse-section" data-label="Vocabulaire"><VocabulaireCard /></section>
+      <section class="analyse-section" data-label="Champ lexical"><LexicalCard /></section>
+      <section class="analyse-section" data-label="Thèmes"><ThemesCard /></section>
+      <section class="analyse-section" data-label="Anomalies"><AnomaliesCard /></section>
+      <section class="analyse-section" data-label="Proximité sémantique"><SemanticCard /></section>
 
       <!-- Bas de page : cards en lecture seule, « à trier plus tard ». Le
            tableau par article (sorti du bloc Analyse linguistique) et les
            entités non migrées vers les filtres du nuage. -->
-      <LexicalUnitsCard v-if="isRevealed('lexical')" class="leftover-entities" />
-      <EntitiesLeftoverCard v-if="isRevealed('lexical')" class="leftover-entities" />
+      <section v-if="isRevealed('lexical')" class="analyse-section leftover-entities" data-label="Statistiques par article"><LexicalUnitsCard /></section>
+      <section v-if="isRevealed('lexical')" class="analyse-section leftover-entities" data-label="Entités nommées"><EntitiesLeftoverCard /></section>
     </template>
   </div>
 </template>
 
 <script setup>
-import { computed, inject, onMounted, ref, watch } from 'vue'
+import { computed, inject, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAnalyse } from '../../composables/useAnalyse'
 import { formatInt, formatPercent } from '../../script/format'
@@ -59,6 +61,54 @@ const data = inject('documentData', ref(null))
 
 onMounted(fetchAnalysis)
 watch(() => route.params.id, (id) => { if (id) fetchAnalysis() })
+
+// ── Scroll-spy : dernier maillon du fil d'Ariane = section visible en haut ────
+// La feuille suit le défilement. Détection par IntersectionObserver rooté sur le
+// conteneur de scroll du contenu (`.custom-scrollbar__content`, cf.
+// DocumentLayout) : la section dont le haut est le plus proche du sommet, parmi
+// celles qui coupent la bande haute du viewport, gagne.
+const rootEl = ref(null)
+const section = inject('documentSection', null)
+let io = null
+let targets = []
+
+// Section courante = la dernière dont le haut a franchi une ligne à 30 % du
+// viewport ; la première par défaut (au sommet, aucune n'a encore passé la ligne
+// — on ne laisse jamais le maillon vide). Les `<section>` sont en ordre DOM.
+function pickSection() {
+  if (!section || !targets.length) return
+  const root = rootEl.value?.closest('.custom-scrollbar__content')
+  if (!root) return
+  const line = root.getBoundingClientRect().top + root.getBoundingClientRect().height * 0.3
+  let current = targets[0].dataset.label
+  for (const el of targets) {
+    if (el.getBoundingClientRect().top - 1 <= line) current = el.dataset.label
+    else break
+  }
+  section.value = current
+}
+
+// (Re)pose l'observer sur les `<section>` présentes — la liste change quand les
+// cards « leftover » se révèlent (isRevealed('lexical')). L'IO ne sert qu'à
+// réveiller `pickSection` aux franchissements de la bande haute (= la ligne).
+function buildSpy() {
+  io?.disconnect()
+  const el = rootEl.value
+  if (!el) return
+  const root = el.closest('.custom-scrollbar__content')
+  targets = Array.from(el.querySelectorAll('.analyse-section'))
+  if (!targets.length) return
+  io = new IntersectionObserver(pickSection, { root, rootMargin: '0px 0px -70% 0px', threshold: 0 })
+  targets.forEach((t) => io.observe(t))
+  pickSection()
+}
+
+onMounted(() => nextTick(buildSpy))
+watch(() => isRevealed('lexical'), () => nextTick(buildSpy))
+onUnmounted(() => {
+  io?.disconnect()
+  if (section) section.value = null
+})
 
 // Caractères/mots déjà agrégés récursivement côté backend (somme sur les axes
 // de tête = total) ; paragraphes et chapitres (tous les nœuds-titres) en un

@@ -49,6 +49,14 @@
         />
         <BaseButton
             variant="ghost"
+            icon="pi-clone"
+            :active="route.name === 'maquette'"
+            :disabled="!targetDocId"
+            title="Maquette"
+            @click="router.push(`/documents/${targetDocId}/maquette`)"
+        />
+        <BaseButton
+            variant="ghost"
             icon="pi-eye"
             :active="quillVisible"
             :title="quillVisible ? 'Masquer la fenêtre Quill' : 'Afficher la fenêtre Quill'"

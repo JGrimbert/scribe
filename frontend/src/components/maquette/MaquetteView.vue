@@ -398,6 +398,12 @@ watchEffect(() => {
   }
 })
 onUnmounted(() => { if (barAction) barAction.value = null })
+
+// Dernier maillon du fil d'Ariane : la série du cran focusé (« Format » /
+// « Liminaire » / « Chapitrage n°1 »), déjà portée par le cran.
+const section = inject('documentSection', null)
+watchEffect(() => { if (section) section.value = focusedCran.value?.seriesLabel ?? null })
+onUnmounted(() => { if (section) section.value = null })
 </script>
 
 <style scoped>

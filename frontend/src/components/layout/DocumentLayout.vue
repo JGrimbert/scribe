@@ -18,6 +18,7 @@
           :validation-state="currentValidation"
           :validating="validating"
           :bar-action="barAction"
+          :section="section"
           @toggle-sidebar="sidebarExpanded = !sidebarExpanded"
           @select="select"
           @toggle-validation="toggleValidation"
@@ -127,6 +128,15 @@ provide('documentTitle', title)
 // son CTA d'analyse (« Relancer l'analyse »). Le même slot, un CTA par écran.
 const barAction = ref(null)
 provide('documentBarAction', barAction)
+
+// Section en cours dans la page (dernier maillon du fil d'Ariane). Même patron
+// que `documentBarAction` : la vue routée la renseigne via inject (scroll-spy en
+// analyse, cran focusé en maquette), null au démontage. Réinitialisée aussi ici
+// sur changement d'écran/de document — la vue sortante ne doit pas laisser sa
+// section derrière elle le temps que la nouvelle prenne la main.
+const section = ref(null)
+provide('documentSection', section)
+watch(() => [route.name, route.params.id], () => { section.value = null })
 
 // tat du shell (partagé sidebar + fil d'Ariane) 
 const SIDEBAR_KEY = 'scribe.sidebar.expanded'
