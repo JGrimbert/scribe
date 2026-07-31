@@ -23,18 +23,52 @@ const PROP_MAP = {
   orphans: 'orphans',
 }
 
-function declarations(v) {
+// Un nom de police multi-mots ou à chiffre (« Florals 2 », « Times New Roman »)
+// DOIT être quoté, sinon la déclaration CSS est invalide et silencieusement ignorée
+// → repli sur la police générique (Georgia). Les identifiants simples (Georgia,
+// Arial, serif) et les valeurs déjà quotées restent tels quels ; on quote chaque
+// famille d'une liste séparée par des virgules.
+function cssFontFamily(val) {
+  return String(val)
+    .split(',')
+    .map((f) => f.trim())
+    .filter(Boolean)
+    .map((f) => (/^['"].*['"]$/.test(f) || /^[a-zA-Z_-][a-zA-Z0-9_-]*$/.test(f) ? f : `"${f}"`))
+    .join(', ')
+}
+
+// Déclarations d'APPARENCE (police/corps/alignement/marges/emphase), sans les
+// propriétés de FLUX (break-before/keep-with-next). Partagé par la feuille visuals
+// et le rendu inline par paragraphe.
+function appearanceDeclarations(v) {
   const decls = []
   for (const [key, cssProp] of Object.entries(PROP_MAP)) {
-    if (v[key] != null && v[key] !== '') decls.push(`${cssProp}:${v[key]}`)
+    if (v[key] != null && v[key] !== '') {
+      const value = key === 'fontFamily' ? cssFontFamily(v[key]) : v[key]
+      decls.push(`${cssProp}:${value}`)
+    }
   }
   if (v.bold) decls.push('font-weight:bold')
   if (v.italic) decls.push('font-style:italic')
+  return decls
+}
+
+function declarations(v) {
+  const decls = appearanceDeclarations(v)
   if (v.pageBreakBefore) decls.push('break-before:page')
   // « Garder avec le suivant » : empêche une coupure de page APRÈS ce bloc (un
   // titre ne reste pas seul en bas de page, détaché de son paragraphe).
   if (v.keepWithNext) decls.push('break-after:avoid')
   return decls.join(';')
+}
+
+// Apparence d'un StyleVisual en CSS INLINE, pour l'appliquer PAR PARAGRAPHE dans
+// l'aperçu d'imposition : le liminaire porte son apparence COMPLÈTE (mise en forme
+// directe comprise) sur chaque entrée (`TexteEntry.visual`, backend). Inline →
+// l'emporte sur la feuille visuals ET sur le `text-align:justify` de repli du boot.
+// Les propriétés de flux sont écartées : l'imposition gère elle-même ses sauts.
+export function styleVisualToInlineCss(v) {
+  return v ? appearanceDeclarations(v).join(';') : ''
 }
 
 // La valeur vit entre guillemets dans le sélecteur : espaces/accents/« ? » des

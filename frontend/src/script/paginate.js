@@ -156,6 +156,10 @@ export function buildImpositionBlocks(pages) {
                 blocks.push({
                     id: `imp_${pi}_${index}`,
                     styleName: e.styleName,
+                    // Apparence COMPLÈTE de l'entrée (mise en forme directe .odt
+                    // incluse), appliquée en inline par useFolioFrame → fidélité
+                    // du liminaire là où le seul styleName perdait les retouches.
+                    visual: e.visual,
                     breakBefore: first && index === 0,
                     html: renderTexteEntry(e),
                 })

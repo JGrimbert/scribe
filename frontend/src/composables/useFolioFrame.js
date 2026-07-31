@@ -1,7 +1,7 @@
 import { ref } from 'vue'
 import { buildFragmentRegistry, createFragmentApi } from '../script/fragment.js'
 import { createRegistry } from '../script/registry.js'
-import { buildVisualsCss, buildHyphenationCss, buildPageCss, buildPagePinCss, buildRunningTitlesCss, buildFormatGuidesCss, runningReserves } from '../script/folioStyles.js'
+import { buildVisualsCss, buildHyphenationCss, buildPageCss, buildPagePinCss, buildRunningTitlesCss, buildFormatGuidesCss, runningReserves, styleVisualToInlineCss } from '../script/folioStyles.js'
 
 // Force un saut de page AVANT chaque slot d'une planche d'imposition (sauf le 1er) :
 // Paged.js n'honore les `break-before` que depuis une FEUILLE traitée par son
@@ -88,13 +88,25 @@ export function useFolioFrame(props, { frameRef, frameDoc, blocks, section, onRe
       // carrousel, cf. LiminaireFolio : aliceblue + filet issu de --c-border), ni
       // bordure, ni ombre, ni empagement, ni titre courant/folio. Les classes sont
       // posées sur les .pagedjs_page concernées après pagination (marquage DOM).
-      // La zone de contenu passe en flex centré → le libellé est centré (V+H).
-      `.pagedjs_page.folio-blank,.pagedjs_page.folio-cover{background:${HATCH_CSS};border:none;box-shadow:none;}`,
-      '.folio-blank .pagedjs_page_content,.folio-cover .pagedjs_page_content{outline:none;display:flex;align-items:center;justify-content:center;}',
+      // Blanche/garde STRICTEMENT ISO à une page pleine : même bordure ET même ombre
+      // (on ne surcharge NI border NI box-shadow de `.pagedjs_page`). Retirer la
+      // bordure la rendait 2px plus petite (border-box=content-box ici) → bas
+      // désalignés au pixel et ombre asymétrique dans un vis-à-vis mixte. Seul le
+      // FOND change (la hachure suffit à distinguer une blanche).
+      `.pagedjs_page.folio-blank,.pagedjs_page.folio-cover{background:${HATCH_CSS};}`,
+      // Centrage du libellé sur la PAGE PHYSIQUE, pas sur la zone de contenu (celle-ci
+      // est rétrécie par les marges + les réserves de titres courants, ce qui décalait
+      // le libellé). On neutralise le positionnement de area/content (statique) pour que
+      // le slot, en absolu inset:0, se cale sur `.pagedjs_page` (position:relative) =
+      // toute la page. Robuste au <article>/wrapper que Paged.js insère entre les deux.
+      '.folio-blank .pagedjs_area,.folio-cover .pagedjs_area,.folio-blank .pagedjs_page_content,.folio-cover .pagedjs_page_content{position:static;outline:none;}',
+      '.pagedjs_page.folio-blank .imp-slot,.pagedjs_page.folio-cover .imp-slot{position:absolute;inset:0;margin:0;display:flex;align-items:center;justify-content:center;}',
       '.folio-blank .pagedjs_margin-content,.folio-cover .pagedjs_margin-content{display:none;}',
     ].join('')
     // `read` empile les pages (aperçu vertical d'UNE page) ; `edit`/`spread`
-    // gardent la rangée horizontale de paged.css (pages côte à côte).
+    // gardent la rangée horizontale de paged.css (pages côte à côte). L'ombre est
+    // portée PAR PAGE (cf. `.pagedjs_page` du boot), identique sur les pleines comme
+    // sur les blanches/garde (cf. plus haut) → bas continu quel que soit le vis-à-vis.
     const layout = props.mode === 'read' ? '.pagedjs_pages{display:block;} .pagedjs_page{margin:0;}' : ''
     boot.textContent = common + layout
     doc.head.appendChild(boot)
@@ -211,6 +223,13 @@ export function useFolioFrame(props, { frameRef, frameDoc, blocks, section, onRe
       // Clé d'apparence : la feuille d'apparence cible `[data-style="…"]`. Préservé
       // par Paged.js sur chaque fragment issu d'une coupure de page.
       if (b.styleName) root.setAttribute('data-style', b.styleName)
+      // Apparence COMPLÈTE par paragraphe (imposition liminaire) : mise en forme
+      // directe .odt que le styleName seul perd. Inline → l'emporte sur la feuille
+      // visuals et sur le justify de repli du boot (cf. TexteEntry.visual backend).
+      if (b.visual) {
+        const inline = styleVisualToInlineCss(b.visual)
+        if (inline) root.setAttribute('style', inline)
+      }
       // Planche d'imposition : le 1er bloc d'un slot force sa page (cf.
       // buildImpositionBlocks). Classe (pas style inline) → règle IMPOSITION_CSS
       // passée au polisher, seule voie que Paged.js honore pour un break forcé.

@@ -1,6 +1,6 @@
 import { DOMParser } from 'xmldom'
 import * as xpath from 'xpath'
-import { FlatNode, ListItemEntry, OutlineFormat, PageStart, StyleInventory } from './types'
+import { FlatNode, ListItemEntry, OutlineFormat, PageStart, StyleInventory, StyleVisual } from './types'
 import {
   NS,
   select,
@@ -19,6 +19,38 @@ import {
   readOutlineFormat,
 } from './xml'
 import { buildStyleInventory } from './inventory'
+import { buildParagraphVisualResolver, buildCharacterVisualResolver, toCm } from './visual'
+
+// Apparence de caractère DOMINANTE d'un paragraphe : la taille/police/couleur du
+// style de caractère (<text:span>) qui couvre le PLUS de texte. LibreOffice y range
+// la taille réelle des runs de la page de titre (auteur 18pt, titre 32pt) là où le
+// style de PARAGRAPHE hérite d'une autre valeur (40pt). Ne rend que des props de
+// police : elles priment le paragraphe ; alignement/marges restent au paragraphe.
+function dominantSpanVisual(
+  node: any,
+  charVisual: (name: string) => StyleVisual | undefined,
+): Pick<StyleVisual, 'fontSize' | 'fontFamily' | 'color'> | undefined {
+  const spans = select('.//*[local-name()="span"]', node) as any[]
+  if (!spans.length) return undefined
+  const topKey = (m: Map<string, number>): string | undefined =>
+    [...m.entries()].sort((a, b) => b[1] - a[1])[0]?.[0]
+  const sizeLen = new Map<string, number>()
+  const famLen = new Map<string, number>()
+  const colorLen = new Map<string, number>()
+  for (const s of spans) {
+    const v = charVisual(s.getAttribute('text:style-name') || '')
+    if (!v) continue
+    const len = (s.textContent || '').length || 1
+    if (v.fontSize) sizeLen.set(v.fontSize, (sizeLen.get(v.fontSize) ?? 0) + len)
+    if (v.fontFamily) famLen.set(v.fontFamily, (famLen.get(v.fontFamily) ?? 0) + len)
+    if (v.color) colorLen.set(v.color, (colorLen.get(v.color) ?? 0) + len)
+  }
+  const out: Pick<StyleVisual, 'fontSize' | 'fontFamily' | 'color'> = {}
+  const fs = topKey(sizeLen); if (fs) out.fontSize = fs
+  const ff = topKey(famLen); if (ff) out.fontFamily = ff
+  const co = topKey(colorLen); if (co) out.color = co
+  return Object.keys(out).length ? out : undefined
+}
 
 const META_STYLES = {
   auteur: ['auteur', 'P301'],
@@ -60,6 +92,45 @@ export function buildFlatNodes(xmlContent: string, stylesXml?: string): {
   const listStyles = buildListStyles(doc)
   const styleTable = buildStyleTable(doc)
   const tocTexts = extractTocTexts(doc)
+  // Apparence complète PAR PARAGRAPHE (style auto → mise en forme directe incluse).
+  // Absent sans styles.xml (tests structurels sans ODT complet) : le résolveur rend
+  // alors `undefined`, les FlatNode n'ont pas de `visual`, rendu inchangé.
+  const paragraphVisual = buildParagraphVisualResolver(doc, stylesDoc)
+  // Apparence de CARACTÈRE (spans) : la taille/police réelle des runs, que le style
+  // de paragraphe ne porte pas (cf. dominantSpanVisual).
+  const charVisual = buildCharacterVisualResolver(doc, stylesDoc)
+  // Visual EFFECTIF d'un paragraphe = paragraphe + caractère dominant par-dessus
+  // (police/corps/couleur priment). `undefined` si rien n'est porté.
+  const effectiveVisual = (node: any, rawStyle: string): StyleVisual | undefined => {
+    const merged = { ...(paragraphVisual(rawStyle) ?? {}), ...(dominantSpanVisual(node, charVisual) ?? {}) }
+    return Object.keys(merged).length ? merged : undefined
+  }
+
+  // Aération : une ligne VIDE du .odt (paragraphe ou titre sans texte, hors saut de
+  // page) ne devient pas une entrée — sa hauteur est reversée en marge basse de
+  // l'élément PRÉCÉDENT (« espace sous l'élément précédent »). Sans ça, toutes les
+  // lignes d'aération de la page de titre disparaissaient. On ne TOUCHE JAMAIS au flux
+  // de FlatNode (les index pilotent les bornes de calibration persistées) : on ne fait
+  // que gonfler le `visual` du dernier contenu — invisible au corps (qui ne persiste
+  // pas `visual`), effectif au liminaire/final.
+  let lastContentNode: FlatNode | null = null
+  const lineHeightCm = (node: any, rawStyle: string): number => {
+    const v = effectiveVisual(node, rawStyle) ?? {}
+    const fsCm = toCm(v.fontSize ?? null) ?? 0.423 // défaut ≈ 12pt
+    const lh = v.lineHeight
+    if (lh) {
+      if (lh.trim().endsWith('%')) return fsCm * (parseFloat(lh) / 100 || 1)
+      const abs = toCm(lh)
+      if (abs) return abs
+    }
+    return fsCm
+  }
+  const addSpacerBelowPrev = (cm: number) => {
+    if (!lastContentNode || cm <= 0) return
+    if (!lastContentNode.visual) lastContentNode.visual = {}
+    const cur = toCm(lastContentNode.visual.marginBottom ?? null) ?? 0
+    lastContentNode.visual.marginBottom = `${(cur + cm).toFixed(3)}cm`
+  }
 
   const rawNodes: any[] = []
   let sectionsRencontrees = 0
@@ -120,6 +191,7 @@ export function buildFlatNodes(xmlContent: string, stylesXml?: string): {
           // dit quelque chose est le style des paragraphes des items.
           innerStyles: extractInnerStyles(node, styleTable),
         })
+        lastContentNode = flatNodes[flatNodes.length - 1]
       }
       continue
     }
@@ -142,6 +214,7 @@ export function buildFlatNodes(xmlContent: string, stylesXml?: string): {
       const pageStart = pageStarts.get(styleName) ?? null
       const effectiveStyle = effectiveStyleName(styleName, styleTable)
       const highlight = styleBackground(styleName, styleTable)
+      const visual = effectiveVisual(node, styleName)
 
       if (level >= 1) {
         // Texte du titre gardé brut (pas de lien) : un lien partiel dans un
@@ -160,8 +233,13 @@ export function buildFlatNodes(xmlContent: string, stylesXml?: string): {
           highlight,
           pageStart,
           ...flushBlanks(),
+          ...(visual ? { visual } : {}),
           ...(bookmarkNames.length ? { bookmarkNames } : {}),
         })
+        // Titre VIDE : reste poussé (l'index alimente les bornes) mais n'ancre pas
+        // le contenu — sa hauteur va en aération sous l'élément précédent.
+        if (text) lastContentNode = flatNodes[flatNodes.length - 1]
+        else if (!pageStart) addSpacerBelowPrev(lineHeightCm(node, styleName))
       } else {
         const text = nodeTextWithLinks(node, styleTable).trim()
         if (text) {
@@ -175,11 +253,16 @@ export function buildFlatNodes(xmlContent: string, stylesXml?: string): {
             highlight,
             pageStart,
             ...flushBlanks(),
+            ...(visual ? { visual } : {}),
           })
+          lastContentNode = flatNodes[flatNodes.length - 1]
         } else if (pageStart) {
           // Paragraphe VIDE porteur d'un saut : une page blanche (verso/recto).
           // Pas un nœud — un marqueur rattaché au prochain nœud émis.
           pendingBlanks.push(pageStart)
+        } else {
+          // Ligne d'aération : reversée en marge basse de l'élément précédent.
+          addSpacerBelowPrev(lineHeightCm(node, styleName))
         }
       }
       continue

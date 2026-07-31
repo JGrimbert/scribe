@@ -29,11 +29,16 @@ function styleOf(node: FlatNode): { styleName?: string; highlight?: string; page
 // (tableau, entrée vide).
 function matterEntryOf(node: FlatNode): TexteEntry | null {
   if (node.kind === 'table') return null
+  // `visual` = apparence COMPLÈTE du paragraphe (mise en forme directe incluse),
+  // portée SEULEMENT par les entrées matter : le liminaire/final est très mis en
+  // forme (page de titre…) et peu nombreux, alors que la répéter sur chaque
+  // paragraphe du corps gonflerait la base pour un rendu déjà fidèle via styleName.
+  const withVisual = node.visual ? { visual: node.visual } : {}
   if (node.kind === 'list') {
     const items = node.listItems ?? []
-    return items.length ? { type: 'list', ordered: node.listOrdered ?? false, items, ...styleOf(node) } : null
+    return items.length ? { type: 'list', ordered: node.listOrdered ?? false, items, ...styleOf(node), ...withVisual } : null
   }
-  return node.text ? { type: 'paragraph', text: node.text, ...styleOf(node) } : null
+  return node.text ? { type: 'paragraph', text: node.text, ...styleOf(node), ...withVisual } : null
 }
 
 // ─── Passe 2 : construction de la hiérarchie à profondeur arbitraire ──────
@@ -239,7 +244,7 @@ export function buildParsedResult(
       current.texte.push({ type: 'paragraph', text, ...styleOf(node) })
     } else {
       paragraphesLiminaire++
-      result.liminaire.push({ type: 'paragraph', text, ...styleOf(node) })
+      result.liminaire.push({ type: 'paragraph', text, ...styleOf(node), ...(node.visual ? { visual: node.visual } : {}) })
     }
   }
 

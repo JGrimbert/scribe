@@ -25,16 +25,23 @@ export function useFolioScale(props, { rootRef, frameRef, frameDoc, onScaled }) 
   // réécrivait à chaque fois une valeur « différente » → re-layout de l'iframe (qui
   // repeint son contenu avec une frame de retard) = clignotement. Idempotent → un seul
   // paint, et la boucle du ResizeObserver s'éteint d'elle-même (2e passe = no-op).
-  function applyScale(scale, frameW, frameH) {
+  // `pad` (px) : respiration RÉSERVÉE À L'INTÉRIEUR de la frame autour du contenu.
+  // Sans elle, la frame collait au contenu → l'ombre portée des pages (dans l'iframe)
+  // se faisait clipper à ses bords, surtout en bas (offset +1px) — la « couture »
+  // coupée du vis-à-vis. On agrandit donc la frame de 2×pad et on décale `#render`
+  // d'autant : les pages ne touchent plus les bords, l'ombre a la place de s'afficher.
+  function applyScale(scale, contentW, contentH, pad = 0) {
     const frame = frameRef.value
     const render = frameDoc()?.getElementById('render')
     if (!frame || !render) return
+    const frameW = contentW + 2 * pad
+    const frameH = contentH + 2 * pad
     const curW = parseFloat(frame.style.width) || 0
     const curH = parseFloat(frame.style.height) || 0
     const skip = Math.abs(curW - frameW) < 0.5 && Math.abs(curH - frameH) < 0.5 && Math.abs(scaleRef.value - scale) < 0.0005
     if (skip) return
     scaleRef.value = scale
-    render.style.transform = `scale(${scale})`
+    render.style.transform = pad ? `translate(${pad}px, ${pad}px) scale(${scale})` : `scale(${scale})`
     frame.style.width = `${frameW}px`
     frame.style.height = `${frameH}px`
     onScaled?.()
@@ -80,7 +87,9 @@ export function useFolioScale(props, { rootRef, frameRef, frameDoc, onScaled }) 
       const availW = root.clientWidth - 2 * SPREAD_PAD
       const availH = root.clientHeight - 2 * SPREAD_PAD
       const scale = Math.min(availW / spreadW, availH / pageEl.offsetHeight, 1)
-      applyScale(scale, spreadW * scale, pageEl.offsetHeight * scale)
+      // SPREAD_PAD réservé DANS la frame (pas seulement au calcul d'échelle) → l'ombre
+      // portée de la planche a la place de s'afficher, pas coupée aux bords de l'iframe.
+      applyScale(scale, spreadW * scale, pageEl.offsetHeight * scale, SPREAD_PAD)
       return
     }
 

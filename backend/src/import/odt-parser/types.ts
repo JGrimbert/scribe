@@ -29,9 +29,16 @@ export interface ListItemEntry {
 // contrainte de composition — recto/verso, ou simple saut — lue du .odt. Le
 // bloc éligibilité du liminaire s'en sert pour découper les pages et calculer
 // le vis-à-vis. Omis (comme highlight) quand il n'y a rien à dire.
+// `visual` : apparence EFFECTIVE et COMPLÈTE du paragraphe, résolue depuis son
+// style AUTOMATIQUE (« P26 ») — donc mise en forme DIRECTE comprise, que la clé
+// `styleName` (style nommé parent) perd. Porté seulement par les entrées du
+// liminaire/final (peu nombreuses, très mises en forme) : les paragraphes du
+// corps rendent via `styleName` + la feuille `visuals` du document, inchangé.
+// Absent = pas de retouche directe / document importé avant cette capture → le
+// rendu retombe sur `styleName`.
 export type TexteEntry =
-  | { type: 'paragraph'; text: string; styleName?: string; highlight?: string | null; pageStart?: PageStart | null }
-  | { type: 'list'; ordered: boolean; items: ListItemEntry[]; styleName?: string; highlight?: string | null; pageStart?: PageStart | null }
+  | { type: 'paragraph'; text: string; styleName?: string; highlight?: string | null; pageStart?: PageStart | null; visual?: StyleVisual }
+  | { type: 'list'; ordered: boolean; items: ListItemEntry[]; styleName?: string; highlight?: string | null; pageStart?: PageStart | null; visual?: StyleVisual }
 
 // Un nœud de titre, à n'importe quelle profondeur (remplace les anciens
 // ParsedAxe/ParsedBloc/ParsedArticle distincts). `texte` est le contenu
@@ -174,6 +181,11 @@ export interface FlatNode {
   // deux cas réels — « Voir » (183 usages, tous en cellule) et « Puces ? » (15
   // usages, tous en item de liste).
   innerStyles?: string[]
+  // Apparence EFFECTIVE et COMPLÈTE du paragraphe, résolue depuis son style
+  // AUTOMATIQUE (mise en forme directe comprise), cf. TexteEntry.visual. Stampée
+  // pour les paragraphes/listes ; recopiée sur les seules entrées matter par la
+  // passe 2. Absente si la résolution ne rend rien (aucune propriété portée).
+  visual?: StyleVisual
   listItems?: ListItemEntry[] // pertinent si kind === 'list'
   listOrdered?: boolean // pertinent si kind === 'list'
   bookmarkNames?: string[] // signets ODT rattachés à ce titre ; pertinent si kind === 'heading'

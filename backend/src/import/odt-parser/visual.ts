@@ -48,10 +48,11 @@ function attrsOf(styleNode: any, localName: string): Record<string, string> {
   return out
 }
 
-// Tous les styles de paragraphe, des deux documents. `styles.xml` porte les
-// styles nommés et leurs ancêtres ; `content.xml` les automatiques, dont on n'a
-// besoin ici que pour ne pas casser une chaîne qui les traverserait.
-function collectRawStyles(docs: any[]): Map<string, RawStyle> {
+// Tous les styles d'une FAMILLE (paragraphe par défaut, ou caractère), des deux
+// documents. `styles.xml` porte les styles nommés et leurs ancêtres ;
+// `content.xml` les automatiques, dont on n'a besoin ici que pour ne pas casser
+// une chaîne qui les traverserait.
+function collectRawStyles(docs: any[], wantFamily = 'paragraph'): Map<string, RawStyle> {
   const raw = new Map<string, RawStyle>()
   for (const doc of docs) {
     if (!doc) continue
@@ -59,7 +60,7 @@ function collectRawStyles(docs: any[]): Map<string, RawStyle> {
       const name = node.getAttribute('style:name')
       if (!name) continue
       const family = node.getAttribute('style:family')
-      if (family && family !== 'paragraph') continue
+      if (family && family !== wantFamily) continue
       raw.set(name, {
         parent: node.getAttribute('style:parent-style-name') || null,
         text: attrsOf(node, 'text-properties'),
@@ -153,6 +154,47 @@ function resolve(
   const merged = { ...inherited, ...toVisual(style, fontFaces) }
   cache.set(name, merged)
   return merged
+}
+
+// Résolveur d'apparence PAR STYLE BRUT : rend l'apparence effective et COMPLÈTE
+// d'un style, AUTOMATIQUE compris (« P26 » → « mention sous titre » → … →
+// « Standard »), donc mise en forme DIRECTE incluse — ce que `buildVisualStyles`
+// (indexé par nom effectif) écrase. Sert à capturer la retouche locale des
+// paragraphes du liminaire/final (page de titre : centrage, corps, espacements
+// posés en direct). Le résolveur partage un cache : une chaîne déjà vue n'est pas
+// recalculée. Rend `undefined` quand le style ne porte rien (pour ne pas stamper
+// une clé vide).
+export function buildParagraphVisualResolver(
+  contentDoc: any,
+  stylesDoc: any,
+): (rawStyleName: string) => StyleVisual | undefined {
+  const raw = collectRawStyles([stylesDoc, contentDoc])
+  const fontFaces = buildFontFaces([stylesDoc, contentDoc])
+  const cache = new Map<string, StyleVisual>()
+  return (name: string) => {
+    if (!name) return undefined
+    const visual = resolve(name, raw, fontFaces, cache, new Set())
+    return Object.keys(visual).length ? visual : undefined
+  }
+}
+
+// Résolveur d'apparence des styles de CARACTÈRE (family='text'). LibreOffice range
+// souvent la taille/police d'un run dans un style de caractère (« T12 ») porté par
+// un <text:span>, PAS dans le style de paragraphe : sur la page de titre, l'auteur
+// est en 18pt et le titre en 32pt via ces spans, invisibles au résolveur de
+// paragraphe. Rend les props de police d'un style de caractère, héritage compris.
+export function buildCharacterVisualResolver(
+  contentDoc: any,
+  stylesDoc: any,
+): (rawStyleName: string) => StyleVisual | undefined {
+  const raw = collectRawStyles([stylesDoc, contentDoc], 'text')
+  const fontFaces = buildFontFaces([stylesDoc, contentDoc])
+  const cache = new Map<string, StyleVisual>()
+  return (name: string) => {
+    if (!name) return undefined
+    const visual = resolve(name, raw, fontFaces, cache, new Set())
+    return Object.keys(visual).length ? visual : undefined
+  }
 }
 
 // Indexé par nom EFFECTIF décodé (« Heading_20_1 » → « Heading 1 ») : la même
