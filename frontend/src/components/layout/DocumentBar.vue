@@ -1,5 +1,5 @@
 <template>
-  <div class="doc-bar">
+  <div ref="barEl" class="doc-bar">
     <button
         v-if="hasSidebar"
         class="doc-bar__chevron"
@@ -42,6 +42,62 @@
         <span class="crumb crumb--section crumb--current">{{ section }}</span>
       </template>
     </nav>
+
+    <!-- Recherche inline : loupe sortie du champ, input pavé pleine hauteur.
+         Le focus ouvre un volet sombre pleine largeur (maquette). -->
+    <label ref="searchEl" class="doc-search">
+      <i class="pi pi-search doc-search__icon"></i>
+      <input
+          ref="inputEl"
+          v-model="query"
+          type="search"
+          class="doc-search__input"
+          placeholder="Rechercher…"
+          @focus="open = true"
+          @blur="onInputBlur"
+      />
+    </label>
+
+    <!-- Volet déroulant : téléporté dans body pour échapper au containing-block
+         créé par le `backdrop-filter` de la barre (qui clipperait un enfant fixe).
+         `--c-bar-accent` n'existe pas hors `.app` → on injecte sa valeur calculée
+         lue sur la barre. Bande de stats (hauteur menu, couleur menu) puis voile
+         jauni flouté portant onglets + nuage. -->
+    <Teleport to="body">
+      <div v-if="open" ref="panelEl" class="doc-panel" :style="[panelStyle, { '--c-bar-accent': barAccent }]">
+        <div class="doc-panel__stats">
+          <span
+              v-for="item in statItems"
+              :key="item.label"
+              class="doc-stat"
+              :title="item.hint || undefined"
+          >
+            <b class="doc-stat__value">{{ item.empty ? '—' : item.value }}</b>
+            <span class="doc-stat__label">{{ item.label }}</span>
+          </span>
+        </div>
+
+        <div class="doc-panel__sheet">
+          <div class="doc-panel__tabs" role="tablist">
+            <button
+                v-for="tab in PANEL_TABS"
+                :key="tab.key"
+                class="doc-panel__tab"
+                :class="{ 'doc-panel__tab--active': activeTab === tab.key }"
+                role="tab"
+                :aria-selected="activeTab === tab.key"
+                @click="activeTab = tab.key"
+            >
+              {{ tab.label }}
+            </button>
+          </div>
+
+          <div class="doc-panel__body">
+            <VocabulaireCloud v-if="activeTab === 'nuage'" compact />
+          </div>
+        </div>
+      </div>
+    </Teleport>
 
     <!-- Validation : seulement en édition, et seulement sur un chapitre ouvert
          — on valide ce qu'on vient de relire, sous les yeux. Le dashboard, lui,
@@ -99,10 +155,12 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, watch, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { pathToInAxes } from '../../script/trame'
+import { formatInt, formatPercent } from '../../script/format'
 import ProgressChecklist from '../ui/molecules/ProgressChecklist.vue'
+import VocabulaireCloud from '../analyse/lexical/VocabulaireCloud.vue'
 import { useAnalyse } from '../../composables/useAnalyse'
 import BaseButton from "../ui/atoms/BaseButton.vue";
 
@@ -133,6 +191,69 @@ const props = defineProps({
 
 defineEmits(['toggle-sidebar', 'select', 'toggle-validation'])
 
+// Maquette : saisie retenue localement, pas encore branchée sur une recherche.
+const query = ref('')
+
+// ── Volet de recherche (déroulant) ───────────────────────────────────────────
+const open = ref(false)
+const barEl = ref(null)
+const searchEl = ref(null)
+const inputEl = ref(null)
+const panelEl = ref(null)
+const activeTab = ref('nuage')
+const PANEL_TABS = [{ key: 'nuage', label: 'Nuage' }]
+
+// La bande de stats reprend la couleur du menu (`--c-bar-accent`, thématisée).
+// Le volet étant téléporté hors de `.app`, ce token n'y cascade pas — on lit sa
+// valeur calculée sur la barre à chaque ouverture (le thème peut avoir changé).
+const barAccent = ref('')
+
+// Le volet est ancré sous l'input seul (comme le popup d'un select), loupe
+// exclue. Téléporté dans body, il n'hérite pas du flux : on lui pose
+// top/left/width mesurés sur l'input, réévalués au resize tant qu'il est ouvert.
+const panelStyle = ref({})
+function positionPanel() {
+  const r = inputEl.value?.getBoundingClientRect()
+  if (!r) return
+  panelStyle.value = { top: `${r.bottom}px`, left: `${r.left}px`, width: `${r.width}px` }
+}
+
+// Fermeture : Échap, ou clic hors de l'input ET hors du volet (téléporté, donc
+// pas dans l'arbre de la barre — on teste les deux conteneurs à la main).
+function onDocKeydown(e) {
+  if (e.key === 'Escape') open.value = false
+}
+function onDocMousedown(e) {
+  if (inputEl.value?.contains(e.target) || panelEl.value?.contains(e.target)) return
+  open.value = false
+}
+// Perte de focus de l'input → fermeture, sauf si le focus part DANS le volet
+// (interaction avec un contrôle du nuage : select, chips).
+function onInputBlur(e) {
+  if (panelEl.value?.contains(e.relatedTarget)) return
+  open.value = false
+}
+watch(open, (isOpen) => {
+  if (isOpen) {
+    if (barEl.value) {
+      barAccent.value = getComputedStyle(barEl.value).getPropertyValue('--c-bar-accent').trim()
+    }
+    positionPanel()
+    // Le nuage a besoin du lexical : s'il manque, on le calcule à l'ouverture
+    // (spinner géré par VocabulaireCloud tant que `running === 'lexical'`).
+    if (!analysis.value?.lexical && !running.value) runStep('lexical')
+  }
+  const m = isOpen ? 'addEventListener' : 'removeEventListener'
+  document[m]('keydown', onDocKeydown)
+  document[m]('mousedown', onDocMousedown)
+  window[m]('resize', positionPanel)
+})
+onUnmounted(() => {
+  document.removeEventListener('keydown', onDocKeydown)
+  document.removeEventListener('mousedown', onDocMousedown)
+  window.removeEventListener('resize', positionPanel)
+})
+
 // Les trois états du bouton. « périmé » ne propose pas de dévalider mais de
 // revalider : le texte a changé depuis la relecture, l'action utile est de
 // relire, pas d'effacer la trace.
@@ -150,9 +271,53 @@ const STEP_LABELS = {
 
 // Checklist de progression d'analyse (store fourni par DocumentLayout).
 const {
-  steps, stepStatus, topicsProgress, runAll,
-  running, lexical, semantic, topics
+  steps, stepStatus, topicsProgress, runAll, runStep,
+  running, lexical, semantic, topics, analysis
 } = useAnalyse()
+
+// Stats de la bande sombre du volet : structure (caractères/paragraphes/
+// chapitres) dérivée de trame/data reçus en props, global lexical du NLP.
+// Même logique que le bandeau d'AnalyseView, restreinte à l'essentiel.
+const HINTS = {
+  lemmes: 'Formes de base distinctes — un lemme regroupe les flexions d’un mot (chante, chantait → chanter).',
+  diversite: 'TTR : mots distincts / mots totaux. Plus c’est élevé, plus le vocabulaire est varié.',
+  densite: 'Part des mots porteurs de sens (noms, verbes, adjectifs, adverbes) sur le total.',
+}
+
+const structure = computed(() => {
+  const axes = props.trame?.axes
+  const d = props.data
+  if (!axes || !d) return null
+  let caracteres = 0
+  let paragraphes = 0
+  let titres = 0
+  const walk = (node) => {
+    titres++
+    paragraphes += d[node.id]?.texte?.length ?? 0
+    node.children.forEach(walk)
+  }
+  for (const axe of axes) {
+    caracteres += d[axe.id]?.stats?.caracteres ?? 0
+    walk(axe)
+  }
+  return { caracteres, paragraphes, titres }
+})
+
+const statItems = computed(() => {
+  const g = analysis.value?.lexical?.global
+  const s = structure.value
+  const tile = (label, value, hint = null) => ({ label, value, hint, empty: value == null })
+  return [
+    tile('caractères', s ? formatInt(s.caracteres) : null),
+    tile('mots', g ? formatInt(g.words) : null),
+    tile('phrases', g ? formatInt(g.sentences) : null),
+    tile('paragraphes', s ? formatInt(s.paragraphes) : null),
+    tile('chapitres', s ? formatInt(s.titres) : null),
+    tile('lemmes', g ? formatInt(g.uniqueLemmas) : null, HINTS.lemmes),
+    tile('diversité', g ? formatPercent(g.ttr) : null, HINTS.diversite),
+    tile('densité', g ? formatPercent(g.lexicalDensity) : null, HINTS.densite),
+  ]
+})
 
 // Nom de l'écran, en tête du fil d'Ariane. Lu ici plutôt que reçu en prop :
 // c'est du vocabulaire d'affichage, `DocumentLayout` n'a pas à en arbitrer.
@@ -259,7 +424,7 @@ const checklistVisible = computed(() => props.scoped && !!running && running.val
 }
 
 .breadcrumb {
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   min-width: 0;
   display: flex;
   align-items: center;
@@ -332,6 +497,162 @@ const checklistVisible = computed(() => props.scoped && !!running && running.val
   flex: 0 0 auto;
   font-size: 0.7em;
   opacity: var(--op-faint);
+}
+
+/* Recherche inline : la loupe est SORTIE de l'input (élément à gauche, hors du
+   cadre). L'input est un pavé pleine hauteur, bordé à gauche/droite seulement,
+   avec une ombre interne douce sur son bord gauche. */
+.doc-search {
+  flex: 1 1 auto;
+  min-width: 0;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+}
+
+.doc-search__icon {
+  flex: 0 0 auto;
+  padding: 0 0.55em;
+  font-size: 0.9em;
+  opacity: var(--op-muted);
+}
+
+.doc-search__input {
+  align-self: stretch;
+  flex: 1 1 auto;
+  min-width: 0;
+  width: auto;
+  margin: 0;
+  padding: 0 0.7em;
+  border: 0;
+  border-left: 1px solid rgba(0, 0, 0, 0.15);
+  border-right: 1px solid rgba(0, 0, 0, 0.15);
+  box-shadow: inset 6px 0 6px -6px rgba(0, 0, 0, 0.28);
+  background: rgba(255, 255, 255, 0.18);
+  color: inherit;
+  font: inherit;
+  font-size: var(--fs-sm);
+}
+
+.doc-search__input:focus {
+  outline: none;
+}
+
+.doc-search__input::placeholder {
+  color: inherit;
+  opacity: var(--op-faint);
+}
+
+/* Chrome/Safari : retire la croix native du type=search (double emploi visuel). */
+.doc-search__input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+}
+
+/* ── Volet déroulant (téléporté dans body) ────────────────────────────────────
+   Fixe sous les deux barres (topbar + doc-bar = 2 × --bar-size), pleine largeur.
+   Deux strates : bande de stats (couleur menu) + voile jauni flouté. */
+.doc-panel {
+  position: fixed;
+  /* top / left / width posés en style inline (mesurés sous le champ). */
+  z-index: 150;
+  display: flex;
+  flex-direction: column;
+  /* Hauteur définie (plus courte) : borne la chaîne flex pour que la zone du
+     nuage défile et que les filtres se ferrent en bas. Capée au viewport. */
+  height: 58vh;
+  max-height: calc(100vh - var(--bar-size) * 2 - 1em);
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+  overflow: hidden;
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.18);
+}
+
+/* Bande de stats : une seule ligne, hauteur du menu, sa couleur (accent
+   thématisé injecté en style inline), texte blanc. Stats distribués. */
+.doc-panel__stats {
+  flex: 0 0 auto;
+  height: var(--bar-size);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1em;
+  padding: 0 1.25em;
+  background: var(--c-bar-accent);
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.doc-stat {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35em;
+}
+
+.doc-stat__value {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.doc-stat__label {
+  font-size: var(--fs-xs);
+  opacity: var(--op-soft);
+}
+
+/* Voile : remplit la hauteur restante ; jauni du fond (--c-bg) rendu translucide
+   + flou → la page reste visible au travers. Colonne bornée : onglets ferrés en
+   haut, corps (nuage) défilant en dessous. Le fond du voile = la zone nuage, la
+   plus translucide ; onglets et footer posent par-dessus une bande plus opaque.
+   Pas de padding horizontal ici → la bordure d'onglets et le footer vont bord
+   à bord (chacun gère son propre retrait de texte). */
+.doc-panel__sheet {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0.3em 0 0.45em;
+  background: color-mix(in srgb, var(--c-bg) 42%, transparent);
+  backdrop-filter: blur(8px);
+}
+
+/* Onglets : pleine largeur (le voile n'a plus de padding horizontal) → la
+   bordure basse court sur 100 %. Bande la plus opaque des trois zones. */
+.doc-panel__tabs {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 0.4em;
+  padding: 0 0.5em;
+  margin-bottom: 0.2em;
+  border-bottom: 1px solid var(--c-border);
+  background: color-mix(in srgb, var(--c-bg) 82%, transparent);
+}
+
+.doc-panel__tab {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: var(--fs-sm);
+  padding: 0.4em 0.8em;
+  cursor: pointer;
+  opacity: var(--op-soft);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+
+.doc-panel__tab:hover {
+  opacity: 1;
+}
+
+.doc-panel__tab--active {
+  opacity: 1;
+  border-bottom-color: var(--c-bar-accent);
+}
+
+.doc-panel__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
 }
 
 /* Checklist à l'extrémité droite : le fil d'Ariane (flex 1) la pousse au bord,

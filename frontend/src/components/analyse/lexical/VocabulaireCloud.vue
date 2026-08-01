@@ -1,7 +1,10 @@
 <template>
-  <div class="cloud">
+  <div class="cloud" :class="{ 'cloud--compact': compact }">
     <UiNote v-if="stepErrors.lexical" variant="error">{{ stepErrors.lexical }}</UiNote>
-    <UiNote v-if="!lexical">Analyse linguistique pas encore calculée pour ce document.</UiNote>
+    <UiNote v-if="!lexical && running === 'lexical'" variant="hint">
+      <i class="pi pi-spin pi-spinner"></i> Analyse linguistique en cours…
+    </UiNote>
+    <UiNote v-else-if="!lexical">Analyse linguistique pas encore calculée pour ce document.</UiNote>
     <UiNote v-else-if="!lemmas">
       Nuage indisponible sur cette analyse — relancer l'analyse linguistique pour l'obtenir.
     </UiNote>
@@ -20,35 +23,40 @@
       </header>
 
       <!-- Le nuage occupe tout l'espace entre l'en-tête (ferré haut) et les
-           filtres (ferrés bas), et s'y centre. -->
+           filtres (ferrés bas). En mode `compact` (volet de recherche), la zone
+           défile via CustomScrollbar et les filtres restent épinglés en bas ;
+           sinon le nuage s'y centre simplement (dashboard). Le wrapper non-compact
+           est en `display:contents` pour ne pas casser ce centrage. -->
       <div class="cloud-body">
-        <UiNote v-if="!words.length" variant="hint">
-          Aucun mot pour cette sélection de natures grammaticales.
-        </UiNote>
+        <component :is="compact ? CustomScrollbar : 'div'" :class="compact ? 'cloud-scroll' : 'cloud-scroll--flat'">
+          <UiNote v-if="!words.length" variant="hint">
+            Aucun mot pour cette sélection de natures grammaticales.
+          </UiNote>
 
-        <svg
-            v-else
-            class="vocab-cloud"
-            :viewBox="`0 0 ${CLOUD_W + CLOUD_MARGIN * 2} ${CLOUD_H + CLOUD_MARGIN * 2}`"
-            role="img"
-            aria-label="Nuage des lemmes les plus fréquents"
-        >
-          <g :transform="`translate(${CLOUD_W / 2 + CLOUD_MARGIN}, ${CLOUD_H / 2 + CLOUD_MARGIN})`">
-            <text
-                v-for="word in placed"
-                :key="word.text"
-                class="cloud-word"
-                :transform="`translate(${word.x}, ${word.y})`"
-                :style="wordStyle(word)"
-                @mouseenter="hovered = word.text"
-                @mouseleave="hovered = null"
-                @click="toggle(word.text)"
-            >
-              {{ word.text }}
-              <title>{{ word.text }} — {{ word.count }} occurrence{{ word.count > 1 ? 's' : '' }}</title>
-            </text>
-          </g>
-        </svg>
+          <svg
+              v-else
+              class="vocab-cloud"
+              :viewBox="`0 0 ${CLOUD_W + CLOUD_MARGIN * 2} ${CLOUD_H + CLOUD_MARGIN * 2}`"
+              role="img"
+              aria-label="Nuage des lemmes les plus fréquents"
+          >
+            <g :transform="`translate(${CLOUD_W / 2 + CLOUD_MARGIN}, ${CLOUD_H / 2 + CLOUD_MARGIN})`">
+              <text
+                  v-for="word in placed"
+                  :key="word.text"
+                  class="cloud-word"
+                  :transform="`translate(${word.x}, ${word.y})`"
+                  :style="wordStyle(word)"
+                  @mouseenter="hovered = word.text"
+                  @mouseleave="hovered = null"
+                  @click="toggle(word.text)"
+              >
+                {{ word.text }}
+                <title>{{ word.text }} — {{ word.count }} occurrence{{ word.count > 1 ? 's' : '' }}</title>
+              </text>
+            </g>
+          </svg>
+        </component>
       </div>
 
       <!-- Filtres ferrés en bas du bloc, sur deux lignes : natures grammaticales
@@ -88,9 +96,14 @@ import UiNote from '../../ui/molecules/UiNote.vue'
 import ChipGroup from '../../ui/molecules/ChipGroup.vue'
 import BaseChip from '../../ui/atoms/BaseChip.vue'
 import BaseSelect from '../../ui/atoms/BaseSelect.vue'
+import CustomScrollbar from '../../ui/atoms/CustomScrollbar.vue'
 import { useAnalyse } from '../../../composables/useAnalyse'
 import { useCloudFilters } from '../../../composables/useCloudFilters'
 import { useWordCloud } from '../../../composables/useWordCloud'
+
+// `compact` : rendu resserré du volet de recherche (hauteur bornée, zone du
+// nuage défilante, filtres épinglés en bas). Défaut = rendu dashboard.
+defineProps({ compact: Boolean })
 
 const { analysis, running, stepErrors, selectedLemma, settle } = useAnalyse()
 
@@ -100,7 +113,7 @@ const lemmas = computed(() => lexical.value?.lemmas ?? null)
 // Nombre de mots affichés, réglable depuis l'en-tête (le backend en fournit
 // jusqu'à 300). Le nuage se recompose quand la valeur change (via `words`).
 const MAX_WORDS_OPTIONS = [40, 80, 120, 160, 200]
-const maxWords = ref(80)
+const maxWords = ref(120)
 
 const { active, POS_FILTERS, ENTITY_FILTERS, filterStats, statLabel, words: allWords, filteredWords } =
   useCloudFilters(lexical)
@@ -171,6 +184,45 @@ watch(
   align-items: center;
   justify-content: center;
   min-height: 18em;
+}
+
+/* Wrapper transparent en mode dashboard : ne génère pas de boîte, `.cloud-body`
+   centre donc directement le nuage comme avant. */
+.cloud-scroll--flat {
+  display: contents;
+}
+
+/* ── Mode compact (volet de recherche) ──────────────────────────────────────
+   Hauteur bornée : en-tête et filtres ferrés, la zone du nuage défile entre les
+   deux (CustomScrollbar), paddings resserrés. */
+.cloud--compact {
+  height: 100%;
+  gap: 0.1em;
+}
+
+/* En-tête resserré (juste le sélecteur « Mots affichés ») : on colle le nuage
+   à la barre d'onglets. */
+.cloud--compact .cloud-head {
+  padding: 0 0.5em;
+}
+
+.cloud--compact .cloud-body {
+  min-height: 0;
+  display: block; /* la zone scrollable porte la hauteur, plus de centrage flex */
+  padding: 0 0.5em;
+}
+
+.cloud--compact .cloud-scroll {
+  height: 100%;
+}
+
+/* Filtres ferrés en bas, bord à bord : bande de translucidité intermédiaire
+   (moins transparente que le nuage, plus que les onglets). */
+.cloud--compact .cloud-foot {
+  flex: 0 0 auto;
+  margin-top: 0.3em;
+  padding: 0.35em 0.5em;
+  background: color-mix(in srgb, var(--c-bg) 60%, transparent);
 }
 
 .vocab-cloud {
