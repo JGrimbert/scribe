@@ -119,7 +119,7 @@ watch(() => props.activeBlock, () => nextTick(() => {
   display: flex;
   flex-direction: column;
   gap: var(--sp-6);
-  border-left: 1px solid teal;
+  /*border-left: 1px solid teal;*/
   padding: calc(var(--bar-size) + 1.25em) var(--sp-4) var(--sp-5);
 }
 

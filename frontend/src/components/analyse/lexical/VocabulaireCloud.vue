@@ -16,7 +16,7 @@
         </h3>
         <label class="cloud-max">
           <span>Mots affichés</span>
-          <BaseSelect :model-value="maxWords" @update:model-value="maxWords = Number($event)">
+          <BaseSelect :model-value="maxWords" @update:model-value="onPickMax">
             <option v-for="n in MAX_WORDS_OPTIONS" :key="n" :value="n">{{ n }}</option>
           </BaseSelect>
         </label>
@@ -103,7 +103,12 @@ import { useWordCloud } from '../../../composables/useWordCloud'
 
 // `compact` : rendu resserré du volet de recherche (hauteur bornée, zone du
 // nuage défilante, filtres épinglés en bas). Défaut = rendu dashboard.
-defineProps({ compact: Boolean })
+// `width` : largeur disponible (px) — pilote le nombre de mots par défaut
+// (plus l'input de recherche est large, plus on en montre). 0 = non fourni.
+const props = defineProps({
+  compact: Boolean,
+  width: { type: Number, default: 0 },
+})
 
 const { analysis, running, stepErrors, selectedLemma, settle } = useAnalyse()
 
@@ -113,15 +118,40 @@ const lemmas = computed(() => lexical.value?.lemmas ?? null)
 // Nombre de mots affichés, réglable depuis l'en-tête (le backend en fournit
 // jusqu'à 300). Le nuage se recompose quand la valeur change (via `words`).
 const MAX_WORDS_OPTIONS = [40, 80, 120, 160, 200]
-const maxWords = ref(120)
+
+// Défaut du nombre de mots selon la largeur dispo : ~120 dès 1000 px (largeur de
+// l'input de recherche), moins en dessous. Tant que l'utilisateur n'a pas choisi
+// à la main, le défaut suit la largeur.
+function defaultMaxForWidth(w) {
+  if (w >= 1400) return 200
+  if (w >= 1200) return 160
+  if (w >= 1000) return 120
+  if (w >= 700) return 80
+  return 40
+}
+
+const userPickedMax = ref(false)
+const maxWords = ref(defaultMaxForWidth(props.width))
+watch(
+  () => props.width,
+  (w) => { if (!userPickedMax.value) maxWords.value = defaultMaxForWidth(w) },
+)
+
+function onPickMax(value) {
+  userPickedMax.value = true
+  maxWords.value = Number(value)
+}
 
 const { active, POS_FILTERS, ENTITY_FILTERS, filterStats, statLabel, words: allWords, filteredWords } =
   useCloudFilters(lexical)
 
 const words = computed(() => filteredWords.value.slice(0, maxWords.value))
 
+// Volet de recherche : nuage large et plat (adapté au panneau court et large),
+// au lieu du repère ~1,7:1 du dashboard.
+const cloudDims = props.compact ? { width: 1040, height: 300 } : {}
 const { placed, selected, hovered, toggle, wordStyle, CLOUD_W, CLOUD_H, CLOUD_MARGIN } =
-  useWordCloud(words, () => settle('cloud'))
+  useWordCloud(words, () => settle('cloud'), cloudDims)
 
 // Pont vers l'état partagé : le mot sélectionné dans le nuage pilote le détail
 // des occurrences (OccurrencesCard) et la proximité (SemantiqueCard). Les mots
@@ -213,6 +243,13 @@ watch(
 }
 
 .cloud--compact .cloud-scroll {
+  height: 100%;
+}
+
+/* Le nuage tient dans la zone (SVG à hauteur pleine, mise à l'échelle « contain »
+   centrée par le preserveAspectRatio par défaut) : plus de coupure nette en haut,
+   le nuage se réduit pour rentrer plutôt que d'être rogné. */
+.cloud--compact .vocab-cloud {
   height: 100%;
 }
 

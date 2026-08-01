@@ -14,7 +14,7 @@ const FONT_MIN = 14
 const FONT_RANGE = 40
 // Espacement de base entre mots (px), rétréci avec l'échelle (cf. placeWords) —
 // sinon l'écart paraît énorme quand la police est petite.
-const BASE_PADDING = 4
+const BASE_PADDING = 1
 
 // ── Heuristique d'échelle (évite de rejouer d3-cloud pour « tâtonner ») ──
 // Largeur moyenne d'un glyphe rapportée à la taille de police (Georgia ≈ 0,5).
@@ -32,14 +32,14 @@ function fontSize(count, maxSqrt) {
 // padding compris) demandée par tous les mots à l'échelle 1, et on la ramène
 // sous FILL × surface disponible. Comme aire ∝ échelle², l'échelle cible est la
 // racine du rapport. Bornée à 1 (on ne grossit jamais au-delà de la base).
-export function fitScale(words) {
+export function fitScale(words, { width = CLOUD_W, height = CLOUD_H } = {}) {
   const maxSqrt = Math.sqrt(words[0].count)
   let demand = 0
   for (const w of words) {
     const s = fontSize(w.count, maxSqrt)
     demand += (w.text.length * CHAR_WIDTH_RATIO * s + 2 * BASE_PADDING) * (s + 2 * BASE_PADDING)
   }
-  return Math.min(1, Math.sqrt((FILL * CLOUD_W * CLOUD_H) / demand))
+  return Math.min(1, Math.sqrt((FILL * width * height) / demand))
 }
 
 // PRNG déterministe (mulberry32) : même vocabulaire → mêmes positions maison.
@@ -74,12 +74,12 @@ export function wordColor(count, maxCount) {
 // (champs minimaux relus par la couche Vue). Padding proportionnel à l'échelle.
 // Un seul réessai de sécurité si des mots ont été écartés (l'heuristique vise
 // assez bas pour que ce soit rare).
-export function placeWords(words, { scale, seed = 1234 } = {}) {
+export function placeWords(words, { scale, seed = 1234, width = CLOUD_W, height = CLOUD_H } = {}) {
   return new Promise((resolve) => {
     const run = (s, retry) => {
       const maxSqrt = Math.sqrt(words[0].count)
       cloud()
-        .size([CLOUD_W, CLOUD_H])
+        .size([width, height])
         .words(
           words.map((w) => ({
             text: w.text,
@@ -87,7 +87,7 @@ export function placeWords(words, { scale, seed = 1234 } = {}) {
             size: Math.max(6, Math.round(fontSize(w.count, maxSqrt) * s)),
           })),
         )
-        .spiral('archimedean')
+       // .spiral('archimedean')
         .padding(Math.max(1, BASE_PADDING * s))
         .rotate(() => 0)
         .font('Georgia')

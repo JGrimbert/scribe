@@ -18,7 +18,7 @@ const VELOCITY_DECAY = 0.72
 // nombre de mots (cf. buildFromLayout) : à beaucoup de mots chaque frame coûte
 // plus cher, on joue donc une animation plus courte et plus discrète.
 const REHEAT_ALPHA = 0.6
-const PUSH_RANGE = 180
+const PUSH_RANGE = 40
 const PUSH_STRENGTH_REF = 7
 const REHEAT_DECAY_REF = 0.05
 const REF_WORDS = 80
@@ -30,8 +30,13 @@ const SCALE_ACTIVE = 1.05
 // Nuage de mots animé. `words` est une source réactive de lemmes filtrés
 // ({ lemma, count }, déjà tronquée) ; `onSettle` signale que l'entrée est jouée
 // (chaîne de révélation du dashboard).
-export function useWordCloud(words, onSettle) {
+export function useWordCloud(words, onSettle, dims = {}) {
   const route = useRoute()
+
+  // Repère de placement, paramétrable (le volet de recherche veut un nuage plus
+  // large/plat que le dashboard). Défauts = constantes historiques.
+  const width = dims.width ?? CLOUD_W
+  const height = dims.height ?? CLOUD_H
 
   const placed = ref([])
   const selected = ref(null)
@@ -120,13 +125,13 @@ export function useWordCloud(words, onSettle) {
     }
     // Le contenu du nuage suffit à identifier le layout (mêmes lemmes/comptes →
     // même disposition) : pas besoin d'y ajouter le nombre de mots.
-    const sig = signature(list.map((w) => `${w.text}:${w.count}`).join('|') + `|${CLOUD_W}x${CLOUD_H}`)
+    const sig = signature(list.map((w) => `${w.text}:${w.count}`).join('|') + `|${width}x${height}`)
     const cached = loadLayout('cloud', route.params.id, sig)
     if (cached) {
       buildFromLayout(cached)
       return
     }
-    const data = await placeWords(list, { scale: fitScale(list) })
+    const data = await placeWords(list, { scale: fitScale(list, { width, height }), width, height })
     // Le vocabulaire a pu changer pendant le placement asynchrone.
     if (words.value !== list) return
     saveLayout('cloud', route.params.id, sig, data)
@@ -151,5 +156,5 @@ export function useWordCloud(words, onSettle) {
     }
   }
 
-  return { placed, selected, hovered, toggle, wordStyle, CLOUD_W, CLOUD_H, CLOUD_MARGIN }
+  return { placed, selected, hovered, toggle, wordStyle, CLOUD_W: width, CLOUD_H: height, CLOUD_MARGIN }
 }

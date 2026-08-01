@@ -93,7 +93,7 @@
           </div>
 
           <div class="doc-panel__body">
-            <VocabulaireCloud v-if="activeTab === 'nuage'" compact />
+            <VocabulaireCloud v-if="activeTab === 'nuage'" compact :width="panelWidth" />
           </div>
         </div>
       </div>
@@ -212,9 +212,11 @@ const barAccent = ref('')
 // exclue. Téléporté dans body, il n'hérite pas du flux : on lui pose
 // top/left/width mesurés sur l'input, réévalués au resize tant qu'il est ouvert.
 const panelStyle = ref({})
+const panelWidth = ref(0)
 function positionPanel() {
   const r = inputEl.value?.getBoundingClientRect()
   if (!r) return
+  panelWidth.value = r.width
   panelStyle.value = { top: `${r.bottom}px`, left: `${r.left}px`, width: `${r.width}px` }
 }
 
@@ -224,6 +226,9 @@ function onDocKeydown(e) {
   if (e.key === 'Escape') open.value = false
 }
 function onDocMousedown(e) {
+  // Seul le clic gauche ferme : un clic droit (menu contextuel) ne doit pas
+  // faire disparaître le volet.
+  if (e.button !== 0) return
   if (inputEl.value?.contains(e.target) || panelEl.value?.contains(e.target)) return
   open.value = false
 }
