@@ -25,6 +25,7 @@
 
     --c-paper: #fffdf8; /* fond de lecture opaque (tables) — blanc à peine crème */
     --c-aside-bck: #f1f2e4; /* colonne latérale (registre) — vert sourd */
+    --c-structure-panel: #f1f2e4; /* fond de panneau/pack (aside structure, packs Maquette) */
     --c-paper-cream: #f7f1e3; /* crème franc — ce qui n'est PAS une page du livre */
 
     /* Tables (UiTable) — cadre « encadré » et en-tête cyan repris de la doc-bar

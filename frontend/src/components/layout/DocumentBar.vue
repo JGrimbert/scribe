@@ -1,6 +1,7 @@
 <template>
   <div class="doc-bar">
     <button
+        v-if="hasSidebar"
         class="doc-bar__chevron"
         :title="`${sidebarExpanded ? 'Replier' : 'Déplier'} ${asideLabel}`"
         @click="$emit('toggle-sidebar')"
@@ -111,6 +112,9 @@ const props = defineProps({
   data: Object,
   currentNodeId: String,
   sidebarExpanded: Boolean,
+  // Faux là où l'écran n'a pas d'aside gauche (la maquette, qui porte son propre
+  // sommaire flottant) : le chevron de repli n'aurait alors rien à replier.
+  hasSidebar: { type: Boolean, default: true },
   // Ce que le chevron replie — l'aside est contextuelle (structure ou registre),
   // son libellé ne peut donc pas être en dur ici.
   asideLabel: { type: String, default: 'la structure' },

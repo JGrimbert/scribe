@@ -1,5 +1,5 @@
 <template>
-  <UiTable v-if="styles.length">
+  <UiTable v-if="styles.length" :class="{ 'srt--full': fullWidth }">
     <tbody>
       <tr v-for="(style, i) in styles" :key="style.name" :class="{ 'row--declared': style.declared }">
         <!-- Colonne d'ajout (à GAUCHE) : au survol de la ligne, un « + » dans la
@@ -27,7 +27,7 @@
             <i class="pi pi-pencil" aria-hidden="true"></i>
             <span v-if="isModified(style.name)" class="edit-dot" aria-hidden="true"></span>
           </button>
-          <span class="style-name" :class="{ 'style-name--declared': style.declared }">{{ style.name }}</span>
+          <span class="style-name" :class="{ 'style-name--declared': style.declared }" :title="style.name">{{ style.name }}</span>
           <button
               v-if="style.declared && removeDeclaredStyle"
               class="remove-declared"
@@ -129,6 +129,9 @@ const props = defineProps({
   // Zone de la table (clé de `zones.js`) — requise pour insérer un style déclaré
   // (il faut savoir dans quelle zone il tombe). Absente → pas de bouton « + ».
   zoneKey: { type: String, default: null },
+  // Pleine largeur (aside Maquette) : la table remplit sa colonne au lieu de se
+  // resserrer sur son contenu, et le nom de style se tronque (« … ») s'il déborde.
+  fullWidth: { type: Boolean, default: false },
 })
 
 // Ouvre le panneau d'édition d'apparence (fourni par ConfigView). Injecté plutôt
@@ -227,6 +230,27 @@ function confirmAdd() {
    classe doublée pour passer devant le `width:100%` d'UiTable. */
 :deep(.ui-table.ui-table) {
   width: max-content;
+}
+
+/* Variante pleine largeur (aside Maquette) : la table remplit la colonne au lieu
+   de se resserrer. Classe doublée + classe du box pour battre les deux overrides
+   `fit-content`/`max-content` ci-dessus (spécificité). */
+.ui-table-box.srt--full {
+  width: 100%;
+}
+.ui-table-box.srt--full :deep(.ui-table.ui-table) {
+  width: 100%;
+}
+
+/* Nom de style tronqué quand la table est bornée : sinon un style long
+   (« Titre_chapitre_niveau_2 ») étire la colonne. Le `title` porte le nom entier. */
+.srt--full .style-name {
+  display: inline-block;
+  max-width: 11rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
 }
 
 /* Pas de sélection de texte dans le tableau : c'est une grille de contrôles, pas

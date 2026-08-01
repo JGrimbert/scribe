@@ -42,30 +42,12 @@
               <code class="required-sig">{{ requiredModelLabel }}</code>
             </div>
 
-            <UiNote v-if="shapesError" variant="error">{{ shapesError }}</UiNote>
-            <template v-else-if="activeSignature">
-              <div class="models-head">
-                <span class="models-label">Modèles relevés</span>
-                <span class="models-meta">{{ shapeGroup.total - shapeGroup.empty }}/{{ shapeGroup.total }} rédigés</span>
-              </div>
-              <!-- Le corps ne porte jamais son ×N (cf. script/shapes.js). Chaque
-                   signature pilote l'aperçu ; le 1er est le témoin par défaut. -->
-              <ul class="model-list">
-                <li v-for="signature in shapeGroup.signatures" :key="signature.key">
-                  <button
-                      type="button"
-                      class="model"
-                      :class="{ 'model--active': signature.key === activeSignature.key }"
-                      :title="signature.nodes.map((n) => n.titre).join(', ')"
-                      @click="selectedKey = signature.key"
-                  >
-                    <code class="model-sig">{{ signature.label }}</code>
-                    <span class="model-pct">{{ signature.pct }} %</span>
-                  </button>
-                </li>
-              </ul>
-            </template>
-            <p v-else class="models-empty">Aucun modèle relevé à ce niveau.</p>
+            <StructureModelList
+                :shape-group="shapeGroup"
+                :shapes-error="shapesError"
+                :active-key="activeSignature?.key ?? null"
+                @select="selectedKey = $event"
+            />
           </div>
         </div>
 
@@ -99,7 +81,7 @@
 import { computed, ref, watch } from 'vue'
 import FolioView from '../editor/FolioView.vue'
 import StyleRolesTable from './StyleRolesTable.vue'
-import UiNote from '../ui/molecules/UiNote.vue'
+import StructureModelList from './StructureModelList.vue'
 
 const props = defineProps({
   zone: { type: Object, required: true },
@@ -238,71 +220,5 @@ const requiredModelLabel = computed(() => {
   border: 1px solid var(--c-accent);
   border-radius: var(--radius-md);
   background: var(--c-accent-soft, var(--c-surface));
-}
-
-.models-head {
-  display: flex;
-  align-items: baseline;
-  gap: var(--sp-2);
-  margin-bottom: var(--sp-2);
-}
-
-.models-label {
-  font-size: var(--fs-sm);
-  font-weight: 600;
-}
-
-.models-meta {
-  font-size: var(--fs-xs);
-  opacity: var(--op-faint);
-}
-
-.models-empty {
-  margin: 0;
-  color: var(--c-ink2);
-  font-size: var(--fs-sm);
-}
-
-.model-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-2);
-}
-
-/* Une signature cliquable : elle sélectionne le témoin affiché dans l'aperçu. */
-.model {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 0.4em;
-  padding: 0.15em 0.55em;
-  border: 1px solid var(--c-border);
-  border-radius: var(--radius-md);
-  background: var(--c-surface);
-  font: inherit;
-  font-size: var(--fs-sm);
-  cursor: pointer;
-  transition: border-color 0.1s ease, background 0.1s ease;
-}
-
-.model:hover {
-  border-color: var(--c-accent);
-}
-
-.model--active {
-  border-color: var(--c-accent);
-  background: var(--c-accent-soft, var(--c-surface));
-  box-shadow: inset 0 0 0 1px var(--c-accent);
-}
-
-.model-sig {
-  font-family: var(--font-ui);
-}
-
-.model-pct {
-  font-variant-numeric: tabular-nums;
-  opacity: var(--op-muted);
 }
 </style>

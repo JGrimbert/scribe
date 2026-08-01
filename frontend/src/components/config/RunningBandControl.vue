@@ -6,6 +6,10 @@
     </label>
 
     <div v-if="band.enabled || alwaysOpen" class="band-body">
+      <!-- Entête de corps optionnelle (ex : le « blanc » de marge associé à la
+           bande, injecté par l'hôte — écran Maquette). -->
+      <slot name="lead" />
+
       <!-- Symétrique (pied de page) : un seul contenu, identique recto/verso. -->
       <label v-if="symmetric" class="row">
         <span class="row-label">Contenu</span>
@@ -13,7 +17,7 @@
           <option v-for="o in CONTENT_OPTIONS" :key="o.value" :value="o.value">{{ o.label }}</option>
         </BaseSelect>
       </label>
-      <template v-else>
+      <div v-else class="band-sides" :class="{ 'band-sides--inline': inlineSides }">
         <label class="row">
           <span class="row-label">Pages impaires <em>recto</em></span>
           <BaseSelect v-model="band.recto">
@@ -26,7 +30,7 @@
             <option v-for="o in CONTENT_OPTIONS" :key="o.value" :value="o.value">{{ o.label }}</option>
           </BaseSelect>
         </label>
-      </template>
+      </div>
       <label class="row">
         <span class="row-label">Justification</span>
         <BaseSelect v-model="band.justification">
@@ -66,6 +70,9 @@ const props = defineProps({
   // Corps toujours visible, sans repli sur `enabled` : la case reste une bascule
   // d'activation mais les options ne se cachent plus (écran Maquette, aside).
   alwaysOpen: { type: Boolean, default: false },
+  // Recto/verso côte à côte (label au-dessus du select) au lieu d'empilés en
+  // pleine largeur — écran Maquette, où la colonne est étroite.
+  inlineSides: { type: Boolean, default: false },
 })
 
 // En mode symétrique, un contenu unique piloté par recto (verso suit).
@@ -135,6 +142,31 @@ function setHeight(raw) {
   justify-content: space-between;
   gap: var(--sp-2);
   font-size: var(--fs-sm);
+}
+
+/* Recto/verso : empilés par défaut, côte à côte (label au-dessus) en mode inline. */
+.band-sides {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.band-sides--inline {
+  flex-direction: row;
+  gap: var(--sp-3);
+}
+
+.band-sides--inline .row {
+  flex: 1 1 0;
+  min-width: 0;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 3px;
+}
+
+.band-sides--inline .row :deep(select) {
+  width: 100%;
 }
 
 .row-label {

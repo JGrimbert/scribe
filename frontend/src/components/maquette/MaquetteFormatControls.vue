@@ -1,56 +1,100 @@
 <template>
-  <!-- Contrôles du format de page, montés en TÊTE de l'aside (le main ne garde que
-       le diagramme nu). Dimensions puis marges miroir, en champs normaux.
-       `styleDefaults` est muté en place (comme dans la config). -->
+  <!-- Contrôles du format de page (section Format de l'aside Maquette). Trois packs
+       remplis : le format à proprement parler (dimensions + marges de reliure),
+       puis l'en-tête et le pied — chacun accueillant SON blanc de marge (blanc de
+       tête / de pied). `styleDefaults` est muté en place (comme dans la config). -->
   <div class="mfc">
-    <div class="mfc-group">
-      <label class="mfc-field mfc-field--grow">
-        <span class="mfc-label">Dimensions</span>
-        <BaseSelect v-model="selectedKey">
-          <option value="">Original (.odt)</option>
-          <option v-for="f in PAGE_FORMATS" :key="f.key" :value="f.key">{{ f.label }}</option>
-          <option value="custom">Personnaliser…</option>
-        </BaseSelect>
-      </label>
-      <label class="mfc-field mfc-field--unit">
-        <span class="mfc-label">Unité</span>
-        <BaseSelect v-model="unit">
-          <option v-for="un in UNITS" :key="un.key" :value="un.key">{{ un.label }}</option>
-        </BaseSelect>
-      </label>
+    <!-- Pack Format : dimensions + marges de reliure (petit/grand fond). -->
+    <div class="maq-pack">
+      <div class="mfc-group">
+        <label class="mfc-field mfc-field--grow">
+          <span class="mfc-label">Dimensions</span>
+          <BaseSelect v-model="selectedKey">
+            <option value="">Original (.odt)</option>
+            <option v-for="f in PAGE_FORMATS" :key="f.key" :value="f.key">{{ f.label }}</option>
+            <option value="custom">Personnaliser…</option>
+          </BaseSelect>
+        </label>
+        <label class="mfc-field mfc-field--unit">
+          <span class="mfc-label">Unité</span>
+          <BaseSelect v-model="unit">
+            <option v-for="un in UNITS" :key="un.key" :value="un.key">{{ un.label }}</option>
+          </BaseSelect>
+        </label>
+      </div>
+
+      <div v-if="isCustom" class="mfc-dims">
+        <label class="mfc-num">
+          <span class="mfc-num-label">Largeur</span>
+          <span class="mfc-input">
+            <input type="number" min="0" :step="step" inputmode="decimal"
+                   :value="toUnit(effective && effective.widthCm)"
+                   @input="setDimension('widthCm', $event.target.value)" />
+            <span class="mfc-unit">{{ unit }}</span>
+          </span>
+        </label>
+        <label class="mfc-num">
+          <span class="mfc-num-label">Hauteur</span>
+          <span class="mfc-input">
+            <input type="number" min="0" :step="step" inputmode="decimal"
+                   :value="toUnit(effective && effective.heightCm)"
+                   @input="setDimension('heightCm', $event.target.value)" />
+            <span class="mfc-unit">{{ unit }}</span>
+          </span>
+        </label>
+      </div>
+
+      <div class="mfc-margins">
+        <label v-for="m in BINDING_MARGINS" :key="m.key" class="mfc-num">
+          <span class="mfc-num-label">{{ m.label }}</span>
+          <span class="mfc-input">
+            <input type="number" min="0" :step="step" inputmode="decimal"
+                   :value="toUnit(marginsView[m.key])"
+                   @input="setMargin(m.key, $event.target.value)" />
+            <span class="mfc-unit">{{ unit }}</span>
+          </span>
+        </label>
+      </div>
     </div>
 
-    <div v-if="isCustom" class="mfc-dims">
-      <label class="mfc-num">
-        <span class="mfc-num-label">Largeur</span>
-        <span class="mfc-input">
-          <input type="number" min="0" :step="step" inputmode="decimal"
-                 :value="toUnit(effective && effective.widthCm)"
-                 @input="setDimension('widthCm', $event.target.value)" />
-          <span class="mfc-unit">{{ unit }}</span>
-        </span>
-      </label>
-      <label class="mfc-num">
-        <span class="mfc-num-label">Hauteur</span>
-        <span class="mfc-input">
-          <input type="number" min="0" :step="step" inputmode="decimal"
-                 :value="toUnit(effective && effective.heightCm)"
-                 @input="setDimension('heightCm', $event.target.value)" />
-          <span class="mfc-unit">{{ unit }}</span>
-        </span>
-      </label>
+    <!-- Pack En-tête : blanc de tête, puis recto/verso côte à côte. -->
+    <div class="maq-pack">
+      <RunningBandControl
+          :band="styleDefaults.runningTitles.header"
+          label="En-tête" icon="pi-angle-up" always-open inline-sides
+      >
+        <template #lead>
+          <label class="mfc-num mfc-num--row">
+            <span class="mfc-num-label">Blanc de tête</span>
+            <span class="mfc-input">
+              <input type="number" min="0" :step="step" inputmode="decimal"
+                     :value="toUnit(marginsView.topCm)"
+                     @input="setMargin('topCm', $event.target.value)" />
+              <span class="mfc-unit">{{ unit }}</span>
+            </span>
+          </label>
+        </template>
+      </RunningBandControl>
     </div>
 
-    <div class="mfc-margins">
-      <label v-for="m in MARGINS" :key="m.key" class="mfc-num">
-        <span class="mfc-num-label">{{ m.label }}</span>
-        <span class="mfc-input">
-          <input type="number" min="0" :step="step" inputmode="decimal"
-                 :value="toUnit(marginsView[m.key])"
-                 @input="setMargin(m.key, $event.target.value)" />
-          <span class="mfc-unit">{{ unit }}</span>
-        </span>
-      </label>
+    <!-- Pack Pied de page : blanc de pied, puis contenu (symétrique) + folio. -->
+    <div class="maq-pack">
+      <RunningBandControl
+          :band="styleDefaults.runningTitles.footer"
+          label="Pied de page" icon="pi-angle-down" symmetric allow-folio always-open
+      >
+        <template #lead>
+          <label class="mfc-num mfc-num--row">
+            <span class="mfc-num-label">Blanc de pied</span>
+            <span class="mfc-input">
+              <input type="number" min="0" :step="step" inputmode="decimal"
+                     :value="toUnit(marginsView.bottomCm)"
+                     @input="setMargin('bottomCm', $event.target.value)" />
+              <span class="mfc-unit">{{ unit }}</span>
+            </span>
+          </label>
+        </template>
+      </RunningBandControl>
     </div>
   </div>
 </template>
@@ -58,6 +102,7 @@
 <script setup>
 import { computed, ref } from 'vue'
 import BaseSelect from '../ui/atoms/BaseSelect.vue'
+import RunningBandControl from '../config/RunningBandControl.vue'
 import { PAGE_FORMATS, effectiveMargins, effectivePage, matchFormat } from '../../script/pageFormats'
 
 const props = defineProps({
@@ -67,10 +112,10 @@ const props = defineProps({
   styleDefaults: { type: Object, required: true },
 })
 
-// « petit fond » = intérieur (reliure), « grand fond » = extérieur.
-const MARGINS = [
-  { key: 'topCm', label: 'Blanc de tête' },
-  { key: 'bottomCm', label: 'Blanc de pied' },
+// Marges de reliure (le pack Format) : « petit fond » = intérieur, « grand fond »
+// = extérieur. Les blancs de tête/pied (topCm/bottomCm) vivent, eux, dans les
+// packs En-tête/Pied (cf. slot #lead des bandes).
+const BINDING_MARGINS = [
   { key: 'innerCm', label: 'Petit fond' },
   { key: 'outerCm', label: 'Grand fond' },
 ]
@@ -148,6 +193,42 @@ function setMargin(key, raw) {
   display: flex;
   flex-direction: column;
   gap: var(--sp-3);
+  padding: 0 1em;
+}
+
+/* Pack rempli (Format · En-tête · Pied) : fond plein, arrondi, SANS bordure. */
+.maq-pack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  background: var(--c-structure-panel);
+  border-radius: var(--radius-md);
+  padding: var(--sp-3);
+}
+
+/* La bande porte déjà son cadre (config) ; sur le pack rempli il fait doublon →
+   on l'aplatit (fond/bordure/padding retirés), le filet en pointillé du band-body
+   suffit à séparer l'intitulé du corps. */
+.maq-pack :deep(.band) {
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+
+/* Champ de blanc (tête/pied) en tête de bande : intitulé à gauche, champ à
+   droite, comme une ligne de bande. */
+.mfc-num--row {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.mfc-num--row .mfc-input {
+  flex: 0 0 auto;
+}
+
+.mfc-num--row .mfc-input input {
+  width: 3.6em;
 }
 
 .mfc-group {

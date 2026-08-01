@@ -13,6 +13,7 @@
           :data="data"
           :current-node-id="currentNodeId"
           :sidebar-expanded="sidebarExpanded"
+          :has-sidebar="!isMaquette"
           :aside-label="asideMode === 'registry' ? 'le registre' : 'la structure'"
           :scoped="!isEditor"
           :validation-state="currentValidation"
@@ -28,8 +29,10 @@
     <div class="document-layout">
       <!-- Aside CONTEXTUELLE : le registre là où l'arbre des nœuds ne sert à
            rien (la config, qui peut le reconstruire), la structure partout où
-           on travaille dans le document. -->
+           on travaille dans le document. La maquette porte son PROPRE sommaire
+           flottant (MaquetteStructureNav) : pas d'aside gauche ici. -->
       <div
+          v-if="!isMaquette"
           class="document-layout__sidebar"
           :class="{
             'document-layout__sidebar--rail': !sidebarExpanded,
@@ -150,6 +153,10 @@ const scopeNodeId = ref(null)
 provide('analyseScopeNodeId', scopeNodeId)
 
 const isEditor = computed(() => route.name === 'editor')
+
+// La maquette porte son propre sommaire flottant : DocumentLayout ne monte pas
+// d'aside gauche pour elle (elle reste pleine largeur).
+const isMaquette = computed(() => route.name === 'maquette')
 
 // L'arbre des nœuds n'a rien à dire sur l'écran qui peut le reconstruire : la
 // config y cède la place au registre.

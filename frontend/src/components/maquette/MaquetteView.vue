@@ -7,6 +7,20 @@
        dans l'accordéon fait remonter sa section en tête (scroll-spy).
        Persistance via l'action « Enregistrer » de la doc-bar (`save`). -->
   <div class="maquette">
+    <!-- Sommaire flottant (hors flux) : parties + arbre des axes. Toujours actif ;
+         le cran focusé surligne sa partie, le nœud témoin son axe. -->
+    <!-- Pas de `node-id` : l'arbre ne réagit pas à la partie focusée (ni surlignage
+         de nœud ni dépliage). Seul l'item « Chapitrage n° » des parties se surligne
+         (activeSeriesKey). Le témoin de l'aperçu (currentNodeId) est indépendant. -->
+    <MaquetteStructureNav
+        :parts="parts"
+        :active-series-key="focusedCran?.seriesKey ?? null"
+        :trame="trame"
+        :data="documentData"
+        @focus-series="focusSeries"
+        @select-node="selectNode"
+    />
+
     <!-- Colonne gauche (2/3) : aperçu témoin + dock accordéon, sous la doc-bar. -->
     <div class="maquette__left">
       <div class="maquette__panels">
@@ -89,63 +103,24 @@
     </div>
 
     <!-- Aside (1/3) PLEINE HAUTEUR : sans cadre propre, elle défile SOUS la
-         doc-bar (top-offset de la track + scroll-margin-top des blocs). Tous les
-         modules sont empilés ; le cran focusé fait remonter sa section (watch). -->
+         doc-bar (top-offset de la track). Extraite dans MaquetteAside ; le cran
+         focusé fait remonter sa section (scroll-spy interne via `active-block`). -->
     <div class="maquette__aside-col">
       <CustomScrollbar :top-offset="42">
-        <aside ref="asideEl" class="maquette__aside">
-          <section class="maquette__aside-block" data-block="format">
-            <h3 class="maquette__aside-title">Format</h3>
-            <MaquetteFormatControls :page="fmtPage" :style-defaults="styleDefaults" />
-
-            <h3 class="maquette__aside-title maquette__aside-title--spaced">En-têtes et pieds</h3>
-            <div class="fmt-bands">
-              <RunningBandControl :band="styleDefaults.runningTitles.header" label="En-tête" icon="pi-angle-up" always-open />
-              <RunningBandControl :band="styleDefaults.runningTitles.footer" label="Pied de page" icon="pi-angle-down" symmetric allow-folio always-open />
-            </div>
-          </section>
-
-          <section class="maquette__aside-block" data-block="liminaire">
-            <h3 class="maquette__aside-title">Éligibilité</h3>
-            <LiminaireEligibilite :elig="limElig" />
-
-            <!-- Fin du liminaire : étendre/exclure (le jalon n'est plus qu'informatif). -->
-            <h3 class="maquette__aside-title maquette__aside-title--spaced">Fin du liminaire</h3>
-            <MaquetteLiminaireJalon
-                :can-extend="limCanExtend"
-                :next-title="limNextTitle"
-                :border-shift="limBorderShift"
-                @extend="extendLiminaire"
-                @exclude="excludeLiminaire"
-            />
-          </section>
-
-          <!-- Un bloc par niveau de chapitrage : modèle exigé puis table des
-               styles (rôle · exigé · succession). -->
-          <section
-              v-for="(sec, i) in chapSections"
-              :key="`chap-${i}`"
-              class="maquette__aside-block"
-              :data-block="`chap-${i}`"
-          >
-            <h3 class="maquette__aside-title">Chapitrage n°{{ i + 1 }} — Modèle exigé</h3>
-            <code class="maq-required-sig">{{ requiredModelOf(sec) }}</code>
-
-            <h3 class="maquette__aside-title maquette__aside-title--spaced">Styles &amp; rôles</h3>
-            <StyleRolesTable
-                :styles="sec.styles"
-                :style-roles="styles"
-                show-require
-                :depth-key="sec.depthKey"
-                :zone-key="sec.zone.key"
-                :rule-set="sec.ruleSet ?? rules.default"
-            />
-          </section>
-
-          <p v-if="!chapSections.length" class="maquette__placeholder">
-            Aucun niveau de chapitrage relevé.
-          </p>
-        </aside>
+        <MaquetteAside
+            :fmt-page="fmtPage"
+            :style-defaults="styleDefaults"
+            :elig="limElig"
+            :lim-can-extend="limCanExtend"
+            :lim-next-title="limNextTitle"
+            :lim-border-shift="limBorderShift"
+            :chap-sections="chapSections"
+            :style-roles="styles"
+            :rules="rules"
+            :active-block="focusedCran?.seriesKey ?? null"
+            @extend="extendLiminaire"
+            @exclude="excludeLiminaire"
+        />
       </CustomScrollbar>
     </div>
 
@@ -159,24 +134,22 @@
 </template>
 
 <script setup>
-import { ref, computed, inject, provide, onMounted, onUnmounted, watch, watchEffect, nextTick } from 'vue'
+import { ref, computed, inject, provide, onMounted, onUnmounted, watchEffect } from 'vue'
 import { useRoute } from 'vue-router'
 import MaquetteAccordeon from './MaquetteAccordeon.vue'
 import MaquetteSpreadCell from './MaquetteSpreadCell.vue'
-import MaquetteFormatControls from './MaquetteFormatControls.vue'
 import MaquetteLiminaireCell from './MaquetteLiminaireCell.vue'
 import MaquetteChapitreCell from './MaquetteChapitreCell.vue'
+import MaquetteAside from './MaquetteAside.vue'
+import MaquetteStructureNav from './MaquetteStructureNav.vue'
 import FolioView from '../editor/FolioView.vue'
-import MaquetteLiminaireJalon from './MaquetteLiminaireJalon.vue'
 import CustomScrollbar from '../ui/atoms/CustomScrollbar.vue'
-import RunningBandControl from '../config/RunningBandControl.vue'
 import PageDiagram from '../config/PageDiagram.vue'
-import StyleRolesTable from '../config/StyleRolesTable.vue'
 import StyleEditorPanel from '../config/StyleEditorPanel.vue'
 import AccordeonControls from '../liminaire/AccordeonControls.vue'
 import LiminaireDecoupage from '../liminaire/LiminaireDecoupage.vue'
-import LiminaireEligibilite from '../liminaire/LiminaireEligibilite.vue'
 import { effectivePage, effectiveMargins } from '../../script/pageFormats'
+import { pathToInAxes } from '../../script/trame'
 import { useTypologyConfig } from '../../composables/useTypologyConfig'
 import { useLiminaireBornes } from '../../composables/useLiminaireBornes'
 import { useLiminaireComposition } from '../../composables/useLiminaireComposition'
@@ -307,36 +280,49 @@ const focusedSection = computed(() => {
   return chapSections.value[cran.sectionIndex] ?? null
 })
 
-// ── Aside : scroll-spy. Tous les modules (Format · Liminaire · un bloc par
-// niveau de chapitrage) sont empilés ; changer de partie (le cran focusé change
-// de série) fait remonter la section correspondante en tête, sous la doc-bar
-// (l'offset de barre est porté par scroll-margin-top en CSS).
-const asideEl = ref(null)
-function scrollAsideToFocused() {
-  const key = focusedCran.value?.seriesKey
-  const target = key ? asideEl.value?.querySelector(`[data-block="${key}"]`) : null
-  target?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-}
-watch(() => focusedCran.value?.seriesKey, () => nextTick(scrollAsideToFocused))
+// Le scroll-spy de l'aside (remontée de la section focusée) vit dans MaquetteAside,
+// piloté par la prop `active-block` (= série du cran focusé).
 
-// Nœud témoin de l'aperçu chapitrage : premier nœud de la 1re signature relevée du
-// niveau (témoin par défaut — le picker de modèles n'existe pas encore).
-const witnessNodeId = computed(() => {
-  const sigs = focusedSection.value?.shapeGroup?.signatures ?? []
-  return sigs[0]?.nodes?.[0]?.nodeId ?? null
+// Profondeur d'un nœud dans l'arbre → clé de niveau des règles (0/1/2+, plafonnée).
+function depthKeyOf(nodeId) {
+  const path = pathToInAxes(trame?.value?.axes ?? [], nodeId)
+  return Math.min(Math.max(0, path.length - 1), 2)
+}
+
+// Premier nœud du livre à une clé de niveau donnée. depthKey 2 = première
+// profondeur ≥ 2.
+function firstNodeAtDepthKey(depthKey) {
+  let found = null
+  const walk = (node, depth) => {
+    if (found) return
+    if (Math.min(depth, 2) === depthKey) { found = node.id; return }
+    for (const child of node.children ?? []) walk(child, depth + 1)
+  }
+  ;(trame?.value?.axes ?? []).forEach((axe) => walk(axe, 0))
+  return found
+}
+
+// Nœud témoin de l'aperçu chapitrage : TOUJOURS le premier nœud disponible du
+// niveau (on n'illustre plus par un modèle relevé/exigé).
+const currentNodeId = computed(() => {
+  if (focusedSourceKey.value !== 'chapitrage') return null
+  const dk = focusedSection.value?.depthKey
+  return dk == null ? null : firstNodeAtDepthKey(dk)
 })
 
-// Modèle exigé d'un niveau : titre · <rôles requis, ordre typographique> · corps
-// (· tableau), sur le jeu de règles effectif. Rendu dans chaque bloc chapitrage
-// de l'aside.
-const REQUIRED_MODEL_ORDER = ['chapeau', 'définition', 'citation', 'renvoi']
-function requiredModelOf(sec) {
-  if (!sec) return ''
-  const set = sec.ruleSet ?? sec.defaultRuleSet ?? rules.default
-  const required = REQUIRED_MODEL_ORDER.filter((r) => set.requiresRoles.includes(r))
-  const tokens = ['titre', ...required, 'corps']
-  if (set.requiresTable) tokens.push('tableau')
-  return tokens.join(' · ')
+// ── Sommaire flottant : parties + navigation ────────────────────────────────
+const parts = computed(() => series.value.map((s) => ({ key: s.key, label: s.label })))
+
+function focusSeries(seriesKey) {
+  const i = crans.value.findIndex((c) => c.seriesKey === seriesKey)
+  if (i !== -1) focused.value = i
+}
+
+// Clic sur un axe : focus la série chapitrage de son niveau (l'arbre reste inerte,
+// l'aperçu illustre toujours le premier nœud du niveau).
+function selectNode(nodeId) {
+  const i = chapSections.value.findIndex((s) => s.depthKey === depthKeyOf(nodeId))
+  if (i !== -1) focusSeries(`chap-${i}`)
 }
 
 // Fin du liminaire (migrée du jalon vers l'aside — le jalon n'est plus qu'un
@@ -399,7 +385,7 @@ const mainSpreadPages = computed(() => {
   if (isLiminaire.value) return limSpreadPages.value
   return null
 })
-const mainNodeId = computed(() => (focusedSourceKey.value === 'chapitrage' ? witnessNodeId.value : null))
+const mainNodeId = computed(() => currentNodeId.value)
 const mainDepth = computed(() => (focusedSourceKey.value === 'chapitrage' ? (focusedSection.value?.depthKey ?? 0) : 0))
 
 // Ratio largeur/hauteur de la page effective : les cellules de l'accordéon
@@ -435,6 +421,7 @@ onUnmounted(() => { if (section) section.value = null })
    pleine hauteur, défile SOUS la barre). La page ne scrolle pas globalement —
    chaque colonne porte sa propre CustomScrollbar. */
 .maquette {
+  position: relative;
   display: flex;
   align-items: stretch;
   gap: var(--sp-4);
@@ -485,62 +472,6 @@ onUnmounted(() => { if (section) section.value = null })
   flex: 1 1 0;
   min-width: 0;
   height: 100%;
-}
-
-/* Contenu défilant de l'aside : les modules empilés. Le padding-tête réserve la
-   hauteur de la doc-bar (au repos, Format est visible sous la barre ; il glisse
-   dessous au scroll). */
-.maquette__aside {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-5);
-  padding: calc(var(--bar-size) + 1.25em) var(--sp-4) var(--sp-5);
-}
-
-/* Un bloc = une section de l'aside. scroll-margin-top tient compte de la doc-bar
-   quand le scroll-spy amène ce bloc en tête (scrollIntoView block:start). */
-.maquette__aside-block {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-3);
-  scroll-margin-top: calc(var(--bar-size) + 1.25em);
-}
-
-.maquette__aside-title {
-  margin: 0;
-  font-size: var(--fs-md);
-  font-weight: 600;
-}
-
-/* Deuxième titre d'un même bloc aside (ex. « Fin du liminaire ») : séparé du
-   bloc précédent. */
-.maquette__aside-title--spaced {
-  margin-top: var(--sp-4);
-  padding-top: var(--sp-4);
-  border-top: 1px solid var(--c-border);
-}
-
-.maquette__placeholder {
-  margin: 0;
-  color: var(--c-ink2);
-  font-size: var(--fs-sm);
-}
-
-/* Signature du modèle exigé (bloc chapitrage). */
-.maq-required-sig {
-  align-self: flex-start;
-  font-family: var(--font-ui);
-  font-size: var(--fs-sm);
-  padding: 0.15em 0.55em;
-  border: 1px solid var(--c-accent);
-  border-radius: var(--radius-md);
-  background: var(--c-accent-soft, var(--c-surface));
-}
-
-.fmt-bands {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-2);
 }
 
 /* Scène du FolioView unique : remplit le main, sert de repère au overlay absolu
