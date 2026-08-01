@@ -37,6 +37,8 @@ export function useWordCloud(words, onSettle, dims = {}) {
   // large/plat que le dashboard). Défauts = constantes historiques.
   const width = dims.width ?? CLOUD_W
   const height = dims.height ?? CLOUD_H
+  // Part des mots pivotés à 90° (cf. placeWords) — 0 = tout horizontal.
+  const verticalRatio = dims.verticalRatio ?? 0
 
   const placed = ref([])
   const selected = ref(null)
@@ -81,6 +83,7 @@ export function useWordCloud(words, onSettle, dims = {}) {
       text: w.text,
       count: w.count,
       size: w.size,
+      rotate: w.rotate ?? 0,
       color: wordColor(w.count, maxCount),
       hx: w.x,
       hy: w.y,
@@ -124,14 +127,19 @@ export function useWordCloud(words, onSettle, dims = {}) {
       return
     }
     // Le contenu du nuage suffit à identifier le layout (mêmes lemmes/comptes →
-    // même disposition) : pas besoin d'y ajouter le nombre de mots.
-    const sig = signature(list.map((w) => `${w.text}:${w.count}`).join('|') + `|${width}x${height}`)
+    // même disposition) : pas besoin d'y ajouter le nombre de mots. Le repère ET
+    // la part de verticales en font partie — deux réglages, deux dispositions.
+    const sig = signature(
+      list.map((w) => `${w.text}:${w.count}`).join('|') + `|${width}x${height}r${verticalRatio}`,
+    )
     const cached = loadLayout('cloud', route.params.id, sig)
     if (cached) {
       buildFromLayout(cached)
       return
     }
-    const data = await placeWords(list, { scale: fitScale(list, { width, height }), width, height })
+    const data = await placeWords(list, {
+      scale: fitScale(list, { width, height }), width, height, verticalRatio,
+    })
     // Le vocabulaire a pu changer pendant le placement asynchrone.
     if (words.value !== list) return
     saveLayout('cloud', route.params.id, sig, data)

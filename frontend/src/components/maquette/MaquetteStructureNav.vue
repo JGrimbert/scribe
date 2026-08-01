@@ -1,12 +1,15 @@
 <template>
   <!-- Sommaire flottant de l'écran Maquette : toujours ouvert, hors flux (il ne
-       pousse pas la maquette). Carte flottante portant, de haut en bas, le CHAMP
-       DE RECHERCHE (descendu ici depuis la doc-bar : en maquette, recherche et
-       sommaire sont UN SEUL module, un seul cadre), puis les PARTIES (Format ·
-       Liminaire · Chapitrage n°x, = les `series` de l'accordéon) et l'arbre des
-       axes (StructureView réutilisé). Le focus du champ étend la carte vers la
-       droite pour englober le panneau (stats + nuage). -->
-  <div ref="rootEl" class="maq-nav" :class="{ 'maq-nav--search': open }">
+       pousse pas la maquette). De haut en bas : le CHAMP DE RECHERCHE (descendu
+       ici depuis la doc-bar — en maquette, la recherche appartient au sommaire),
+       en rangée nue ; puis la carte, qui porte les PARTIES (Format · Liminaire ·
+       Chapitrage n°x, = les `series` de l'accordéon) et l'arbre des axes
+       (StructureView réutilisé). Le focus du champ étend la carte vers la droite
+       et remplace le seul arbre par le panneau (stats + résultats/nuage) : la
+       liste des parties, elle, reste toujours visible. -->
+  <div ref="rootEl" class="maq-nav" >
+    <!-- Rangée de recherche NUE (hors carte) : elle pousse le sommaire vers le
+         bas au lieu de partager son cadre. Loupe teal, champ sans bord ni fond. -->
     <label class="maq-search">
       <i class="pi pi-search maq-search__icon"></i>
       <input
@@ -19,21 +22,24 @@
       />
     </label>
 
-    <div class="maq-nav__body">
+    <!-- La carte : le sommaire, ou — pendant la recherche — le panneau (stats,
+         onglets Résultats/Nuage) qui prend toute sa place. -->
+    <div class="maq-nav__card">
+      <!-- Liste d'exploration (Format · Liminaire · Chapitrage n°x) : TOUJOURS
+           visible — la recherche ne prend la place que de l'arbre des axes. -->
+      <div class="maq-nav__parts">
+        <TreeRow
+            v-for="part in parts"
+            :key="part.key"
+            variant="list"
+            normalize-case
+            :current="part.key === activeSeriesKey"
+            @open="$emit('focus-series', part.key)"
+        >
+          {{ part.label }}
+        </TreeRow>
+      </div>
       <div class="maq-nav__scroll">
-        <div class="maq-nav__parts">
-          <TreeRow
-              v-for="part in parts"
-              :key="part.key"
-              variant="list"
-              normalize-case
-              :current="part.key === activeSeriesKey"
-              @open="$emit('focus-series', part.key)"
-          >
-            {{ part.label }}
-          </TreeRow>
-        </div>
-
         <StructureView
             v-if="trame && data"
             :trame="trame"
@@ -44,7 +50,12 @@
         />
       </div>
 
-      <DocSearchPanel v-if="open" class="maq-nav__panel" :width="panelWidth" />
+<!--      <DocSearchPanel
+          class="maq-nav__panel"
+          :width="panelWidth"
+          :query="query"
+          @select-node="$emit('select-node', $event)"
+      />-->
     </div>
   </div>
 </template>
@@ -108,11 +119,10 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* Hors flux, calé sous la doc-bar. Carte flottante (mêmes traits que les
-   contrôles liminaire et les blocs de l'aside). Au repos, sa taille s'ajuste au
-   contenu (bornée par max-height) : l'espace vide ne couvre pas le folio.
-   `pointer-events:none` sur le conteneur, `auto` sur ses zones utiles, pour
-   laisser passer les clics autour. */
+/* Colonne flottante hors flux, calée sous la doc-bar : rangée de recherche NUE
+   en tête, carte du sommaire dessous. Le conteneur n'a aucun décor propre —
+   `pointer-events:none` dessus, `auto` sur ses zones utiles, pour laisser passer
+   les clics autour. */
 .maq-nav {
   position: absolute;
   top: calc(var(--bar-size) + 1.25em);
@@ -125,21 +135,16 @@ onUnmounted(() => {
   /* Au-dessus du reste de la maquette, sous les modales (z 200). */
   z-index: 160;
   pointer-events: none;
-  padding: var(--sp-3);
-  border: 1px solid var(--c-border);
-  border-radius: var(--radius-md);
-  background: var(--c-card-float);
-  backdrop-filter: var(--c-backdrop-filter-blur);
   transition: width 0.18s ease;
 
   margin: 0 1em;
 }
 
-/* Recherche ouverte : la MÊME carte s'étend vers la droite (et sur toute la
-   hauteur disponible) pour englober le panneau — un seul cadre, pas un volet
-   accolé. Le sommaire, lui, ne bouge pas : il garde sa largeur à gauche. */
+/* Recherche ouverte : la carte s'étend vers la droite et sur toute la hauteur
+   disponible. Le sommaire cède la place au panneau — jamais deux contenus côte
+   à côte. */
 .maq-nav--search {
-  width: min(78em, calc(100% - var(--sp-4)));
+  width: min(38em, calc(100% - var(--sp-4)));
   height: calc(100% - var(--bar-size) - 1.25em - var(--sp-4));
   /* Étendue, la carte est un panneau : elle capte les clics au lieu de les
      laisser filer vers le folio (au repos, au contraire, elle les laisse
@@ -147,22 +152,45 @@ onUnmounted(() => {
   pointer-events: auto;
 }
 
-/* Champ de recherche : discret dans la carte (filet bas seulement), pleine
-   largeur, loupe à gauche. */
+/* Carte flottante (mêmes traits que les contrôles liminaire et les blocs de
+   l'aside). Au repos, sa taille s'ajuste au contenu : l'espace vide ne couvre
+   pas le folio. */
+.maq-nav__card {
+  min-height: 0;
+  display: flex;
+  /* Colonne : parties en tête (permanentes), puis l'arbre — ou le panneau de
+     recherche à sa place. */
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+ /* border: 1px solid var(--c-border);
+  border-radius: var(--radius-md);
+  background: var(--c-card-float);*/
+  backdrop-filter: var(--c-backdrop-filter-blur);
+}
+
+.maq-nav--search .maq-nav__card {
+  flex: 1 1 auto;
+}
+
+/* Rangée de recherche : hors carte, sans cadre ni fond — juste la loupe et le
+   champ posés sur la maquette. */
 .maq-search {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
-  gap: 0.4em;
-  padding-bottom: var(--sp-2);
-  border-bottom: 1px solid var(--c-border);
+  gap: 0.5em;
+  padding: 0 var(--sp-2);
   pointer-events: auto;
 }
 
+/* Loupe teal, plus présente que le champ : PrimeIcons est une police d'icônes,
+   `font-weight` n'y fait rien — l'épaisseur vient du contour. */
 .maq-search__icon {
   flex: 0 0 auto;
-  font-size: 0.9em;
-  opacity: var(--op-muted);
+  font-size: 1.15em;
+  color: var(--c-accent-alt);
+  -webkit-text-stroke: 0.6px currentColor;
 }
 
 .maq-search__input {
@@ -188,40 +216,37 @@ onUnmounted(() => {
   -webkit-appearance: none;
 }
 
-/* Corps de la carte : sommaire à gauche (largeur fixe), panneau à droite quand
-   la recherche est ouverte. */
-.maq-nav__body {
-  flex: 1 1 auto;
-  display: flex;
-  min-height: 0;
-  gap: var(--sp-3);
-}
-
-/* Défile sans barre visible (scrollbar masquée) — pas de chrome. */
+/* Arbre des axes : défile sans barre visible (scrollbar masquée) — pas de chrome. */
 .maq-nav__scroll {
   pointer-events: auto;
-  flex: 0 0 auto;
+  flex: 0 1 auto;
   width: 100%;
   min-height: 0;
   overflow-y: auto;
   scrollbar-width: none;
 }
 
-.maq-nav--search .maq-nav__scroll {
-  width: 14em;
-}
-
 .maq-nav__scroll::-webkit-scrollbar {
   display: none;
 }
 
+/* Sous les parties pendant la recherche (l'arbre, lui, est démonté). `min-height`
+   + `overflow` : le nuage est un SVG en `overflow: visible` dont les mots peuvent
+   déborder de leur boîte — sans clip ici, ils iraient mordre sur la liste. */
 .maq-nav__panel {
   pointer-events: auto;
-  /*border-left: 1px solid var(--c-border);*/
-  padding-left: var(--sp-3);
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
 }
 
+/* Positionnée : elle passe devant tout contenu du panneau qui déborderait. */
 .maq-nav__parts {
+  position: relative;
+  z-index: 1;
+  flex: 0 0 auto;
+  pointer-events: auto;
   padding: 0 0.6em;
 }
 

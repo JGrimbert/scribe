@@ -477,6 +477,7 @@ onUnmounted(() => { if (section) section.value = null })
   gap: var(--sp-4);
   flex: 1 1 auto;
   min-height: 0;
+  padding-top: 1em;
 }
 
 /* Folio de format : remplit le main comme le FolioView du chapitrage (flex:1),

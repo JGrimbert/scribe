@@ -45,7 +45,7 @@
                   v-for="word in placed"
                   :key="word.text"
                   class="cloud-word"
-                  :transform="`translate(${word.x}, ${word.y})`"
+                  :transform="`translate(${word.x}, ${word.y}) rotate(${word.rotate || 0})`"
                   :style="wordStyle(word)"
                   @mouseenter="hovered = word.text"
                   @mouseleave="hovered = null"
@@ -148,8 +148,10 @@ const { active, POS_FILTERS, ENTITY_FILTERS, filterStats, statLabel, words: allW
 const words = computed(() => filteredWords.value.slice(0, maxWords.value))
 
 // Volet de recherche : nuage large et plat (adapté au panneau court et large),
-// au lieu du repère ~1,7:1 du dashboard.
-const cloudDims = props.compact ? { width: 1040, height: 300 } : {}
+// au lieu du repère ~1,7:1 du dashboard. `verticalRatio` : un tiers des mots
+// pivotés à 90°, pour occuper les couloirs qu'une composition tout-horizontale
+// laisse vides dans un panneau étroit (carte du sommaire, en maquette).
+const cloudDims = props.compact ? { width: 1040, height: 300, verticalRatio: 0.35 } : {}
 const { placed, selected, hovered, toggle, wordStyle, CLOUD_W, CLOUD_H, CLOUD_MARGIN } =
   useWordCloud(words, () => settle('cloud'), cloudDims)
 

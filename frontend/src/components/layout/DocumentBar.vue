@@ -75,7 +75,13 @@
           class="doc-panel"
           :style="[panelStyle, { '--c-bar-accent': barAccent }]"
       >
-        <DocSearchPanel :width="panelWidth" />
+        <!-- Un résultat cliqué vaut un clic dans le fil d'Ariane (navigation ou
+             scope selon l'écran, arbitré par DocumentLayout) et referme le volet. -->
+        <DocSearchPanel
+            :width="panelWidth"
+            :query="query"
+            @select-node="$emit('select', $event); open = false"
+        />
       </div>
     </Teleport>
 

@@ -17,6 +17,7 @@
     "d3-cloud": "^1.2.9",
     "d3-force": "^3.0.0",
     "echarts": "^6.1.0",
+    "fuzzy-search": "^3.2.1",
     "pagedjs": "^0.4.3",
     "primeicons": "^7.0.0",
     "quill": "^2.0.3",
