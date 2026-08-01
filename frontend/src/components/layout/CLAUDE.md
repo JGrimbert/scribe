@@ -44,6 +44,16 @@ Le vidage reste le défaut pour un vrai changement de document.
   et l'affiche à la place du CTA d'analyse. Aujourd'hui seule la **config** s'en
   sert (« Redéfinir les bornes ») ; le `null` au démontage rend le slot à
   l'analyse.
+- **Recherche + volet (`DocSearchPanel.vue`)** — le champ inline de la barre ouvre
+  au focus un volet plein écran (téléporté dans `body` : le `backdrop-filter` de
+  la barre clipperait un enfant `fixed`) portant stats discrètes + onglets +
+  nuage de mots. Ce contenu est extrait dans `DocSearchPanel` parce qu'il a
+  **deux hôtes** : ce volet, et — en **maquette** — la carte du sommaire flottant
+  (`../maquette/MaquetteStructureNav.vue`), qui héberge aussi le champ. Là, la
+  `DocumentBar` masque le sien (un spacer prend sa place) : recherche et sommaire
+  n'y forment qu'un module, dans un seul cadre qui s'étend à l'ouverture. Le
+  panneau n'a ni fond ni cadre — l'hôte porte le décor — et déclenche lui-même
+  l'étape `lexical` à son montage si elle manque.
 - **Validation d'un chapitre** — bouton à droite du fil d'Ariane, monté
   **uniquement en édition et sur un chapitre ouvert** : on valide ce qu'on vient
   de relire, le dashboard ne fait que compter. Trois états (`Valider`/`Validé`/

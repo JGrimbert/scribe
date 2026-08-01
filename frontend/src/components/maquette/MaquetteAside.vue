@@ -120,17 +120,25 @@ watch(() => props.activeBlock, () => nextTick(() => {
   flex-direction: column;
   gap: var(--sp-6);
   /*border-left: 1px solid teal;*/
-  padding: calc(var(--bar-size) + 1.25em) var(--sp-4) var(--sp-5);
+  /* Course de scroll en fin de colonne : la dernière section doit pouvoir
+     remonter en tête (scroll-spy). Elle était portée par le padding-bas de
+     CHAQUE bloc — devenu un grand vide une fois les blocs passés en cartes. */
+  padding: calc(var(--bar-size) + 1.25em) var(--sp-4) var(--fs-xl);
 }
 
-/* Un bloc = une section (partie) de l'aside. Un léger padding hiérarchise chaque
-   partie ; scroll-margin-top tient compte de la doc-bar quand le scroll-spy amène
-   ce bloc en tête (scrollIntoView block:start). */
+/* Un bloc = une section (partie) de l'aside, en CARTE FLOTTANTE (mêmes traits
+   que les contrôles liminaire et le sommaire flottant) ; scroll-margin-top tient
+   compte de la doc-bar quand le scroll-spy amène ce bloc en tête
+   (scrollIntoView block:start). */
 .maq-aside__block {
   display: flex;
   flex-direction: column;
   gap: var(--sp-3);
-  padding: var(--sp-2) var(--sp-2) var(--sp-3);
+  padding: var(--sp-3);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-md);
+  background: var(--c-card-float);
+  backdrop-filter: var(--c-backdrop-filter-blur);
   scroll-margin-top: calc(var(--bar-size) + 1.25em);
 }
 

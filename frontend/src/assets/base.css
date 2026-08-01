@@ -23,6 +23,18 @@
 
     --c-backdrop-filter-blur: blur(3px);
 
+    /* Voile commun des surfaces flottantes de la maquette (sommaire flottant,
+       volet de recherche) : blanc très dilué + flou marqué. Une seule paire de
+       tokens pour que ces surfaces se lisent comme UN MÊME calque, même quand
+       l'une est téléportée dans body et l'autre non. */
+    --c-veil: color-mix(in srgb, var(--c-surface0) 55%, transparent);
+    --c-veil-blur: blur(16px);
+
+    /* Fond des CARTES FLOTTANTES de la maquette (contrôles liminaire, sommaire
+       flottant, blocs de l'aside) : posées sur le folio/le voile, elles gardent
+       une pointe de transparence + un flou léger (--c-backdrop-filter-blur). */
+    --c-card-float: color-mix(in srgb, var(--c-surface) 94%, transparent);
+
     --c-paper: #fffdf8; /* fond de lecture opaque (tables) — blanc à peine crème */
     --c-aside-bck: #f1f2e4; /* colonne latérale (registre) — vert sourd */
     --c-structure-panel: #f1f2e4; /* fond de panneau/pack (aside structure, packs Maquette) */
@@ -107,6 +119,10 @@
     --font-serif: Georgia, serif;
     --fs-xs: 0.75rem;
     --fs-sm: 0.85rem;
+
+    --fs-xl:6rem;
+
+
     --fs-md: 0.9rem;
     --fs-h3: 1rem;
     --fs-lg: 1.3rem;

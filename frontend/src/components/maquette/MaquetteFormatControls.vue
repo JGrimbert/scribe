@@ -201,7 +201,7 @@ function setMargin(key, raw) {
   display: flex;
   flex-direction: column;
   gap: var(--sp-3);
-  background: var(--c-structure-panel);
+  /*background: var(--c-structure-panel);*/
   border-radius: var(--radius-md);
   padding: var(--sp-3);
 }

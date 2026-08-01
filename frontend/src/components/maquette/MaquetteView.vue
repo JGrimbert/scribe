@@ -105,7 +105,7 @@
     <!-- Aside (1/3) PLEINE HAUTEUR : sans cadre propre, elle défile SOUS la
          doc-bar (top-offset de la track). Extraite dans MaquetteAside ; le cran
          focusé fait remonter sa section (scroll-spy interne via `active-block`). -->
-    <div class="maquette__aside-col">
+    <div class="maquette__aside-col" @wheel.prevent="onAsideWheel">
       <CustomScrollbar :top-offset="42">
         <MaquetteAside
             :fmt-page="fmtPage"
@@ -318,6 +318,25 @@ function focusSeries(seriesKey) {
   if (i !== -1) focused.value = i
 }
 
+// Navigation par molette dans l'aside : un coup = un saut vers le TITRE (série)
+// suivant/précédent, pas un défilement libre. Le scroll-spy de l'aside anime le
+// bloc en tête et tout le reste suit (dérive de `focused`). Verrou temporel : un
+// « flick » de molette émet plusieurs events — on n'en retient qu'un le temps de
+// l'animation, sinon on sauterait plusieurs sections d'un coup.
+let wheelLock = false
+function onAsideWheel(e) {
+  if (wheelLock) return
+  const dir = e.deltaY > 0 ? 1 : e.deltaY < 0 ? -1 : 0
+  if (!dir) return
+  const keys = series.value.map((s) => s.key)
+  const cur = keys.indexOf(focusedCran.value?.seriesKey)
+  const next = Math.min(Math.max(cur + dir, 0), keys.length - 1)
+  if (next === cur) return
+  focusSeries(keys[next])
+  wheelLock = true
+  setTimeout(() => { wheelLock = false }, 450)
+}
+
 // Clic sur un axe : focus la série chapitrage de son niveau (l'arbre reste inerte,
 // l'aperçu illustre toujours le premier nœud du niveau).
 function selectNode(nodeId) {
@@ -447,6 +466,7 @@ onUnmounted(() => { if (section) section.value = null })
   min-height: 0;
   display: flex;
   flex-direction: column;
+  padding-left: 15em;
 }
 
 /* La section de source remplit EXACTEMENT la bande (hauteur bornée pour le
@@ -497,7 +517,7 @@ onUnmounted(() => { if (section) section.value = null })
   padding: var(--sp-3);
   border: 1px solid var(--c-border);
   border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--c-surface) 94%, transparent);
+  background: var(--c-card-float);
   backdrop-filter: var(--c-backdrop-filter-blur);
   opacity: 0;
   pointer-events: none;
