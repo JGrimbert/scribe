@@ -45,11 +45,13 @@
             <i class="pi pi-list" aria-hidden="true"></i>
             <span>Chapitrage n°{{ activeChap.index + 1 }}</span>
           </header>
+<!--
 
           <h4 class="maq-sub">Modèles relevés</h4>
           <StructureModelList :shape-group="activeChap.sec.shapeGroup" :interactive="false" />
-
-          <h4 class="maq-sub maq-sub--spaced">Styles &amp; rôles</h4>
+-->
+<!--
+          <h4 class="maq-sub maq-sub&#45;&#45;spaced">Styles &amp; rôles</h4>-->
           <StyleRolesTable
               :styles="activeChap.sec.styles"
               :style-roles="styleRoles"
