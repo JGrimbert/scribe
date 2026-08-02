@@ -22,13 +22,18 @@ function rng(seed) {
   }
 }
 
-export function tornPolygon(seed) {
+// `flatTop` : haut plat (ligne franche à 0), le bas restant déchiré. Le lambeau en
+// TÊTE de page (bord franc contre le bord de page) l'emploie. On CONTINUE de tirer
+// les mêmes `rand()` sur les indices pairs même quand on aplatit, sinon les dents du
+// BAS se décaleraient — la variante plate doit garder le même bas que la déchirée.
+export function tornPolygon(seed, { flatTop = false } = {}) {
   const rand = rng(seed + 1)
   const top = []
   const bottom = []
   for (let i = 0; i <= TEETH; i++) {
     const x = ((i / TEETH) * 100).toFixed(2)
-    top.push(`${x}% ${(i % 2 ? 0 : 1 + rand() * TOOTH).toFixed(1)}px`)
+    const y = i % 2 ? 0 : 1 + rand() * TOOTH
+    top.push(`${x}% ${flatTop ? '0px' : `${y.toFixed(1)}px`}`)
   }
   for (let i = TEETH; i >= 0; i--) {
     const x = ((i / TEETH) * 100).toFixed(2)
@@ -78,6 +83,10 @@ export function fragmentEntries(fragments, needle, offset = 0) {
       // `break-inside: avoid` : un lambeau coupé entre deux pages verrait sa
       // découpe tranchée net au milieu. Il passe entier ou il passe à la suite.
       style: `background:#fff;clip-path:${tornPolygon(offset + i)};padding:10px 12px 8px;margin:0 0 10px;text-align:justify;break-inside:avoid;`,
+      // Variante haut-plat, pré-calculée : appliquée par useFolioFrame au lambeau
+      // qui, APRÈS pagination, s'est retrouvé en tête de page (bord franc). Stampée
+      // en data-attribute → le rendu la pose sans recalculer ni connaître la graine.
+      data: { toppath: tornPolygon(offset + i, { flatTop: true }) },
     },
     {
       type: 'paragraph',
@@ -89,11 +98,29 @@ export function fragmentEntries(fragments, needle, offset = 0) {
   ])
 }
 
-// Découpe des lambeaux en pages d'imposition (une planche = deux pages).
-export function fragmentSpread(fragments, needle) {
-  const half = Math.ceil(fragments.length / 2)
-  return [
-    { kind: 'content', entries: fragmentEntries(fragments.slice(0, half), needle, 0) },
-    { kind: 'content', entries: fragmentEntries(fragments.slice(half), needle, half) },
-  ]
+// Graine dédiée au lambeau de statut : hors de la plage des résultats (0..n-1) pour
+// que sa déchirure ne recopie pas celle du premier passage.
+const STATUS_SEED = 9973
+
+// Lambeau de STATUT : toujours en tête, porte le compte (« 0 résultat » →
+// « N résultats »), même look de papier déchiré que les passages. Étant en tête de
+// page, useFolioFrame lui posera son haut plat (data.toppath).
+export function statusEntry(status) {
+  return {
+    type: 'paragraph',
+    styleName: 'frag-status',
+    text: escapeHtml(status),
+    style: `background:#fff;clip-path:${tornPolygon(STATUS_SEED)};padding:12px;margin:0 0 10px;text-align:center;font-weight:600;color:#5b6572;break-inside:avoid;`,
+    data: { toppath: tornPolygon(STATUS_SEED, { flatTop: true }) },
+  }
+}
+
+// UN SEUL flux de contenu : le lambeau de statut puis TOUS les passages. Paged.js
+// pagine ce flux en autant de pages que nécessaire (les résultats débordent, ils ne
+// sont plus capés à une double page). `status` absent = pas de carte de statut.
+export function fragmentPages(fragments, needle, { status } = {}) {
+  const entries = []
+  if (status != null) entries.push(statusEntry(status))
+  entries.push(...fragmentEntries(fragments, needle, 0))
+  return [{ kind: 'content', entries }]
 }

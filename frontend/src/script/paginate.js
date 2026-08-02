@@ -164,6 +164,9 @@ export function buildImpositionBlocks(pages) {
                     // incluse), appliquée en inline par useFolioFrame → fidélité
                     // du liminaire là où le seul styleName perdait les retouches.
                     visual: e.visual,
+                    // Data-attributes libres de l'entrée (ex : lambeaux de recherche →
+                    // `data-toppath`, variante haut-plat posée après pagination).
+                    data: e.data,
                     breakBefore: first && index === 0,
                     html: renderTexteEntry(e),
                 })

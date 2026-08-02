@@ -181,7 +181,7 @@ onUnmounted(() => {
  /* border: 1px solid var(--c-border);
   border-radius: var(--radius-md);
   background: var(--c-card-float);*/
-  backdrop-filter: var(--c-backdrop-filter-blur);
+  /*backdrop-filter: var(--c-backdrop-filter-blur);*/
 }
 
 .maq-nav--search .maq-nav__card {

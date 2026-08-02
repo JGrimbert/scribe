@@ -3,9 +3,19 @@
     <!-- Édition : la rangée de pages défile horizontalement via la CustomScrollbar
          (le DS proscrit les barres natives). Le padding vit sur .folio-pad (wrapper
          shrink-wrap) pour que scrollWidth inclue la respiration des deux côtés. -->
-    <CustomScrollbar v-if="mode === 'edit'" ref="scrollbarRef" class="folio-scroll" wheel-to-horizontal>
+    <!-- Édition ET double-page : même rangée horizontale de pages, ferrée à gauche
+         (la 1re page ne bouge pas) et défilée horizontalement via la CustomScrollbar.
+         En double-page (`spread`) la barre est masquée (`peek`) — défilement molette
+         seul, pour rester harmonieux avec les autres aperçus. -->
+    <CustomScrollbar
+        v-if="mode === 'edit' || mode === 'spread'"
+        ref="scrollbarRef"
+        class="folio-scroll"
+        wheel-to-horizontal
+        :peek="mode === 'spread'"
+    >
       <div class="folio-pad">
-        <iframe ref="frameRef" class="folio-frame" title="Pages du chapitre" />
+        <iframe ref="frameRef" class="folio-frame" :title="mode === 'edit' ? 'Pages du chapitre' : 'Double-page'" />
       </div>
     </CustomScrollbar>
     <!-- Aperçu : une seule page mise à l'échelle sur la largeur, aucun défilement. -->
@@ -267,12 +277,16 @@ function syncActiveQuill() {
   })
 }
 
-// Listeners attachés au doc de l'iframe en édition. Le getter passé à useFolioFrame
-// les résout au (dé)montage : onColumnMouseDown/Up viennent de useFragmentEditor,
-// onFrameClick d'ici — ils n'existent donc qu'à ce niveau.
+// Listeners attachés au doc de l'iframe. Le getter passé à useFolioFrame les résout
+// au (dé)montage : onColumnMouseDown/Up viennent de useFragmentEditor, onFrameClick
+// d'ici. En `spread` on n'attache QUE la molette (relayée à la CustomScrollbar) —
+// toujours, car `scroll` s'active APRÈS le montage (la frame n'est pas rebâtie) et
+// le listener doit déjà être là ; il est inerte tant que rien ne déborde.
 const editListeners = props.mode === 'edit'
   ? { click: onFrameClick, mousedown: onColumnMouseDown, mouseup: onColumnMouseUp, wheel: onFrameWheel }
-  : null
+  : props.mode === 'spread'
+    ? { wheel: onFrameWheel }
+    : null
 
 onMounted(buildFrame)
 onBeforeUnmount(teardown)
@@ -347,10 +361,11 @@ function runningTitlesSignature(rt) {
   height: 100%;
 }
 
-.folio-view--spread .folio-scroll {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+/* Double-page : la rangée est FERRÉE À GAUCHE (pas de respiration à gauche, la 1re
+   page reste collée au bord) ; l'ombre portée a sa place via SPREAD_PAD réservé DANS
+   la frame (cf. useFolioScale). Le défilement horizontal vit dans la CustomScrollbar. */
+.folio-view--spread .folio-pad {
+  padding: 0;
 }
 
 /* Respiration généreuse autour de la rangée de pages (cf. EDIT_PAD, que fitScale

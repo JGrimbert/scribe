@@ -13,7 +13,9 @@ import FuzzySearch from 'fuzzy-search'
 export const fold = (s) => s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase()
 
 const MAX_HITS = 60
-const MAX_FRAGMENTS = 4 // ce qu'une double page porte VRAIMENT (2 par page)
+// Borne du SEUL repli titre-seul (phrases témoins quand le mot est absent du corps).
+// Les vrais passages ne sont plus capés : ils coulent tous, la maquette pagine.
+const MAX_FRAGMENTS = 4
 const MIN_PHRASE = 40 // en deçà : intertitre ou numéro, pas un passage
 // Certaines phrases dépassent 700 signes — plus haut qu'une page de l'aperçu.
 // On en garde une fenêtre CENTRÉE SUR L'OCCURRENCE (sans quoi tronquer ferait
@@ -128,7 +130,7 @@ export function useDocSearch(query) {
     return found.length ? found : hits.value.slice(0, MAX_FRAGMENTS).map(fragmentOf).filter(Boolean)
   })
 
-  const fragments = computed(() => matches.value.slice(0, MAX_FRAGMENTS))
+  const fragments = computed(() => matches.value)
   const fragmentTotal = computed(() => matches.value.length)
 
   return { trimmed, hits, fragments, fragmentTotal }

@@ -88,10 +88,10 @@
                 :data="documentData"
                 :visuals="effectiveVisuals"
                 :page="previewPage"
-                :margins="previewMargins"
+                :margins="searching ? SEARCH_MARGINS : previewMargins"
                 :hyphenation="styleDefaults.hyphenation"
-                :running-titles="previewRunningTitles"
-                :book-title="searching ? searchTitle : bookTitle"
+                :running-titles="searching ? null : previewRunningTitles"
+                :book-title="searching ? '' : bookTitle"
             />
             <div v-if="isLiminaire" class="lim-hover__controls">
               <AccordeonControls
@@ -167,7 +167,7 @@ import { useTypologyConfig } from '../../composables/useTypologyConfig'
 import { useLiminaireBornes } from '../../composables/useLiminaireBornes'
 import { useLiminaireComposition } from '../../composables/useLiminaireComposition'
 import { useDocSearch } from '../../composables/useDocSearch'
-import { fragmentSpread } from '../../script/searchFragment'
+import { fragmentPages } from '../../script/searchFragment'
 
 const route = useRoute()
 
@@ -302,13 +302,12 @@ const searchQuery = ref('')
 // qui porte la saisie) — mêmes hits que le volet de la doc-bar.
 const { fragments: searchFragments, fragmentTotal: searchTotal } = useDocSearch(() => searchQuery.value)
 
-// Titre courant de la planche de résultats : le compte réel, le nombre de
-// lambeaux étant borné par ce qu'une double page porte.
+// Texte de la carte de statut, en tête des résultats : le compte réel (tous les
+// passages sont coulés, plus de cap). Alimente `statusEntry` via fragmentPages.
 const searchTitle = computed(() => {
   const n = searchTotal.value
-  if (!n) return searchQuery.value ? 'Aucun passage' : 'Recherche'
-  const shown = searchFragments.value.length
-  return n > shown ? `${shown} des ${n} passages` : `${n} passage${n > 1 ? 's' : ''}`
+  if (!n) return searchQuery.value ? 'Aucun résultat' : 'Recherche'
+  return `${n} résultat${n > 1 ? 's' : ''}`
 })
 
 let foldBeforeSearch = null
@@ -425,6 +424,11 @@ const previewPage = computed(() => effectivePage(fmtPage.value, styleDefaults.pa
 const previewMargins = computed(() => ({ ...effectiveMargins(fmtPage.value, styleDefaults.pageMargins) }))
 const previewRunningTitles = computed(() => JSON.parse(JSON.stringify(styleDefaults.runningTitles)))
 
+// Recherche : marges nulles → les lambeaux occupent 100 % du folio (bord à bord).
+// Couplé à `bare-pages` (ni papier ni empagement) et à des titres courants coupés,
+// le folio n'est plus qu'un support pour le papier déchiré.
+const SEARCH_MARGINS = { topCm: 0, bottomCm: 0, innerCm: 0, outerCm: 0 }
+
 // Double-page vide de l'aperçu de format : deux pages sans contenu (l'empagement +
 // la croix maquette sont dessinés par FolioView via `body-cross`). Constant.
 const formatSpreadPages = [{ kind: 'empty' }, { kind: 'empty' }]
@@ -450,9 +454,10 @@ const limSpreadPages = computed(() => {
 // Props pilotées par la source : format/liminaire passent une planche (spreadPages),
 // le chapitrage un nœud témoin (nodeId + depth). Mutuellement exclusifs.
 const mainSpreadPages = computed(() => {
-  // Recherche : les lambeaux coulent dans le MÊME FolioView que les autres
-  // sources (mêmes format, marges et titres courants), pages nues.
-  if (searching.value) return fragmentSpread(searchFragments.value, searchQuery.value)
+  // Recherche : les lambeaux coulent dans le MÊME FolioView, en UN flux (Paged.js
+  // pagine), pages nues et PLEIN FOLIO (cf. searchMargins / titres courants coupés).
+  // Le lambeau de statut porte le compte en tête.
+  if (searching.value) return fragmentPages(searchFragments.value, searchQuery.value, { status: searchTitle.value })
   if (isFormat.value) return formatSpreadPages
   if (isLiminaire.value) return limSpreadPages.value
   return null

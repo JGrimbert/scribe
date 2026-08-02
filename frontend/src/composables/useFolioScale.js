@@ -75,21 +75,18 @@ export function useFolioScale(props, { rootRef, frameRef, frameDoc, onScaled }) 
     }
 
     if (props.mode === 'spread') {
-      // Double-page en LECTURE : la planche d'ouverture (les `visiblePages`
-      // premières pages) ajustée en hauteur ET en largeur, sans l'appareil
-      // d'édition. La frame est bornée à la largeur de la planche → les pages
-      // suivantes sont clippées (overflow:hidden de .folio-view--spread). Les
-      // offsets de layout ignorent le `transform:scale` en cours (boîte naturelle).
-      const pages = doc.querySelectorAll('.pagedjs_page')
-      const shown = Math.min(pages.length, Math.ceil(props.visiblePages))
-      const last = pages[shown - 1] ?? pageEl
-      const spreadW = last.offsetLeft + last.offsetWidth - pageEl.offsetLeft
+      // Double-page : rangée HORIZONTALE de pages, FERRÉE À GAUCHE (comme l'édition) —
+      // la 1re page ne bouge pas. L'échelle est calée sur `visiblePages` et la hauteur
+      // du bandeau (toutes deux indépendantes du NOMBRE de pages) → taille de page
+      // stable quel que soit le contenu. La frame fait toute la largeur de la rangée :
+      // les pages au-delà de la planche d'ouverture sont RÉVÉLÉES par défilement
+      // horizontal (plus de clip). SPREAD_PAD réservé DANS la frame pour l'ombre portée.
+      const pagesArea = doc.querySelector('.pagedjs_pages')
+      const rowW = pagesArea ? pagesArea.scrollWidth : pageEl.offsetWidth
       const availW = root.clientWidth - 2 * SPREAD_PAD
       const availH = root.clientHeight - 2 * SPREAD_PAD
-      const scale = Math.min(availW / spreadW, availH / pageEl.offsetHeight, 1)
-      // SPREAD_PAD réservé DANS la frame (pas seulement au calcul d'échelle) → l'ombre
-      // portée de la planche a la place de s'afficher, pas coupée aux bords de l'iframe.
-      applyScale(scale, spreadW * scale, pageEl.offsetHeight * scale, SPREAD_PAD)
+      const scale = Math.min(availW / (pageEl.offsetWidth * props.visiblePages), availH / pageEl.offsetHeight, 1)
+      applyScale(scale, rowW * scale, pageEl.offsetHeight * scale, SPREAD_PAD)
       return
     }
 

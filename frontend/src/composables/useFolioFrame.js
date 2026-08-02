@@ -146,16 +146,17 @@ export function useFolioFrame(props, { frameRef, frameDoc, blocks, section, onRe
     bare.textContent = props.barePages ? BARE_CSS : ''
     doc.head.appendChild(bare)
 
-    if (props.mode === 'edit') {
-      const listeners = getEditListeners?.()
-      if (listeners) {
-        doc.addEventListener('click', listeners.click)
-        doc.addEventListener('mousedown', listeners.mousedown)
-        doc.addEventListener('mouseup', listeners.mouseup)
-        // passive:false : un listener wheel sur `document` est passif par défaut,
-        // preventDefault y serait ignoré (on veut couper le scroll-chaining natif).
-        if (listeners.wheel) doc.addEventListener('wheel', listeners.wheel, { passive: false })
-      }
+    // Listeners du doc iframe : présents en édition (clic/souris + molette) et en
+    // double-page (molette seule, relayée à la CustomScrollbar). On attache ce qui
+    // est fourni, quel que soit le mode.
+    const listeners = getEditListeners?.()
+    if (listeners) {
+      if (listeners.click) doc.addEventListener('click', listeners.click)
+      if (listeners.mousedown) doc.addEventListener('mousedown', listeners.mousedown)
+      if (listeners.mouseup) doc.addEventListener('mouseup', listeners.mouseup)
+      // passive:false : un listener wheel sur `document` est passif par défaut,
+      // preventDefault y serait ignoré (on veut couper le scroll-chaining natif).
+      if (listeners.wheel) doc.addEventListener('wheel', listeners.wheel, { passive: false })
     }
 
     const script = doc.createElement('script')
@@ -251,6 +252,9 @@ export function useFolioFrame(props, { frameRef, frameDoc, blocks, section, onRe
         .filter(Boolean)
         .join(';')
       if (inline) root.setAttribute('style', inline)
+      // Data-attributes libres du bloc (cf. buildImpositionBlocks) : ex. `data-toppath`
+      // des lambeaux, lu par la passe post-pagination pour le haut plat.
+      if (b.data) for (const [k, v] of Object.entries(b.data)) root.setAttribute(`data-${k}`, v)
       // Planche d'imposition : le 1er bloc d'un slot force sa page (cf.
       // buildImpositionBlocks). Classe (pas style inline) → règle IMPOSITION_CSS
       // passée au polisher, seule voie que Paged.js honore pour un break forcé.
@@ -312,6 +316,12 @@ export function useFolioFrame(props, { frameRef, frameDoc, blocks, section, onRe
         buffer.querySelectorAll('.pagedjs_page').forEach((pg) => {
           if (pg.querySelector('.imp-slot--blank')) pg.classList.add('folio-blank')
           else if (pg.querySelector('.imp-slot--cover')) pg.classList.add('folio-cover')
+          // Lambeau en TÊTE de page : bord franc contre le bord de page (le clip
+          // déchiré ne s'applique qu'au bas). La variante plate est pré-calculée
+          // (`data-toppath`) → aucun recalcul, aucune connaissance de la recherche
+          // ici. Le 1er `[data-toppath]` dans l'ordre du DOM = le lambeau du haut.
+          const top = pg.querySelector('[data-toppath]')
+          if (top) top.style.clipPath = top.getAttribute('data-toppath')
         })
       }
 
@@ -338,12 +348,12 @@ export function useFolioFrame(props, { frameRef, frameDoc, blocks, section, onRe
 
   function teardown() {
     const doc = frameDoc()
-    if (doc && props.mode === 'edit') {
+    if (doc) {
       const listeners = getEditListeners?.()
       if (listeners) {
-        doc.removeEventListener('click', listeners.click)
-        doc.removeEventListener('mousedown', listeners.mousedown)
-        doc.removeEventListener('mouseup', listeners.mouseup)
+        if (listeners.click) doc.removeEventListener('click', listeners.click)
+        if (listeners.mousedown) doc.removeEventListener('mousedown', listeners.mousedown)
+        if (listeners.mouseup) doc.removeEventListener('mouseup', listeners.mouseup)
         if (listeners.wheel) doc.removeEventListener('wheel', listeners.wheel, { passive: false })
       }
     }

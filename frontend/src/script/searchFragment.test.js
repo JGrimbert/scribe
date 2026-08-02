@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { fragmentHtml, tornPolygon, fragmentEntries, fragmentSpread } from './searchFragment'
+import { fragmentHtml, tornPolygon, fragmentEntries, fragmentPages } from './searchFragment'
 
 describe('fragmentHtml', () => {
   it('borne le passage de […] et appuie la saisie', () => {
@@ -45,6 +45,15 @@ describe('tornPolygon', () => {
     expect(p).toMatch(/0\.00% [\d.]+px/)
     expect(p).toContain('calc(100% - ')
   })
+
+  it('flatTop aplatit le haut mais garde le MÊME bas seedé', () => {
+    const flat = tornPolygon(4, { flatTop: true })
+    expect(flat.startsWith('polygon(0.00% 0px')).toBe(true)
+    // Le bas (points en calc(100% - …)) est identique à la version déchirée : la
+    // graine consomme les mêmes tirages, seul le haut change.
+    const bottom = (p) => p.slice(p.indexOf('calc(100% -'))
+    expect(bottom(flat)).toBe(bottom(tornPolygon(4)))
+  })
 })
 
 describe('fragmentEntries', () => {
@@ -62,6 +71,11 @@ describe('fragmentEntries', () => {
     expect(passage.style).toContain('clip-path:polygon(')
   })
 
+  it('porte la variante haut-plat en data.toppath', () => {
+    const [passage] = fragmentEntries([frag], '')
+    expect(passage.data.toppath.startsWith('polygon(0.00% 0px')).toBe(true)
+  })
+
   it('décale les graines pour que la seconde page ne répète pas la première', () => {
     const [a] = fragmentEntries([frag], '', 0)
     const [b] = fragmentEntries([frag], '', 5)
@@ -69,18 +83,26 @@ describe('fragmentEntries', () => {
   })
 })
 
-describe('fragmentSpread', () => {
+describe('fragmentPages', () => {
   const frags = (n) => Array.from({ length: n }, (_, i) => ({ phrase: `Passage ${i}.`, titre: `T${i}`, path: '' }))
 
-  it('coule les lambeaux en deux pages, le surplus impair à gauche', () => {
-    const [gauche, droite] = fragmentSpread(frags(3), '')
-    expect(gauche.entries).toHaveLength(4) // 2 lambeaux × (passage + source)
-    expect(droite.entries).toHaveLength(2)
+  it('coule tout en UNE page de contenu, statut en tête', () => {
+    const [page] = fragmentPages(frags(3), '', { status: '3 résultats' })
+    expect(page.kind).toBe('content')
+    expect(page.entries[0].styleName).toBe('frag-status')
+    expect(page.entries[0].text).toBe('3 résultats')
+    // 1 statut + 3 lambeaux × (passage + source)
+    expect(page.entries).toHaveLength(1 + 3 * 2)
   })
 
-  it('rend toujours deux pages, même sans résultat', () => {
-    const spread = fragmentSpread([], '')
-    expect(spread).toHaveLength(2)
-    expect(spread.every((p) => p.entries.length === 0)).toBe(true)
+  it('rend le statut même sans résultat', () => {
+    const [page] = fragmentPages([], '', { status: 'Aucun résultat' })
+    expect(page.entries).toHaveLength(1)
+    expect(page.entries[0].text).toBe('Aucun résultat')
+  })
+
+  it('sans statut, ne coule que les lambeaux', () => {
+    const [page] = fragmentPages(frags(1), '')
+    expect(page.entries).toHaveLength(2)
   })
 })

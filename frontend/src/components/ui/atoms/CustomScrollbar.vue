@@ -5,7 +5,7 @@
     </div>
 
     <div
-        v-if="shown.y"
+        v-if="shown.y && !peek"
         class="custom-scrollbar__track custom-scrollbar__track--y"
         :style="trackStyle('y')"
         @mousedown.self="onTrackMouseDown('y', $event)"
@@ -26,7 +26,7 @@
     </div>
 
     <div
-        v-if="shown.x"
+        v-if="shown.x && !peek"
         class="custom-scrollbar__track custom-scrollbar__track--x"
         :style="trackStyle('x')"
         @mousedown.self="onTrackMouseDown('x', $event)"
@@ -60,6 +60,10 @@ const props = defineProps({
   // l'axe x. N'agit que si seul x déborde ; le scroll horizontal natif du trackpad
   // (deltaX dominant) reste prioritaire.
   wheelToHorizontal: { type: Boolean, default: false },
+  // Barre INVISIBLE : on garde le défilement (molette + drag natif masqué) mais on
+  // ne peint aucune track/thumb — pour les aperçus (double-page maquette) où une
+  // barre visible détonnerait avec le reste des vues.
+  peek: { type: Boolean, default: false },
 })
 
 const containerEl = ref(null)
