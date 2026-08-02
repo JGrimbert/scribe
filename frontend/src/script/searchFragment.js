@@ -70,21 +70,34 @@ export function fragmentHtml(phrase, needle) {
   return `${ell}${out}${ell}`
 }
 
+// Ombre du papier, identique à celle des pages Paged.js (cf. le boot de
+// useFolioFrame). En `drop-shadow` et non `box-shadow` : elle doit épouser la
+// DÉCOUPE du lambeau, et un box-shadow serait de toute façon rogné par le
+// clip-path (l'ordre de rendu est filter → clip-path).
+const SHEET_SHADOW = 'filter:drop-shadow(0 1px 6px rgba(0,0,0,.15));'
+// Même ombre pour la source, mais décalée vers le bas : elle chevauche le bas du
+// lambeau (margin négative) et une ombre centrée retomberait sur lui en liseré.
+const SOURCE_SHADOW = 'filter:drop-shadow(0 4px 5px rgba(0,0,0,.15));'
+
 // Une entrée d'imposition par lambeau : le texte du passage, sa source en second
 // paragraphe, et le style qui le découpe. Le `style` est appliqué en inline sur le
 // bloc par useFolioFrame — c'est la voie par laquelle le clip-path arrive dans la
 // page sans que FolioView connaisse la recherche.
+//
+// DEUX boîtes par lambeau : le bloc porte l'ombre, la feuille interne
+// (`.frag-sheet`) le papier et sa découpe. Un seul élément ne peut pas faire les
+// deux — le clip-path taillerait l'ombre avec le papier.
 export function fragmentEntries(fragments, needle, offset = 0) {
   return fragments.flatMap((f, i) => [
     {
       type: 'paragraph',
       styleName: 'frag',
-      text: fragmentHtml(f.phrase, needle),
+      text: sheetHtml(tornPolygon(offset + i), fragmentHtml(f.phrase, needle)),
       // `break-inside: avoid` : un lambeau coupé entre deux pages verrait sa
       // découpe tranchée net au milieu. Il passe entier ou il passe à la suite.
-      style: `background:#fff;clip-path:${tornPolygon(offset + i)};padding:10px 12px 8px;margin:0 0 10px;text-align:justify;break-inside:avoid;`,
-      // Variante haut-plat, pré-calculée : appliquée par useFolioFrame au lambeau
-      // qui, APRÈS pagination, s'est retrouvé en tête de page (bord franc). Stampée
+      style: `${SHEET_SHADOW}margin:0 0 10px;text-align:justify;break-inside:avoid;`,
+      // Variante haut-plat, pré-calculée : appliquée par useFolioFrame à la feuille
+      // qui, APRÈS pagination, s'est retrouvée en tête de page (bord franc). Stampée
       // en data-attribute → le rendu la pose sans recalculer ni connaître la graine.
       data: { toppath: tornPolygon(offset + i, { flatTop: true }) },
     },
@@ -93,34 +106,58 @@ export function fragmentEntries(fragments, needle, offset = 0) {
       styleName: 'frag-source',
       text: escapeHtml(f.path ? `${f.path} › ${f.titre}` : f.titre),
       // La source appartient à son lambeau : elle ne doit pas ouvrir une page.
-      style: 'background:#fff;padding:0 12px 8px;margin:-10px 0 14px;font-size:.8em;color:#8a7f72;text-align:left;break-before:avoid;break-inside:avoid;',
+      style: `${SOURCE_SHADOW}background:#fff;padding:0 12px 8px;margin:-10px 0 14px;font-size:.8em;color:#8a7f72;text-align:left;break-before:avoid;break-inside:avoid;`,
     },
   ])
+}
+
+// La feuille de papier d'un lambeau : fond, découpe et respiration du texte. Le
+// padding est repris par la passe post-pagination quand la feuille ouvre une page
+// (cf. FRAG_TOP_PAD, useFolioFrame).
+function sheetHtml(clip, inner) {
+  return `<span class="frag-sheet" style="display:block;background:#fff;clip-path:${clip};padding:10px 12px 8px;">${inner}</span>`
 }
 
 // Graine dédiée au lambeau de statut : hors de la plage des résultats (0..n-1) pour
 // que sa déchirure ne recopie pas celle du premier passage.
 const STATUS_SEED = 9973
 
-// Lambeau de STATUT : toujours en tête, porte le compte (« 0 résultat » →
-// « N résultats »), même look de papier déchiré que les passages. Étant en tête de
-// page, useFolioFrame lui posera son haut plat (data.toppath).
-export function statusEntry(status) {
+// Rangée des CHIFFRES du document (cf. useDocStats) : elle vit dans le lambeau de
+// statut et non plus dans le dock — la recherche porte son propre en-tête. Tuiles
+// `{ label, value, empty }` rendues en ligne, valeur appuyée, libellé en retrait.
+function statsRow(stats) {
+  if (!stats?.length) return ''
+  const cells = stats.map((s) => (
+    `<span style="white-space:nowrap;"><b style="font-weight:600;color:#5b6572;">`
+    + `${escapeHtml(s.empty || s.value == null ? '—' : String(s.value))}</b> `
+    + `<span style="opacity:.7;">${escapeHtml(s.label)}</span></span>`
+  )).join('')
+  return `<span style="display:flex;flex-wrap:wrap;justify-content:center;gap:.2em 1.1em;`
+    + `font-size:.72em;font-weight:400;color:#8a7f72;">${cells}</span>`
+}
+
+// Lambeau de STATUT : toujours en tête, même look de papier déchiré que les
+// passages. Deux rangées — les chiffres du document, puis le compte de résultats.
+// Étant en tête de page, useFolioFrame lui posera son haut plat (data.toppath).
+export function statusEntry(status, stats) {
+  const rows = statsRow(stats)
+    + `<span style="display:block;margin-top:.7em;">${escapeHtml(status)}</span>`
   return {
     type: 'paragraph',
     styleName: 'frag-status',
-    text: escapeHtml(status),
-    style: `background:#fff;clip-path:${tornPolygon(STATUS_SEED)};padding:12px;margin:0 0 10px;text-align:center;font-weight:600;color:#5b6572;break-inside:avoid;`,
+    text: sheetHtml(tornPolygon(STATUS_SEED), rows),
+    style: `${SHEET_SHADOW}margin:0 0 10px;text-align:center;font-weight:600;color:#5b6572;break-inside:avoid;`,
     data: { toppath: tornPolygon(STATUS_SEED, { flatTop: true }) },
   }
 }
 
 // UN SEUL flux de contenu : le lambeau de statut puis TOUS les passages. Paged.js
 // pagine ce flux en autant de pages que nécessaire (les résultats débordent, ils ne
-// sont plus capés à une double page). `status` absent = pas de carte de statut.
-export function fragmentPages(fragments, needle, { status } = {}) {
+// sont plus capés à une double page). `status` absent = pas de carte de statut ;
+// `stats` = les chiffres du document, rangée de tête du même lambeau.
+export function fragmentPages(fragments, needle, { status, stats } = {}) {
   const entries = []
-  if (status != null) entries.push(statusEntry(status))
+  if (status != null) entries.push(statusEntry(status, stats))
   entries.push(...fragmentEntries(fragments, needle, 0))
   return [{ kind: 'content', entries }]
 }

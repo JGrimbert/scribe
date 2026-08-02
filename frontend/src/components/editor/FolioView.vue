@@ -15,6 +15,11 @@
         :peek="mode === 'spread'"
     >
       <div class="folio-pad">
+        <!-- Double-page : filet de reliure/planche. Fond DERRIÈRE l'iframe
+             (transparente) → visible dans les gouttières entre pages ; sa zone est
+             bornée à l'étendue des pages (updateSpreadBg) pour ne pas déborder dans
+             le padding. Période/offset scalés posés en JS. Purement décoratif. -->
+        <div v-if="mode === 'spread'" ref="padBgRef" class="folio-pad-bg" aria-hidden="true" />
         <iframe ref="frameRef" class="folio-frame" :title="mode === 'edit' ? 'Pages du chapitre' : 'Double-page'" />
       </div>
     </CustomScrollbar>
@@ -141,6 +146,46 @@ const frameRef = ref(null)
 // La CustomScrollbar de la rangée de pages (mode édition uniquement) : remesurée
 // après chaque fitScale, cf. onScaled ci-dessous.
 const scrollbarRef = ref(null)
+// Fond décoratif de la double-page (filet de reliure/planche), cf. updateSpreadBg.
+const padBgRef = ref(null)
+
+// Cale la trame de fond (mode spread) sur la géométrie SCALÉE des pages. Le fond
+// couvre TOUTE la fenêtre (position: fixed, cf. CSS) : il n'a donc plus de boîte à
+// mesurer, seulement une PÉRIODE et une PHASE par axe (le centre de la gouttière
+// qui suit la 1re page, en coordonnées écran) — la grille reste alignée sur les
+// pages tout en continuant au-delà d'elles, derrière la doc-bar et jusqu'au bas de
+// la fenêtre. Rappelé à chaque onScaled et à chaque défilement de la planche.
+function updateSpreadBg() {
+  if (props.mode !== 'spread') return
+  const bg = padBgRef.value
+  const doc = frameDoc()
+  const frame = frameRef.value
+  if (!bg || !doc || !frame) return
+  const pages = doc.querySelectorAll('.pagedjs_page')
+  if (!pages.length) { bg.style.opacity = '0'; return }
+  const first = pages[0]
+  const r0 = first.getBoundingClientRect()
+  // Période = page + gouttière. Mesurée entre deux pages quand elles existent ;
+  // sinon déduite de la marge de la page — `getComputedStyle` rend une valeur de
+  // MISE EN PAGE (avant transform), d'où le produit par l'échelle, alors qu'un
+  // getBoundingClientRect est déjà scalé. Une seule page ne prive donc plus la
+  // planche de sa trame.
+  const period = pages.length > 1
+    ? pages[1].getBoundingClientRect().left - r0.left
+    : r0.width + (parseFloat(doc.defaultView.getComputedStyle(first).marginRight) || 0) * scaleRef.value
+  // Le rect des pages est intra-iframe : seule la phase traverse la frontière
+  // iframe↔écran, d'où frameRect (qui porte aussi le SPREAD_PAD réservé dedans).
+  const frameRect = frame.getBoundingClientRect()
+  // La gouttière (X) sert aussi d'entre-rang (Y) : la rangée est unique, mais la
+  // trame horizontale se répète sur toute la fenêtre — tête et pied de page en
+  // portent un filet, à la même distance que les reliures.
+  const gutter = period - r0.width
+  bg.style.setProperty('--pad-period', `${period}px`)
+  bg.style.setProperty('--pad-phase', `${r0.left + frameRect.left + r0.width + gutter / 2}px`)
+  bg.style.setProperty('--pad-period-y', `${r0.height + gutter}px`)
+  bg.style.setProperty('--pad-phase-y', `${r0.top + frameRect.top + r0.height + gutter / 2}px`)
+  bg.style.opacity = '1'
+}
 
 // Helpers DOM de l'iframe, propres au composant racine (cf. composables/CLAUDE.md :
 // findFragEl est injecté, pas recréé). Injectés dans les composables Folio/fragment.
@@ -176,8 +221,9 @@ const { scaleRef, scalePercent, fitScale } = useFolioScale(props, {
   frameDoc,
   // Le frame change de largeur/hauteur à chaque mise à l'échelle ; la
   // CustomScrollbar ne l'observe pas (seulement sa propre taille + les mutations
-  // de contenu) → on la remesure. No-op en mode read (pas de scrollbar).
-  onScaled: () => scrollbarRef.value?.measure(),
+  // de contenu) → on la remesure. No-op en mode read (pas de scrollbar). En
+  // double-page, on recale aussi le fond des gouttières sur la nouvelle échelle.
+  onScaled: () => { scrollbarRef.value?.measure(); updateSpreadBg() },
 })
 
 const caret = useFakeCaret(findFragEl, frameOffset)
@@ -257,6 +303,10 @@ function onFrameClick(e) {
 // défilement vertical en horizontal sur la rangée de pages.
 function onFrameWheel(e) {
   scrollbarRef.value?.handleWheel(e)
+  // La trame de fond est posée en coordonnées ÉCRAN (fixed) : défiler la planche
+  // déplace les pages sous elle. `handleWheel` écrit `scrollLeft` de façon
+  // synchrone, la mesure qui suit voit déjà la nouvelle position.
+  updateSpreadBg()
 }
 
 // Métriques ISO du fragment ACTIF : sans ça, la boîte Quill wrappe le texte
@@ -365,7 +415,7 @@ function runningTitlesSignature(rt) {
    page reste collée au bord) ; l'ombre portée a sa place via SPREAD_PAD réservé DANS
    la frame (cf. useFolioScale). Le défilement horizontal vit dans la CustomScrollbar. */
 .folio-view--spread .folio-pad {
-  padding: 0;
+  padding: 0 16em;
 }
 
 /* Respiration généreuse autour de la rangée de pages (cf. EDIT_PAD, que fitScale
@@ -376,13 +426,100 @@ function runningTitlesSignature(rt) {
 .folio-pad {
   display: block;
   width: max-content;
-  padding: 40px;
+  position: relative;
 }
 
 .folio-frame {
   display: block;
   width: 100%;
   border: 0;
+}
+
+/* Double-page : l'iframe passe AU-DESSUS du fond décoratif (elle est transparente
+   dans les gouttières, qui laissent voir le filet derrière). */
+.folio-view--spread .folio-frame {
+  position: relative;
+  z-index: 1;
+}
+
+/* Trame de fond (double-page) : fines pointillées figurant reliures ET frontières
+   de planches, en GRILLE (verticales = gouttières entre pages, horizontales = tête
+   et pied). `position: fixed` : elle couvre TOUTE la fenêtre — elle passe donc
+   derrière la doc-bar et descend jusqu'en bas, au-delà de la planche, et échappe à
+   l'`overflow: hidden` de la vue (aucun ancêtre ne porte de transform/filter, qui
+   referait de la frame le référentiel du fixed). La grille reste calée sur les
+   pages par `--pad-period*` / `--pad-phase*`, posées en JS (updateSpreadBg) sur la
+   géométrie scalée.
+   Les deux axes vivent dans DEUX pseudo-éléments et non deux couches de fond : le
+   pointillé se fait au `mask`, qui s'applique à l'élément entier — le mask
+   horizontal des verticales hacherait les horizontales. */
+.folio-pad-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0; /* révélé par JS une fois périodes/phases calées (≥ 1 page) */
+  /* ── Réglages ── */
+  /* Bleu profond du menu, très dilué : la trame se devine sans jamais concurrencer
+     le texte des pages. (Élément hors iframe → les tokens du DS sont résolus.) */
+  --pad-color: color-mix(in srgb, var(--c-accent-alt-darker) 22%, transparent);
+  --pad-line: 1px;      /* épaisseur du filet */
+  --pad-dash: 2px;      /* longueur d'un tiret */
+  --pad-gap: 3px;       /* espace entre tirets */
+  /* ── Posés par JS ── */
+  --pad-period: 0px;    /* page + gouttière, axe X */
+  --pad-phase: 0px;     /* centre de la 1re gouttière, en coordonnées écran */
+  --pad-period-y: 0px;  /* page + gouttière, axe Y */
+  --pad-phase-y: 0px;
+}
+
+/* Les deux axes partagent tout sauf leur direction : un tile d'EXACTEMENT une
+   période (et non un `repeating-linear-gradient` étalé sur toute la boîte, dont la
+   copie de gauche redémarrait à une phase arbitraire → filet parasite dans la
+   première page), et un mask perpendiculaire qui le découpe en pointillé. */
+.folio-pad-bg::before,
+.folio-pad-bg::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+
+.folio-pad-bg::before {
+  background-image: linear-gradient(
+    to right,
+    var(--pad-color) 0,
+    var(--pad-color) var(--pad-line),
+    transparent var(--pad-line)
+  );
+  background-size: var(--pad-period) 100%;
+  background-position-x: calc(var(--pad-phase) - var(--pad-line) / 2);
+  -webkit-mask-image: repeating-linear-gradient(
+    to bottom, #000 0, #000 var(--pad-dash),
+    transparent var(--pad-dash), transparent calc(var(--pad-dash) + var(--pad-gap))
+  );
+  mask-image: repeating-linear-gradient(
+    to bottom, #000 0, #000 var(--pad-dash),
+    transparent var(--pad-dash), transparent calc(var(--pad-dash) + var(--pad-gap))
+  );
+}
+
+.folio-pad-bg::after {
+  background-image: linear-gradient(
+    to bottom,
+    var(--pad-color) 0,
+    var(--pad-color) var(--pad-line),
+    transparent var(--pad-line)
+  );
+  background-size: 100% var(--pad-period-y);
+  background-position-y: calc(var(--pad-phase-y) - var(--pad-line) / 2);
+  -webkit-mask-image: repeating-linear-gradient(
+    to right, #000 0, #000 var(--pad-dash),
+    transparent var(--pad-dash), transparent calc(var(--pad-dash) + var(--pad-gap))
+  );
+  mask-image: repeating-linear-gradient(
+    to right, #000 0, #000 var(--pad-dash),
+    transparent var(--pad-dash), transparent calc(var(--pad-dash) + var(--pad-gap))
+  );
 }
 
 .folio-view--read .folio-frame {

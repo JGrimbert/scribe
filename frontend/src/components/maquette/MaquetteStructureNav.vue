@@ -138,15 +138,22 @@ onUnmounted(() => {
    les clics autour. */
 .maq-nav {
   position: absolute;
-  top: calc(var(--bar-size) + 1.25em);
+  top:calc(var(--bar-size) + 1.1em);
   left: 0;
   width: 15em;
   /* Hauteur PLEINE (et non `max-height`) : le pied doit pouvoir se caler en bas
      de la colonne, le sommaire restant en tête. */
   height: calc(100% - var(--bar-size) - 1.25em - var(--sp-4));
   display: flex;
+
   flex-direction: column;
-  gap: var(--sp-2);
+  /* L'espace sous la rangée de recherche n'est PAS le gap commun : il est réglé
+     pour que le filet de tête de la planche (trame de fond, cf. FolioView) tombe
+     au milieu entre « Rechercher » et le premier item du sommaire. Il est donc
+     porté par la carte seule (--maq-search-space), pas par ce gap — à réajuster
+     si la hauteur du champ ou celle des TreeRow change. */
+  --maq-search-space: 0.875rem;
+  gap: 0;
   /* Au-dessus du reste de la maquette, sous les modales (z 200). */
   z-index: 160;
   pointer-events: none;
@@ -171,17 +178,20 @@ onUnmounted(() => {
    l'aside). Au repos, sa taille s'ajuste au contenu : l'espace vide ne couvre
    pas le folio. */
 .maq-nav__card {
+  margin-top: 1.6em;
   min-height: 0;
   display: flex;
   /* Colonne : parties en tête (permanentes), puis l'arbre — ou le panneau de
      recherche à sa place. */
   flex-direction: column;
   gap: var(--sp-2);
-  padding: var(--sp-3);
+  /* Le padding HAUT porte à lui seul l'espace sous le champ de recherche (cf.
+     --maq-search-space) : le filet de tête tombe dedans, à mi-chemin. */
+  padding: var(--maq-search-space) var(--sp-3) var(--sp-3);
  /* border: 1px solid var(--c-border);
   border-radius: var(--radius-md);
   background: var(--c-card-float);*/
-  /*backdrop-filter: var(--c-backdrop-filter-blur);*/
+  backdrop-filter: var(--c-backdrop-filter-blur);
 }
 
 .maq-nav--search .maq-nav__card {

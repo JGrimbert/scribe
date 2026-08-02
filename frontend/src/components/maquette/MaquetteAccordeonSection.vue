@@ -133,6 +133,6 @@ const jalonStyle = computed(() => {
 }
 
 /* L'onglet lui-même (position absolue, écriture verticale, couleurs) vit dans
-   `MaquetteJalon` — partagé avec le panneau du dock. La zone ne fait que le
-   décaler dans son intervalle de tête (`jalonStyle`). */
+   `MaquetteJalon`. La zone ne fait que le décaler dans son intervalle de tête
+   (`jalonStyle`). */
 </style>

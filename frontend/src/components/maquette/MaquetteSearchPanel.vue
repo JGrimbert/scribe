@@ -1,32 +1,18 @@
 <template>
   <!-- Panneau du dock, monté pendant la recherche dans l'espace laissé par
-       l'accordéon replié. Par défaut les CHIFFRES du document ; l'onglet « Nuage »
-       — le même objet que les onglets de zone — bascule vers le nuage de lemmes. -->
+       l'accordéon replié : le nuage de lemmes. Les CHIFFRES du document, qui s'y
+       trouvaient en regard, ont rejoint le lambeau de statut de la planche de
+       résultats (cf. statusEntry) — la recherche porte son propre en-tête. -->
   <div class="maq-spanel">
-    <MaquetteJalon
-        label="Nuage"
-        :active="cloud"
-        :title="cloud ? 'Voir les chiffres' : 'Voir le nuage'"
-        @click="cloud = !cloud"
-    />
-
     <div ref="bodyEl" class="maq-spanel__body">
-      <VocabulaireCloud v-if="cloud" compact :width="bodyW" />
-      <DocStats v-else :items="statItems" variant="grid" />
+      <VocabulaireCloud compact :width="bodyW" />
     </div>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted, onBeforeUnmount } from 'vue'
-import MaquetteJalon from './MaquetteJalon.vue'
-import DocStats from '../layout/DocStats.vue'
 import VocabulaireCloud from '../analyse/lexical/VocabulaireCloud.vue'
-import { useDocStats } from '../../composables/useDocStats'
-
-const { statItems } = useDocStats()
-
-const cloud = ref(false)
 
 // Le nuage se dimensionne en px (nombre de mots par défaut) : on lui donne la
 // largeur réelle du corps, qui dépend du repli de l'accordéon.
@@ -43,20 +29,20 @@ onBeforeUnmount(() => ro?.disconnect())
 </script>
 
 <style scoped>
-/* Repère du jalon (posé en absolu par `MaquetteJalon`) ; le corps se décale de sa
-   largeur pour ne pas passer dessous. */
 .maq-spanel {
   position: relative;
   height: 100%;
 }
 
+/* Le nuage garde sa gouttière à gauche (il se pose contre la pellicule repliée en
+   onglets) mais plus la réserve de tête du jalon, qui n'existe plus. */
 .maq-spanel__body {
   height: 100%;
   min-width: 0;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  padding: 2.4em 0 0 2.6em;
+  padding-left: 2.6em;
   overflow: hidden;
 }
 </style>

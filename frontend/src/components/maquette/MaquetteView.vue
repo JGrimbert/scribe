@@ -116,8 +116,11 @@
 
     <!-- Aside (1/3) PLEINE HAUTEUR : sans cadre propre, elle défile SOUS la
          doc-bar (top-offset de la track). Extraite dans MaquetteAside ; le cran
-         focusé fait remonter sa section (scroll-spy interne via `active-block`). -->
-    <div class="maquette__aside-col" @wheel.prevent="onAsideWheel">
+         focusé fait remonter sa section (scroll-spy interne via `active-block`).
+         Recherche ouverte : elle s'efface — la planche de résultats prend toute la
+         largeur, et la section du cran focusé n'a plus rien à commenter. `v-show`
+         et non `v-if` : rien à remonter (tables de styles, scrollbar) au retour. -->
+    <div v-show="!searching" class="maquette__aside-col" @wheel.prevent="onAsideWheel">
       <CustomScrollbar :top-offset="42">
         <MaquetteAside
             :fmt-page="fmtPage"
@@ -167,6 +170,7 @@ import { useTypologyConfig } from '../../composables/useTypologyConfig'
 import { useLiminaireBornes } from '../../composables/useLiminaireBornes'
 import { useLiminaireComposition } from '../../composables/useLiminaireComposition'
 import { useDocSearch } from '../../composables/useDocSearch'
+import { useDocStats } from '../../composables/useDocStats'
 import { fragmentPages } from '../../script/searchFragment'
 
 const route = useRoute()
@@ -304,11 +308,11 @@ const { fragments: searchFragments, fragmentTotal: searchTotal } = useDocSearch(
 
 // Texte de la carte de statut, en tête des résultats : le compte réel (tous les
 // passages sont coulés, plus de cap). Alimente `statusEntry` via fragmentPages.
-const searchTitle = computed(() => {
-  const n = searchTotal.value
-  if (!n) return searchQuery.value ? 'Aucun résultat' : 'Recherche'
-  return `${n} résultat${n > 1 ? 's' : ''}`
-})
+const searchTitle = computed(() => `Résultats : ${searchTotal.value}`)
+
+// Chiffres du document : ils sont la rangée de TÊTE du lambeau de statut (ils
+// vivaient dans le panneau du dock, cf. MaquetteSearchPanel).
+const { statItems } = useDocStats()
 
 let foldBeforeSearch = null
 function onSearching(active) {
@@ -457,7 +461,12 @@ const mainSpreadPages = computed(() => {
   // Recherche : les lambeaux coulent dans le MÊME FolioView, en UN flux (Paged.js
   // pagine), pages nues et PLEIN FOLIO (cf. searchMargins / titres courants coupés).
   // Le lambeau de statut porte le compte en tête.
-  if (searching.value) return fragmentPages(searchFragments.value, searchQuery.value, { status: searchTitle.value })
+  if (searching.value) {
+    return fragmentPages(searchFragments.value, searchQuery.value, {
+      status: searchTitle.value,
+      stats: statItems.value,
+    })
+  }
   if (isFormat.value) return formatSpreadPages
   if (isLiminaire.value) return limSpreadPages.value
   return null
@@ -521,8 +530,8 @@ onUnmounted(() => { if (section) section.value = null })
   display: flex;
   flex-direction: column;
   min-height: 0;
-  padding-top: calc(var(--bar-size) + 1.25em);
-  padding-left: var(--maq-gutter);
+  padding-top: calc(var(--bar-size) + 2em);
+  padding-left: 0;
   padding-bottom: calc(var(--maq-dock-h) + var(--sp-4));
 }
 
@@ -554,12 +563,18 @@ onUnmounted(() => { if (section) section.value = null })
 }
 
 /* Colonne aside : pleine hauteur, sans cadre propre. Sa CustomScrollbar défile
-   SOUS la doc-bar (top-offset = hauteur de barre). */
+   SOUS la doc-bar (top-offset = hauteur de barre). Hors flux (la colonne gauche
+   prend donc toute la largeur), elle FLOTTE au-dessus des folios : le `z-index`
+   la pose devant l'iframe du FolioView, qui porte elle-même `z-index: 1` en
+   double-page (cf. `.folio-view--spread .folio-frame`) et passerait sinon devant
+   — une planche large (résultats de recherche) allant jusqu'au bord droit. Reste
+   SOUS le sommaire flottant (z 160) et les modales (z 200). */
 .maquette__aside-col {
   flex: 1 1 0;
   min-width: 0;
   height: 100%;
   position: absolute;
+  z-index: 2;
 
   right: 0px;
   top: 0px;

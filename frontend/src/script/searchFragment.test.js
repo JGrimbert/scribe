@@ -65,10 +65,18 @@ describe('fragmentEntries', () => {
     expect(entries[1].text).toBe('La Lisière › Le Blaireau')
   })
 
-  it('porte le fond et la découpe en style inline (la page reste nue)', () => {
+  it('porte le fond et la découpe sur la feuille interne (la page reste nue)', () => {
     const [passage] = fragmentEntries([frag], '')
-    expect(passage.style).toContain('background:#fff')
-    expect(passage.style).toContain('clip-path:polygon(')
+    expect(passage.text).toContain('class="frag-sheet"')
+    expect(passage.text).toContain('background:#fff')
+    expect(passage.text).toContain('clip-path:polygon(')
+  })
+
+  it('laisse l’ombre au BLOC : le clip-path de la feuille la taillerait avec le papier', () => {
+    const [passage, source] = fragmentEntries([frag], '')
+    expect(passage.style).toContain('drop-shadow')
+    expect(passage.style).not.toContain('clip-path')
+    expect(source.style).toContain('drop-shadow')
   })
 
   it('porte la variante haut-plat en data.toppath', () => {
@@ -79,7 +87,7 @@ describe('fragmentEntries', () => {
   it('décale les graines pour que la seconde page ne répète pas la première', () => {
     const [a] = fragmentEntries([frag], '', 0)
     const [b] = fragmentEntries([frag], '', 5)
-    expect(a.style).not.toBe(b.style)
+    expect(a.text).not.toBe(b.text)
   })
 })
 
@@ -90,7 +98,7 @@ describe('fragmentPages', () => {
     const [page] = fragmentPages(frags(3), '', { status: '3 résultats' })
     expect(page.kind).toBe('content')
     expect(page.entries[0].styleName).toBe('frag-status')
-    expect(page.entries[0].text).toBe('3 résultats')
+    expect(page.entries[0].text).toContain('>3 résultats<')
     // 1 statut + 3 lambeaux × (passage + source)
     expect(page.entries).toHaveLength(1 + 3 * 2)
   })
@@ -98,7 +106,19 @@ describe('fragmentPages', () => {
   it('rend le statut même sans résultat', () => {
     const [page] = fragmentPages([], '', { status: 'Aucun résultat' })
     expect(page.entries).toHaveLength(1)
-    expect(page.entries[0].text).toBe('Aucun résultat')
+    expect(page.entries[0].text).toContain('>Aucun résultat<')
+  })
+
+  it('porte les chiffres du document en rangée de tête du lambeau de statut', () => {
+    const stats = [{ label: 'mots', value: '1 234' }, { label: 'phrases', value: null, empty: true }]
+    const [page] = fragmentPages([], '', { status: 'Résultats : 0', stats })
+    const { text } = page.entries[0]
+    expect(text).toContain('1 234')
+    expect(text).toContain('mots')
+    // Chiffre manquant (analyse lexicale pas encore chargée) : cadratin, pas de vide.
+    expect(text).toContain('—')
+    // Le compte reste la DERNIÈRE rangée.
+    expect(text.indexOf('mots')).toBeLessThan(text.indexOf('Résultats : 0'))
   })
 
   it('sans statut, ne coule que les lambeaux', () => {

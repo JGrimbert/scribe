@@ -9,6 +9,11 @@ import { buildVisualsCss, buildHyphenationCss, buildPageCss, buildPagePinCss, bu
 // sur le 1er bloc de chaque slot (cf. buildImpositionBlocks / breakBefore).
 const IMPOSITION_CSS = '.imp-break{break-before:page;}'
 
+// Respiration verticale MINIMALE d'un lambeau qui ouvre une page (cf. la passe
+// post-pagination) : son bord est franc et, en recherche, les marges du livre sont
+// nulles — sans elle le texte toucherait le bord du folio.
+const FRAG_TOP_PAD = '2em'
+
 // Hachures bleutées des pages blanche / de garde — mêmes couleurs que le carrousel
 // (LiminaireFolio) : fond `aliceblue` (--c-folio-bg) rayé d'un filet tiré de
 // `--c-border` (#e0d8cc). Valeurs littérales : l'iframe est isolée (about:blank),
@@ -320,8 +325,18 @@ export function useFolioFrame(props, { frameRef, frameDoc, blocks, section, onRe
           // déchiré ne s'applique qu'au bas). La variante plate est pré-calculée
           // (`data-toppath`) → aucun recalcul, aucune connaissance de la recherche
           // ici. Le 1er `[data-toppath]` dans l'ordre du DOM = le lambeau du haut.
+          // Le clip vit sur la FEUILLE interne, pas sur le bloc, qui porte l'ombre
+          // (cf. searchFragment) — repli sur le bloc si un appelant n'en pose pas.
           const top = pg.querySelector('[data-toppath]')
-          if (top) top.style.clipPath = top.getAttribute('data-toppath')
+          if (top) {
+            const sheet = top.querySelector('.frag-sheet') ?? top
+            sheet.style.clipPath = top.getAttribute('data-toppath')
+            // Bord franc contre le bord de page : en recherche les marges du livre
+            // sont nulles, le texte collerait au papier. On garde le padding de
+            // repos si celui-ci est déjà plus généreux.
+            sheet.style.paddingTop = `max(${FRAG_TOP_PAD}, ${sheet.style.paddingTop || '0px'})`
+            sheet.style.paddingBottom = `max(${FRAG_TOP_PAD}, ${sheet.style.paddingBottom || '0px'})`
+          }
         })
       }
 
