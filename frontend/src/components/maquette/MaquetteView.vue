@@ -559,6 +559,12 @@ onUnmounted(() => { if (section) section.value = null })
   flex: 1 1 0;
   min-width: 0;
   height: 100%;
+  position: absolute;
+
+  right: 0px;
+  top: 0px;
+  width: 30%;
+
 }
 
 /* Scène du FolioView unique : remplit le main, sert de repère au overlay absolu

@@ -272,6 +272,7 @@ defineExpose({ measure, handleWheel: onWheel })
   overflow: auto;
   scrollbar-width: none;
   -ms-overflow-style: none;
+
 }
 
 .custom-scrollbar__content::-webkit-scrollbar {
