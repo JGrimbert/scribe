@@ -105,9 +105,14 @@ import { useWordCloud } from '../../../composables/useWordCloud'
 // nuage défilante, filtres épinglés en bas). Défaut = rendu dashboard.
 // `width` : largeur disponible (px) — pilote le nombre de mots par défaut
 // (plus l'input de recherche est large, plus on en montre). 0 = non fourni.
+// `dims` : gabarit du nuage (`{ width, height, verticalRatio }`) quand la boîte
+// hôte n'a pas les proportions du volet — la maquette le pose désormais à côté des
+// résultats, sur une boîte HAUTE (deux pages de large) et non plus dans le bandeau
+// large et plat du dock. Lu au montage (comme le gabarit par défaut).
 const props = defineProps({
   compact: Boolean,
   width: { type: Number, default: 0 },
+  dims: { type: Object, default: null },
 })
 
 const { analysis, running, stepErrors, selectedLemma, settle } = useAnalyse()
@@ -151,7 +156,7 @@ const words = computed(() => filteredWords.value.slice(0, maxWords.value))
 // au lieu du repère ~1,7:1 du dashboard. `verticalRatio` : un tiers des mots
 // pivotés à 90°, pour occuper les couloirs qu'une composition tout-horizontale
 // laisse vides dans un panneau étroit (carte du sommaire, en maquette).
-const cloudDims = props.compact ? { width: 1040, height: 300, verticalRatio: 0.35 } : {}
+const cloudDims = props.dims ?? (props.compact ? { width: 1040, height: 300, verticalRatio: 0.35 } : {})
 const { placed, selected, hovered, toggle, wordStyle, CLOUD_W, CLOUD_H, CLOUD_MARGIN } =
   useWordCloud(words, () => settle('cloud'), cloudDims)
 

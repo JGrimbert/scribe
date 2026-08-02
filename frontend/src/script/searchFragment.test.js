@@ -125,4 +125,17 @@ describe('fragmentPages', () => {
     const [page] = fragmentPages(frags(1), '')
     expect(page.entries).toHaveLength(2)
   })
+
+  it('ne coule QUE la tranche reçue : la pagination est faite en amont', () => {
+    const [page] = fragmentPages(frags(50).slice(6, 12), '', { status: 'Résultats : 50' })
+    expect(page.entries).toHaveLength(1 + 6 * 2)
+    // Le compte annoncé reste le total, pas celui de la tranche.
+    expect(page.entries[0].text).toContain('>Résultats : 50<')
+  })
+
+  it('décale les déchirures de la tranche par son offset', () => {
+    const [p0] = fragmentPages(frags(12).slice(0, 6), '')
+    const [p1] = fragmentPages(frags(12).slice(6, 12), '', { offset: 6 })
+    expect(p1.entries[0].text).not.toBe(p0.entries[0].text)
+  })
 })

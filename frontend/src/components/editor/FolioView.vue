@@ -139,7 +139,14 @@ const props = defineProps({
   barePages: { type: Boolean, default: false },
   // Debug : rendre visible le Quill flottant (sinon seul le miroir Folio l'est).
   quillVisible: { type: Boolean, default: false },
+  // Molette = PAGINATION APPLICATIVE au lieu de défilement : la rangée ne porte
+  // qu'une page, l'appelant lui donne la suivante (cf. les résultats de recherche,
+  // paginés en amont pour ne pas couler des milliers de lambeaux dans Paged.js).
+  wheelPaging: { type: Boolean, default: false },
 })
+
+// `step` : cran de pagination applicative demandé à la molette (±1), cf. wheelPaging.
+const emit = defineEmits(['step'])
 
 const rootRef = ref(null)
 const frameRef = ref(null)
@@ -302,6 +309,13 @@ function onFrameClick(e) {
 // pas : overflow hidden) — on la relaie à la CustomScrollbar pour convertir le
 // défilement vertical en horizontal sur la rangée de pages.
 function onFrameWheel(e) {
+  // Pagination applicative : rien à défiler, la molette change de page.
+  if (props.wheelPaging) {
+    e.preventDefault()
+    const dir = e.deltaY > 0 ? 1 : e.deltaY < 0 ? -1 : 0
+    if (dir) emit('step', dir)
+    return
+  }
   scrollbarRef.value?.handleWheel(e)
   // La trame de fond est posée en coordonnées ÉCRAN (fixed) : défiler la planche
   // déplace les pages sous elle. `handleWheel` écrit `scrollLeft` de façon

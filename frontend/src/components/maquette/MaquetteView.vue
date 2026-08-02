@@ -20,7 +20,7 @@
         @focus-series="focusSeries"
         @select-node="selectNode"
         @update:searching="onSearching"
-        @update:query="searchQuery = $event"
+        @update:query="onQuery"
     >
       <!-- Le dock accordéon est le PIED du sommaire : ferré au bord gauche de la
            fenêtre, hors du flux de la colonne d'aperçu (qui ne bouge donc jamais,
@@ -56,11 +56,9 @@
             <MaquetteSpreadCell v-else :ratio="previewRatio" />
           </template>
 
-          <!-- Recherche ouverte : l'accordéon est replié en onglets, l'espace
-               gagné accueille les chiffres du document (défaut) / le nuage. -->
-          <template v-if="searching" #panel>
-            <MaquetteSearchPanel />
-          </template>
+          <!-- Recherche ouverte : l'accordéon se replie en onglets et rend sa place
+               à la maquette. Le nuage, qui l'occupait, est passé dans la scène (en
+               regard des résultats, cf. .maq-cloud). -->
         </MaquetteAccordeon>
       </template>
     </MaquetteStructureNav>
@@ -75,24 +73,54 @@
              strictement identiques d'une source à l'autre. Les contrôles liminaire
              se superposent au survol. -->
         <section class="maquette__main">
-          <div class="folio-stage" :class="{ 'folio-stage--lim': isLiminaire }">
-            <FolioView
-                class="maq-folio"
-                mode="spread"
-                :visible-pages="2"
-                :body-cross="isFormat && !searching"
-                :bare-pages="searching"
-                :spread-pages="mainSpreadPages"
-                :node-id="mainNodeId"
-                :depth="mainDepth"
-                :data="documentData"
-                :visuals="effectiveVisuals"
-                :page="previewPage"
-                :margins="searching ? SEARCH_MARGINS : previewMargins"
-                :hyphenation="styleDefaults.hyphenation"
-                :running-titles="searching ? null : previewRunningTitles"
-                :book-title="searching ? '' : bookTitle"
-            />
+          <div class="folio-stage" :class="{ 'folio-stage--lim': isLiminaire, 'folio-stage--search': searching }">
+            <!-- Colonne du folio : wrapper PERMANENT (jamais de v-if dessus, le
+                 FolioView ne doit pas être démonté) qui porte le pager de résultats. -->
+            <div class="folio-col">
+              <FolioView
+                  class="maq-folio"
+                  mode="spread"
+                  :visible-pages="searching ? 1 : 2"
+                  :body-cross="isFormat && !searching"
+                  :bare-pages="searching"
+                  :wheel-paging="searching"
+                  :spread-pages="mainSpreadPages"
+                  :node-id="mainNodeId"
+                  :depth="mainDepth"
+                  :data="documentData"
+                  :visuals="effectiveVisuals"
+                  :page="previewPage"
+                  :margins="searching ? SEARCH_MARGINS : previewMargins"
+                  :hyphenation="styleDefaults.hyphenation"
+                  :running-titles="searching ? null : previewRunningTitles"
+                  :book-title="searching ? '' : bookTitle"
+                  @step="stepResultPage"
+              />
+              <!-- Pager : la molette au-dessus du folio fait la même chose, mais elle
+                   ne s'annonce pas. -->
+              <div v-if="searching && resultPageCount > 1" class="maq-pager">
+                <button
+                    type="button" class="maq-pager__btn" aria-label="Résultats précédents"
+                    :disabled="resultPage === 0" @click="stepResultPage(-1)"
+                >
+                  <i class="pi pi-chevron-left"></i>
+                </button>
+                <span class="maq-pager__count">{{ resultPage + 1 }} / {{ resultPageCount }}</span>
+                <button
+                    type="button" class="maq-pager__btn" aria-label="Résultats suivants"
+                    :disabled="resultPage >= resultPageCount - 1" @click="stepResultPage(1)"
+                >
+                  <i class="pi pi-chevron-right"></i>
+                </button>
+              </div>
+            </div>
+
+            <!-- Nuage de lemmes, en regard des résultats sur DEUX pages de largeur
+                 (la page de résultats en fait une). Il vivait dans le dock ; ici il
+                 partage la scène, à l'échelle du reste de la maquette. -->
+            <div v-if="searching" ref="cloudEl" class="maq-cloud">
+              <VocabulaireCloud compact :width="cloudW" :dims="CLOUD_DIMS" />
+            </div>
             <div v-if="isLiminaire" class="lim-hover__controls">
               <AccordeonControls
                   :spreads="limSpreads"
@@ -149,15 +177,15 @@
 </template>
 
 <script setup>
-import { ref, computed, inject, provide, onMounted, onUnmounted, watchEffect } from 'vue'
+import { ref, computed, inject, provide, onMounted, onUnmounted, watch, watchEffect } from 'vue'
 import { useRoute } from 'vue-router'
 import MaquetteAccordeon from './MaquetteAccordeon.vue'
 import MaquetteSpreadCell from './MaquetteSpreadCell.vue'
 import MaquetteLiminaireCell from './MaquetteLiminaireCell.vue'
 import MaquetteChapitreCell from './MaquetteChapitreCell.vue'
 import MaquetteAside from './MaquetteAside.vue'
-import MaquetteSearchPanel from './MaquetteSearchPanel.vue'
 import MaquetteStructureNav from './MaquetteStructureNav.vue'
+import VocabulaireCloud from '../analyse/lexical/VocabulaireCloud.vue'
 import FolioView from '../editor/FolioView.vue'
 import CustomScrollbar from '../ui/atoms/CustomScrollbar.vue'
 import PageDiagram from '../config/PageDiagram.vue'
@@ -302,16 +330,70 @@ const sectionKeys = computed(() => [...new Set(crans.value.map((c) => c.sectionK
 // l'état d'avant pour le rendre à la fermeture.
 const searching = ref(false)
 const searchQuery = ref('')
-// Passages à couler dans la double page de résultats (phrase du chapitre trouvé
-// qui porte la saisie) — mêmes hits que le volet de la doc-bar.
+// Saisie DÉBOUNCÉE : chaque changement de `searchQuery` repagine l'iframe (Paged.js,
+// plusieurs dizaines de ms), une frappe au caractère en lançait autant en parallèle.
+const QUERY_DEBOUNCE = 220
+let queryTimer = null
+function onQuery(q) {
+  clearTimeout(queryTimer)
+  queryTimer = setTimeout(() => {
+    searchQuery.value = q
+    resultPage.value = 0
+  }, QUERY_DEBOUNCE)
+}
+onUnmounted(() => clearTimeout(queryTimer))
+
+// Passages à couler dans la page de résultats (phrase du chapitre trouvé qui porte
+// la saisie) — mêmes hits que le volet de la doc-bar.
 const { fragments: searchFragments, fragmentTotal: searchTotal } = useDocSearch(() => searchQuery.value)
 
-// Texte de la carte de statut, en tête des résultats : le compte réel (tous les
-// passages sont coulés, plus de cap). Alimente `statusEntry` via fragmentPages.
-const searchTitle = computed(() => `Résultats : ${searchTotal.value}`)
+// Résultats paginés EN AMONT, une page de folio à la fois : un mot courant sort des
+// milliers de passages, et les couler tous dans Paged.js (deux blocs par lambeau)
+// fige l'écran pour n'en montrer que le premier écran. Le compte annoncé, lui, reste
+// le VRAI total. Le cran est volontairement prudent — un lambeau de plus que ce que
+// la page peut prendre et Paged.js ouvre une seconde page, hors cadre.
+const RESULTS_PER_PAGE = 6
+const resultPage = ref(0)
+const resultPageCount = computed(() => Math.max(1, Math.ceil(searchTotal.value / RESULTS_PER_PAGE)))
+const resultOffset = computed(() => resultPage.value * RESULTS_PER_PAGE)
+const pageFragments = computed(() =>
+  searchFragments.value.slice(resultOffset.value, resultOffset.value + RESULTS_PER_PAGE),
+)
+
+// Un cran de pagination (molette au-dessus du folio, ou pager). Borné aux deux bouts.
+function stepResultPage(dir) {
+  resultPage.value = Math.min(Math.max(resultPage.value + dir, 0), resultPageCount.value - 1)
+}
+
+// Le total peut fondre sans que la requête change (données du document arrivées
+// après coup) : sans ce recalage, la tranche courante serait vide.
+watch(resultPageCount, (n) => { if (resultPage.value > n - 1) resultPage.value = n - 1 })
+
+// Texte de la carte de statut, en tête des résultats : le compte RÉEL (et non celui
+// de la page), plus le rang de la page. Alimente `statusEntry` via fragmentPages.
+const searchTitle = computed(() => {
+  const base = `Résultats : ${searchTotal.value}`
+  return resultPageCount.value > 1 ? `${base} · page ${resultPage.value + 1}/${resultPageCount.value}` : base
+})
+
+// Gabarit du nuage inline : deux pages de large pour une de haut (≈ le ratio d'une
+// double page A5), là où le dock lui donnait un bandeau plat.
+const CLOUD_DIMS = { width: 1040, height: 740, verticalRatio: 0.25 }
+const cloudEl = ref(null)
+const cloudW = ref(0)
+let cloudRo = null
+watch(cloudEl, (el) => {
+  cloudRo?.disconnect()
+  if (!el) { cloudRo = null; return }
+  const measure = () => { cloudW.value = el.clientWidth }
+  measure()
+  cloudRo = new ResizeObserver(measure)
+  cloudRo.observe(el)
+})
+onUnmounted(() => cloudRo?.disconnect())
 
 // Chiffres du document : ils sont la rangée de TÊTE du lambeau de statut (ils
-// vivaient dans le panneau du dock, cf. MaquetteSearchPanel).
+// vivaient dans le panneau du dock, disparu avec lui).
 const { statItems } = useDocStats()
 
 let foldBeforeSearch = null
@@ -458,13 +540,14 @@ const limSpreadPages = computed(() => {
 // Props pilotées par la source : format/liminaire passent une planche (spreadPages),
 // le chapitrage un nœud témoin (nodeId + depth). Mutuellement exclusifs.
 const mainSpreadPages = computed(() => {
-  // Recherche : les lambeaux coulent dans le MÊME FolioView, en UN flux (Paged.js
-  // pagine), pages nues et PLEIN FOLIO (cf. searchMargins / titres courants coupés).
-  // Le lambeau de statut porte le compte en tête.
+  // Recherche : les lambeaux coulent dans le MÊME FolioView, pages nues et PLEIN
+  // FOLIO (cf. SEARCH_MARGINS / titres courants coupés) — mais UNE PAGE à la fois
+  // (cf. RESULTS_PER_PAGE). Le lambeau de statut porte le compte total en tête.
   if (searching.value) {
-    return fragmentPages(searchFragments.value, searchQuery.value, {
+    return fragmentPages(pageFragments.value, searchQuery.value, {
       status: searchTitle.value,
       stats: statItems.value,
+      offset: resultOffset.value,
     })
   }
   if (isFormat.value) return formatSpreadPages
@@ -589,6 +672,68 @@ onUnmounted(() => { if (section) section.value = null })
   display: flex;
   flex: 1 1 auto;
   min-height: 0;
+}
+
+/* Colonne du folio : le FolioView + son pager. Elle prend toute la scène hors
+   recherche ; en recherche elle n'en prend qu'un TIERS — la page de résultats vaut
+   une page, le nuage en vaut deux (flex 1 / 2). */
+.folio-col {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+}
+
+.folio-stage--search .folio-col {
+  flex: 1 1 0;
+}
+
+/* Nuage inline : deux pages de large, en regard de la page de résultats. `overflow`
+   parce que le SVG du nuage déborde volontiers de sa boîte. */
+.maq-cloud {
+  flex: 2 1 0;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Pager des résultats : discret, sous la page de folio (la molette fait la même
+   chose sans se montrer). */
+.maq-pager {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  padding-top: var(--sp-2);
+  font-size: var(--fs-sm);
+  color: var(--c-muted);
+}
+
+.maq-pager__btn {
+  display: flex;
+  align-items: center;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  padding: 0.2em 0.4em;
+  border-radius: var(--radius-sm);
+}
+
+.maq-pager__btn:hover:not(:disabled) {
+  color: var(--c-accent-alt);
+}
+
+.maq-pager__btn:disabled {
+  opacity: var(--op-faint);
+  cursor: default;
+}
+
+.maq-pager__count {
+  font-variant-numeric: tabular-nums;
 }
 
 /* Contrôles liminaire (type/côté + découpage) : révélés AU SURVOL de la scène,

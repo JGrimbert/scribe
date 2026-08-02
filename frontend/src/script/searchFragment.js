@@ -151,13 +151,15 @@ export function statusEntry(status, stats) {
   }
 }
 
-// UN SEUL flux de contenu : le lambeau de statut puis TOUS les passages. Paged.js
-// pagine ce flux en autant de pages que nécessaire (les résultats débordent, ils ne
-// sont plus capés à une double page). `status` absent = pas de carte de statut ;
-// `stats` = les chiffres du document, rangée de tête du même lambeau.
-export function fragmentPages(fragments, needle, { status, stats } = {}) {
+// UNE page de contenu : le lambeau de statut puis les passages REÇUS. La pagination
+// est faite EN AMONT (l'appelant ne passe qu'une tranche) : couler les milliers de
+// passages d'un mot courant dans Paged.js le fait ramer pour n'en montrer que huit.
+// `status` absent = pas de carte de statut ; `stats` = les chiffres du document,
+// rangée de tête du même lambeau ; `offset` = rang du 1er passage de la tranche,
+// pour que sa déchirure reste la sienne d'une page à l'autre.
+export function fragmentPages(fragments, needle, { status, stats, offset = 0 } = {}) {
   const entries = []
   if (status != null) entries.push(statusEntry(status, stats))
-  entries.push(...fragmentEntries(fragments, needle, 0))
+  entries.push(...fragmentEntries(fragments, needle, offset))
   return [{ kind: 'content', entries }]
 }

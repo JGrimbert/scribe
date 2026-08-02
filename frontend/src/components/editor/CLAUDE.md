@@ -31,7 +31,10 @@ dans `../../composables/CLAUDE.md`.
   sur l'écran config). **Molette → horizontal** : les pages étant dans l'iframe,
   la molette y naît (le conteneur parent ne la voit pas) ; le listener `wheel` du
   doc iframe (via `editListeners`, `passive:false`) la relaie à
-  `CustomScrollbar.handleWheel` qui convertit `deltaY` en scroll horizontal.
+  `CustomScrollbar.handleWheel` qui convertit `deltaY` en scroll horizontal. Prop
+  `wheelPaging` : la molette n'est plus relayée mais émise en `@step(±1)` — la
+  rangée ne porte qu'UNE page et c'est l'appelant qui donne la suivante (résultats
+  de recherche de la maquette, paginés en amont).
 - **Anti-flicker (double-buffer)** : chaque repagination rend dans un conteneur caché
   (`opacity:0`) pendant que `#render` garde l'ancien rendu affiché (pas de page
   blanche), puis swap. Trois pièges, tous résolus dans `useFolioFrame`/`useFolioScale` :
@@ -49,6 +52,13 @@ dans `../../composables/CLAUDE.md`.
      → l'iframe se re-layoutait pour rien. `applyScale` est désormais **idempotent**
      (skip si échelle+dimensions inchangées à la tolérance sub-pixel), ce qui éteint
      aussi la 2ᵉ passe que le `ResizeObserver` de `useFolioScale` déclenchait.
+
+  4. **Rendu périmé (pagination concurrente)** — `preview()` est asynchrone et non
+     annulable : deux `refresh()` rapprochés (frappe dans la recherche) lancent deux
+     previewers qui swappent chacun dans `#render` **à leur ordre d'arrivée**, pas
+     de demande. `useFolioFrame` numérote donc chaque passe (`generation`) et jette
+     celles qu'une plus récente a dépassées (tampon, observers, feuilles propres).
+     Sans ça, un compte de résultats périmé restait affiché.
 
   On injecte un **clone inerte** du rendu (`cloneNode` ne recopie ni les `ResizeObserver`
   que Paged laisse sur chaque page, ni les listeners) et on jette le tampon. Le registre

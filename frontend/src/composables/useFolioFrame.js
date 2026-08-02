@@ -53,6 +53,13 @@ export function useFolioFrame(props, { frameRef, frameDoc, blocks, section, onRe
   const registry = ref(null)
   const fragments = ref(null)
   let frameReady = false
+  // Génération de pagination. `preview()` est asynchrone et n'est pas annulable :
+  // deux refresh rapprochés (une frappe dans le champ de recherche) lancent deux
+  // previewers CONCURRENTS qui swappent chacun leur rendu dans #render À LEUR
+  // ORDRE D'ARRIVÉE — le dernier arrivé n'est pas le dernier demandé. On numérote
+  // donc chaque passe et on jette silencieusement celles qu'une plus récente a
+  // dépassées (sans quoi un rendu périmé reste affiché : compte de résultats faux).
+  let generation = 0
 
   // Styles à NE PAS balayer entre deux repaginations : le boot, l'épingle de
   // géométrie et les guides de format (mis à jour en place, pas régénérés).
@@ -184,6 +191,9 @@ export function useFolioFrame(props, { frameRef, frameDoc, blocks, section, onRe
     // Vide le curseur : le DOM du fragment courant va être remplacé.
     onReset?.()
 
+    // Numéro de CETTE passe : toute passe en vol devient périmée (cf. `generation`).
+    const my = ++generation
+
     // Recale le pin de géométrie sur la page COURANTE (le format a pu changer
     // depuis buildFrame) — avant la pagination, pour que l'ancien rendu affiché
     // bascule tout de suite à la nouvelle taille.
@@ -218,11 +228,15 @@ export function useFolioFrame(props, { frameRef, frameDoc, blocks, section, onRe
     // Feuille d'apparence des styles (fidélité .odt), régénérée à chaque
     // repagination, avant le preview pour que Paged.js la reprenne. Sans id :
     // l'ancienne est dans staleStyles (retirée après le swap), la neuve lui survit.
+    // Feuilles créées PAR CETTE PASSE : si elle est dépassée, elles partent avec
+    // elle (la génération qui gagne garde les siennes).
+    const ownStyles = []
     const visualsCss = buildVisualsCss(props.visuals)
     if (visualsCss) {
       const styleEl = doc.createElement('style')
       styleEl.textContent = visualsCss
       doc.head.appendChild(styleEl)
+      ownStyles.push(styleEl)
     }
 
     // Césure : cascade valeur .odt du style > défaut global (props.hyphenation).
@@ -233,6 +247,7 @@ export function useFolioFrame(props, { frameRef, frameDoc, blocks, section, onRe
       const styleEl = doc.createElement('style')
       styleEl.textContent = hyphenationCss
       doc.head.appendChild(styleEl)
+      ownStyles.push(styleEl)
     }
 
     // Article + `data-block-id` sur chaque bloc : l'`<article>` porte la typo du
@@ -302,6 +317,15 @@ export function useFolioFrame(props, { frameRef, frameDoc, blocks, section, onRe
     // pages distinctes (le style inline est ignoré par le chunker Paged.js).
     if (props.spreadPages) sheets.push({ 'imposition.css': IMPOSITION_CSS })
     return previewer.preview(source, sheets, buffer).then((flow) => {
+      // Passe dépassée : on jette TOUT (tampon, observers, feuilles propres) sans
+      // toucher au rendu affiché, qui appartient à une demande plus récente.
+      if (my !== generation) {
+        disconnectPagedObservers(previewer)
+        buffer.remove()
+        ownStyles.forEach((el) => el.remove())
+        return
+      }
+
       // Registre AVANT le clonage : buildFragmentRegistry stampe les data-frag-id
       // sur les nœuds rendus (le clone en hérite) et ne capture que des chaînes HTML
       // — aucune référence DOM vivante, donc le clone ne le casse pas.
@@ -352,11 +376,14 @@ export function useFolioFrame(props, { frameRef, frameDoc, blocks, section, onRe
       staleStyles.forEach((el) => el.remove())
       onPaginated?.()
     }).catch((e) => {
-      console.warn('[FolioView] pagination échouée', e)
       disconnectPagedObservers(previewer)
       // Échec : on jette le tampon et on garde l'ancien rendu (+ ses styles) intact.
-      // onPaginated réconcilie l'échelle sur le contenu resté en place.
+      // onPaginated réconcilie l'échelle sur le contenu resté en place — sauf si la
+      // passe était déjà dépassée : elle n'a plus rien à dire sur ce qui est affiché.
       buffer.remove()
+      ownStyles.forEach((el) => el.remove())
+      if (my !== generation) return
+      console.warn('[FolioView] pagination échouée', e)
       onPaginated?.()
     })
   }
