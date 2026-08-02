@@ -10,7 +10,10 @@
     </UiNote>
 
     <template v-else>
-      <header class="cloud-head">
+      <!-- En-tête (titre + choix du nombre de mots) : DASHBOARD SEULEMENT. En
+           compact, le nombre de mots suit la largeur disponible et l'en-tête ne
+           ferait que rogner la hauteur du nuage. -->
+      <header v-if="!compact" class="cloud-head">
         <h3 class="cloud-title">
           <i v-if="running === 'lexical'" class="pi pi-spin pi-spinner cloud-busy"></i>
         </h3>
@@ -23,10 +26,10 @@
       </header>
 
       <!-- Le nuage occupe tout l'espace entre l'en-tête (ferré haut) et les
-           filtres (ferrés bas). En mode `compact` (volet de recherche), la zone
-           défile via CustomScrollbar et les filtres restent épinglés en bas ;
-           sinon le nuage s'y centre simplement (dashboard). Le wrapper non-compact
-           est en `display:contents` pour ne pas casser ce centrage. -->
+           filtres (ferrés bas). En mode `compact` il prend TOUTE la hauteur : les
+           filtres passent en absolu par-dessus son bas (leur fond translucide les
+           détache), et le nuage n'a plus à leur céder de place. Le wrapper
+           non-compact est en `display:contents` pour ne pas casser le centrage. -->
       <div class="cloud-body">
         <component :is="compact ? CustomScrollbar : 'div'" :class="compact ? 'cloud-scroll' : 'cloud-scroll--flat'">
           <UiNote v-if="!words.length" variant="hint">
@@ -229,18 +232,13 @@ watch(
   display: contents;
 }
 
-/* ── Mode compact (volet de recherche) ──────────────────────────────────────
-   Hauteur bornée : en-tête et filtres ferrés, la zone du nuage défile entre les
-   deux (CustomScrollbar), paddings resserrés. */
+/* ── Mode compact (volet de recherche, nuage de la maquette) ────────────────
+   Pas d'en-tête : le nuage prend TOUTE la hauteur de sa boîte et les filtres se
+   posent par-dessus son bas (absolus), d'où le `position: relative` ici. */
 .cloud--compact {
+  position: relative;
   height: 100%;
   gap: 0.1em;
-}
-
-/* En-tête resserré (juste le sélecteur « Mots affichés ») : on colle le nuage
-   à la barre d'onglets. */
-.cloud--compact .cloud-head {
-  padding: 0 0.5em;
 }
 
 .cloud--compact .cloud-body {
@@ -260,13 +258,18 @@ watch(
   height: 100%;
 }
 
-/* Filtres ferrés en bas, bord à bord : bande de translucidité intermédiaire
-   (moins transparente que le nuage, plus que les onglets). */
+/* Filtres posés EN ABSOLU au pied de la boîte, par-dessus le bas du nuage : ils ne
+   lui prennent plus de hauteur. Bande de translucidité intermédiaire (moins
+   transparente que le nuage) pour rester lisibles sur les mots qui passent dessous. */
 .cloud--compact .cloud-foot {
-  flex: 0 0 auto;
-  margin-top: 0.3em;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  margin-top: 0;
   padding: 0.35em 0.5em;
   background: color-mix(in srgb, var(--c-bg) 60%, transparent);
+  backdrop-filter: var(--c-backdrop-filter-blur);
 }
 
 .vocab-cloud {

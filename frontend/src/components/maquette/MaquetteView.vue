@@ -697,6 +697,11 @@ onUnmounted(() => { if (section) section.value = null })
   min-width: 0;
   min-height: 0;
   overflow: hidden;
+  position: fixed;
+
+  right: 0px;
+  bottom: 4em;
+  width: 60%;
 }
 
 /* Pager des résultats : discret, sous la page de folio (la molette fait la même
