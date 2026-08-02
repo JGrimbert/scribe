@@ -57,6 +57,13 @@
           @select-node="$emit('select-node', $event)"
       />-->
     </div>
+
+    <!-- Pied de la colonne : le dock accordéon de la maquette. Il vit ICI pour
+         être ferré au bord gauche de la fenêtre (le sommaire l'est déjà) et
+         déborde volontairement la largeur du sommaire — d'où sa largeur propre. -->
+    <div ref="footerEl" class="maq-nav__footer">
+      <slot name="footer" />
+    </div>
   </div>
 </template>
 
@@ -77,7 +84,9 @@ defineProps({
   nodeId: { type: String, default: null },
 })
 
-defineEmits(['focus-series', 'select-node'])
+// `update:searching` : la maquette replie son accordéon tant que la recherche est
+// ouverte, et le rend tel quel à la fermeture.
+const emit = defineEmits(['focus-series', 'select-node', 'update:searching'])
 
 // Saisie retenue localement, pas encore branchée sur une recherche (même état
 // que le champ de la doc-bar sur les autres écrans).
@@ -86,6 +95,7 @@ const query = ref('')
 // ── Volet de recherche : il vit DANS la carte, qui s'étend ───────────────────
 const open = ref(false)
 const rootEl = ref(null)
+const footerEl = ref(null)
 const inputEl = ref(null)
 // Largeur du panneau (px) — pilote le nombre de mots par défaut du nuage.
 const panelWidth = ref(0)
@@ -96,13 +106,16 @@ const panelWidth = ref(0)
 function onDocKeydown(e) {
   if (e.key === 'Escape') { open.value = false; inputEl.value?.blur() }
 }
+// Le dock est DANS la colonne mais n'appartient pas au volet de recherche : y
+// cliquer (choisir un cran) doit refermer la recherche comme un clic dehors.
 function onDocMousedown(e) {
   if (e.button !== 0) return
-  if (rootEl.value?.contains(e.target)) return
+  if (rootEl.value?.contains(e.target) && !footerEl.value?.contains(e.target)) return
   open.value = false
 }
 
 watch(open, (isOpen) => {
+  emit('update:searching', isOpen)
   if (isOpen) {
     nextTick(() => {
       panelWidth.value = rootEl.value?.querySelector('.maq-nav__panel')?.clientWidth ?? 0
@@ -128,7 +141,9 @@ onUnmounted(() => {
   top: calc(var(--bar-size) + 1.25em);
   left: 0;
   width: 15em;
-  max-height: calc(100% - var(--bar-size) - 1.25em - var(--sp-4));
+  /* Hauteur PLEINE (et non `max-height`) : le pied doit pouvoir se caler en bas
+     de la colonne, le sommaire restant en tête. */
+  height: calc(100% - var(--bar-size) - 1.25em - var(--sp-4));
   display: flex;
   flex-direction: column;
   gap: var(--sp-2);
@@ -171,6 +186,17 @@ onUnmounted(() => {
 
 .maq-nav--search .maq-nav__card {
   flex: 1 1 auto;
+}
+
+/* Pied de colonne (dock accordéon) : poussé en bas (`margin-top: auto`), FERRÉ AU
+   BORD GAUCHE de la fenêtre — la marge latérale de la colonne est annulée — et
+   plus large qu'elle : la pellicule a besoin de la largeur de la zone principale,
+   pas des 15em du sommaire. */
+.maq-nav__footer {
+  margin-top: auto;
+  margin-left: -1em;
+  width: 66vw;
+  pointer-events: auto;
 }
 
 /* Rangée de recherche : hors carte, sans cadre ni fond — juste la loupe et le

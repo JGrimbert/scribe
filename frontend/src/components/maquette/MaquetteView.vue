@@ -19,7 +19,44 @@
         :data="documentData"
         @focus-series="focusSeries"
         @select-node="selectNode"
-    />
+        @update:searching="onSearching"
+    >
+      <!-- Le dock accordéon est le PIED du sommaire : ferré au bord gauche de la
+           fenêtre, hors du flux de la colonne d'aperçu (qui ne bouge donc jamais,
+           quel que soit le pli). L'accordéon rend lui-même ses onglets de zone. -->
+      <template #footer>
+        <MaquetteAccordeon
+            v-model:collapsed="collapsedSections"
+            :crans="crans"
+            :focused="focused"
+            :ratio="previewRatio"
+            @update:focused="focused = $event"
+        >
+          <template #spread="{ cran }">
+            <PageDiagram
+                v-if="cran.sourceKey === 'maquette'"
+                class="maq-format-cell"
+                :page-size="previewPage"
+                :margins="previewMargins"
+                :running-titles="styleDefaults.runningTitles"
+            />
+            <MaquetteLiminaireCell
+                v-else-if="cran.sourceKey === 'liminaire' && limSpreads[cran.spreadIndex]"
+                :spread="limSpreads[cran.spreadIndex]"
+                :types="limTypes"
+                :suggestions="limSuggestions"
+                :ratio="previewRatio"
+            />
+            <MaquetteChapitreCell
+                v-else-if="cran.sourceKey === 'chapitrage'"
+                :depth-key="cran.depthKey"
+                :ratio="previewRatio"
+            />
+            <MaquetteSpreadCell v-else :ratio="previewRatio" />
+          </template>
+        </MaquetteAccordeon>
+      </template>
+    </MaquetteStructureNav>
 
     <!-- Colonne gauche (2/3) : aperçu témoin + dock accordéon, sous la doc-bar. -->
     <div class="maquette__left">
@@ -67,39 +104,6 @@
         </section>
       </div>
 
-      <!-- Dock EN FLUX, calé sous le main (pleine largeur de la colonne gauche).
-           L'accordéon rend lui-même ses onglets d'entrée de série (jalons). -->
-      <div class="maquette__dock">
-        <MaquetteAccordeon
-            :crans="crans"
-            :focused="focused"
-            :ratio="previewRatio"
-            @update:focused="focused = $event"
-        >
-          <template #spread="{ cran }">
-            <PageDiagram
-                v-if="cran.sourceKey === 'maquette'"
-                class="maq-format-cell"
-                :page-size="previewPage"
-                :margins="previewMargins"
-                :running-titles="styleDefaults.runningTitles"
-            />
-            <MaquetteLiminaireCell
-                v-else-if="cran.sourceKey === 'liminaire' && limSpreads[cran.spreadIndex]"
-                :spread="limSpreads[cran.spreadIndex]"
-                :types="limTypes"
-                :suggestions="limSuggestions"
-                :ratio="previewRatio"
-            />
-            <MaquetteChapitreCell
-                v-else-if="cran.sourceKey === 'chapitrage'"
-                :depth-key="cran.depthKey"
-                :ratio="previewRatio"
-            />
-            <MaquetteSpreadCell v-else :ratio="previewRatio" />
-          </template>
-        </MaquetteAccordeon>
-      </div>
     </div>
 
     <!-- Aside (1/3) PLEINE HAUTEUR : sans cadre propre, elle défile SOUS la
@@ -272,6 +276,24 @@ const crans = computed(() => {
 
 const focusedCran = computed(() => crans.value[focused.value] ?? null)
 const focusedSourceKey = computed(() => focusedCran.value?.sourceKey ?? null)
+
+// Zones pliées de l'accordéon (par `sectionKey`). Tout est déplié au départ.
+const collapsedSections = ref([])
+const sectionKeys = computed(() => [...new Set(crans.value.map((c) => c.sectionKey))])
+
+// Recherche ouverte → l'accordéon se replie entièrement (il rend sa place au
+// panneau). C'est un EFFET de la recherche, pas une préférence : on mémorise
+// l'état d'avant pour le rendre à la fermeture.
+let foldBeforeSearch = null
+function onSearching(active) {
+  if (active) {
+    if (foldBeforeSearch === null) foldBeforeSearch = collapsedSections.value
+    collapsedSections.value = sectionKeys.value
+  } else if (foldBeforeSearch !== null) {
+    collapsedSections.value = foldBeforeSearch
+    foldBeforeSearch = null
+  }
+}
 
 // Section de chapitrage focusée (null hors d'un cran chapitrage).
 const focusedSection = computed(() => {
@@ -448,15 +470,24 @@ onUnmounted(() => { if (section) section.value = null })
   overflow: hidden;
 }
 
-/* Colonne gauche : aperçu témoin (flex:1) + dock (hauteur propre), tous deux
-   sous la doc-bar (padding-top réserve sa hauteur, aligné sur ConfigView). */
+/* Colonne gauche : l'aperçu témoin seul, sous la doc-bar (padding-top réserve sa
+   hauteur, aligné sur ConfigView). Le dock accordéon n'est PAS ici — il est le
+   pied du sommaire flottant (`MaquetteStructureNav`) — mais l'aperçu lui réserve
+   une bande FIXE (`--maq-dock-h` = hauteur max du stage) et se retire de sa
+   gouttière (`--maq-gutter` = largeur du sommaire) : plier ou déplier change la
+   hauteur du stage, jamais celle de l'aperçu, dont le FolioView ne se remet donc
+   plus à l'échelle à chaque pli. */
 .maquette__left {
+  --maq-gutter: 15em;
+  --maq-dock-h: 13.2em;
   flex: 2 1 0;
   min-width: 0;
   display: flex;
   flex-direction: column;
   min-height: 0;
   padding-top: calc(var(--bar-size) + 1.25em);
+  padding-left: var(--maq-gutter);
+  padding-bottom: calc(var(--maq-dock-h) + var(--sp-4));
 }
 
 /* Bande de l'aperçu : prend la hauteur restante, colonne flex sans overflow —
@@ -466,7 +497,6 @@ onUnmounted(() => { if (section) section.value = null })
   min-height: 0;
   display: flex;
   flex-direction: column;
-  padding-left: 15em;
 }
 
 /* La section de source remplit EXACTEMENT la bande (hauteur bornée pour le
@@ -544,10 +574,4 @@ onUnmounted(() => { if (section) section.value = null })
   max-width: none;
 }
 
-/* Dock EN FLUX en bas de la colonne gauche (il réserve sa hauteur, l'aperçu
-   prend le reste). L'accordéon le remplit (la colonne est déjà à 2/3). */
-.maquette__dock {
-  flex: 0 0 auto;
-  padding: 0 0 var(--sp-4);
-}
 </style>
