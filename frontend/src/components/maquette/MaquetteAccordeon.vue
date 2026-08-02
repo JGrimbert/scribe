@@ -155,7 +155,6 @@ const { onWheel } = useWheelStepper({
 .maq-stage {
   position: relative;
   height: 13.2em;
-  overflow: hidden;
 }
 
 /* Pellicule : contexte de positionnement des zones. Ferrée à gauche et jamais mise
