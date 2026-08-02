@@ -20,13 +20,14 @@
         @focus-series="focusSeries"
         @select-node="selectNode"
         @update:searching="onSearching"
+        @update:query="searchQuery = $event"
     >
       <!-- Le dock accordéon est le PIED du sommaire : ferré au bord gauche de la
            fenêtre, hors du flux de la colonne d'aperçu (qui ne bouge donc jamais,
            quel que soit le pli). L'accordéon rend lui-même ses onglets de zone. -->
       <template #footer>
         <MaquetteAccordeon
-            v-model:collapsed="collapsedSections"
+            v-model:folds="folds"
             :crans="crans"
             :focused="focused"
             :ratio="previewRatio"
@@ -54,6 +55,12 @@
             />
             <MaquetteSpreadCell v-else :ratio="previewRatio" />
           </template>
+
+          <!-- Recherche ouverte : l'accordéon est replié en onglets, l'espace
+               gagné accueille les chiffres du document (défaut) / le nuage. -->
+          <template v-if="searching" #panel>
+            <MaquetteSearchPanel />
+          </template>
         </MaquetteAccordeon>
       </template>
     </MaquetteStructureNav>
@@ -73,7 +80,8 @@
                 class="maq-folio"
                 mode="spread"
                 :visible-pages="2"
-                :body-cross="isFormat"
+                :body-cross="isFormat && !searching"
+                :bare-pages="searching"
                 :spread-pages="mainSpreadPages"
                 :node-id="mainNodeId"
                 :depth="mainDepth"
@@ -83,7 +91,7 @@
                 :margins="previewMargins"
                 :hyphenation="styleDefaults.hyphenation"
                 :running-titles="previewRunningTitles"
-                :book-title="bookTitle"
+                :book-title="searching ? searchTitle : bookTitle"
             />
             <div v-if="isLiminaire" class="lim-hover__controls">
               <AccordeonControls
@@ -145,6 +153,7 @@ import MaquetteSpreadCell from './MaquetteSpreadCell.vue'
 import MaquetteLiminaireCell from './MaquetteLiminaireCell.vue'
 import MaquetteChapitreCell from './MaquetteChapitreCell.vue'
 import MaquetteAside from './MaquetteAside.vue'
+import MaquetteSearchPanel from './MaquetteSearchPanel.vue'
 import MaquetteStructureNav from './MaquetteStructureNav.vue'
 import FolioView from '../editor/FolioView.vue'
 import CustomScrollbar from '../ui/atoms/CustomScrollbar.vue'
@@ -157,6 +166,8 @@ import { pathToInAxes } from '../../script/trame'
 import { useTypologyConfig } from '../../composables/useTypologyConfig'
 import { useLiminaireBornes } from '../../composables/useLiminaireBornes'
 import { useLiminaireComposition } from '../../composables/useLiminaireComposition'
+import { useDocSearch } from '../../composables/useDocSearch'
+import { fragmentSpread } from '../../script/searchFragment'
 
 const route = useRoute()
 
@@ -277,20 +288,37 @@ const crans = computed(() => {
 const focusedCran = computed(() => crans.value[focused.value] ?? null)
 const focusedSourceKey = computed(() => focusedCran.value?.sourceKey ?? null)
 
-// Zones pliées de l'accordéon (par `sectionKey`). Tout est déplié au départ.
-const collapsedSections = ref([])
+// Niveau de pli par zone de l'accordéon ('open' | 'stack' | 'tab'). Tout est
+// déplié au départ.
+const folds = ref({})
 const sectionKeys = computed(() => [...new Set(crans.value.map((c) => c.sectionKey))])
 
-// Recherche ouverte → l'accordéon se replie entièrement (il rend sa place au
+// Recherche ouverte → l'accordéon se réduit à ses onglets (il rend sa place au
 // panneau). C'est un EFFET de la recherche, pas une préférence : on mémorise
 // l'état d'avant pour le rendre à la fermeture.
+const searching = ref(false)
+const searchQuery = ref('')
+// Passages à couler dans la double page de résultats (phrase du chapitre trouvé
+// qui porte la saisie) — mêmes hits que le volet de la doc-bar.
+const { fragments: searchFragments, fragmentTotal: searchTotal } = useDocSearch(() => searchQuery.value)
+
+// Titre courant de la planche de résultats : le compte réel, le nombre de
+// lambeaux étant borné par ce qu'une double page porte.
+const searchTitle = computed(() => {
+  const n = searchTotal.value
+  if (!n) return searchQuery.value ? 'Aucun passage' : 'Recherche'
+  const shown = searchFragments.value.length
+  return n > shown ? `${shown} des ${n} passages` : `${n} passage${n > 1 ? 's' : ''}`
+})
+
 let foldBeforeSearch = null
 function onSearching(active) {
+  searching.value = active
   if (active) {
-    if (foldBeforeSearch === null) foldBeforeSearch = collapsedSections.value
-    collapsedSections.value = sectionKeys.value
+    if (foldBeforeSearch === null) foldBeforeSearch = folds.value
+    folds.value = Object.fromEntries(sectionKeys.value.map((k) => [k, 'tab']))
   } else if (foldBeforeSearch !== null) {
-    collapsedSections.value = foldBeforeSearch
+    folds.value = foldBeforeSearch
     foldBeforeSearch = null
   }
 }
@@ -422,6 +450,9 @@ const limSpreadPages = computed(() => {
 // Props pilotées par la source : format/liminaire passent une planche (spreadPages),
 // le chapitrage un nœud témoin (nodeId + depth). Mutuellement exclusifs.
 const mainSpreadPages = computed(() => {
+  // Recherche : les lambeaux coulent dans le MÊME FolioView que les autres
+  // sources (mêmes format, marges et titres courants), pages nues.
+  if (searching.value) return fragmentSpread(searchFragments.value, searchQuery.value)
   if (isFormat.value) return formatSpreadPages
   if (isLiminaire.value) return limSpreadPages.value
   return null

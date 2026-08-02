@@ -156,6 +156,10 @@ export function buildImpositionBlocks(pages) {
                 blocks.push({
                     id: `imp_${pi}_${index}`,
                     styleName: e.styleName,
+                    // CSS inline libre de l'entrée, au-delà de l'apparence .odt
+                    // (`visual`) : ce par quoi un appelant impose une découpe au
+                    // bloc — les lambeaux de recherche y passent leur clip-path.
+                    style: e.style,
                     // Apparence COMPLÈTE de l'entrée (mise en forme directe .odt
                     // incluse), appliquée en inline par useFolioFrame → fidélité
                     // du liminaire là où le seul styleName perdait les retouches.

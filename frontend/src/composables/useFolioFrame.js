@@ -51,7 +51,16 @@ export function useFolioFrame(props, { frameRef, frameDoc, blocks, section, onRe
 
   // Styles à NE PAS balayer entre deux repaginations : le boot, l'épingle de
   // géométrie et les guides de format (mis à jour en place, pas régénérés).
-  const isPersistentStyle = (el) => el.id === '__boot' || el.id === '__pagepin' || el.id === '__formatguides'
+  const isPersistentStyle = (el) =>
+    el.id === '__boot' || el.id === '__pagepin' || el.id === '__formatguides' || el.id === '__bare'
+
+  // Pages NUES (`barePages`) : plus de papier, ni bordure, ni ombre, ni filet
+  // d'empagement — seul ce que les blocs peignent eux-mêmes reste visible. C'est
+  // le mode des lambeaux de recherche : des morceaux de page qui flottent.
+  const BARE_CSS = [
+    '.pagedjs_page{background:transparent;box-shadow:none;border-color:transparent;}',
+    '.pagedjs_page_content{outline:none;}',
+  ].join('')
 
   function buildFrame() {
     const doc = frameDoc()
@@ -130,6 +139,13 @@ export function useFolioFrame(props, { frameRef, frameDoc, blocks, section, onRe
     guides.textContent = props.bodyCross ? buildFormatGuidesCss(props.runningTitles) : ''
     doc.head.appendChild(guides)
 
+    // Même cycle de vie pour les pages nues : l'instance unifiée bascule d'une
+    // source à l'autre (recherche ↔ aperçu) sans être démontée.
+    const bare = doc.createElement('style')
+    bare.id = '__bare'
+    bare.textContent = props.barePages ? BARE_CSS : ''
+    doc.head.appendChild(bare)
+
     if (props.mode === 'edit') {
       const listeners = getEditListeners?.()
       if (listeners) {
@@ -172,6 +188,9 @@ export function useFolioFrame(props, { frameRef, frameDoc, blocks, section, onRe
     // les titres courants édités en direct (aside).
     const guides = doc.getElementById('__formatguides')
     if (guides) guides.textContent = props.bodyCross ? buildFormatGuidesCss(props.runningTitles) : ''
+
+    const bare = doc.getElementById('__bare')
+    if (bare) bare.textContent = props.barePages ? BARE_CSS : ''
 
     if (!blocks.value.length) {
       doc.head.querySelectorAll('style').forEach((el) => { if (!isPersistentStyle(el)) el.remove() })
@@ -226,10 +245,12 @@ export function useFolioFrame(props, { frameRef, frameDoc, blocks, section, onRe
       // Apparence COMPLÈTE par paragraphe (imposition liminaire) : mise en forme
       // directe .odt que le styleName seul perd. Inline → l'emporte sur la feuille
       // visuals et sur le justify de repli du boot (cf. TexteEntry.visual backend).
-      if (b.visual) {
-        const inline = styleVisualToInlineCss(b.visual)
-        if (inline) root.setAttribute('style', inline)
-      }
+      // Apparence .odt, puis CSS libre de l'entrée (cf. buildImpositionBlocks) —
+      // ce dernier en second pour l'emporter sur elle.
+      const inline = [b.visual ? styleVisualToInlineCss(b.visual) : '', b.style ?? '']
+        .filter(Boolean)
+        .join(';')
+      if (inline) root.setAttribute('style', inline)
       // Planche d'imposition : le 1er bloc d'un slot force sa page (cf.
       // buildImpositionBlocks). Classe (pas style inline) → règle IMPOSITION_CSS
       // passée au polisher, seule voie que Paged.js honore pour un break forcé.

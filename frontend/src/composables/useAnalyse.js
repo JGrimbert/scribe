@@ -169,6 +169,30 @@ export function provideAnalyse() {
     }
   }
 
+  // Lecture SEULE de l'analyse enregistrée, sans la mécanique du dashboard
+  // (révélation + calcul automatique des étapes manquantes) : les hôtes légers —
+  // volet de recherche, dock de la maquette — ont besoin des chiffres déjà
+  // calculés, pas de relancer le NLP parce qu'ils sont montés hors dashboard.
+  // Verrou PROPRE (et non `loading`, qui vaut `true` à l'init et n'est retombé
+  // que par `fetchAnalysis` — jamais appelé hors dashboard) : deux hôtes montés
+  // ensemble ne doivent lancer qu'un GET.
+  let loadOnce = null
+  async function ensureLoaded() {
+    if (analysis.value) return
+    loadOnce ??= (async () => {
+      try {
+        const res = await fetch(`/api/documents/${route.params.id}/analyse`)
+        analysis.value = await readJsonOrThrow(res)
+      } catch (e) {
+        error.value = `Impossible de charger l'analyse : ${e.message}`
+        loadOnce = null // rejouable au prochain montage
+      } finally {
+        loading.value = false
+      }
+    })()
+    return loadOnce
+  }
+
   async function recompute(sub) {
     const res = await fetch(`/api/documents/${route.params.id}/analyse${sub}`, { method: 'POST' })
     analysis.value = await readJsonOrThrow(res)
@@ -285,6 +309,7 @@ export function provideAnalyse() {
     settle,
     revealDone,
     fetchAnalysis,
+    ensureLoaded,
     runAll,
     runStep,
     goToNode,

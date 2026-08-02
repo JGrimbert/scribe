@@ -25,11 +25,10 @@
             :card-width="layout.cw"
             :step="sec.step"
             :head-gap="GROUP_GAP"
-            :collapsed="sec.collapsed"
+            :level="sec.level"
             :active="sec.key === focusedSection"
             :drop-span="dropSpan"
-            :style="{ zIndex: String(sec.z) }"
-            @toggle="toggleSection(sec.key)"
+            @toggle="cycleSection(sec.key)"
             @focus-cran="$emit('update:focused', $event)"
         >
           <template #spread="{ cran }">
@@ -40,6 +39,13 @@
             </slot>
           </template>
         </MaquetteAccordeonSection>
+      </div>
+
+      <!-- Espace laissé par la pellicule, jusqu'au bord droit de la scène : le
+           panneau du dock (stats/nuage pendant la recherche). Hors pellicule et
+           APRÈS elle dans le DOM → il couvre ce qui dépasse de la dernière zone. -->
+      <div v-if="$slots.panel" class="maq-panel" :style="{ left: `${layout.stripEnd.toFixed(3)}em` }">
+        <slot name="panel" />
       </div>
     </div>
   </div>
@@ -57,9 +63,12 @@ const props = defineProps({
   // ventilation en zones vit chez le parent.
   crans: { type: Array, required: true },
   focused: { type: Number, required: true },
-  // Zones pliées, par `sectionKey` (v-model:collapsed) — pilotable de l'extérieur
-  // (la recherche replie tout).
-  collapsed: { type: Array, default: () => [] },
+  // Niveau de pli par zone (v-model:folds) : `{ [sectionKey]: 'open'|'stack'|'tab' }`,
+  // défaut `open`. Pilotable de l'extérieur (la recherche replie tout).
+  //   open  — feuillets étalés (pas OVERLAP)
+  //   stack — feuillets empilés, recouvrement 95 %
+  //   tab   — zone réduite à son onglet, feuillets effacés
+  folds: { type: Object, default: () => ({}) },
   // Ratio largeur/hauteur d'UNE page : fixe la largeur d'un vis-à-vis (2 pages), donc
   // la géométrie de la pellicule (intervalles réels entre groupes).
   ratio: { type: Number, default: 148 / 210 },
@@ -69,7 +78,7 @@ const props = defineProps({
   dropSpan: { type: Number, default: 2 },
 })
 
-const emit = defineEmits(['update:focused', 'update:collapsed'])
+const emit = defineEmits(['update:focused', 'update:folds'])
 
 // Géométrie en unités RÉELLES (em). Tous les vis-à-vis ont la même largeur (deux
 // pages au ratio effectif) → on ménage de VRAIS intervalles vides entre groupes.
@@ -79,6 +88,10 @@ const CARD_H = 10.5    // hauteur d'un feuillet focusé, cf. .maq-cran
 const GROUP_GAP = 2.6  // vide entre deux zones ET marge de tête (accueille l'onglet)
 const OVERLAP = 0.34   // pas intra-zone dépliée, en fraction de la largeur d'un feuillet
 const OVERLAP_FOLDED = 0.05 // zone pliée : les feuillets se recouvrent à 95 %
+const TAB_W = 2.2      // zone réduite à son onglet : de quoi loger le bouton (1.4em) et l'air autour
+
+// Cycle du clic sur un onglet.
+const LEVELS = ['open', 'stack', 'tab']
 
 // Zone du cran focusé → son onglet est appuyé.
 const focusedSection = computed(() => props.crans[props.focused]?.sectionKey ?? null)
@@ -95,34 +108,32 @@ const groups = computed(() => {
 
 // Position (em) de chaque zone le long de la pellicule posée à plat. Une zone
 // occupe son vide de tête (GROUP_GAP, qui l'isole de la précédente et accueille
-// son onglet) puis ses feuillets, serrés du pas courant. Le pli ne change QUE les
-// offsets : les feuillets gardent leur taille (aucune échelle globale).
+// son onglet) puis ses feuillets, serrés du pas courant. Réduite à son onglet,
+// elle n'occupe plus que `TAB_W` : la zone suivante se colle à son onglet et le
+// reste ne compte plus (feuillets effacés). Le pli ne change QUE les offsets :
+// les feuillets gardent leur taille (aucune échelle globale).
 const layout = computed(() => {
   const cw = 2 * CARD_H * props.ratio
   let x = 0
   const sections = groups.value.map((g) => {
-    const collapsed = props.collapsed.includes(g.key)
-    const step = (collapsed ? OVERLAP_FOLDED : OVERLAP) * cw
-    const sec = { ...g, collapsed, step, offset: x }
-    x += GROUP_GAP + cw + (g.items.length - 1) * step
+    const level = LEVELS.includes(props.folds[g.key]) ? props.folds[g.key] : 'open'
+    const step = (level === 'open' ? OVERLAP : OVERLAP_FOLDED) * cw
+    const sec = { ...g, level, step, offset: x }
+    x += level === 'tab' ? TAB_W : GROUP_GAP + cw + (g.items.length - 1) * step
     return sec
   })
-  return { cw, sections }
+  // `stripEnd` = où s'arrête la pellicule, donc où commence l'espace libre (le
+  // panneau du dock s'y pose).
+  return { cw, sections, stripEnd: x }
 })
 
-// Les zones se succèdent sans se recouvrir ; le z-index ne sert qu'à garantir que
-// la zone focusée passe devant ses voisines si une échelle les fait déborder.
-const sections = computed(() => {
-  const list = layout.value.sections
-  const fi = Math.max(0, list.findIndex((s) => s.key === focusedSection.value))
-  return list.map((s, i) => ({ ...s, z: list.length - Math.abs(i - fi) }))
-})
+const sections = computed(() => layout.value.sections)
 
-function toggleSection(key) {
-  const next = props.collapsed.includes(key)
-    ? props.collapsed.filter((k) => k !== key)
-    : [...props.collapsed, key]
-  emit('update:collapsed', next)
+// Clic sur un onglet : déplié → empilé → onglet seul → déplié. Une zone encore
+// absente de `folds` vaut 'open' (sinon le premier clic n'avancerait pas).
+function cycleSection(key) {
+  const cur = Math.max(0, LEVELS.indexOf(props.folds[key] ?? 'open'))
+  emit('update:folds', { ...props.folds, [key]: LEVELS[(cur + 1) % LEVELS.length] })
 }
 
 const { onWheel } = useWheelStepper({
@@ -154,5 +165,15 @@ const { onWheel } = useWheelStepper({
   top: 0;
   left: 0;
   height: 100%;
+}
+
+/* Panneau du dock : de la fin de la pellicule (piloté en inline) au bord droit.
+   SANS fond — la pellicule reste visible dessous ; le décor appartient aux blocs
+   qu'il porte (les chiffres se posent sur leur propre carte flottante). */
+.maq-panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
 }
 </style>

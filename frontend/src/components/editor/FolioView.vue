@@ -117,6 +117,11 @@ const props = defineProps({
   // Trace la croix « maquette » (diagonales) sur l'empagement de chaque page —
   // réservé à l'aperçu de format (pages vides).
   bodyCross: { type: Boolean, default: false },
+  // Pages NUES : ni papier, ni bordure, ni ombre, ni filet d'empagement. Le gabarit
+  // (format, marges, titres courants) reste celui du livre, mais seul ce que les
+  // blocs peignent est visible — cf. les lambeaux de recherche, qui portent leur
+  // propre fond et leur découpe en style inline (`entries[].style`).
+  barePages: { type: Boolean, default: false },
   // Debug : rendre visible le Quill flottant (sinon seul le miroir Folio l'est).
   quillVisible: { type: Boolean, default: false },
 })
@@ -275,7 +280,7 @@ onBeforeUnmount(teardown)
 // Changement de nœud/niveau : repagine. L'édition, elle, repagine via refresh()
 // (appelé par useFragmentEditor) — pas besoin d'observer le contenu ici, ce qui
 // éviterait de repaginer deux fois après une frappe.
-watch(() => [props.nodeId, props.depth, props.spreadPages, props.bodyCross], refresh)
+watch(() => [props.nodeId, props.depth, props.spreadPages, props.bodyCross, props.barePages], refresh)
 
 // Changement d'apparence/césure (aperçu de config édité en direct) : repagine, mais
 // DÉBOUNCÉ — la frappe dans un champ (corps, interligne) sinon repaginerait à chaque

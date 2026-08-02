@@ -85,12 +85,12 @@ defineProps({
 })
 
 // `update:searching` : la maquette replie son accordéon tant que la recherche est
-// ouverte, et le rend tel quel à la fermeture.
-const emit = defineEmits(['focus-series', 'select-node', 'update:searching'])
+// ouverte, et le rend tel quel à la fermeture. `update:query` : elle en fait ses
+// résultats (le module qui remplace l'aperçu).
+const emit = defineEmits(['focus-series', 'select-node', 'update:searching', 'update:query'])
 
-// Saisie retenue localement, pas encore branchée sur une recherche (même état
-// que le champ de la doc-bar sur les autres écrans).
 const query = ref('')
+watch(query, (q) => emit('update:query', q))
 
 // ── Volet de recherche : il vit DANS la carte, qui s'étend ───────────────────
 const open = ref(false)
@@ -206,7 +206,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 0.5em;
-  padding: 0 var(--sp-2);
+  padding: 0 var(--fs-lg);
   pointer-events: auto;
 }
 

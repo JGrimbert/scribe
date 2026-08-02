@@ -4,17 +4,7 @@
        dans l'overlay téléporté de la doc-bar, tantôt dans la carte du sommaire
        flottant de la maquette ; l'hôte porte le décor. -->
   <div class="search-panel">
-    <div class="search-panel__stats">
-      <span
-          v-for="item in statItems"
-          :key="item.label"
-          class="doc-stat"
-          :title="item.hint || undefined"
-      >
-        <b class="doc-stat__value">{{ item.empty ? '—' : item.value }}</b>
-        <span class="doc-stat__label">{{ item.label }}</span>
-      </span>
-    </div>
+    <DocStats :items="statItems" />
 
     <div class="search-panel__tabs" role="tablist">
       <button
@@ -50,11 +40,11 @@
 </template>
 
 <script setup>
-import { computed, inject, ref, onMounted, watch } from 'vue'
-import FuzzySearch from 'fuzzy-search'
-import { formatInt, formatPercent } from '../../script/format'
+import { computed, ref, watch } from 'vue'
+import DocStats from './DocStats.vue'
 import VocabulaireCloud from '../analyse/lexical/VocabulaireCloud.vue'
-import { useAnalyse } from '../../composables/useAnalyse'
+import { useDocStats } from '../../composables/useDocStats'
+import { useDocSearch } from '../../composables/useDocSearch'
 
 const props = defineProps({
   // Largeur disponible (px) — pilote le nombre de mots par défaut du nuage.
@@ -65,42 +55,9 @@ const props = defineProps({
 
 defineEmits(['select-node'])
 
-// Trame/data injectées plutôt que reçues en props : le panneau est monté par
-// deux hôtes différents, tous deux sous DocumentLayout.
-const trame = inject('documentTrame', null)
-const data = inject('documentData', null)
-
-// ── Recherche floue sur les titres de chapitres ──────────────────────────────
-// Index à plat de l'arbre : un nœud = un titre + son chemin (fil d'Ariane des
-// ancêtres, pour lever l'ambiguïté entre deux « Introduction »). Seuls les
-// TITRES sont indexés : le texte intégral ferait un scan linéaire de plusieurs
-// milliers de paragraphes à chaque frappe.
-// `fuzzy-search` compare caractère à caractère sans replier les accents : on
-// indexe donc une forme normalisée (« éveil » → « eveil ») et on cherche dessus.
-const fold = (s) => s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase()
-
-const index = computed(() => {
-  const axes = trame?.value?.axes
-  const d = data?.value
-  if (!axes || !d) return []
-  const out = []
-  const walk = (node, ancestors) => {
-    const titre = d[node.id]?.titre || '(sans titre)'
-    out.push({ id: node.id, titre, norm: fold(titre), path: ancestors.join(' › ') })
-    node.children?.forEach((child) => walk(child, [...ancestors, titre]))
-  }
-  axes.forEach((axe) => walk(axe, []))
-  return out
-})
-
-// `sort: true` = les meilleurs scores d'abord (sinon ordre du livre).
-const searcher = computed(() => new FuzzySearch(index.value, ['norm'], { sort: true }))
-
-const MAX_HITS = 60
-const trimmed = computed(() => props.query.trim())
-const hits = computed(() =>
-  trimmed.value ? searcher.value.search(fold(trimmed.value)).slice(0, MAX_HITS) : [],
-)
+// Recherche floue (titres de chapitres) : mutualisée avec le module de résultats
+// de la maquette, qui en tire des fragments de texte.
+const { trimmed, hits } = useDocSearch(() => props.query)
 
 // Onglets : « Résultats » n'existe QUE pendant une saisie, et prend la main dès
 // qu'il apparaît. `picked` retient un choix explicite de l'utilisateur ; il est
@@ -118,58 +75,8 @@ watch(trimmed, (q, prev) => {
   if (!q || !prev) picked.value = null
 })
 
-const { analysis, running, runStep } = useAnalyse()
-
-// Le nuage a besoin du lexical : s'il manque, on le calcule au montage (le
-// panneau n'est monté que volet ouvert). Spinner géré par VocabulaireCloud
-// tant que `running === 'lexical'`.
-onMounted(() => {
-  if (!analysis.value?.lexical && !running.value) runStep('lexical')
-})
-
-// Stats : structure (caractères/paragraphes/chapitres) dérivée de trame/data,
-// global lexical du NLP. Même logique que le bandeau d'AnalyseView, restreinte
-// à l'essentiel.
-const HINTS = {
-  lemmes: 'Formes de base distinctes — un lemme regroupe les flexions d’un mot (chante, chantait → chanter).',
-  diversite: 'TTR : mots distincts / mots totaux. Plus c’est élevé, plus le vocabulaire est varié.',
-  densite: 'Part des mots porteurs de sens (noms, verbes, adjectifs, adverbes) sur le total.',
-}
-
-const structure = computed(() => {
-  const axes = trame?.value?.axes
-  const d = data?.value
-  if (!axes || !d) return null
-  let caracteres = 0
-  let paragraphes = 0
-  let titres = 0
-  const walk = (node) => {
-    titres++
-    paragraphes += d[node.id]?.texte?.length ?? 0
-    node.children.forEach(walk)
-  }
-  for (const axe of axes) {
-    caracteres += d[axe.id]?.stats?.caracteres ?? 0
-    walk(axe)
-  }
-  return { caracteres, paragraphes, titres }
-})
-
-const statItems = computed(() => {
-  const g = analysis.value?.lexical?.global
-  const s = structure.value
-  const tile = (label, value, hint = null) => ({ label, value, hint, empty: value == null })
-  return [
-    tile('caractères', s ? formatInt(s.caracteres) : null),
-    tile('mots', g ? formatInt(g.words) : null),
-    tile('phrases', g ? formatInt(g.sentences) : null),
-    tile('paragraphes', s ? formatInt(s.paragraphes) : null),
-    tile('chapitres', s ? formatInt(s.titres) : null),
-    tile('lemmes', g ? formatInt(g.uniqueLemmas) : null, HINTS.lemmes),
-    tile('diversité', g ? formatPercent(g.ttr) : null, HINTS.diversite),
-    tile('densité', g ? formatPercent(g.lexicalDensity) : null, HINTS.densite),
-  ]
-})
+// Stats + amorçage de l'étape lexicale : mutualisés avec le dock de la maquette.
+const { statItems } = useDocStats()
 </script>
 
 <style scoped>
@@ -180,34 +87,6 @@ const statItems = computed(() => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-}
-
-/* En-tête de stats DISCRÈTE : pas d'aplat coloré, une ligne de chiffres sourds
-   qui se replie si la place manque. */
-.search-panel__stats {
-  flex: 0 0 auto;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0.3em 1.2em;
-  padding: 0.4em 0.6em;
-  color: var(--c-ink2);
-  font-size: var(--fs-xs);
-}
-
-.doc-stat {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 0.3em;
-}
-
-.doc-stat__value {
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-
-.doc-stat__label {
-  opacity: var(--op-muted);
 }
 
 .search-panel__tabs {

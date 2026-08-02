@@ -3,20 +3,17 @@
        balise. La zone est posée par un translate (offset), ses feuillets par un
        translate local — tout est transform, donc animable au pli/dépli (un `left`
        en em, lui, sauterait). -->
-  <div class="maq-section" :class="{ 'is-collapsed': collapsed }" :style="{ transform: `translateX(${offset.toFixed(3)}em)` }">
-    <!-- Onglet d'entrée : étiquette NUE posée dans l'intervalle de tête (jamais
-         sur un feuillet), et bouton de pli de la zone. -->
-    <button
-        type="button"
-        class="maq-jalon"
-        :class="{ 'is-active': active }"
+  <div class="maq-section" :class="`is-${level}`" :style="{ transform: `translateX(${offset.toFixed(3)}em)` }">
+    <!-- Onglet d'entrée : posé dans l'intervalle de tête (jamais sur un feuillet),
+         et bouton de pli de la zone (cycle des 3 niveaux). -->
+    <MaquetteJalon
+        :label="label"
+        :active="active"
+        :title="TITLES[level]"
         :style="jalonStyle"
-        :aria-expanded="!collapsed"
-        :title="collapsed ? 'Déplier' : 'Plier'"
+        :aria-expanded="level === 'open'"
         @click="$emit('toggle')"
-    >
-      <span class="maq-jalon__name">{{ label }}</span>
-    </button>
+    />
 
     <!-- Vis-à-vis. Le rendu de la cellule est délégué au parent (une source décide
          de son contenu). -->
@@ -35,6 +32,7 @@
 
 <script setup>
 import { computed } from 'vue'
+import MaquetteJalon from './MaquetteJalon.vue'
 
 const props = defineProps({
   label: { type: String, default: '' },
@@ -52,7 +50,8 @@ const props = defineProps({
   step: { type: Number, required: true },
   // Vide de tête de la zone : il isole la zone précédente ET accueille l'onglet.
   headGap: { type: Number, required: true },
-  collapsed: { type: Boolean, default: false },
+  // Niveau de pli : 'open' (étalée) · 'stack' (empilée) · 'tab' (onglet seul).
+  level: { type: String, default: 'open' },
   // Zone du cran focusé → son onglet est appuyé.
   active: { type: Boolean, default: false },
   dropSpan: { type: Number, default: 2 },
@@ -62,6 +61,15 @@ defineEmits(['toggle', 'focus-cran'])
 
 const ACC_DROP = 10
 
+// Zone réduite à son onglet : ses feuillets se ramènent contre lui (centre du
+// premier à `TAB_ORIGIN` au lieu du vide de tête + une demi-largeur) et forment un
+// bloc UNIFORME — retrait Y au plafond et échelle des crans en retrait, quel que
+// soit le focus : la zone est refermée, elle n'a plus de cran mis en avant.
+const TAB_ORIGIN = 7
+
+// Infobulle du bouton : ce que fera le PROCHAIN clic (cycle open → stack → tab).
+const TITLES = { open: 'Empiler', stack: 'Réduire à l’onglet', tab: 'Déplier' }
+
 // Retrait EN Y : plafonné à `dropSpan` crans d'écart avec le focus (l'escalier
 // s'arrête, l'écart horizontal suffit ensuite à distinguer les crans).
 function dropOf(index) {
@@ -69,10 +77,12 @@ function dropOf(index) {
 }
 
 function cranStyle(item, i) {
-  const x = props.headGap + props.cardWidth / 2 + i * props.step
-  const scale = item.index === props.focused ? 1 : 0.75
+  const tab = props.level === 'tab'
+  const x = (tab ? TAB_ORIGIN : props.headGap + props.cardWidth / 2) + i * props.step
+  const drop = tab ? props.dropSpan * ACC_DROP : dropOf(item.index)
+  const scale = !tab && item.index === props.focused ? 1 : 0.75
   return {
-    transform: `translateX(${x.toFixed(3)}em) translateX(-50%) translateY(${dropOf(item.index)}px) scale(${scale})`,
+    transform: `translateX(${x.toFixed(3)}em) translateX(-50%) translateY(${drop}px) scale(${scale})`,
     // Empilement local à la zone (le transform de `.maq-section` en fait un
     // contexte d'empilement) : le plus proche du focus au-dessus — c'est ce qui
     // donne l'effet de pile quand la zone est pliée.
@@ -92,7 +102,10 @@ const jalonStyle = computed(() => {
 
 <style scoped lang="scss">
 /* Zone : conteneur de positionnement de ses feuillets et de son onglet, glissé
-   le long de la pellicule (les zones qui précèdent changent de largeur au pli). */
+   le long de la pellicule (les zones qui précèdent changent de largeur au pli).
+   AUCUN z-index : son `transform` en fait un contexte d'empilement, et l'ordre du
+   DOM suffit — chaque zone passe devant la précédente, ce qui est exactement le
+   recouvrement attendu quand une zone est réduite à son onglet. */
 .maq-section {
   position: absolute;
   top: 0;
@@ -119,45 +132,7 @@ const jalonStyle = computed(() => {
   }
 }
 
-/* Onglet d'entrée de zone : étiquette NUE (ni cadre ni fond), au premier plan de
-   sa zone, centrée dans l'intervalle qui la précède. Bouton → pli/dépli. */
-.maq-jalon {
-  position: absolute;
-  top: 2.4em;
-  left: 0;
-  z-index: 2000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.4em;
-  height: 10.5em;
-  padding: 0;
-  border: 0;
-  background: none;
-  cursor: pointer;
-  transition: transform 0.35s cubic-bezier(0.22, 0.61, 0.36, 1);
-}
-
-/* Nom vertical lisible de BAS EN HAUT (vertical-rl + rotation 180°). Grisé au repos ;
-   la couleur seule (pas la graisse) distingue la zone focusée. */
-.maq-jalon__name {
-  writing-mode: vertical-rl;
-  text-orientation: mixed;
-  transform: rotate(180deg);
-  font-size: var(--fs-xs);
-  font-weight: 500;
-  letter-spacing: 0.05em;
-  white-space: nowrap;
-  color: var(--c-muted);
-  transition: color 0.2s ease;
-}
-
-.maq-jalon:hover .maq-jalon__name {
-  color: var(--c-ink2);
-}
-
-/* Zone focusée : étiquette en bleu (accent-alt, un peu plus clair). */
-.maq-jalon.is-active .maq-jalon__name {
-  color: var(--c-accent-alt);
-}
+/* L'onglet lui-même (position absolue, écriture verticale, couleurs) vit dans
+   `MaquetteJalon` — partagé avec le panneau du dock. La zone ne fait que le
+   décaler dans son intervalle de tête (`jalonStyle`). */
 </style>
