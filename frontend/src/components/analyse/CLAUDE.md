@@ -23,6 +23,21 @@ completeness/conformity/lexical/semantic/topics). Vocabulaires/helpers purs :
   1/3 (`aside="right"`). Le primitif `.split` (`analyse.css`) est importé
   **globalement par `main.js`**. Prop `bare` → `.split--bare` : inverse
   fond/bordure pour un usage en card autonome (cf. `../config/CLAUDE.md`).
+- **`../../script/analyseSections.js`** — l'ORDRE et les libellés des sections de
+  la page. `AnalyseView` en rend ses `<section class="analyse-section">` (le
+  libellé est le `data-label` que lit son scroll-spy) et l'accordéon de recherche
+  de la Maquette en fait ses crans. Ajouter une card = une entrée ici + une entrée
+  dans `CARD_BY_KEY` ; deux listes divergeraient au premier ajout.
+- **Piège — un `AnalyseBlock` hors dashboard ne rend RIEN par défaut.** La
+  révélation est la chorégraphie d'entrée du dashboard : `fetchAnalysis` lance
+  `startReveal`, les cards s'enchaînent sur signal (`settle`). Un hôte qui monte
+  une card ailleurs passe par `ensureLoaded` (données seules, pas de chaîne) →
+  `isRevealed` reste faux et le bloc est invisible, données présentes ou non.
+  L'hôte doit appeler **`revealAll()`** (cf. `useAnalyse`). C'est ce que fait la
+  scène de recherche de la Maquette.
+- **`analyseMainOnly`** (injection lue par `AnalyseBlock`) — un hôte étroit ne veut
+  que le `#main` des blocs : la colonne 1/3 saute. Injecté et non passé en prop —
+  sinon les sept cards relaieraient un réglage qui appartient à l'hôte.
 - **`DASHBOARD_STEPS`** — une étape peut avoir **`needs: null`** : dérivée du seul
   contenu du document (complétude), donc jamais « indisponible » ni en attente du
   NLP. `stepStatus` la traite à part (sans la garde, `running === step.needs`

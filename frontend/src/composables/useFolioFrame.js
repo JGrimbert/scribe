@@ -1,7 +1,7 @@
 import { ref } from 'vue'
 import { buildFragmentRegistry, createFragmentApi } from '../script/fragment.js'
 import { createRegistry } from '../script/registry.js'
-import { buildVisualsCss, buildHyphenationCss, buildPageCss, buildPagePinCss, buildRunningTitlesCss, buildFormatGuidesCss, runningReserves, styleVisualToInlineCss } from '../script/folioStyles.js'
+import { buildVisualsCss, buildHyphenationCss, buildPageCss, buildPagePinCss, buildRunningTitlesCss, buildFormatGuidesCss, buildHighlightCss, runningReserves, styleVisualToInlineCss } from '../script/folioStyles.js'
 
 // Force un saut de page AVANT chaque slot d'une planche d'imposition (sauf le 1er) :
 // Paged.js n'honore les `break-before` que depuis une FEUILLE traitée par son
@@ -64,7 +64,17 @@ export function useFolioFrame(props, { frameRef, frameDoc, blocks, section, onRe
   // Styles à NE PAS balayer entre deux repaginations : le boot, l'épingle de
   // géométrie et les guides de format (mis à jour en place, pas régénérés).
   const isPersistentStyle = (el) =>
-    el.id === '__boot' || el.id === '__pagepin' || el.id === '__formatguides' || el.id === '__bare'
+    el.id === '__boot' || el.id === '__pagepin' || el.id === '__formatguides'
+    || el.id === '__bare' || el.id === '__highlight'
+
+  // Surlignage du style survolé dans l'aside. Feuille À PART, écrite EN PLACE :
+  // désigner un paragraphe ne doit rien repaginer (le survol change à chaque ligne
+  // parcourue — une repagination par ligne serait intenable, et l'`outline` de
+  // buildHighlightCss ne modifie aucune géométrie).
+  function applyHighlight() {
+    const el = frameDoc()?.getElementById('__highlight')
+    if (el) el.textContent = buildHighlightCss(props.highlightStyle)
+  }
 
   // Pages NUES (`barePages`) : plus de papier, ni bordure, ni ombre, ni filet
   // d'empagement — seul ce que les blocs peignent eux-mêmes reste visible. C'est
@@ -158,6 +168,11 @@ export function useFolioFrame(props, { frameRef, frameDoc, blocks, section, onRe
     bare.textContent = props.barePages ? BARE_CSS : ''
     doc.head.appendChild(bare)
 
+    const highlight = doc.createElement('style')
+    highlight.id = '__highlight'
+    highlight.textContent = buildHighlightCss(props.highlightStyle)
+    doc.head.appendChild(highlight)
+
     // Listeners du doc iframe : présents en édition (clic/souris + molette) et en
     // double-page (molette seule, relayée à la CustomScrollbar). On attache ce qui
     // est fourni, quel que soit le mode.
@@ -207,6 +222,8 @@ export function useFolioFrame(props, { frameRef, frameDoc, blocks, section, onRe
 
     const bare = doc.getElementById('__bare')
     if (bare) bare.textContent = props.barePages ? BARE_CSS : ''
+
+    applyHighlight()
 
     if (!blocks.value.length) {
       doc.head.querySelectorAll('style').forEach((el) => { if (!isPersistentStyle(el)) el.remove() })
@@ -401,5 +418,5 @@ export function useFolioFrame(props, { frameRef, frameDoc, blocks, section, onRe
     }
   }
 
-  return { registry, fragments, buildFrame, refresh, teardown }
+  return { registry, fragments, buildFrame, refresh, teardown, applyHighlight }
 }

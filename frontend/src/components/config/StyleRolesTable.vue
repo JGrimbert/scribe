@@ -1,7 +1,13 @@
 <template>
   <UiTable v-if="styles.length" :class="{ 'srt--full': fullWidth }">
     <tbody>
-      <tr v-for="(style, i) in styles" :key="style.name" :class="{ 'row--declared': style.declared }">
+      <tr
+          v-for="(style, i) in styles"
+          :key="style.name"
+          :class="{ 'row--declared': style.declared }"
+          @mouseenter="emit('hover-style', style.name)"
+          @mouseleave="emit('hover-style', null)"
+      >
         <!-- Colonne d'ajout (à GAUCHE) : au survol de la ligne, un « + » dans la
              gouttière, centré sur la bordure avec la ligne suivante. Il ouvre un
              petit éditeur pour insérer un style déclaré JUSTE APRÈS cette ligne. -->
@@ -133,6 +139,11 @@ const props = defineProps({
   // resserrer sur son contenu, et le nom de style se tronque (« … ») s'il déborde.
   fullWidth: { type: Boolean, default: false },
 })
+
+// `hover-style` : le style de la ligne survolée (null en sortie). La Maquette s'en
+// sert pour désigner, dans l'aperçu Folio, le texte qui le porte. Inerte partout
+// ailleurs — un écran qui ne l'écoute pas ne paie rien.
+const emit = defineEmits(['hover-style'])
 
 // Ouvre le panneau d'édition d'apparence (fourni par ConfigView). Injecté plutôt
 // que remonté par événement : la table est réutilisée dans TypologySection ET

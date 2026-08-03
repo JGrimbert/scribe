@@ -100,15 +100,20 @@ coupure de page interne.
   contre la typologie en cours d'édition (le backend rend des styles, cf.
   `../../../backend/CLAUDE.md`). Le rôle `corps` ne porte jamais son `×N` (bruit
   attendu). Testé (`shapes.test.js`).
+- **`analyseSections.js`** — sections du dashboard d'analyse (clé + libellé +
+  `needs`), vocabulaire FERMÉ partagé par `AnalyseView` (qui en rend ses
+  `<section class="analyse-section">`) et par l'accordéon de recherche de la
+  Maquette (un cran par section). Testé.
 - **`trame.js`** — parcours de l'arbre `trame.axes[]` (profondeur arbitraire) :
   `pathToInAxes` (fil d'Ariane), partagé par `DocumentBar` et `StructureView`.
 - **`liminaire-vocab.js`** / **`liminaire-pages.js`** /
   **`liminaire-imposition.js`** / **`liminaire-eligibilite.js`** /
   **`liminaire-config.js`** / **`liminaire-bornes.js`** /
-  **`liminaire-suggest.js`** — feature liminaire éclatée par thème (vocabulaire,
-  groupement des pages, imposition/planches, éligibilité, accès config, bornes
-  absorbables, suggestions). Voir `../components/liminaire/CLAUDE.md`. Chacun
-  testé (`*.test.js` colocalisé).
+  **`liminaire-suggest.js`** / **`liminaire-styles.js`** — feature liminaire
+  éclatée par thème (vocabulaire, groupement des pages, imposition/planches,
+  éligibilité, accès config, bornes absorbables, suggestions, styles d'un
+  vis-à-vis). Voir `../components/liminaire/CLAUDE.md`. Chacun testé
+  (`*.test.js` colocalisé).
 - **`format.js`** — formatage d'affichage (tailles, dates, nombres).
 
 ## Helpers d'analyse (dashboard)

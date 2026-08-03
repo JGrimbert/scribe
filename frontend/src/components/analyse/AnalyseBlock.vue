@@ -35,21 +35,29 @@
         <UiNote v-else-if="!busy && unavailable" variant="hint">{{ unavailable }}</UiNote>
       </div>
 
+      <!-- `mainOnly` (injecté par l'hôte, cf. script) : la colonne étroite saute,
+           le main occupe tout. -->
       <template v-else>
-        <div v-if="aside === 'left'" :class="{ 'split-left': true, [borderAside]: true }"><slot name="aside" /></div>
+        <div v-if="aside === 'left' && !mainOnly" :class="{ 'split-left': true, [borderAside]: true }"><slot name="aside" /></div>
         <div class="split-main"><slot name="main" /></div>
-        <div v-if="aside === 'right'" :class="{ 'split-right': true, [borderAside]: true }"><slot name="aside" /></div>
+        <div v-if="aside === 'right' && !mainOnly" :class="{ 'split-right': true, [borderAside]: true }"><slot name="aside" /></div>
       </template>
     </div>
   </Transition>
 </template>
 
 <script setup>
-import { computed, watch } from 'vue'
+import { computed, inject, watch } from 'vue'
 import UiNote from '../ui/molecules/UiNote.vue'
 import ScoreBar from '../ui/atoms/ScoreBar.vue'
 import BaseButton from '../ui/atoms/BaseButton.vue'
 import { DASHBOARD_STEPS, useAnalyse } from '../../composables/useAnalyse'
+
+// Hôte qui ne veut QUE le main des blocs (scène de recherche de la Maquette : une
+// section y tient dans une boîte étroite, la colonne 1/3 n'y a pas la place).
+// Injecté et non passé en prop : les sept cards devraient sinon toutes relayer un
+// réglage qui ne les concerne pas — il appartient à l'hôte, pas à la card.
+const mainOnly = inject('analyseMainOnly', false)
 
 const props = defineProps({
   // Clé de révélation (DASHBOARD_STEPS). Absente : le cadre est monté d'emblée

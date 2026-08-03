@@ -20,18 +20,19 @@
     <!-- Chaque card est enrobée d'un `<section data-label>` : le scroll-spy
          (IntersectionObserver, cf. script) lit ce libellé pour poser le dernier
          maillon du fil d'Ariane (« section en cours dans la page »). -->
+    <!-- Ordre et libellés viennent du vocabulaire partagé `ANALYSE_SECTIONS` : la
+         Maquette y puise les crans de son accordéon de recherche, les deux écrans
+         ne peuvent donc pas dériver. -->
     <template v-else>
-      <section class="analyse-section" data-label="Vocabulaire"><VocabulaireCard /></section>
-      <section class="analyse-section" data-label="Champ lexical"><LexicalCard /></section>
-      <section class="analyse-section" data-label="Thèmes"><ThemesCard /></section>
-      <section class="analyse-section" data-label="Anomalies"><AnomaliesCard /></section>
-      <section class="analyse-section" data-label="Proximité sémantique"><SemanticCard /></section>
-
-      <!-- Bas de page : cards en lecture seule, « à trier plus tard ». Le
-           tableau par article (sorti du bloc Analyse linguistique) et les
-           entités non migrées vers les filtres du nuage. -->
-      <section v-if="isRevealed('lexical')" class="analyse-section leftover-entities" data-label="Statistiques par article"><LexicalUnitsCard /></section>
-      <section v-if="isRevealed('lexical')" class="analyse-section leftover-entities" data-label="Entités nommées"><EntitiesLeftoverCard /></section>
+      <section
+          v-for="sec in sections"
+          :key="sec.key"
+          class="analyse-section"
+          :class="{ 'leftover-entities': sec.leftover }"
+          :data-label="sec.label"
+      >
+        <component :is="ANALYSE_CARDS[sec.key]" />
+      </section>
     </template>
   </div>
 </template>
@@ -43,16 +44,13 @@ import { useAnalyse } from '../../composables/useAnalyse'
 import { formatInt, formatPercent } from '../../script/format'
 import StatItem from '../ui/molecules/StatItem.vue'
 import UiNote from '../ui/molecules/UiNote.vue'
-import VocabulaireCard from './lexical/VocabulaireCard.vue'
-import EntitiesLeftoverCard from './themes/EntitiesLeftoverCard.vue'
-import LexicalCard from './lexical/LexicalCard.vue'
-import LexicalUnitsCard from './lexical/LexicalUnitsCard.vue'
-import ThemesCard from './themes/ThemesCard.vue'
-import AnomaliesCard from "./structure/AnomaliesCard.vue";
-import SemanticCard from "./semantic/SemanticCard.vue";
+import { visibleSections } from '../../script/analyseSections'
+import { ANALYSE_CARDS } from './analyseCards'
 
 const route = useRoute()
 const { error, analysis, isRevealed, fetchAnalysis } = useAnalyse()
+
+const sections = computed(() => visibleSections(isRevealed))
 
 // Structure du document (fournie par DocumentLayout) : source des stats
 // structurelles (caractères, paragraphes, chapitres), absentes du NLP.

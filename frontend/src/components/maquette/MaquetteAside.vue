@@ -24,17 +24,32 @@
             <span>Liminaire</span>
           </header>
 
+<!--
           <h4 class="maq-sub">Éligibilité</h4>
           <LiminaireEligibilite :elig="elig" />
-
-          <!-- Fin du liminaire : étendre/exclure (le jalon n'est plus qu'informatif). -->
-          <h4 class="maq-sub maq-sub--spaced">Fin du liminaire</h4>
+-->
+<!--
+          &lt;!&ndash; Fin du liminaire : étendre/exclure (le jalon n'est plus qu'informatif). &ndash;&gt;
+          <h4 class="maq-sub maq-sub&#45;&#45;spaced">Fin du liminaire</h4>
           <MaquetteLiminaireJalon
               :can-extend="limCanExtend"
               :next-title="limNextTitle"
               :border-shift="limBorderShift"
               @extend="$emit('extend')"
               @exclude="$emit('exclude')"
+          />-->
+
+          <!-- Styles du VIS-À-VIS focusé (et non de toute la zone) : une planche
+               liminaire ne porte que quelques styles, la table les suit. Pas de
+               colonnes « exigé »/« succession » — elles visent un niveau de
+               chapitrage, le liminaire n'en a pas. -->
+<!--          <h4 class="maq-sub maq-sub&#45;&#45;spaced">Styles &amp; rôles</h4>-->
+          <StyleRolesTable
+              :styles="limStyles"
+              :style-roles="styleRoles"
+              full-width
+              zone-key="liminaire"
+              @hover-style="$emit('hover-style', $event)"
           />
         </template>
 
@@ -60,6 +75,7 @@
               :depth-key="activeChap.sec.depthKey"
               :zone-key="activeChap.sec.zone.key"
               :rule-set="activeChap.sec.ruleSet ?? rules.default"
+              @hover-style="$emit('hover-style', $event)"
           />
         </template>
 
@@ -89,6 +105,8 @@ const props = defineProps({
   limCanExtend: { type: Boolean, default: true },
   limNextTitle: { type: String, default: null },
   limBorderShift: { type: Number, default: 0 },
+  // Styles du vis-à-vis liminaire focusé (cf. spreadStyles), forme StyleRolesTable.
+  limStyles: { type: Array, default: () => [] },
   // Sections de chapitrage enrichies (ruleSet/defaultRuleSet), une par niveau.
   chapSections: { type: Array, default: () => [] },
   // Map réactive rôle-par-style (mutée en place par StyleRolesTable).
@@ -99,7 +117,7 @@ const props = defineProps({
   activeBlock: { type: String, default: null },
 })
 
-defineEmits(['extend', 'exclude'])
+defineEmits(['extend', 'exclude', 'hover-style'])
 
 // Résolution 'chap-N' → la section de chapitrage (avec son rang) ; null pour
 // 'format'/'liminaire' ou un index hors bornes.
@@ -128,7 +146,7 @@ const activeChap = computed(() => {
   display: flex;
   flex-direction: column;
   gap: var(--sp-3);
-  padding: var(--sp-3);
+  /*padding: var(--sp-3);*/
   border: 1px solid #fff;
   border-radius: var(--radius-md);
   /*background: var(--c-card-float);*/

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildVisualsCss, buildHyphenationCss, buildPageCss, buildRunningTitlesCss, buildFormatGuidesCss, runningReserves } from './folioStyles.js'
+import { buildVisualsCss, buildHyphenationCss, buildPageCss, buildRunningTitlesCss, buildFormatGuidesCss, buildHighlightCss, runningReserves } from './folioStyles.js'
 
 describe('buildVisualsCss', () => {
   it('traduit un StyleVisual en règle préfixée .pagedjs_page_content', () => {
@@ -244,5 +244,24 @@ describe('buildFormatGuidesCss', () => {
     expect(css).toContain('.pagedjs_page_content::after')
     expect(css).toContain('top:calc(100% + 0.4cm)')
     expect(css).toContain('height:0.8cm')
+  })
+})
+
+describe('buildHighlightCss', () => {
+  it('encre le style survolé et le cerne d’un pointillé POSÉ EN DEHORS', () => {
+    const css = buildHighlightCss('mentions légales')
+    expect(css).toContain('[data-style="mentions légales"]{outline:1px dotted #138297')
+    // `outline` et jamais `border` : le trait ne doit prendre aucune place dans le
+    // flux, sinon désigner un paragraphe le déplacerait.
+    expect(css).not.toContain('border')
+    expect(css).toContain('color:#138297')
+  })
+
+  it('rien à surligner → feuille vide', () => {
+    expect(buildHighlightCss(null)).toBe('')
+  })
+
+  it('échappe le guillemet d’un nom de style (il vit dans le sélecteur)', () => {
+    expect(buildHighlightCss('dit "corps"')).toContain('[data-style="dit \\"corps\\""]')
   })
 })

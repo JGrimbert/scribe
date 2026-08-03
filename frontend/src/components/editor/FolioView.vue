@@ -139,6 +139,10 @@ const props = defineProps({
   barePages: { type: Boolean, default: false },
   // Debug : rendre visible le Quill flottant (sinon seul le miroir Folio l'est).
   quillVisible: { type: Boolean, default: false },
+  // Nom du style à SURLIGNER dans le rendu (survol d'une ligne de la table des
+  // styles, aside Maquette) : son texte vire au teal, cerné d'un pointillé. Écrit
+  // dans une feuille à part, sans repagination (cf. useFolioFrame.applyHighlight).
+  highlightStyle: { type: String, default: null },
   // Molette = PAGINATION APPLICATIVE au lieu de défilement : la rangée ne porte
   // qu'une page, l'appelant lui donne la suivante (cf. les résultats de recherche,
   // paginés en amont pour ne pas couler des milliers de lambeaux dans Paged.js).
@@ -238,7 +242,7 @@ const toolbar = useFloatingToolbar()
 const { cursorRect, selectionRects } = caret
 const { registerToolbar } = toolbar
 
-const { registry, fragments, buildFrame, refresh, teardown } = useFolioFrame(props, {
+const { registry, fragments, buildFrame, refresh, teardown, applyHighlight } = useFolioFrame(props, {
   frameRef,
   frameDoc,
   blocks,
@@ -359,6 +363,10 @@ onBeforeUnmount(teardown)
 // (appelé par useFragmentEditor) — pas besoin d'observer le contenu ici, ce qui
 // éviterait de repaginer deux fois après une frappe.
 watch(() => [props.nodeId, props.depth, props.spreadPages, props.bodyCross, props.barePages], refresh)
+
+// Surlignage : SURTOUT PAS dans le watch ci-dessus. Il change à chaque ligne
+// survolée dans l'aside — on réécrit une feuille en place, rien à repaginer.
+watch(() => props.highlightStyle, applyHighlight)
 
 // Changement d'apparence/césure (aperçu de config édité en direct) : repagine, mais
 // DÉBOUNCÉ — la frappe dans un champ (corps, interligne) sinon repaginerait à chaque

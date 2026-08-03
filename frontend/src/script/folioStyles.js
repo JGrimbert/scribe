@@ -78,6 +78,26 @@ function escapeAttrValue(name) {
   return name.replace(/["\\]/g, '\\$&')
 }
 
+// Encre du surlignage (--c-accent-alt) en littéral : l'iframe est isolée
+// (about:blank), les tokens CSS de l'app n'y sont pas résolus.
+const HIGHLIGHT_INK = '#138297'
+
+// Surlignage du style survolé dans l'aside : son texte vire au teal, cerné d'un
+// pointillé POSÉ EN DEHORS. `outline` et non `border` : il ne prend aucune place
+// dans le flux — un border décalerait le texte sous le curseur et pourrait le
+// pousser à la page suivante, alors qu'on ne fait que le désigner.
+export function buildHighlightCss(styleName) {
+  if (!styleName) return ''
+  const sel = `[data-style="${escapeAttrValue(styleName)}"]`
+  return [
+    // `!important` : l'imposition liminaire pose l'apparence .odt EN INLINE sur
+    // chaque entrée (couleur comprise, cf. styleVisualToInlineCss) — sans lui, un
+    // paragraphe coloré par le document ne s'allumerait pas.
+    `${sel},${sel} *{color:${HIGHLIGHT_INK}!important;}`,
+    `${sel}{outline:1px dotted ${HIGHLIGHT_INK};outline-offset:3px;}`,
+  ].join('')
+}
+
 // Marges effectives (recto) en cm : marges MIROIR de l'utilisateur (`margins`,
 // { topCm, bottomCm, innerCm, outerCm }) si présentes, sinon celles du .odt
 // (`page`, symétriques). Sur une page RECTO (droite), l'intérieur (petit fond) est

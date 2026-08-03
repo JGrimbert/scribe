@@ -133,6 +133,20 @@ export function provideAnalyse() {
     revealFrom(0)
   }
 
+  // Tout révéler d'un coup, sans la chaîne. La révélation est une CHORÉGRAPHIE
+  // D'ENTRÉE du dashboard (une card après l'autre) : hors de lui, elle n'a aucun
+  // sens et bloque tout — `ensureLoaded` charge les données mais ne lance pas
+  // `startReveal`, si bien qu'un `AnalyseBlock` monté ailleurs (scène de recherche
+  // de la Maquette) ne rendait RIEN, quelle que soit la donnée disponible.
+  function revealAll() {
+    clearTimeout(fallbackTimer)
+    clearTimeout(staggerTimer)
+    for (const k of REVEAL_ORDER) revealed[k] = true
+    settling.value = null
+    revealActive.value = null
+    revealDone.value = true
+  }
+
   const isRevealed = (key) => revealed[key]
 
   // Statut d'une étape pour la checklist, réconciliant révélation initiale et
@@ -305,6 +319,7 @@ export function provideAnalyse() {
     focusNodeId,
     steps: DASHBOARD_STEPS,
     isRevealed,
+    revealAll,
     stepStatus,
     settle,
     revealDone,

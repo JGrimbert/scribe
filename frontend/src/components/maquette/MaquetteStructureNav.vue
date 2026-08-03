@@ -215,7 +215,7 @@ onUnmounted(() => {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
-  gap: 0.5em;
+  gap: 1em;
   padding: 0 var(--fs-lg);
   pointer-events: auto;
 }
@@ -225,7 +225,7 @@ onUnmounted(() => {
 .maq-search__icon {
   flex: 0 0 auto;
   font-size: 1.15em;
-  color: var(--c-accent-alt);
+  color: var(--c-accent-alt-darker);
   -webkit-text-stroke: 0.6px currentColor;
 }
 

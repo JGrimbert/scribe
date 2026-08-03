@@ -56,9 +56,24 @@
             <MaquetteSpreadCell v-else :ratio="previewRatio" />
           </template>
 
-          <!-- Recherche ouverte : l'accordéon se replie en onglets et rend sa place
-               à la maquette. Le nuage, qui l'occupait, est passé dans la scène (en
-               regard des résultats, cf. .maq-cloud). -->
+          <!-- Recherche ouverte : la pellicule du livre se replie en onglets et
+               rend sa place à un SECOND accordéon, celui de la recherche — un cran
+               par section du dashboard d'analyse. Il se pose au bout de la
+               première (le panneau démarre à `stripEnd`), et son cran focusé
+               décide de la vue montée dans la scène (cf. .maq-analyse). -->
+          <template v-if="searching" #panel>
+            <MaquetteAccordeon
+                v-model:folds="searchFolds"
+                :crans="searchCrans"
+                :focused="searchFocused"
+                :ratio="previewRatio"
+                @update:focused="searchFocused = $event"
+            >
+              <template #spread="{ cran }">
+                <MaquetteAnalyseCell :label="cran.label" :ratio="previewRatio" />
+              </template>
+            </MaquetteAccordeon>
+          </template>
         </MaquetteAccordeon>
       </template>
     </MaquetteStructureNav>
@@ -94,6 +109,7 @@
                   :hyphenation="styleDefaults.hyphenation"
                   :running-titles="searching ? null : previewRunningTitles"
                   :book-title="searching ? '' : bookTitle"
+                  :highlight-style="hoveredStyle"
                   @step="stepResultPage"
               />
               <!-- Pager : la molette au-dessus du folio fait la même chose, mais elle
@@ -115,11 +131,27 @@
               </div>
             </div>
 
-            <!-- Nuage de lemmes, en regard des résultats sur DEUX pages de largeur
-                 (la page de résultats en fait une). Il vivait dans le dock ; ici il
-                 partage la scène, à l'échelle du reste de la maquette. -->
-            <div v-if="searching" ref="cloudEl" class="maq-cloud">
-              <VocabulaireCloud compact :width="cloudW" :dims="CLOUD_DIMS" />
+            <!-- Vue de la section d'analyse focusée dans l'accordéon de recherche,
+                 en regard des résultats sur deux pages de largeur. C'est la CARD du
+                 dashboard, montée telle quelle (elle porte ses propres états
+                 vide/révélation) — sauf le Vocabulaire, dont on garde le nuage nu,
+                 déjà réglé pour cette boîte. -->
+            <div
+                v-if="searching"
+                ref="cloudEl"
+                class="maq-analyse"
+                :class="{ 'maq-analyse--card': !isCloudView }"
+            >
+              <VocabulaireCloud
+                  v-if="isCloudView"
+                  compact
+                  :width="cloudW"
+                  :dims="CLOUD_DIMS"
+              />
+              <CustomScrollbar v-else-if="analyseCard" class="maq-analyse__scroll">
+                <component :is="analyseCard" />
+              </CustomScrollbar>
+              <p v-else class="maq-analyse__empty">{{ focusedAnalyse?.label }}</p>
             </div>
             <div v-if="isLiminaire" class="lim-hover__controls">
               <AccordeonControls
@@ -153,6 +185,8 @@
         <MaquetteAside
             :fmt-page="fmtPage"
             :style-defaults="styleDefaults"
+            :lim-styles="limSpreadStyles"
+            @hover-style="hoveredStyle = $event"
             :elig="limElig"
             :lim-can-extend="limCanExtend"
             :lim-next-title="limNextTitle"
@@ -183,6 +217,7 @@ import MaquetteAccordeon from './MaquetteAccordeon.vue'
 import MaquetteSpreadCell from './MaquetteSpreadCell.vue'
 import MaquetteLiminaireCell from './MaquetteLiminaireCell.vue'
 import MaquetteChapitreCell from './MaquetteChapitreCell.vue'
+import MaquetteAnalyseCell from './MaquetteAnalyseCell.vue'
 import MaquetteAside from './MaquetteAside.vue'
 import MaquetteStructureNav from './MaquetteStructureNav.vue'
 import VocabulaireCloud from '../analyse/lexical/VocabulaireCloud.vue'
@@ -197,9 +232,13 @@ import { pathToInAxes } from '../../script/trame'
 import { useTypologyConfig } from '../../composables/useTypologyConfig'
 import { useLiminaireBornes } from '../../composables/useLiminaireBornes'
 import { useLiminaireComposition } from '../../composables/useLiminaireComposition'
+import { useAnalyse } from '../../composables/useAnalyse'
 import { useDocSearch } from '../../composables/useDocSearch'
 import { useDocStats } from '../../composables/useDocStats'
+import { visibleSections } from '../../script/analyseSections'
+import { ANALYSE_CARDS } from '../analyse/analyseCards'
 import { fragmentPages } from '../../script/searchFragment'
+import { spreadStyles } from '../../script/liminaire-styles'
 
 const route = useRoute()
 
@@ -376,6 +415,39 @@ const searchTitle = computed(() => {
   return resultPageCount.value > 1 ? `${base} · page ${resultPage.value + 1}/${resultPageCount.value}` : base
 })
 
+// ── Accordéon de la recherche : un cran par section du dashboard d'analyse ───
+// Même composant que la pellicule du livre (mêmes onglets, même molette), monté
+// dans l'espace que celle-ci libère en se repliant. Une seule zone : sept zones
+// d'un cran feraient une pellicule bien plus large que la place disponible.
+const { isRevealed, revealAll } = useAnalyse()
+// La chaîne de révélation est l'entrée du DASHBOARD (une card après l'autre, sur
+// signal). Ici personne ne la lance : sans ça, chaque `AnalyseBlock` monté dans la
+// scène reste invisible, données présentes ou non. On révèle donc tout d'emblée.
+onMounted(revealAll)
+// Les blocs n'affichent que leur main : la scène est étroite, la colonne 1/3 du
+// dashboard n'y tient pas (cf. AnalyseBlock, `analyseMainOnly`).
+provide('analyseMainOnly', true)
+
+const analyseSections = computed(() => visibleSections(isRevealed))
+const searchCrans = computed(() =>
+  analyseSections.value.map((s, i) => ({
+    sourceKey: 'analyse',
+    key: s.key,
+    label: s.label,
+    sectionKey: 'analyse',
+    sectionLabel: 'Analyse',
+    isSectionStart: i === 0,
+  })),
+)
+const searchFocused = ref(0)
+const searchFolds = ref({})
+// La section dont la VUE est montée dans la scène (à droite des résultats), et la
+// card correspondante. Le Vocabulaire fait exception : on y monte le nuage NU (la
+// card entière lui adjoindrait occurrences + proximité, deux colonnes de trop ici).
+const focusedAnalyse = computed(() => analyseSections.value[searchFocused.value] ?? null)
+const isCloudView = computed(() => focusedAnalyse.value?.key === 'vocabulaire')
+const analyseCard = computed(() => ANALYSE_CARDS[focusedAnalyse.value?.key] ?? null)
+
 // Gabarit du nuage inline : deux pages de large pour une de haut (≈ le ratio d'une
 // double page A5), là où le dock lui donnait un bandeau plat.
 const CLOUD_DIMS = { width: 1040, height: 740, verticalRatio: 0.25 }
@@ -497,6 +569,21 @@ function setLimFocused(localIndex) {
 
 // La planche liminaire focusée (objet { left, right }) — alimente l'aperçu hybride.
 const limFocusedSpread = computed(() => limSpreads.value[limFocused.value] ?? null)
+
+// Styles du vis-à-vis focusé, pour SA table dans l'aside : le liminaire n'a pas de
+// niveau (une seule zone pour toutes les planches), la table suit donc la planche
+// et non la zone. Résolus contre l'inventaire de la zone pour garder ce que la
+// table en sait (échantillon, styles déclarés à la main).
+const liminaireInventory = computed(
+  () => sections.value.find((s) => s.zone.key === 'liminaire')?.styles ?? [],
+)
+const limSpreadStyles = computed(() => spreadStyles(limFocusedSpread.value, liminaireInventory.value))
+
+// Style survolé dans une table de l'aside → surligné dans l'aperçu (teal + pointillé
+// posé en dehors, cf. buildHighlightCss). Relâché au changement de cran : la table
+// disparaît sans que la souris la quitte, son `mouseleave` ne partirait jamais.
+const hoveredStyle = ref(null)
+watch(focused, () => { hoveredStyle.value = null })
 
 // ── Source 1 : format de page ──────────────────────────────────────────────
 // Relevé .odt brut (fourni par DocumentLayout), point de départ de l'aperçu.
@@ -690,9 +777,10 @@ onUnmounted(() => { if (section) section.value = null })
   flex: 1 1 0;
 }
 
-/* Nuage inline : deux pages de large, en regard de la page de résultats. `overflow`
-   parce que le SVG du nuage déborde volontiers de sa boîte. */
-.maq-cloud {
+/* Vue de la section d'analyse focusée (nuage compris) : deux pages de large, en
+   regard de la page de résultats. `overflow` parce que le SVG du nuage déborde
+   volontiers de sa boîte. */
+.maq-analyse {
   flex: 2 1 0;
   min-width: 0;
   min-height: 0;
@@ -700,8 +788,35 @@ onUnmounted(() => { if (section) section.value = null })
   position: fixed;
 
   right: 0px;
-  bottom: 4em;
+  top: 4em;
   width: 60%;
+  /* Au-dessus de l'iframe du folio, qui porte `z-index: 1` en double-page (cf.
+     .folio-view--spread .folio-frame) et passerait sinon devant — la vue est
+     positionnée, mais sans z-index elle perdrait l'empilement. */
+  z-index: 2;
+}
+
+/* Vue portant une CARD (et non le nuage) : hauteur DÉFINIE, sinon la carte pousse
+   la boîte vers le haut de la fenêtre sans jamais défiler. */
+.maq-analyse--card {
+  height: 60vh;
+}
+
+.maq-analyse__scroll {
+  height: 100%;
+}
+
+/* Vue pas encore montée : le nom de la section, discrètement — la place lui est
+   réservée, elle est vide, ça doit se lire comme tel. */
+.maq-analyse__empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-height: 8em;
+  margin: 0;
+  color: var(--c-muted);
+  font-size: var(--fs-sm);
 }
 
 /* Pager des résultats : discret, sous la page de folio (la molette fait la même

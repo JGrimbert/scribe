@@ -8,7 +8,10 @@
        autres. La liste plate des crans arrive déjà construite (chaque cran porte
        sa zone : `sectionKey`/`sectionLabel`/`isSectionStart`). -->
   <div class="maq-accordeon">
-    <div class="maq-stage" @wheel.prevent="onWheel">
+    <!-- `.stop` : l'accordéon de recherche est monté DANS le panneau de celui du
+         livre (cf. slot `panel`). Sans lui, une molette au-dessus du second
+         remonterait au premier et ferait défiler les deux. -->
+    <div class="maq-stage" @wheel.stop.prevent="onWheel">
       <!-- Pellicule posée à plat, à TAILLE FIXE : elle n'est jamais mise à l'échelle
            pour tenir dans la scène (sinon plier une zone, qui la raccourcit, ferait
            grossir les feuillets). Elle est ferrée à gauche et ce qui dépasse à droite
