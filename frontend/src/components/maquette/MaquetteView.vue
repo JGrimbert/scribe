@@ -88,46 +88,144 @@
              strictement identiques d'une source à l'autre. Les contrôles liminaire
              se superposent au survol. -->
         <section class="maquette__main">
-          <div class="folio-stage" :class="{ 'folio-stage--lim': isLiminaire, 'folio-stage--search': searching }">
-            <!-- Colonne du folio : wrapper PERMANENT (jamais de v-if dessus, le
-                 FolioView ne doit pas être démonté) qui porte le pager de résultats. -->
-            <div class="folio-col">
-              <FolioView
-                  class="maq-folio"
-                  mode="spread"
-                  :visible-pages="searching ? 1 : 2"
-                  :body-cross="isFormat && !searching"
-                  :bare-pages="searching"
-                  :wheel-paging="searching"
-                  :spread-pages="mainSpreadPages"
-                  :node-id="mainNodeId"
-                  :depth="mainDepth"
-                  :data="documentData"
-                  :visuals="effectiveVisuals"
-                  :page="previewPage"
-                  :margins="searching ? SEARCH_MARGINS : previewMargins"
-                  :hyphenation="styleDefaults.hyphenation"
-                  :running-titles="searching ? null : previewRunningTitles"
-                  :book-title="searching ? '' : bookTitle"
-                  :highlight-style="hoveredStyle"
-                  @step="stepResultPage"
-              />
-              <!-- Pager : la molette au-dessus du folio fait la même chose, mais elle
-                   ne s'annonce pas. -->
-              <div v-if="searching && resultPageCount > 1" class="maq-pager">
-                <button
-                    type="button" class="maq-pager__btn" aria-label="Résultats précédents"
-                    :disabled="resultPage === 0" @click="stepResultPage(-1)"
-                >
-                  <i class="pi pi-chevron-left"></i>
-                </button>
-                <span class="maq-pager__count">{{ resultPage + 1 }} / {{ resultPageCount }}</span>
-                <button
-                    type="button" class="maq-pager__btn" aria-label="Résultats suivants"
-                    :disabled="resultPage >= resultPageCount - 1" @click="stepResultPage(1)"
-                >
-                  <i class="pi pi-chevron-right"></i>
-                </button>
+          <div
+              class="folio-stage"
+              :class="{
+                'folio-stage--lim': isLiminaire,
+                'folio-stage--search': searching,
+                'folio-stage--list': isListing,
+              }"
+          >
+            <!-- Barre de scène, PERMANENTE (le padding-tête de la scène lui réserve
+                 la bande, hors du chemin des rangées) : le dézoom pilote la frame
+                 principale quelle que soit la source affichée — c'est un réglage de
+                 la scène, pas un mode. Le reste ne parle que de la liste. -->
+            <div class="maq-scene-bar">
+              <label class="maq-scene-bar__zoom">
+                <span>Dézoom</span>
+                <!-- `.number` ne traverse pas un v-model de composant (BaseSelect ne
+                     lit pas modelModifiers) : la conversion se fait ici. -->
+                <BaseSelect :model-value="zoom" @update:model-value="zoom = Number($event)">
+                  <option v-for="z in ZOOMS" :key="z" :value="z">×{{ z }}</option>
+                </BaseSelect>
+              </label>
+
+              <template v-if="isListing">
+                <span class="maq-scene-bar__label">
+                  {{ listingNodes.length }} nœud{{ listingNodes.length > 1 ? 's' : '' }}
+                  · {{ listTally.validables }} validables · {{ listTally.valides }} validés
+                </span>
+                <!-- Pager : la molette au-dessus des rangées fait la même chose (elle
+                     n'appartient à l'iframe qu'au-dessus des PAGES, où elle défile la
+                     planche). -->
+                <div class="maq-scene-bar__pager">
+                  <button
+                      type="button" class="maq-pager__btn" aria-label="Nœuds précédents"
+                      :disabled="listPage === 0" @click="stepListPage(-1)"
+                  >
+                    <i class="pi pi-chevron-up"></i>
+                  </button>
+                  <span class="maq-pager__count">{{ listPage + 1 }} / {{ listPageCount }}</span>
+                  <button
+                      type="button" class="maq-pager__btn" aria-label="Nœuds suivants"
+                      :disabled="listPage >= listPageCount - 1" @click="stepListPage(1)"
+                  >
+                    <i class="pi pi-chevron-down"></i>
+                  </button>
+                </div>
+                <BaseButton variant="ghost" icon="pi-times" title="Replier la liste" @click="listingIndex = null" />
+              </template>
+            </div>
+
+            <!-- Pile des rangées. Wrapper PERMANENT (jamais de v-if sur le chemin du
+                 FolioView témoin, qui ne doit pas être démonté) : hors liste il ne
+                 porte que lui, en liste il empile les nœuds de la page. C'est LUI
+                 qu'on mesure (le padding-tête de la barre en est exclu). -->
+            <div ref="rowsEl" class="folio-rows" @wheel="onListWheel">
+              <!-- Rangée n°1 : le FolioView PERSISTANT. En liste il rend le premier
+                   nœud de la page courante — une iframe déjà chaude par page — et sa
+                   trame passe en `local` : plein écran, elle continuerait à peindre sa
+                   grille (calée sur SES pages) par-dessus les rangées suivantes, qui
+                   portent déjà la leur. -->
+
+              <div class="folio-row" :style="listRowStyle">
+                <MaquetteNodeIdent
+                    v-if="isListing && listPageRows[0]"
+                    class="folio-row__id"
+                    :node="listPageRows[0]"
+                    :rank="listPageRows[0].rank"
+                />
+                <div class="folio-col">
+                  <FolioView
+                      class="maq-folio"
+                      mode="spread"
+                      :visible-pages="folioVisiblePages"
+                      :bg-scope="isListing ? 'local' : 'window'"
+                      :body-cross="isFormat && !searching"
+                      :bare-pages="searching"
+                      :wheel-paging="searching"
+                      :spread-pages="mainSpreadPages"
+                      :node-id="mainNodeId"
+                      :depth="mainDepth"
+                      :data="documentData"
+                      :visuals="effectiveVisuals"
+                      :page="previewPage"
+                      :margins="searching ? SEARCH_MARGINS : previewMargins"
+                      :hyphenation="styleDefaults.hyphenation"
+                      :running-titles="searching ? null : previewRunningTitles"
+                      :book-title="searching ? '' : bookTitle"
+                      :highlight-style="hoveredStyle"
+                      @step="stepResultPage"
+                  />
+                  <!-- Pager : la molette au-dessus du folio fait la même chose, mais elle
+                       ne s'annonce pas. -->
+                  <div v-if="searching && resultPageCount > 1" class="maq-pager">
+                    <button
+                        type="button" class="maq-pager__btn" aria-label="Résultats précédents"
+                        :disabled="resultPage === 0" @click="stepResultPage(-1)"
+                    >
+                      <i class="pi pi-chevron-left"></i>
+                    </button>
+                    <span class="maq-pager__count">{{ resultPage + 1 }} / {{ resultPageCount }}</span>
+                    <button
+                        type="button" class="maq-pager__btn" aria-label="Résultats suivants"
+                        :disabled="resultPage >= resultPageCount - 1" @click="stepResultPage(1)"
+                    >
+                      <i class="pi pi-chevron-right"></i>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Rangées suivantes de la page. Keyées par leur RANG DANS LA PAGE et
+                   non par nœud : changer de page réalimente les mêmes iframes au lieu
+                   de les détruire et de les rebâtir. `bg-scope="local"` obligatoire —
+                   en `fixed`, chaque rangée peindrait sa trame sur toute la fenêtre. -->
+              <div
+                  v-for="(row, slot) in listPageRows.slice(1)"
+                  :key="slot"
+                  class="folio-row"
+                  :style="listRowStyle"
+              >
+                <MaquetteNodeIdent class="folio-row__id" :node="row" :rank="row.rank" />
+                <div class="folio-row__folio">
+                  <FolioView
+                      class="maq-folio"
+                      mode="spread"
+                      bg-scope="local"
+                      :visible-pages="folioVisiblePages"
+                      :node-id="row.nodeId"
+                      :depth="mainDepth"
+                      :data="documentData"
+                      :visuals="effectiveVisuals"
+                      :page="previewPage"
+                      :margins="previewMargins"
+                      :hyphenation="styleDefaults.hyphenation"
+                      :running-titles="previewRunningTitles"
+                      :book-title="bookTitle"
+                      :highlight-style="hoveredStyle"
+                  />
+                </div>
               </div>
             </div>
 
@@ -213,8 +311,14 @@
             :highlights="highlights"
             :zoned="zoned"
             :active-block="focusedCran?.seriesKey ?? null"
+            :model-names="modelNames"
+            :model-label="witnessItem?.titre ?? null"
+            :tally-rows="chapTallyRows"
+            :listing="isListing"
+            @focus-level="focusSeries(`chap-${$event}`)"
             @extend="extendLiminaire"
             @exclude="excludeLiminaire"
+            @toggle-listing="toggleListing"
         />
       </CustomScrollbar>
     </div>
@@ -237,12 +341,15 @@ import MaquetteLiminaireCell from './MaquetteLiminaireCell.vue'
 import MaquetteChapitreCell from './MaquetteChapitreCell.vue'
 import MaquetteAnalyseCell from './MaquetteAnalyseCell.vue'
 import MaquetteAside from './MaquetteAside.vue'
+import MaquetteNodeIdent from './MaquetteNodeIdent.vue'
 import MaquetteStructureNav from './MaquetteStructureNav.vue'
 import VocabulaireCloud from '../analyse/lexical/VocabulaireCloud.vue'
 import OccurrencesCard from '../analyse/lexical/OccurrencesCard.vue'
 import SemantiqueCard from '../analyse/semantic/SemantiqueCard.vue'
 import FolioView from '../editor/FolioView.vue'
 import CustomScrollbar from '../ui/atoms/CustomScrollbar.vue'
+import BaseButton from '../ui/atoms/BaseButton.vue'
+import BaseSelect from '../ui/atoms/BaseSelect.vue'
 import PageDiagram from '../config/PageDiagram.vue'
 import StyleEditorPanel from '../config/StyleEditorPanel.vue'
 import AccordeonControls from '../liminaire/AccordeonControls.vue'
@@ -259,6 +366,8 @@ import { visibleSections } from '../../script/analyseSections'
 import { ANALYSE_CARDS } from '../analyse/analyseCards'
 import { fragmentPages } from '../../script/searchFragment'
 import { spreadStyles } from '../../script/liminaire-styles'
+import { modelStyleNames } from '../../script/chapitrageModele'
+import { evaluateNode, levelConstraints, tallyByDepth } from '../../script/chapitrageValidation'
 
 const route = useRoute()
 
@@ -271,7 +380,7 @@ const documentTitle = inject('documentTitle', null)
 
 const {
   styles, rules, liminaireConfig, styleDefaults, sections,
-  inventory, highlights, zoned,
+  inventory, highlights, zoned, structureShapes,
   styleOverrides, styleBase, effectiveVisuals, saving,
   toggleRequireStyle, toggleAdjacency, addDeclaredStyle, removeDeclaredStyle,
   load, save,
@@ -502,6 +611,8 @@ let foldBeforeSearch = null
 function onSearching(active) {
   searching.value = active
   if (active) {
+    // La planche de résultats prend la scène : la liste d'un niveau n'y a plus sa place.
+    listingIndex.value = null
     if (foldBeforeSearch === null) foldBeforeSearch = folds.value
     folds.value = Object.fromEntries(sectionKeys.value.map((k) => [k, 'tab']))
   } else if (foldBeforeSearch !== null) {
@@ -526,26 +637,238 @@ function depthKeyOf(nodeId) {
   return Math.min(Math.max(0, path.length - 1), 2)
 }
 
-// Premier nœud du livre à une clé de niveau donnée. depthKey 2 = première
-// profondeur ≥ 2.
-function firstNodeAtDepthKey(depthKey) {
-  let found = null
+// Tous les nœuds du livre à une clé de niveau donnée, dans l'ordre de lecture.
+// depthKey 2 = « profondeur 2 et au-delà » (comme les règles) : on ne descend
+// donc pas sous un nœud retenu, ses enfants relèvent du même niveau de règles.
+function nodesAtDepthKey(depthKey) {
+  const out = []
   const walk = (node, depth) => {
-    if (found) return
-    if (Math.min(depth, 2) === depthKey) { found = node.id; return }
+    if (Math.min(depth, 2) === depthKey) {
+      out.push({ nodeId: node.id, titre: documentData?.value?.[node.id]?.titre ?? '(sans titre)' })
+      return
+    }
     for (const child of node.children ?? []) walk(child, depth + 1)
   }
   ;(trame?.value?.axes ?? []).forEach((axe) => walk(axe, 0))
-  return found
+  return out
 }
 
-// Nœud témoin de l'aperçu chapitrage : TOUJOURS le premier nœud disponible du
-// niveau (on n'illustre plus par un modèle relevé/exigé).
-const currentNodeId = computed(() => {
+// Premier nœud du livre à une clé de niveau donnée (le témoin de l'aperçu).
+function firstNodeAtDepthKey(depthKey) {
+  return nodesAtDepthKey(depthKey)[0]?.nodeId ?? null
+}
+
+// Nœud de RÉFÉRENCE du niveau : TOUJOURS son premier nœud (on n'illustre plus
+// par un modèle relevé/exigé). C'est de lui que l'aside relève le modèle — la
+// liste peut paginer sous les yeux sans que les tables changent de référence.
+const modelNodeId = computed(() => {
   if (focusedSourceKey.value !== 'chapitrage') return null
   const dk = focusedSection.value?.depthKey
   return dk == null ? null : firstNodeAtDepthKey(dk)
 })
+
+// Nœud rendu par le FolioView persistant : le nœud de référence, ou — liste
+// déroulée — le premier nœud de la PAGE courante (la rangée n°1 est ce folio).
+const currentNodeId = computed(() => {
+  if (isListing.value) return listPageRows.value[0]?.nodeId ?? null
+  if (focusedSourceKey.value !== 'chapitrage') return null
+  return modelNodeId.value
+})
+
+// Le MODÈLE d'un niveau = la suite des styles de son nœud de référence, titre
+// compris. L'aside en tire ses deux tables : ce que le modèle porte, et ce que
+// le niveau porte en plus.
+const shapeByNode = computed(() => new Map(structureShapes.value.map((s) => [s.nodeId, s])))
+const titleStyleOf = (nodeId) => documentData?.value?.[nodeId]?.styleName ?? null
+
+function modelNamesAt(depthKey) {
+  const nodeId = firstNodeAtDepthKey(depthKey)
+  return nodeId ? modelStyleNames(shapeByNode.value.get(nodeId) ?? null, titleStyleOf(nodeId)) : []
+}
+
+const witnessItem = computed(() => (modelNodeId.value ? documentData?.value?.[modelNodeId.value] ?? null : null))
+const modelNames = computed(() =>
+  modelStyleNames(shapeByNode.value.get(modelNodeId.value) ?? null, titleStyleOf(modelNodeId.value)),
+)
+
+// ── Décompte validable / validé par niveau ──────────────────────────────────
+// « Validable » = les contraintes de STYLES du niveau sont satisfaites ; par
+// défaut ce sont celles du modèle, remplacées dès qu'une case « exigé » est
+// cochée (cf. levelConstraints). « Validé » = la validation manuelle du
+// chapitre, détenue par DocumentLayout.
+const validations = inject('documentValidations', null)
+
+const constraintsByDepth = computed(() =>
+  Object.fromEntries(
+    chapSections.value.map((sec) => [sec.depthKey, levelConstraints(sec.ruleSet ?? rules.default, modelNamesAt(sec.depthKey))]),
+  ),
+)
+
+const chapTally = computed(() =>
+  tallyByDepth(structureShapes.value, {
+    constraintsByDepth: constraintsByDepth.value,
+    titleStyleOf,
+    validations: validations?.value ?? {},
+  }),
+)
+
+// Une ligne par niveau pour l'aside : libellé de la série + son décompte.
+const chapTallyRows = computed(() =>
+  chapSections.value.map((sec, index) => ({
+    index,
+    label: `Chapitrage n°${index + 1}`,
+    depthKey: sec.depthKey,
+    fromModel: constraintsByDepth.value[sec.depthKey]?.fromModel ?? true,
+    ...(chapTally.value[sec.depthKey] ?? { total: 0, validables: 0, valides: 0, perimes: 0 }),
+  })),
+)
+
+// ── Dézoom de la frame principale ───────────────────────────────────────────
+// Réglage PERMANENT de la scène, pas un attribut d'un mode : ×1 = la planche
+// d'ouverture (deux pages), ×3 = six pages de large. Il pilote `visible-pages` du
+// FolioView, et la trame de fond pointillée suit l'échelle d'elle-même (cf.
+// updateSpreadBg). Recherche : la planche ne porte qu'UNE page de résultats (cf.
+// RESULTS_PER_PAGE), le dézoom part donc d'une page et non d'un vis-à-vis.
+const ZOOMS = [1, 2, 3, 4, 6]
+const zoom = ref(1)
+const folioVisiblePages = computed(() => (searching.value ? 1 : 2) * zoom.value)
+
+// ── Liste des nœuds d'un niveau (en place, pas en fenêtre) ──────────────────
+// L'action d'en-tête de l'aside ne monte plus de couche par-dessus la maquette :
+// le témoin devient la rangée n°1 de la liste des nœuds du niveau, et la scène se
+// dézoome pour les accueillir. `null` = liste repliée.
+const listingIndex = ref(null)
+
+const listingChap = computed(() => {
+  const i = listingIndex.value
+  const sec = i == null ? null : chapSections.value[i]
+  return sec ? { index: i, sec } : null
+})
+const isListing = computed(() => listingChap.value !== null)
+
+// Les nœuds du niveau, chacun avec son verdict (contraintes de styles) et son
+// état de validation manuelle — une rangée par nœud, la n°1 étant le témoin.
+const listingNodes = computed(() => {
+  const dk = listingChap.value?.sec.depthKey
+  if (dk == null) return []
+  const constraints = constraintsByDepth.value[dk]
+  return nodesAtDepthKey(dk).map((n) => ({
+    ...n,
+    ...evaluateNode(shapeByNode.value.get(n.nodeId) ?? null, constraints, titleStyleOf(n.nodeId)),
+    state: validations?.value?.[n.nodeId] ?? null,
+  }))
+})
+
+function toggleListing(index) {
+  const next = listingIndex.value === index ? null : index
+  listingIndex.value = next
+  // Une liste a besoin de place : on dézoome si la scène est encore à la planche
+  // d'ouverture. Ensuite le réglage reste à la main de l'utilisateur (on ne le
+  // remet pas à ×1 en repliant).
+  if (next !== null && zoom.value === 1) zoom.value = 3
+}
+
+// La liste suit le cran focusé : passer à un autre niveau la rebranche dessus
+// (le témoin change de toute façon), quitter le chapitrage la replie.
+watch(focusedCran, (c) => {
+  if (listingIndex.value === null) return
+  listingIndex.value = c?.sourceKey === 'chapitrage' ? c.sectionIndex : null
+})
+
+// Décompte du niveau listé : les nœuds portent déjà leur verdict.
+const listTally = computed(() => ({
+  validables: listingNodes.value.filter((n) => n.validable).length,
+  valides: listingNodes.value.filter((n) => n.state === 'validé').length,
+}))
+
+// Géométrie d'une rangée : le dézoom fixe la LARGEUR d'une page, donc sa hauteur
+// (ratio du format), donc celle de la rangée — et le nombre de rangées qui
+// tiennent dans la pile. Sans hauteur posée, des rangées à hauteur égale se
+// partageraient la scène et c'est la HAUTEUR qui bornerait l'échelle : le dézoom
+// demandé ne serait jamais atteint.
+const SPREAD_PAD = 12 // respiration réservée DANS la frame (cf. useFolioScale)
+const ROW_GAP = 12 // --sp-3
+const ID_COL_EM = 12 // largeur de la colonne d'identité
+// Plafond de rangées vivantes = iframes Paged.js simultanées (~900 Ko chacune).
+// Ce n'est PAS la mise en page (le dézoom décide du nombre de rangées) : ce
+// plafond ne fait que borner la facture quand elles deviennent minuscules.
+const LIST_MAX_ROWS = 6
+const rowsEl = ref(null)
+const rowsW = ref(0)
+const rowsH = ref(0)
+let rowsRo = null
+watch(rowsEl, (el) => {
+  rowsRo?.disconnect()
+  if (!el) { rowsRo = null; return }
+  const measure = () => { rowsW.value = el.clientWidth; rowsH.value = el.clientHeight }
+  measure()
+  rowsRo = new ResizeObserver(measure)
+  rowsRo.observe(el)
+}, { immediate: true })
+onUnmounted(() => rowsRo?.disconnect())
+
+const listRowHeight = computed(() => {
+  if (!isListing.value || !rowsW.value || !rowsEl.value) return 0
+  const em = parseFloat(getComputedStyle(rowsEl.value).fontSize) || 16
+  const folioW = rowsW.value - ID_COL_EM * em - ROW_GAP - 2 * SPREAD_PAD
+  if (folioW <= 0) return 0
+  return Math.round((folioW / folioVisiblePages.value) / previewRatio.value) + 2 * SPREAD_PAD
+})
+
+// Hauteur posée en inline sur chaque rangée (hors liste : aucune, la rangée
+// unique remplit la scène comme avant).
+const listRowStyle = computed(() =>
+  isListing.value && listRowHeight.value ? { height: `${listRowHeight.value}px` } : null,
+)
+
+// ── Pagination des rangées ──────────────────────────────────────────────────
+// PAGINÉ, pas défilé : une rangée = une iframe Paged.js, on en borne le nombre
+// vivant. La rangée n°1 de chaque page est le FolioView persistant.
+const listPage = ref(0)
+const listRowsPerPage = computed(() => {
+  if (!listRowHeight.value || !rowsH.value) return 1
+  const fits = Math.floor((rowsH.value + ROW_GAP) / (listRowHeight.value + ROW_GAP))
+  return Math.min(Math.max(fits, 1), LIST_MAX_ROWS)
+})
+const listPageCount = computed(() =>
+  Math.max(1, Math.ceil(listingNodes.value.length / listRowsPerPage.value)),
+)
+const listPageRows = computed(() => {
+  const start = listPage.value * listRowsPerPage.value
+  return listingNodes.value
+    .slice(start, start + listRowsPerPage.value)
+    .map((n, i) => ({ ...n, rank: start + i + 1 }))
+})
+
+function stepListPage(dir) {
+  listPage.value = Math.min(Math.max(listPage.value + dir, 0), listPageCount.value - 1)
+}
+
+// Changer de dézoom change le nombre de rangées : on garde le même endroit du
+// livre sous les yeux plutôt que le même NUMÉRO de page.
+watch(listRowsPerPage, (n, prev) => {
+  if (prev) listPage.value = Math.floor((listPage.value * prev) / n)
+})
+// Le niveau change (ou les nœuds arrivent après coup) : la page peut tomber hors
+// bornes ; ouvrir la liste la reprend à son début.
+watch(listPageCount, (n) => { if (listPage.value > n - 1) listPage.value = n - 1 })
+watch(listingIndex, () => { listPage.value = 0 })
+
+// Un « flick » de molette émet plusieurs events : sans verrou on sauterait
+// plusieurs pages — et chaque saut repagine `listRowsPerPage` iframes. Seule la
+// gouttière et la colonne d'identité voient la molette : au-dessus des pages,
+// elle appartient à l'iframe (qui défile la planche).
+let listWheelLock = false
+function onListWheel(e) {
+  if (!isListing.value) return
+  e.preventDefault()
+  if (listWheelLock) return
+  const dir = e.deltaY > 0 ? 1 : e.deltaY < 0 ? -1 : 0
+  if (!dir) return
+  stepListPage(dir)
+  listWheelLock = true
+  setTimeout(() => { listWheelLock = false }, 350)
+}
 
 // ── Sommaire flottant : parties + navigation ────────────────────────────────
 const parts = computed(() => series.value.map((s) => ({ key: s.key, label: s.label })))
@@ -670,12 +993,17 @@ const mainSpreadPages = computed(() => {
       offset: resultOffset.value,
     })
   }
+  // Liste déroulée : la rangée n°1 rend un NŒUD (nodeId + depth), jamais une planche.
+  if (isListing.value) return null
   if (isFormat.value || isValidation.value) return formatSpreadPages
   if (isLiminaire.value) return limSpreadPages.value
   return null
 })
 const mainNodeId = computed(() => currentNodeId.value)
-const mainDepth = computed(() => (focusedSourceKey.value === 'chapitrage' ? (focusedSection.value?.depthKey ?? 0) : 0))
+const mainDepth = computed(() => {
+  if (isListing.value) return listingChap.value?.sec.depthKey ?? 0
+  return focusedSourceKey.value === 'chapitrage' ? (focusedSection.value?.depthKey ?? 0) : 0
+})
 
 // Ratio largeur/hauteur de la page effective : les cellules de l'accordéon
 // l'adoptent pour partager le FORMAT des folios du main (A5 par défaut).
@@ -786,12 +1114,15 @@ onUnmounted(() => { if (section) section.value = null })
 }
 
 /* Scène du FolioView unique : remplit le main, sert de repère au overlay absolu
-   des contrôles liminaire. Même hauteur bornée pour les 3 sources → échelle iso. */
+   des contrôles liminaire. Même hauteur bornée pour les 3 sources → échelle iso.
+   Le padding-tête réserve la bande de la barre de scène (posée en absolu), qui
+   porte le dézoom en permanence. */
 .folio-stage {
   position: relative;
   display: flex;
   flex: 1 1 auto;
   min-height: 0;
+  padding-top: 2.2em;
 }
 
 /* Colonne du folio : le FolioView + son pager. Elle prend toute la scène hors
@@ -808,6 +1139,79 @@ onUnmounted(() => { if (section) section.value = null })
 
 .folio-stage--search .folio-col {
   flex: 1 1 0;
+}
+
+/* Pile des rangées : neutre hors liste (elle ne porte que le folio témoin, qui
+   remplit la scène comme avant). En liste, le nombre de rangées est calculé pour
+   tenir dans sa hauteur ; l'`overflow` ne couvre que le tick où la mesure n'est
+   pas encore faite. */
+.folio-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Rangée : hors liste elle remplit la pile ; en liste sa hauteur est posée en
+   inline (dérivée du dézoom, cf. listRowHeight) et c'est ELLE qui décide de
+   l'échelle des pages, pas le partage de la hauteur disponible. */
+.folio-row {
+  display: flex;
+  align-items: stretch;
+  gap: var(--sp-3);
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+}
+
+.folio-stage--list .folio-row {
+  flex: 0 0 auto;
+}
+
+.folio-row__id {
+  flex: 0 0 12em;
+}
+
+.folio-row__folio {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+}
+
+
+/* Hors liste, la planche réserve 16em de part et d'autre (elle vit dans une
+   colonne large, à côté de l'aside). En liste les rangées sont ferrées à gauche :
+   le dézoom n'aurait aucun intérêt s'il fallait défiler pour voir la 1re page. */
+.folio-stage--list :deep(.folio-view--spread .folio-pad) {
+  padding: 0 4em 0 0;
+}
+
+/* Barre de scène : des réglages, pas des actions — discrète, en tête de scène. */
+.maq-scene-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  color: var(--c-ink2);
+  font-size: var(--fs-sm);
+}
+
+.maq-scene-bar__label {
+  color: var(--c-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.maq-scene-bar__zoom,
+.maq-scene-bar__pager {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
 }
 
 /* Vue de la section d'analyse focusée (nuage compris) : deux pages de large, en

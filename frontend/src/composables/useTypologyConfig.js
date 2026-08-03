@@ -63,7 +63,10 @@ export function useTypologyConfig() {
 
   // Les modèles se recomposent contre `styles` (la typologie EN COURS
   // d'édition) : changer un rôle recompose les motifs dans le même tick.
-  const { groups: shapeGroups, error: shapesError, load: loadShapes } = useStructureShapes(styles, rules)
+  // `shapes` (la forme BRUTE de chaque nœud : ses runs de styles) est exposée en
+  // plus des groupes agrégés : la maquette lit celle du nœud témoin pour en tirer
+  // le MODÈLE du niveau (cf. script/chapitrageModele.js).
+  const { shapes: structureShapes, groups: shapeGroups, error: shapesError, load: loadShapes } = useStructureShapes(styles, rules)
 
   // Apparence EFFECTIVE = valeurs .odt + surcharges Scribe EN COURS d'édition
   // (mergées, comme le backend le fait au rendu). Alimente l'aperçu FolioView de la
@@ -337,7 +340,7 @@ export function useTypologyConfig() {
     loading, loadError, saveError, saving, saved, settled,
     inventory, styles, highlights, rules, liminaireConfig, styleDefaults, zoned,
     styleOverrides, styleBase, effectiveVisuals,
-    sections, unzonedStyles, shapeGroups, shapesError,
+    sections, unzonedStyles, structureShapes, shapeGroups, shapesError,
     declaredStyles, addDeclaredStyle, removeDeclaredStyle,
     load, save, toggleDepth, toggleRequireStyle, toggleAdjacency,
   }

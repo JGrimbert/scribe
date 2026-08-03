@@ -14,12 +14,18 @@
         wheel-to-horizontal
         :peek="mode === 'spread'"
     >
-      <div class="folio-pad">
+      <div ref="padRef" class="folio-pad">
         <!-- Double-page : filet de reliure/planche. Fond DERRIÈRE l'iframe
              (transparente) → visible dans les gouttières entre pages ; sa zone est
              bornée à l'étendue des pages (updateSpreadBg) pour ne pas déborder dans
              le padding. Période/offset scalés posés en JS. Purement décoratif. -->
-        <div v-if="mode === 'spread'" ref="padBgRef" class="folio-pad-bg" aria-hidden="true" />
+        <div
+            v-if="mode === 'spread'"
+            ref="padBgRef"
+            class="folio-pad-bg"
+            :class="{ 'folio-pad-bg--local': bgScope === 'local' }"
+            aria-hidden="true"
+        />
         <iframe ref="frameRef" class="folio-frame" :title="mode === 'edit' ? 'Pages du chapitre' : 'Double-page'" />
       </div>
     </CustomScrollbar>
@@ -147,6 +153,12 @@ const props = defineProps({
   // qu'une page, l'appelant lui donne la suivante (cf. les résultats de recherche,
   // paginés en amont pour ne pas couler des milliers de lambeaux dans Paged.js).
   wheelPaging: { type: Boolean, default: false },
+  // Portée de la trame de fond (mode `spread`) : 'window' (défaut) la pose en
+  // `fixed` sur toute la fenêtre — une seule planche à l'écran, elle passe sous la
+  // doc-bar et descend jusqu'en bas. 'local' la borne à CETTE planche : plusieurs
+  // FolioView empilés (rangées de l'écran de validation) sinon peindraient chacun
+  // leur grille sur la fenêtre entière, les unes par-dessus les autres.
+  bgScope: { type: String, default: 'window' },
 })
 
 // `step` : cran de pagination applicative demandé à la molette (±1), cf. wheelPaging.
@@ -159,6 +171,8 @@ const frameRef = ref(null)
 const scrollbarRef = ref(null)
 // Fond décoratif de la double-page (filet de reliure/planche), cf. updateSpreadBg.
 const padBgRef = ref(null)
+// Le wrapper des pages : référentiel de la trame quand elle est LOCALE (bgScope).
+const padRef = ref(null)
 
 // Cale la trame de fond (mode spread) sur la géométrie SCALÉE des pages. Le fond
 // couvre TOUTE la fenêtre (position: fixed, cf. CSS) : il n'a donc plus de boîte à
@@ -187,14 +201,19 @@ function updateSpreadBg() {
   // Le rect des pages est intra-iframe : seule la phase traverse la frontière
   // iframe↔écran, d'où frameRect (qui porte aussi le SPREAD_PAD réservé dedans).
   const frameRect = frame.getBoundingClientRect()
+  // Origine des phases : la fenêtre (trame `fixed`) ou le bord du wrapper des
+  // pages (trame `local`, bornée à cette planche — cf. bgScope).
+  const padRect = props.bgScope === 'local' ? padRef.value?.getBoundingClientRect() : null
+  const originX = padRect?.left ?? 0
+  const originY = padRect?.top ?? 0
   // La gouttière (X) sert aussi d'entre-rang (Y) : la rangée est unique, mais la
   // trame horizontale se répète sur toute la fenêtre — tête et pied de page en
   // portent un filet, à la même distance que les reliures.
   const gutter = period - r0.width
   bg.style.setProperty('--pad-period', `${period}px`)
-  bg.style.setProperty('--pad-phase', `${r0.left + frameRect.left + r0.width + gutter / 2}px`)
+  bg.style.setProperty('--pad-phase', `${r0.left + frameRect.left - originX + r0.width + gutter / 2}px`)
   bg.style.setProperty('--pad-period-y', `${r0.height + gutter}px`)
-  bg.style.setProperty('--pad-phase-y', `${r0.top + frameRect.top + r0.height + gutter / 2}px`)
+  bg.style.setProperty('--pad-phase-y', `${r0.top + frameRect.top - originY + r0.height + gutter / 2}px`)
   bg.style.opacity = '1'
 }
 
@@ -364,6 +383,12 @@ onBeforeUnmount(teardown)
 // éviterait de repaginer deux fois après une frappe.
 watch(() => [props.nodeId, props.depth, props.spreadPages, props.bodyCross, props.barePages], refresh)
 
+// Nombre de pages visées dans la largeur : c'est le ZOOM. Rien à repaginer — mais
+// `fitScale` n'est rappelé que par le ResizeObserver (la racine ne bouge pas) ou
+// une repagination, d'où ce rappel explicite (cf. le dézoom de l'écran de
+// validation, qui ne change que cette prop).
+watch(() => props.visiblePages, fitScale)
+
 // Surlignage : SURTOUT PAS dans le watch ci-dessus. Il change à chaque ligne
 // survolée dans l'aside — on réécrit une feuille en place, rien à repaginer.
 watch(() => props.highlightStyle, applyHighlight)
@@ -493,6 +518,14 @@ function runningTitlesSignature(rt) {
   --pad-phase: 0px;     /* centre de la 1re gouttière, en coordonnées écran */
   --pad-period-y: 0px;  /* page + gouttière, axe Y */
   --pad-phase-y: 0px;
+}
+
+/* Trame LOCALE (bgScope) : bornée au wrapper des pages au lieu de couvrir la
+   fenêtre. Indispensable dès que plusieurs planches coexistent à l'écran — en
+   `fixed`, chacune peindrait sa grille sur toute la fenêtre. Les phases sont
+   alors comptées depuis le bord du wrapper (cf. updateSpreadBg). */
+.folio-pad-bg--local {
+  position: absolute;
 }
 
 /* Les deux axes partagent tout sauf leur direction : un tile d'EXACTEMENT une

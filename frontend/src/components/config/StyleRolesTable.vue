@@ -47,7 +47,7 @@
         <!-- Colonne « succession » : entre style et rôle. Une puce chevauchant la
              bordure avec la ligne suivante = exiger que les deux styles voisins
              se succèdent toujours. Rien sous la dernière ligne (pas de suivant). -->
-        <td v-if="showRequire" class="succ-col">
+        <td v-if="showSuccession" class="succ-col">
           <span v-if="i < styles.length - 1" class="succ-anchor">
             <SuccessionLink
                 :active="isAdjacent(style.name, styles[i + 1].name)"
@@ -129,6 +129,11 @@ const props = defineProps({
   // Colonnes « exigé » + « succession » (niveaux de chapitrage seulement) : quand
   // true, `ruleSet` (jeu effectif du niveau) et `depthKey` doivent être fournis.
   showRequire: { type: Boolean, default: false },
+  // Colonne « succession » seule : elle vise deux lignes VOISINES, donc une
+  // SÉQUENCE. Une table qui ne range pas ses styles dans l'ordre du texte (les
+  // styles hors modèle de la maquette) doit la retirer sans perdre « exigé » —
+  // exiger une paire de styles qui ne se suivent nulle part n'a pas de sens.
+  showAdjacency: { type: Boolean, default: true },
   ruleSet: { type: Object, default: null },
   // Profondeur du niveau — passée aux mutations de règles pour viser son jeu.
   depthKey: { type: Number, default: null },
@@ -173,6 +178,8 @@ function isRequired(name) {
 function isAdjacent(a, b) {
   return !!props.ruleSet?.requiresAdjacency?.some((p) => p[0] === a && p[1] === b)
 }
+
+const showSuccession = computed(() => props.showRequire && props.showAdjacency)
 
 // Insertion possible seulement si on connaît la zone ET qu'on sait ajouter.
 const canInsert = computed(() => !!props.zoneKey && !!addDeclaredStyle)

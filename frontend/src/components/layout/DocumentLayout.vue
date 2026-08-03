@@ -229,7 +229,10 @@ provide('reloadDocument', () => loadDocument(route.params.id, { silent: true }))
 
 // Validations manuelles (nodeId → 'validé' | 'périmé'), résolues par le backend
 // au chargement — lui seul peut départager les deux (il rehache le texte).
+// Fournies aux vues : la maquette en tire son décompte de chapitres validés par
+// niveau (elle ne peut pas les recharger seule, `GET /documents/:id` les porte).
 const validations = ref({})
+provide('documentValidations', validations)
 const validating = ref(false)
 
 // La typologie des styles est-elle arbitrée ? État document, comme trame/data :
