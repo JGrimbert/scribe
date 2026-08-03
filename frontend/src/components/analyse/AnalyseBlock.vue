@@ -3,7 +3,7 @@
        vide/erreur/lancement et colonnes 2/3 · 1/3. Les cards n'apportent que
        leur contenu (#main = la viz, #aside = la colonne étroite). -->
   <Transition name="reveal" :appear="!!step">
-    <div v-if="!step || isRevealed(step)" class="split" :class="{ 'split--bare': bare }">
+    <div v-if="!step || isRevealed(step)" class="split" :class="{ 'split--bare': bare, 'split--fit': fit }">
       <i v-if="busy" class="pi pi-spin pi-spinner split-busy"></i>
 
       <!-- Rien à montrer : message pleine largeur, pas de colonnes. -->
@@ -35,12 +35,14 @@
         <UiNote v-else-if="!busy && unavailable" variant="hint">{{ unavailable }}</UiNote>
       </div>
 
-      <!-- `mainOnly` (injecté par l'hôte, cf. script) : la colonne étroite saute,
-           le main occupe tout. -->
+      <!-- `asideTo` (injecté par l'hôte, cf. script) : la colonne étroite n'est
+           pas rendue en place mais TÉLÉPORTÉE dans la boîte que l'hôte lui
+           réserve — le main occupe alors tout le bloc. -->
       <template v-else>
-        <div v-if="aside === 'left' && !mainOnly" :class="{ 'split-left': true, [borderAside]: true }"><slot name="aside" /></div>
+        <div v-if="aside === 'left' && !asideTo" :class="{ 'split-left': true, [borderAside]: true }"><slot name="aside" /></div>
         <div class="split-main"><slot name="main" /></div>
-        <div v-if="aside === 'right' && !mainOnly" :class="{ 'split-right': true, [borderAside]: true }"><slot name="aside" /></div>
+        <div v-if="aside === 'right' && !asideTo" :class="{ 'split-right': true, [borderAside]: true }"><slot name="aside" /></div>
+        <Teleport v-if="asideTo" :to="asideTo"><slot name="aside" /></Teleport>
       </template>
     </div>
   </Transition>
@@ -53,11 +55,16 @@ import ScoreBar from '../ui/atoms/ScoreBar.vue'
 import BaseButton from '../ui/atoms/BaseButton.vue'
 import { DASHBOARD_STEPS, useAnalyse } from '../../composables/useAnalyse'
 
-// Hôte qui ne veut QUE le main des blocs (scène de recherche de la Maquette : une
-// section y tient dans une boîte étroite, la colonne 1/3 n'y a pas la place).
-// Injecté et non passé en prop : les sept cards devraient sinon toutes relayer un
-// réglage qui ne les concerne pas — il appartient à l'hôte, pas à la card.
-const mainOnly = inject('analyseMainOnly', false)
+// Hôte qui sort la colonne 1/3 du bloc (scène de recherche de la Maquette : la
+// section tient dans une boîte étroite, l'aside est reporté dans un panneau à
+// part). La valeur est l'élément d'accueil du Teleport — `null` = colonne rendue
+// en place, comme dans le dashboard. Injecté et non passé en prop : les neuf
+// cards devraient sinon toutes relayer un réglage qui ne les concerne pas.
+const asideTo = inject('analyseAsideTo', null)
+// Même logique, autre contrainte de l'hôte : sa boîte a une hauteur BORNÉE. Le
+// bloc l'épouse au lieu de se dimensionner sur son contenu, et ses viz se
+// réduisent pour y tenir (cf. `.split--fit` dans analyse.css).
+const fit = inject('analyseFit', false)
 
 const props = defineProps({
   // Clé de révélation (DASHBOARD_STEPS). Absente : le cadre est monté d'emblée

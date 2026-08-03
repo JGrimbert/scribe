@@ -12,6 +12,11 @@ au GET (jamais « indisponible » ni en attente du NLP). `CompletenessChart`,
   (importe `CompletenessChart`, `ConformityChart` locaux + `../semantic/SemanticPairsCard`).
   Se sert de `typologySettled` (fourni par `../../layout/DocumentLayout`) pour
   renvoyer vers la config.
+- **`LengthsCard`** — dispersion des longueurs de chapitre par niveau (nuage de
+  points à jitter d'axe, cf. `../../ui/organisms/CLAUDE.md`). Logique pure dans
+  `../../../script/lengthDispersion.js` (testée) ; trame + data injectées, rien du
+  backend d'analyse. Médiane et bornes en colonne étroite, jamais de moyenne : un
+  seul chapitre monstre la rendrait fausse pour tous les autres.
 - **Rampe ordinale** pour la complétude (vide → ébauche → partiel → rédigé) :
   `--c-ramp-*`, jamais du catégoriel — l'ordre porte le sens (cf. « couleurs » dans
   `../CLAUDE.md`).

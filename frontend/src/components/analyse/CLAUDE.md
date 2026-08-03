@@ -35,9 +35,18 @@ completeness/conformity/lexical/semantic/topics). Vocabulaires/helpers purs :
   `isRevealed` reste faux et le bloc est invisible, données présentes ou non.
   L'hôte doit appeler **`revealAll()`** (cf. `useAnalyse`). C'est ce que fait la
   scène de recherche de la Maquette.
-- **`analyseMainOnly`** (injection lue par `AnalyseBlock`) — un hôte étroit ne veut
-  que le `#main` des blocs : la colonne 1/3 saute. Injecté et non passé en prop —
-  sinon les sept cards relaieraient un réglage qui appartient à l'hôte.
+- **`analyseAsideTo`** / **`analyseFit`** (injections lues par `AnalyseBlock`) —
+  réglages de l'HÔTE, injectés et non passés en prop : sinon les neuf cards
+  relaieraient un réglage qui ne les concerne pas. `analyseAsideTo` : un hôte
+  étroit sort la colonne 1/3 du bloc — la valeur est l'**élément d'accueil** d'un
+  `<Teleport>` (un `ref`, l'élément n'existant pas au premier rendu), le `#main`
+  occupe alors tout le bloc. Le contenu téléporté garde le contrat visuel de la
+  colonne via la classe `.split-aside` (`analyse.css`), à poser sur la boîte
+  d'accueil. `analyseFit` : l'hôte pose
+  le bloc dans une boîte à hauteur DÉFINIE (scène de recherche de la Maquette) →
+  `.split--fit` (analyse.css), le bloc épouse la boîte et ses viz se réduisent
+  pour y tenir au lieu de la faire déborder. Les deux sont fournis par
+  `../maquette/MaquetteView`.
 - **`DASHBOARD_STEPS`** — une étape peut avoir **`needs: null`** : dérivée du seul
   contenu du document (complétude), donc jamais « indisponible » ni en attente du
   NLP. `stepStatus` la traite à part (sans la garde, `running === step.needs`
@@ -50,13 +59,23 @@ dans l'infobulle des nœuds de l'aside `StructureView` (cf. `../structure/CLAUDE
 
 `BaseChart.vue` (dans `../ui/organisms/`) est le seul point d'entrée d'ECharts —
 voir `../ui/organisms/CLAUDE.md` pour l'instance/dispose/ResizeObserver et l'import
-modulaire. Ici vivent les décisions de **domaine** sur la couleur (les cards
+modulaire. Le **décor** commun d'une option (police, encres, grille recessive,
+infobulle, filigrane) vit dans `../../script/chartBase.js` (`baseOption`,
+`axisDecor`, `chartTokens`, `watermarkPattern`) : les cards n'y ajoutent que leurs
+séries. Ici vivent les décisions de **domaine** sur la couleur (les cards
 construisent l'option, pas le graphe) :
 
 - **Couleurs via tokens résolus** (`../../script/theme.js`, `cssVar`) : echarts
   peint dans un `<canvas>` où `var(--…)` n'est jamais résolu — il faut la valeur
   calculée. Seul usage légitime de `getComputedStyle` pour de la couleur ; le DOM
   garde `var()` en CSS.
+- **La palette catégorielle est VIVE et son ORDRE est validé** (cf. `base.css`) :
+  le permuter demande de repasser le validateur. Deux réserves qui décident du
+  dessin d'une card : on ne cycle jamais au-delà de 8 identités (« Autres » en
+  gris), et sur une forme où TOUTES les paires se côtoient (nuage de points),
+  seuls les 3 premiers slots passent les seuils — d'où le parti pris des deux
+  nuages : `LengthsCard` peint tout d'une seule teinte (c'est la colonne qui dit
+  le niveau) et `ThemesFlowCard` facette (un axe + un nom par thème).
 - **`--c-ramp-1..4` (rampe ordinale) vs `--c-cat-1..8` (catégorielle)** : une
   échelle dont l'ordre porte le sens (complétude : vide → ébauche → partiel →
   rédigé) prend la rampe d'une seule teinte, clair → foncé. `--c-cat-*` encode une

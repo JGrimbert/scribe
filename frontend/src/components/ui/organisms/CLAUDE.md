@@ -14,7 +14,10 @@ Les composants métier construisent l'**option** echarts, jamais le graphe.
 - **Import modulaire OBLIGATOIRE** : `echarts/core` + les seuls modules utilisés
   (`echarts.use([...])` **ici et seulement ici**). Un
   `import * as echarts from 'echarts'` embarque tous les types (~1 Mo). Ajouter le
-  module d'un nouveau type de graphe à cet endroit.
+  module d'un nouveau type de graphe à cet endroit. Aujourd'hui : `Bar`,
+  `Scatter`, `Grid`, `Legend`, `SingleAxis`, `Tooltip` + la **feature**
+  `ScatterJitter` (echarts 6 : le jitter est une option d'AXE, mais la feature
+  s'installe à part — sans elle `xAxis.jitter` est ignoré **en silence**).
 - Les couleurs passées en option sont des tokens **résolus** via
   `../../../script/theme.js` (`cssVar`) — cf. `../../analyse/CLAUDE.md` pour la
   sémantique rampe/catégoriel et le piège de vérification rAF.

@@ -5,7 +5,8 @@ describe('analyseSections', () => {
   it('garde l’ordre du dashboard, le Vocabulaire en tête', () => {
     expect(ANALYSE_SECTIONS[0].key).toBe('vocabulaire')
     expect(ANALYSE_SECTIONS.map((s) => s.key)).toEqual([
-      'vocabulaire', 'lexical', 'themes', 'anomalies', 'semantique', 'unites', 'entites',
+      'vocabulaire', 'lexical', 'themes', 'flux', 'anomalies', 'longueurs', 'semantique',
+      'unites', 'entites',
     ])
   })
 

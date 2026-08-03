@@ -1,5 +1,6 @@
 import {computed, inject, onUnmounted, provide, reactive, ref} from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { cssVar } from '../script/theme'
 
 // Exportée pour que les stories puissent injecter un store factice sans monter
 // AnalyseView (routeur + fetch + d3).
@@ -35,7 +36,9 @@ export const DASHBOARD_STEPS = [
   { key: 'semantique', label: 'Proximité', needs: 'semantic' },
   { key: 'lexical', label: 'Lexicale', needs: 'lexical' },
   { key: 'themes', label: 'Thématiques', needs: 'topics' },
+  { key: 'flux', label: 'Fil des thèmes', needs: 'topics' },
   { key: 'completude', label: 'Complétude', needs: null },
+  { key: 'longueurs', label: 'Longueurs', needs: null },
   { key: 'pairs', label: 'Similarités', needs: 'semantic' },
 ]
 
@@ -47,12 +50,13 @@ const REVEAL_ORDER = DASHBOARD_STEPS.map((s) => s.key)
 const REVEAL_STAGGER_MS = 320
 const REVEAL_FALLBACK_MS = 1400
 
-// Palette catégorielle validée (scripts/validate_palette.js du guide dataviz,
-// surface #faf8f4 : ΔE CVD 24,2, tous les checks passent). Ordre FIXE — les
-// 7 premiers thèmes (déjà triés par taille) prennent les 7 teintes, le reste
-// bascule en gris : au-delà, plus personne ne distingue les couleurs.
-const TOPIC_PALETTE = ['#2a78d6', '#1baf7a', '#eda100', '#008300', '#4a3aa7', '#e34948', '#e87ba4']
-const COLOR_OTHER = '#8a7f72'
+// Palette catégorielle du design system (--c-cat-*, vive et validée — cf.
+// base.css), RÉSOLUE en valeurs calculées : ces couleurs partent aussi dans un
+// <canvas> echarts, où `var(--…)` n'est jamais résolu. Ordre FIXE (c'est lui qui
+// garantit la séparation CVD des voisins) — les 8 premiers thèmes, déjà triés par
+// taille, prennent les 8 teintes ; le reste bascule en gris, au-delà plus
+// personne ne distingue les couleurs.
+const TOPIC_TOKENS = Array.from({ length: 8 }, (_, i) => `--c-cat-${i + 1}`)
 const COLOR_OUTLIER = '#cfc5b6'
 
 // État partagé du dashboard d'analyse : AnalyseView appelle provideAnalyse(),
@@ -294,8 +298,9 @@ export function provideAnalyse() {
 
   const topicColorById = computed(() => {
     const map = new Map()
+    const other = cssVar('--c-muted', '#8a7f72')
     topics.value?.topics.forEach((topic, i) => {
-      map.set(topic.topicId, i < TOPIC_PALETTE.length ? TOPIC_PALETTE[i] : COLOR_OTHER)
+      map.set(topic.topicId, i < TOPIC_TOKENS.length ? cssVar(TOPIC_TOKENS[i]) : other)
     })
     return map
   })

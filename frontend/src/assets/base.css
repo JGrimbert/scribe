@@ -80,17 +80,30 @@
     --c-orange: #fd7e14;
     --c-gray: #adb5bd;
 
-    /* Palette catégorielle — communautés du réseau lexical. Teintes toutes
-       terreuses/désaturées (même famille que l'accent brun/teal), distinguables
-       sans jurer, cyclées au-delà de 8 grappes. */
-    --c-cat-1: #138297;
-    --c-cat-2: #b5551a;
-    --c-cat-3: #7d5c86;
-    --c-cat-4: #6f8069;
-    --c-cat-5: #5f7089;
-    --c-cat-6: #a8843b;
-    --c-cat-7: #9c5049;
-    --c-cat-8: #4f7a6a;
+    /* Palette catégorielle — identités (communautés du réseau lexical, zones du
+       livre, thèmes). Teintes VIVES : l'ancien jeu terreux/désaturé restait dans
+       la famille de l'accent brun mais rendait deux séries voisines presque
+       indiscernables dans un graphe. Valeurs et ORDRE validés (validateur du
+       guide dataviz, surface --c-paper) : bande de clarté, plancher de chroma,
+       séparation CVD des paires adjacentes ΔE 9,1 et vision normale ΔE 19,6.
+       L'ordre EST le mécanisme de sécurité CVD, pas de la cosmétique — le
+       permuter demande de revalider.
+       Deux réserves qui viennent avec la palette :
+       - au-delà de 8 identités, on ne cycle pas (personne ne distingue une 9e
+         teinte) : le reste bascule en gris « Autres » ;
+       - sur les formes où TOUTES les paires se côtoient (nuage de points,
+         bulles), seuls les 3 premiers slots passent les seuils — au-delà,
+         facetter ou regrouper.
+       Aqua, jaune et magenta passent sous 3:1 de contraste sur le papier :
+       étiquette directe ou table de secours obligatoire pour ces trois-là. */
+    --c-cat-1: #2a78d6; /* bleu */
+    --c-cat-2: #eb6834; /* orange */
+    --c-cat-3: #1baf7a; /* aqua */
+    --c-cat-4: #eda100; /* jaune */
+    --c-cat-5: #e87ba4; /* magenta */
+    --c-cat-6: #008300; /* vert */
+    --c-cat-7: #4a3aa7; /* violet */
+    --c-cat-8: #e34948; /* rouge */
 
     /* Rampe ordinale — une seule teinte (le brun accent), clair → foncé. Pour
        les échelles où l'ordre porte le sens (complétude d'un chapitre : vide →

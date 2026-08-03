@@ -122,6 +122,14 @@ Consommés par `../components/analyse/` (voir son `CLAUDE.md`) :
 - **`theme.js`** — `cssVar()` : résout un token CSS en valeur calculée pour
   echarts (qui peint dans un `<canvas>` où `var(--…)` n'est jamais résolu). Seul
   usage légitime de `getComputedStyle` pour de la couleur.
+- **`chartBase.js`** — le DÉCOR commun d'une option echarts (police, encres,
+  grille recessive, infobulle, filigrane en motif canvas). Les décisions de
+  couleur de SÉRIE restent dans les cards, c'est du domaine.
+- **`lengthDispersion.js`** — longueur de chaque nœud groupée par niveau de titre
+  (+ médiane/bornes) pour le nuage de dispersion. Testé.
+- **`topicFlow.js`** — thèmes replacés dans l'ORDRE DE LECTURE : croise la
+  projection BERTopic (un point par segment, porteur d'un `nodeId`) avec le
+  parcours préfixe de la trame. Testé.
 - **`cloudLayout.js`** / **`cloudCategories.js`** — layout d3-cloud du nuage de
   lemmes + catégorisation. Testés.
 - **`graphMetrics.js`** / **`lexicalSelection.js`** — métriques du réseau lexical

@@ -121,21 +121,7 @@
           Un surlignage marque l'état du texte, pas sa structure. Une seule annotation pour
           l'instant ; la fonctionnalité s'étendra.
         </p>
-        <p v-if="!inventory.highlights.length" class="empty">Aucun surlignage relevé.</p>
-        <ul v-else class="hl-list">
-          <li v-for="hl in inventory.highlights" :key="hl.color" class="hl">
-            <div class="hl-head">
-              <span class="swatch" :style="{ background: hl.color }"></span>
-              <code>{{ hl.color }}</code>
-              <span class="hl-counts">{{ hl.paragraphs }} ¶ · {{ hl.spans }} inline</span>
-            </div>
-            <StackedBar v-if="zoned && totalOf(hl.byZone)" :segments="zoneSegments(hl.byZone)" />
-            <p v-if="hl.sample" class="hl-sample" :title="hl.sample">{{ hl.sample }}</p>
-            <BaseSelect v-model="highlights[hl.color]">
-              <option v-for="role in HIGHLIGHT_ROLES" :key="role" :value="role">{{ role }}</option>
-            </BaseSelect>
-          </li>
-        </ul>
+        <HighlightsList :items="inventory.highlights" :highlights="highlights" :zoned="zoned" />
 
         <!-- « Non situés » vit ici, avec les surlignages : ni structure, ni
              modèles, ni règles — juste des styles (filets, ornements) à typer. -->
@@ -181,10 +167,9 @@
 import { computed, inject, onMounted, onUnmounted, provide, ref, watch, watchEffect } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import BaseButton from '../ui/atoms/BaseButton.vue'
-import BaseSelect from '../ui/atoms/BaseSelect.vue'
-import StackedBar from '../ui/atoms/StackedBar.vue'
 import UiCallout from '../ui/atoms/UiCallout.vue'
 import UiNote from '../ui/molecules/UiNote.vue'
+import HighlightsList from './HighlightsList.vue'
 import RuleSetForm from './RuleSetForm.vue'
 import StyleRolesTable from './StyleRolesTable.vue'
 import TypologySection from './TypologySection.vue'
@@ -196,9 +181,7 @@ import { useRegistry } from '../../composables/useRegistry'
 import { useTypologyConfig } from '../../composables/useTypologyConfig'
 import { useLiminaireBornes } from '../../composables/useLiminaireBornes'
 import { useRecalibration } from '../../composables/useRecalibration'
-import { HIGHLIGHT_ROLES } from '../../script/typology'
 import { effectiveMargins, effectivePage } from '../../script/pageFormats'
-import { totalOf, zoneSegments } from '../../script/zones'
 
 const route = useRoute()
 const router = useRouter()
@@ -376,66 +359,6 @@ async function onDelete() {
 .count {
   opacity: var(--op-faint);
   font-weight: 400;
-}
-
-.empty {
-  margin: 0;
-  color: var(--c-ink2);
-  font-size: var(--fs-md);
-}
-
-
-/* Une grille qui remplit la largeur plutôt qu'une colonne étroite : chaque
-   surlignage se décide couleur par couleur, mais rien n'oblige à les empiler. */
-.hl-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(16em, 1fr));
-  gap: var(--sp-4);
-}
-
-.hl {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-2);
-  min-width: 0;
-}
-
-.hl-head {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  font-size: var(--fs-sm);
-}
-
-.swatch {
-  display: inline-block;
-  width: 1em;
-  height: 1em;
-  flex: 0 0 auto;
-  border: 1px solid var(--c-border);
-  border-radius: var(--radius-sm);
-  vertical-align: -0.15em;
-}
-
-.hl-counts {
-  margin-left: auto;
-  color: var(--c-ink2);
-  font-size: var(--fs-xs);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-.hl-sample {
-  margin: 0;
-  color: var(--c-ink2);
-  font-family: var(--font-serif);
-  font-size: var(--fs-sm);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .config-footer {

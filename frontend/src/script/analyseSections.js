@@ -11,7 +11,9 @@ export const ANALYSE_SECTIONS = [
   { key: 'vocabulaire', label: 'Vocabulaire' },
   { key: 'lexical', label: 'Champ lexical' },
   { key: 'themes', label: 'Thèmes' },
+  { key: 'flux', label: 'Thèmes au fil du livre' },
   { key: 'anomalies', label: 'Anomalies' },
+  { key: 'longueurs', label: 'Longueur des chapitres' },
   { key: 'semantique', label: 'Proximité sémantique' },
   // Bas de page du dashboard : cards en lecture seule, « à trier plus tard ».
   { key: 'unites', label: 'Statistiques par article', needs: 'lexical', leftover: true },

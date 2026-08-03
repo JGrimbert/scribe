@@ -140,7 +140,6 @@
                 v-if="searching"
                 ref="cloudEl"
                 class="maq-analyse"
-                :class="{ 'maq-analyse--card': !isCloudView }"
             >
               <VocabulaireCloud
                   v-if="isCloudView"
@@ -152,6 +151,22 @@
                 <component :is="analyseCard" />
               </CustomScrollbar>
               <p v-else class="maq-analyse__empty">{{ focusedAnalyse?.label }}</p>
+            </div>
+
+            <!-- Colonne 1/3 des blocs d'analyse, sortie du bloc : posée EN
+                 ABSOLU par-dessus la planche, ferrée à droite. Chaque card y
+                 téléporte son `#aside` (cf. AnalyseBlock, `analyseAsideTo`) ;
+                 seul le Vocabulaire pose la sienne à la main — la scène monte
+                 son nuage NU, sa card n'est donc jamais montée pour le faire. -->
+            <div v-if="searching" class="maq-analyse-aside">
+              <CustomScrollbar>
+                <div ref="analyseAsideEl" class="maq-analyse-aside__inner split-aside">
+                  <template v-if="isCloudView">
+                    <OccurrencesCard />
+                    <SemantiqueCard />
+                  </template>
+                </div>
+              </CustomScrollbar>
             </div>
             <div v-if="isLiminaire" class="lim-hover__controls">
               <AccordeonControls
@@ -194,6 +209,9 @@
             :chap-sections="chapSections"
             :style-roles="styles"
             :rules="rules"
+            :highlight-items="inventory.highlights"
+            :highlights="highlights"
+            :zoned="zoned"
             :active-block="focusedCran?.seriesKey ?? null"
             @extend="extendLiminaire"
             @exclude="excludeLiminaire"
@@ -221,6 +239,8 @@ import MaquetteAnalyseCell from './MaquetteAnalyseCell.vue'
 import MaquetteAside from './MaquetteAside.vue'
 import MaquetteStructureNav from './MaquetteStructureNav.vue'
 import VocabulaireCloud from '../analyse/lexical/VocabulaireCloud.vue'
+import OccurrencesCard from '../analyse/lexical/OccurrencesCard.vue'
+import SemantiqueCard from '../analyse/semantic/SemantiqueCard.vue'
 import FolioView from '../editor/FolioView.vue'
 import CustomScrollbar from '../ui/atoms/CustomScrollbar.vue'
 import PageDiagram from '../config/PageDiagram.vue'
@@ -251,6 +271,7 @@ const documentTitle = inject('documentTitle', null)
 
 const {
   styles, rules, liminaireConfig, styleDefaults, sections,
+  inventory, highlights, zoned,
   styleOverrides, styleBase, effectiveVisuals, saving,
   toggleRequireStyle, toggleAdjacency, addDeclaredStyle, removeDeclaredStyle,
   load, save,
@@ -310,6 +331,9 @@ const chapSections = computed(() =>
 const series = computed(() => {
   const out = []
   out.push({ key: 'format', label: 'Format', spreads: [{ sourceKey: 'maquette' }] })
+  // Validation : même ZONE d'accordéon que Format (cf. sectionOf), donc un second
+  // feuillet collé au sien plutôt qu'un onglet de plus.
+  out.push({ key: 'validation', label: 'Validation', spreads: [{ sourceKey: 'validation' }] })
 
   const sp = limSpreads.value
   out.push({
@@ -331,7 +355,7 @@ const series = computed(() => {
 // Section d'accordéon d'une série : Format · Liminaire · Chapitrage (tous les
 // niveaux de chapitrage fondus en UNE section, sans séparation visuelle interne).
 function sectionOf(seriesKey) {
-  if (seriesKey === 'format') return { key: 'format', label: 'Format' }
+  if (seriesKey === 'format' || seriesKey === 'validation') return { key: 'format', label: 'Format' }
   if (seriesKey === 'liminaire') return { key: 'liminaire', label: 'Liminaire' }
   return { key: 'chapitrage', label: 'Chapitrage' }
 }
@@ -424,9 +448,15 @@ const { isRevealed, revealAll } = useAnalyse()
 // signal). Ici personne ne la lance : sans ça, chaque `AnalyseBlock` monté dans la
 // scène reste invisible, données présentes ou non. On révèle donc tout d'emblée.
 onMounted(revealAll)
-// Les blocs n'affichent que leur main : la scène est étroite, la colonne 1/3 du
-// dashboard n'y tient pas (cf. AnalyseBlock, `analyseMainOnly`).
-provide('analyseMainOnly', true)
+// La colonne 1/3 des blocs ne tient pas dans la scène : les blocs la TÉLÉPORTENT
+// dans le panneau flottant ferré à droite (cf. AnalyseBlock, `analyseAsideTo`).
+// L'élément n'existe qu'en recherche — d'où un ref, que le Teleport attend.
+const analyseAsideEl = ref(null)
+provide('analyseAsideTo', analyseAsideEl)
+// La scène a une hauteur BORNÉE (cf. .maq-analyse) : les blocs l'épousent et
+// leurs viz se réduisent pour y tenir, au lieu de se dimensionner sur leur
+// contenu et de déborder (cf. `.split--fit`).
+provide('analyseFit', true)
 
 const analyseSections = computed(() => visibleSections(isRevealed))
 const searchCrans = computed(() =>
@@ -609,6 +639,9 @@ const formatSpreadPages = [{ kind: 'empty' }, { kind: 'empty' }]
 // ── Alimentation de l'UNIQUE FolioView selon la source focusée ───────────────
 const isFormat = computed(() => focusedSourceKey.value === 'maquette')
 const isLiminaire = computed(() => focusedSourceKey.value === 'liminaire')
+// Validation : même double page vide que le format, mais SANS la croix
+// d'empagement — elle parle du gabarit, hors sujet pour des règles.
+const isValidation = computed(() => focusedSourceKey.value === 'validation')
 
 // Une cellule d'imposition → un slot de planche. Cellule nulle = face intérieure de
 // couverture (garde). On garde TOUTES les entrées de contenu (blancs/ornements
@@ -637,7 +670,7 @@ const mainSpreadPages = computed(() => {
       offset: resultOffset.value,
     })
   }
-  if (isFormat.value) return formatSpreadPages
+  if (isFormat.value || isValidation.value) return formatSpreadPages
   if (isLiminaire.value) return limSpreadPages.value
   return null
 })
@@ -779,7 +812,12 @@ onUnmounted(() => { if (section) section.value = null })
 
 /* Vue de la section d'analyse focusée (nuage compris) : deux pages de large, en
    regard de la page de résultats. `overflow` parce que le SVG du nuage déborde
-   volontiers de sa boîte. */
+   volontiers de sa boîte.
+   Bornée EN HAUT ET EN BAS plutôt qu'à une hauteur choisie : la boîte se calcule
+   sur la fenêtre et s'arrête au-dessus du dock, sans valeur à réajuster à la main.
+   Sans `bottom`, une card haute filait sous le bas de l'écran sans jamais défiler
+   (`.maquette` est en `overflow: hidden`). `--maq-dock-h` est hérité de
+   `.maquette__left`. */
 .maq-analyse {
   flex: 2 1 0;
   min-width: 0;
@@ -789,6 +827,7 @@ onUnmounted(() => { if (section) section.value = null })
 
   right: 0px;
   top: 4em;
+  bottom: calc(var(--maq-dock-h) + var(--sp-4));
   width: 60%;
   /* Au-dessus de l'iframe du folio, qui porte `z-index: 1` en double-page (cf.
      .folio-view--spread .folio-frame) et passerait sinon devant — la vue est
@@ -796,14 +835,33 @@ onUnmounted(() => { if (section) section.value = null })
   z-index: 2;
 }
 
-/* Vue portant une CARD (et non le nuage) : hauteur DÉFINIE, sinon la carte pousse
-   la boîte vers le haut de la fenêtre sans jamais défiler. */
-.maq-analyse--card {
-  height: 60vh;
-}
-
 .maq-analyse__scroll {
   height: 100%;
+}
+
+/* Colonne des asides d'analyse : posée PAR-DESSUS la planche (z 3, au-dessus de
+   `.maq-analyse` à 2), ferrée au bord droit, sur la même bande verticale que la
+   vue qu'elle commente. Carte flottante, comme les contrôles liminaire et le
+   sommaire — elle se lit comme posée, pas comme une troisième colonne. */
+.maq-analyse-aside {
+  position: fixed;
+  right: 0;
+  top: 4em;
+  bottom: calc(var(--maq-dock-h) + var(--sp-4));
+  width: 22em;
+  max-width: 40%;
+  z-index: 3;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-md);
+  background: var(--c-card-float);
+  backdrop-filter: var(--c-backdrop-filter-blur);
+}
+
+/* Boîte d'accueil du Teleport. Respiration et séparateurs viennent de
+   `.split-aside` (analyse.css) : la colonne se lit comme celle du dashboard,
+   d'où qu'elle soit rendue. */
+.maq-analyse-aside__inner {
+  padding-block: var(--sp-2);
 }
 
 /* Vue pas encore montée : le nom de la section, discrètement — la place lui est

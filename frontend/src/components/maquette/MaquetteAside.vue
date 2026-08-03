@@ -17,6 +17,28 @@
           <MaquetteFormatControls :page="fmtPage" :style-defaults="styleDefaults" />
         </template>
 
+        <!-- Validation : ce qui décide qu'un chapitre est en règle — le socle de
+             règles par défaut, puis le sens donné à chaque surlignage. Rapatrié
+             de l'écran de config, « Non situés » abandonné au passage. -->
+        <template v-else-if="activeBlock === 'validation'">
+          <header class="maq-sec-head">
+            <i class="pi pi-check-square" aria-hidden="true"></i>
+            <span>Validation</span>
+          </header>
+
+          <h4 class="maq-sub">Règles par défaut</h4>
+          <p class="maq-hint">
+            S'appliquent à tout niveau de chapitrage qui n'a pas ses propres règles.
+          </p>
+          <RuleSetForm :rule-set="rules.default" />
+
+          <h4 class="maq-sub maq-sub--spaced">
+            Surlignages <span class="maq-count">{{ highlightItems.length }}</span>
+          </h4>
+          <p class="maq-hint">Un surlignage marque l'état du texte, pas sa structure.</p>
+          <HighlightsList :items="highlightItems" :highlights="highlights" :zoned="zoned" />
+        </template>
+
         <!-- Liminaire : verdict d'éligibilité + jalon de fin. -->
         <template v-else-if="activeBlock === 'liminaire'">
           <header class="maq-sec-head">
@@ -93,6 +115,8 @@ import MaquetteFormatControls from './MaquetteFormatControls.vue'
 import MaquetteLiminaireJalon from './MaquetteLiminaireJalon.vue'
 import StyleRolesTable from '../config/StyleRolesTable.vue'
 import StructureModelList from '../config/StructureModelList.vue'
+import RuleSetForm from '../config/RuleSetForm.vue'
+import HighlightsList from '../config/HighlightsList.vue'
 import LiminaireEligibilite from '../liminaire/LiminaireEligibilite.vue'
 
 const props = defineProps({
@@ -111,8 +135,15 @@ const props = defineProps({
   chapSections: { type: Array, default: () => [] },
   // Map réactive rôle-par-style (mutée en place par StyleRolesTable).
   styleRoles: { type: Object, required: true },
-  // Jeu de règles ({ default, byDepth }) — repli du modèle exigé.
+  // Jeu de règles ({ default, byDepth }) — repli du modèle exigé, et socle édité
+  // par le cran Validation.
   rules: { type: Object, required: true },
+  // Surlignages relevés (inventory.highlights) + map réactive couleur → rôle,
+  // mutée en place par HighlightsList. Cran Validation.
+  highlightItems: { type: Array, default: () => [] },
+  highlights: { type: Object, required: true },
+  // La ventilation par zone est-elle disponible ? (StackedBar des surlignages)
+  zoned: { type: Boolean, default: false },
   // Clé de la série focusée (scroll-spy) : 'format' | 'liminaire' | 'chap-0'…
   activeBlock: { type: String, default: null },
 })
@@ -194,6 +225,18 @@ const activeChap = computed(() => {
 
 .maq-sub--spaced {
   margin-top: var(--sp-2);
+}
+
+/* Ligne d'explication sous un sous-titre (cran Validation). */
+.maq-hint {
+  margin: 0;
+  color: var(--c-ink2);
+  font-size: var(--fs-sm);
+}
+
+.maq-count {
+  opacity: var(--op-faint);
+  font-weight: 400;
 }
 
 .maq-aside__placeholder {

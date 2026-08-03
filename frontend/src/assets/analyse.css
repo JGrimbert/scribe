@@ -60,6 +60,35 @@
     flex: 0 0 auto;
 }
 
+/* ── Mode « fit » : bloc à hauteur BORNÉE par l'hôte ───────────────
+   Hôte qui pose le bloc dans une boîte de hauteur définie (scène de recherche de
+   la Maquette). Le bloc épouse la boîte au lieu de se dimensionner sur son
+   contenu, ce qui donne aux colonnes une hauteur définie : les viz qui suivent la
+   largeur (réseau lexical, carte UMAP, graphes echarts) s'y réduisent au lieu de
+   la faire déborder. Ce qui ne peut pas se réduire (tables) reste au scroll de
+   l'hôte. */
+.split--fit {
+    height: 100%;
+    min-height: 0;
+    margin-bottom: 0;
+}
+
+.split--fit > .split-main,
+.split--fit > .split-left,
+.split--fit > .split-right {
+    min-height: 0;
+}
+
+/* Un SVG à viewBox se met à l'échelle « contain » : la boîte est bornée, le
+   dessin y reste entier et centré (`preserveAspectRatio` par défaut) — même
+   mécanique que le nuage compact. Le graphe echarts, lui, n'est borné que s'il
+   est l'enfant DIRECT de la colonne (parent à hauteur définie) ; sinon son
+   ResizeObserver n'a rien à observer et le scroll reprend la main. */
+.split--fit .viz,
+.split--fit > .split-main > .base-chart {
+    max-height: 100%;
+}
+
 /* Viz principale (2/3). Une viz brute (réseau, carte) se centre dans sa
    respiration ; une viz qui remplit (nuage) se donne `flex: 1` et l'emporte. */
 .split-main {
@@ -84,13 +113,26 @@
 .split-right { border-left: 1px solid var(--c-border); }
 .split-left { border-right: 1px solid var(--c-border); }
 
+/* Colonne étroite SORTIE de son bloc : un hôte trop étroit pour trois colonnes
+   (scène de recherche de la Maquette) fait téléporter les `#aside` dans une
+   boîte à lui (cf. AnalyseBlock, `analyseAsideTo`). Elle hérite du même contrat
+   de respiration et de séparateurs — sans la bordure de colonne (elle n'est
+   pas accolée à une viz) ni l'étirement de la dernière card (elle défile). */
+.split-aside {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
 /* Séparateur entre éléments empilés dans une colonne étroite (cards du nuage,
    modules du réseau). La variante `.ui-card--bare` rehausse la spécificité pour
    l'emporter sur le `border: none` des cards bare (classe + [data-v]). */
 .split-left > * + *,
 .split-right > * + *,
+.split-aside > * + *,
 .split-left > .ui-card--bare + .ui-card--bare,
-.split-right > .ui-card--bare + .ui-card--bare {
+.split-right > .ui-card--bare + .ui-card--bare,
+.split-aside > .ui-card--bare + .ui-card--bare {
     border-top: 1px solid var(--c-border);
 }
 
@@ -100,7 +142,8 @@
    Cards latérales (nuage, thèmes) : corps d'UiCard. Modules bruts (réseau) :
    .lex-module. */
 .split-left > .ui-card > .ui-card__body,
-.split-right > .ui-card > .ui-card__body {
+.split-right > .ui-card > .ui-card__body,
+.split-aside > .ui-card > .ui-card__body {
     padding: var(--split-pad-aside);
 }
 

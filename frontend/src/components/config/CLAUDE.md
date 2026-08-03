@@ -23,6 +23,10 @@ dans la config ; les liens posés visent encore l'ancienne URL).
   `styles`, `highlights`, `rules` (`{ default, byDepth }`), `settled`, les
   modèles (`useStructureShapes`), et le calcul des `sections` (une par zone,
   `groupByZone` + `shapeGroups` + profondeur des règles). `load(id)`/`save(id)`.
+- **`HighlightsList.vue`** — les surlignages relevés (couleur · comptes ·
+  ventilation · échantillon · rôle), extraits de `ConfigView` : l'aside
+  « Validation » de la maquette (`../maquette/MaquetteAside.vue`) monte le MÊME
+  bloc, avec `RuleSetForm`. `highlights` est muté en place.
 - **`TypologySection.vue`** rend une typologie : styles (2/3) ‖ modèles (1/3) via
   `AnalyseBlock aside="right"` pour les zones de chapitrage, puis les règles
   dessous ; styles seuls pour liminaire/final. Slot `#lead` pour la reprise des

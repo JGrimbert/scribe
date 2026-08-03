@@ -5,15 +5,23 @@
 <script setup>
 import { onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import * as echarts from 'echarts/core'
-import { BarChart } from 'echarts/charts'
-import { GridComponent, LegendComponent, TooltipComponent } from 'echarts/components'
+import { BarChart, ScatterChart } from 'echarts/charts'
+import { GridComponent, LegendComponent, SingleAxisComponent, TooltipComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
+// Le jitter (option d'AXE en echarts 6) est une « feature » à installer à part —
+// sans elle, `xAxis.jitter` est ignoré en silence et les points se recouvrent.
+import { ScatterJitter } from 'echarts/features'
 
 // Import modulaire volontaire : `import * as echarts from 'echarts'` embarque
 // tous les types de graphes (~1 Mo). On n'enregistre que ce que l'app utilise
 // réellement — ajouter ici (et seulement ici) le module d'un nouveau type de
 // graphe le jour où on en introduit un.
-echarts.use([BarChart, GridComponent, LegendComponent, TooltipComponent, CanvasRenderer])
+echarts.use([
+  BarChart, ScatterChart,
+  GridComponent, LegendComponent, SingleAxisComponent, TooltipComponent,
+  ScatterJitter,
+  CanvasRenderer,
+])
 
 const props = defineProps({
   // Option echarts complète. Reconstruire l'objet plutôt que le muter : le
