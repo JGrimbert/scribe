@@ -162,7 +162,9 @@ const props = defineProps({
 })
 
 // `step` : cran de pagination applicative demandé à la molette (±1), cf. wheelPaging.
-const emit = defineEmits(['step'])
+// `spread-geometry` : rects ÉCRAN des pages de la planche (mode spread), pour les
+// callouts dockés de l'aperçu de format (cf. maquette/MaquetteFormatCallouts).
+const emit = defineEmits(['step', 'spread-geometry'])
 
 const rootRef = ref(null)
 const frameRef = ref(null)
@@ -192,9 +194,21 @@ function updateSpreadBg() {
   const frame = frameRef.value
   if (!bg || !doc || !frame) return
   const pages = doc.querySelectorAll('.pagedjs_page')
-  if (!pages.length) { bg.style.opacity = '0'; return }
+  if (!pages.length) { bg.style.opacity = '0'; emit('spread-geometry', null); return }
   const first = pages[0]
   const r0 = first.getBoundingClientRect()
+  // Rects ÉCRAN des pages : les callouts de format s'y ancrent (cf. formatAnchors
+  // + MaquetteFormatCallouts). Les pages vivent DANS l'iframe → leur rect est
+  // relatif au viewport de l'iframe ; on ajoute l'offset écran de la frame pour
+  // le ramener en coordonnées fenêtre (même correction que la trame ci-dessous).
+  // Émis à chaque mesure — repagination, échelle (onScaled), molette (onFrameWheel).
+  const fr = frame.getBoundingClientRect()
+  emit('spread-geometry', {
+    pages: Array.from(pages).map((p) => {
+      const r = p.getBoundingClientRect()
+      return { left: r.left + fr.left, top: r.top + fr.top, width: r.width, height: r.height }
+    }),
+  })
   // Période = page + gouttière. Mesurée entre deux pages quand elles existent ;
   // sinon déduite de la marge de la page — `getComputedStyle` rend une valeur de
   // MISE EN PAGE (avant transform), d'où le produit par l'échelle, alors qu'un

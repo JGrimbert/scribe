@@ -177,6 +177,17 @@
                       :book-title="searching ? '' : bookTitle"
                       :highlight-style="hoveredStyle"
                       @step="stepResultPage"
+                      @spread-geometry="spreadGeometry = $event"
+                  />
+
+                  <!-- Contrôles de format DOCKÉS sur l'aperçu (l'aside est masquée
+                       pour cette source) : cartes ferrées aux bords + traits vers
+                       les zones réglées, alimentées par la géométrie émise. -->
+                  <MaquetteFormatCallouts
+                      v-if="isFormat && !searching && !isListing"
+                      :page="fmtPage"
+                      :style-defaults="styleDefaults"
+                      :geometry="spreadGeometry"
                   />
                   <!-- Pager : la molette au-dessus du folio fait la même chose, mais elle
                        ne s'annonce pas. -->
@@ -294,7 +305,9 @@
          Recherche ouverte : elle s'efface — la planche de résultats prend toute la
          largeur, et la section du cran focusé n'a plus rien à commenter. `v-show`
          et non `v-if` : rien à remonter (tables de styles, scrollbar) au retour. -->
-    <div v-show="!searching" class="maquette__aside-col" @wheel.prevent="onAsideWheel">
+    <!-- Format : l'aside est masquée, l'écran se pilote par les callouts dockés
+         sur l'aperçu (cf. MaquetteFormatCallouts). -->
+    <div v-show="!searching && !isFormat" class="maquette__aside-col" @wheel.prevent="onAsideWheel">
       <!-- 84 = les DEUX barres (doc-bar + barre de la maquette) : la track démarre
            sous elles, la colonne défile derrière. -->
       <CustomScrollbar :top-offset="84">
@@ -341,6 +354,7 @@ import MaquetteLiminaireCell from './MaquetteLiminaireCell.vue'
 import MaquetteChapitreCell from './MaquetteChapitreCell.vue'
 import MaquetteAnalyseCell from './MaquetteAnalyseCell.vue'
 import MaquetteAside from './MaquetteAside.vue'
+import MaquetteFormatCallouts from './MaquetteFormatCallouts.vue'
 import MaquetteNodeIdent from './MaquetteNodeIdent.vue'
 import MaquetteStructureNav from './MaquetteStructureNav.vue'
 import MaquetteBar from './MaquetteBar.vue'
@@ -976,8 +990,12 @@ watch(focused, () => { hoveredStyle.value = null })
 const documentPageOdt = inject('documentPageOdt', null)
 const fmtPage = computed(() => documentPageOdt?.value ?? null)
 
+// Géométrie de la planche (rects écran des pages), émise par le FolioView
+// persistant : alimente les ancres des callouts de format dockés sur l'aperçu.
+const spreadGeometry = ref(null)
+
 // Format/marges/titres EFFECTIFS = relevé .odt + surcharges EN COURS (styleDefaults,
-// muté en place par MaquetteFormatControls/RunningBandControl). Nouvel objet à chaque
+// muté en place par MaquetteFormatCallouts). Nouvel objet à chaque
 // édition (spread / clone profond) → les aperçus détectent le changement par référence.
 const previewPage = computed(() => effectivePage(fmtPage.value, styleDefaults.pageSize))
 const previewMargins = computed(() => ({ ...effectiveMargins(fmtPage.value, styleDefaults.pageMargins) }))

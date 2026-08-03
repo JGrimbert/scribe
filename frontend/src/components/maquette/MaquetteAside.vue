@@ -7,15 +7,13 @@
   <aside class="maq-aside">
     <Transition name="maq-rise" mode="out-in">
       <section :key="activeBlock" class="maq-aside__block" :data-block="activeBlock">
-        <!-- Format : contrôles de page + en-têtes/pieds. -->
-        <template v-if="activeBlock === 'format'">
-          <MaquetteFormatControls :page="fmtPage" :style-defaults="styleDefaults" />
-        </template>
+        <!-- Format : plus rien ici — les réglages sont dockés sur l'aperçu
+             (MaquetteFormatCallouts) et l'aside est masquée pour cette source. -->
 
         <!-- Validation : ce qui décide qu'un chapitre est en règle — le socle de
              règles par défaut, puis le sens donné à chaque surlignage. Rapatrié
              de l'écran de config, « Non situés » abandonné au passage. -->
-        <template v-else-if="activeBlock === 'validation'">
+        <template v-if="activeBlock === 'validation'">
           <h4 class="maq-sub">Règles par défaut</h4>
           <p class="maq-hint">
             S'appliquent à tout niveau de chapitrage qui n'a pas ses propres règles.
@@ -131,7 +129,6 @@
 
 <script setup>
 import { computed } from 'vue'
-import MaquetteFormatControls from './MaquetteFormatControls.vue'
 import MaquetteLiminaireJalon from './MaquetteLiminaireJalon.vue'
 import StyleRolesTable from '../config/StyleRolesTable.vue'
 import StructureModelList from '../config/StructureModelList.vue'

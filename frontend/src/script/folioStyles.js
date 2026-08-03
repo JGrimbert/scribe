@@ -116,7 +116,9 @@ function rectoMargins(page, margins) {
 const DEFAULT_BAND_CM = 0.6 // hauteur d'une ligne de titre courant, si non fixée
 const RUNNING_GAP_CM = 0.4 // blanc entre le titre courant et le corps
 
-function bandHeightCm(band) {
+// Exportée : les ancres de l'aperçu de format (cf. formatAnchors.js) situent la
+// bande au pixel près, elles doivent lire la MÊME hauteur que le rendu.
+export function bandHeightCm(band) {
   return band && band.heightCm ? band.heightCm : DEFAULT_BAND_CM
 }
 

@@ -33,6 +33,36 @@ export function effectivePage(page, pageSize) {
   return { ...(page ?? FALLBACK_MARGINS), widthCm: pageSize.widthCm, heightCm: pageSize.heightCm }
 }
 
+// ─── Unité d'affichage ────────────────────────────────────────────────────
+//
+// Le modèle reste en cm (unité du relevé .odt) : l'unité n'est qu'un habillage de
+// saisie. Partagée par les contrôles de format (le select) et par les callouts
+// dockés sur la maquette (les champs), qui doivent afficher la même chose.
+export const UNITS = [
+  { key: 'mm', label: 'mm', perCm: 10, dec: 1 },
+  { key: 'cm', label: 'cm', perCm: 1, dec: 2 },
+  { key: 'in', label: 'in', perCm: 1 / 2.54, dec: 3 },
+  { key: 'pt', label: 'pt', perCm: 72 / 2.54, dec: 1 },
+]
+
+const unitDef = (key) => UNITS.find((u) => u.key === key) ?? UNITS[1]
+
+export function unitStep(key) {
+  return key === 'mm' || key === 'pt' ? 1 : 0.1
+}
+
+export function toUnit(cm, key) {
+  if (cm == null || cm === false) return ''
+  const u = unitDef(key)
+  const f = 10 ** u.dec
+  return Math.round(cm * u.perCm * f) / f
+}
+
+export function fromUnit(raw, key) {
+  const n = Number(String(raw).trim())
+  return Number.isFinite(n) ? n / unitDef(key).perCm : null
+}
+
 // ─── Marges (recto/verso, en miroir) ──────────────────────────────────────
 //
 // Fallback des marges quand le .odt n'a rien livré : le défaut A5 de paged.css.
