@@ -174,6 +174,11 @@ const padBgRef = ref(null)
 // Le wrapper des pages : référentiel de la trame quand elle est LOCALE (bgScope).
 const padRef = ref(null)
 
+// Entre-rang (axe Y) = gouttière de reliure × ce facteur. Deux rangées de folios
+// empilées se séparent ainsi plus franchement que les deux pages d'une planche —
+// c'est le seul réglage de la hiérarchie du pavage.
+const ROW_GUTTER_RATIO = 2.5
+
 // Cale la trame de fond (mode spread) sur la géométrie SCALÉE des pages. Le fond
 // couvre TOUTE la fenêtre (position: fixed, cf. CSS) : il n'a donc plus de boîte à
 // mesurer, seulement une PÉRIODE et une PHASE par axe (le centre de la gouttière
@@ -206,14 +211,22 @@ function updateSpreadBg() {
   const padRect = props.bgScope === 'local' ? padRef.value?.getBoundingClientRect() : null
   const originX = padRect?.left ?? 0
   const originY = padRect?.top ?? 0
-  // La gouttière (X) sert aussi d'entre-rang (Y) : la rangée est unique, mais la
-  // trame horizontale se répète sur toute la fenêtre — tête et pied de page en
-  // portent un filet, à la même distance que les reliures.
+  // Gouttière de reliure (X), mesurée ; l'entre-rang (Y) en dérive mais s'en
+  // DÉCOUPLE (cf. ROW_GUTTER_RATIO) : deux rangées de folios doivent se séparer
+  // plus franchement que deux pages d'une même planche.
   const gutter = period - r0.width
+  const gutterY = gutter * ROW_GUTTER_RATIO
+  // Les PHASES visent le bord SORTANT de la 1re page (début de la gouttière) et
+  // non son milieu : chaque période porte deux filets, un par bord de gouttière
+  // (cf. CSS). Le pavage cerne donc les pages au lieu de les séparer d'un trait,
+  // et l'entre-rang se lit comme une bande — c'est ce qui sépare deux rangées de
+  // folios empilées.
+  bg.style.setProperty('--pad-gutter', `${gutter}px`)
   bg.style.setProperty('--pad-period', `${period}px`)
-  bg.style.setProperty('--pad-phase', `${r0.left + frameRect.left - originX + r0.width + gutter / 2}px`)
-  bg.style.setProperty('--pad-period-y', `${r0.height + gutter}px`)
-  bg.style.setProperty('--pad-phase-y', `${r0.top + frameRect.top - originY + r0.height + gutter / 2}px`)
+  bg.style.setProperty('--pad-phase', `${r0.left + frameRect.left - originX + r0.width}px`)
+  bg.style.setProperty('--pad-gutter-y', `${gutterY}px`)
+  bg.style.setProperty('--pad-period-y', `${r0.height + gutterY}px`)
+  bg.style.setProperty('--pad-phase-y', `${r0.top + frameRect.top - originY + r0.height}px`)
   bg.style.opacity = '1'
 }
 
@@ -490,8 +503,12 @@ function runningTitlesSignature(rt) {
 }
 
 /* Trame de fond (double-page) : fines pointillées figurant reliures ET frontières
-   de planches, en GRILLE (verticales = gouttières entre pages, horizontales = tête
-   et pied). `position: fixed` : elle couvre TOUTE la fenêtre — elle passe donc
+   de planches, en GRILLE. Chaque période porte DEUX filets, un par bord de
+   gouttière (verticales = bords sortants des pages, horizontales = tête et pied) :
+   le pavage cerne les pages au lieu de les séparer d'un trait, et l'espace entre
+   deux rangées de folios se lit comme une bande — c'est ce qui rend nette la
+   séparation quand plusieurs planches sont empilées.
+   `position: fixed` : elle couvre TOUTE la fenêtre — elle passe donc
    derrière la doc-bar et descend jusqu'en bas, au-delà de la planche, et échappe à
    l'`overflow: hidden` de la vue (aucun ancêtre ne porte de transform/filter, qui
    referait de la frame le référentiel du fixed). La grille reste calée sur les
@@ -514,9 +531,11 @@ function runningTitlesSignature(rt) {
   --pad-dash: 2px;      /* longueur d'un tiret */
   --pad-gap: 3px;       /* espace entre tirets */
   /* ── Posés par JS ── */
+  --pad-gutter: 0px;    /* reliure : écart entre les deux filets, axe X */
   --pad-period: 0px;    /* page + gouttière, axe X */
-  --pad-phase: 0px;     /* centre de la 1re gouttière, en coordonnées écran */
-  --pad-period-y: 0px;  /* page + gouttière, axe Y */
+  --pad-phase: 0px;     /* bord sortant de la 1re page, en coordonnées écran */
+  --pad-gutter-y: 0px;  /* entre-rang : plus large que la reliure (ROW_GUTTER_RATIO) */
+  --pad-period-y: 0px;  /* page + entre-rang, axe Y */
   --pad-phase-y: 0px;
 }
 
@@ -531,7 +550,10 @@ function runningTitlesSignature(rt) {
 /* Les deux axes partagent tout sauf leur direction : un tile d'EXACTEMENT une
    période (et non un `repeating-linear-gradient` étalé sur toute la boîte, dont la
    copie de gauche redémarrait à une phase arbitraire → filet parasite dans la
-   première page), et un mask perpendiculaire qui le découpe en pointillé. */
+   première page), et un mask perpendiculaire qui le découpe en pointillé.
+   Le tile porte les DEUX filets de la gouttière : le premier à son origine (bord
+   sortant de la page), le second à `--pad-gutter` (bord entrant de la suivante) ;
+   le reste de la période — la page — est transparent. */
 .folio-pad-bg::before,
 .folio-pad-bg::after {
   content: "";
@@ -544,7 +566,11 @@ function runningTitlesSignature(rt) {
     to right,
     var(--pad-color) 0,
     var(--pad-color) var(--pad-line),
-    transparent var(--pad-line)
+    transparent var(--pad-line),
+    transparent var(--pad-gutter),
+    var(--pad-color) var(--pad-gutter),
+    var(--pad-color) calc(var(--pad-gutter) + var(--pad-line)),
+    transparent calc(var(--pad-gutter) + var(--pad-line))
   );
   background-size: var(--pad-period) 100%;
   background-position-x: calc(var(--pad-phase) - var(--pad-line) / 2);
@@ -563,7 +589,11 @@ function runningTitlesSignature(rt) {
     to bottom,
     var(--pad-color) 0,
     var(--pad-color) var(--pad-line),
-    transparent var(--pad-line)
+    transparent var(--pad-line),
+    transparent var(--pad-gutter-y),
+    var(--pad-color) var(--pad-gutter-y),
+    var(--pad-color) calc(var(--pad-gutter-y) + var(--pad-line)),
+    transparent calc(var(--pad-gutter-y) + var(--pad-line))
   );
   background-size: 100% var(--pad-period-y);
   background-position-y: calc(var(--pad-phase-y) - var(--pad-line) / 2);

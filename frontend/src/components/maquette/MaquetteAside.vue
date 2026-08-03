@@ -237,12 +237,12 @@ const chapStyles = computed(() => splitByModel(activeChap.value?.sec.styles ?? [
 
 <style scoped>
 /* Aside : une seule section visible à la fois (celle de la série focusée). Le
-   padding-tête réserve la hauteur de la doc-bar. */
+   padding-tête réserve la hauteur des DEUX barres (doc-bar + MaquetteBar). */
 .maq-aside {
   display: flex;
   flex-direction: column;
   /*border-left: 1px solid teal;*/
-  padding: calc(var(--bar-size) + 1.25em) var(--sp-4) var(--fs-xl);
+  padding: calc(2 * var(--bar-size) + 1.25em) var(--sp-4) var(--fs-xl);
 }
 
 /* Un bloc = la section active, en CARTE FLOTTANTE (mêmes traits que les

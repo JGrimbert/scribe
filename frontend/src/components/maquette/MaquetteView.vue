@@ -7,6 +7,16 @@
        dans l'accordéon fait remonter sa section en tête (scroll-spy).
        Persistance via l'action « Enregistrer » de la doc-bar (`save`). -->
   <div class="maquette">
+    <!-- Troisième barre de l'écran, empilée sous le menu et la doc-bar : la
+         recherche à gauche, le dézoom à droite. Deux réglages permanents. -->
+    <MaquetteBar
+        :zoom="zoom"
+        :zooms="ZOOMS"
+        @update:zoom="zoom = $event"
+        @update:searching="onSearching"
+        @update:query="onQuery"
+    />
+
     <!-- Sommaire flottant (hors flux) : parties + arbre des axes. Toujours actif ;
          le cran focusé surligne sa partie, le nœud témoin son axe. -->
     <!-- Pas de `node-id` : l'arbre ne réagit pas à la partie focusée (ni surlignage
@@ -19,8 +29,6 @@
         :data="documentData"
         @focus-series="focusSeries"
         @select-node="selectNode"
-        @update:searching="onSearching"
-        @update:query="onQuery"
     >
       <!-- Le dock accordéon est le PIED du sommaire : ferré au bord gauche de la
            fenêtre, hors du flux de la colonne d'aperçu (qui ne bouge donc jamais,
@@ -96,45 +104,34 @@
                 'folio-stage--list': isListing,
               }"
           >
-            <!-- Barre de scène, PERMANENTE (le padding-tête de la scène lui réserve
-                 la bande, hors du chemin des rangées) : le dézoom pilote la frame
-                 principale quelle que soit la source affichée — c'est un réglage de
-                 la scène, pas un mode. Le reste ne parle que de la liste. -->
-            <div class="maq-scene-bar">
-              <label class="maq-scene-bar__zoom">
-                <span>Dézoom</span>
-                <!-- `.number` ne traverse pas un v-model de composant (BaseSelect ne
-                     lit pas modelModifiers) : la conversion se fait ici. -->
-                <BaseSelect :model-value="zoom" @update:model-value="zoom = Number($event)">
-                  <option v-for="z in ZOOMS" :key="z" :value="z">×{{ z }}</option>
-                </BaseSelect>
-              </label>
-
-              <template v-if="isListing">
-                <span class="maq-scene-bar__label">
-                  {{ listingNodes.length }} nœud{{ listingNodes.length > 1 ? 's' : '' }}
-                  · {{ listTally.validables }} validables · {{ listTally.valides }} validés
-                </span>
-                <!-- Pager : la molette au-dessus des rangées fait la même chose (elle
-                     n'appartient à l'iframe qu'au-dessus des PAGES, où elle défile la
-                     planche). -->
-                <div class="maq-scene-bar__pager">
-                  <button
-                      type="button" class="maq-pager__btn" aria-label="Nœuds précédents"
-                      :disabled="listPage === 0" @click="stepListPage(-1)"
-                  >
-                    <i class="pi pi-chevron-up"></i>
-                  </button>
-                  <span class="maq-pager__count">{{ listPage + 1 }} / {{ listPageCount }}</span>
-                  <button
-                      type="button" class="maq-pager__btn" aria-label="Nœuds suivants"
-                      :disabled="listPage >= listPageCount - 1" @click="stepListPage(1)"
-                  >
-                    <i class="pi pi-chevron-down"></i>
-                  </button>
-                </div>
-                <BaseButton variant="ghost" icon="pi-times" title="Replier la liste" @click="listingIndex = null" />
-              </template>
+            <!-- Barre de scène : elle ne parle plus que de la LISTE (le dézoom,
+                 réglage permanent, est monté dans la barre de l'écran). Elle
+                 n'existe donc qu'en liste, et le padding-tête de la scène qui lui
+                 réserve sa bande suit — hors liste, l'aperçu récupère la hauteur. -->
+            <div v-if="isListing" class="maq-scene-bar">
+              <span class="maq-scene-bar__label">
+                {{ listingNodes.length }} nœud{{ listingNodes.length > 1 ? 's' : '' }}
+                · {{ listTally.validables }} validables · {{ listTally.valides }} validés
+              </span>
+              <!-- Pager : la molette au-dessus des rangées fait la même chose (elle
+                   n'appartient à l'iframe qu'au-dessus des PAGES, où elle défile la
+                   planche). -->
+              <div class="maq-scene-bar__pager">
+                <button
+                    type="button" class="maq-pager__btn" aria-label="Nœuds précédents"
+                    :disabled="listPage === 0" @click="stepListPage(-1)"
+                >
+                  <i class="pi pi-chevron-up"></i>
+                </button>
+                <span class="maq-pager__count">{{ listPage + 1 }} / {{ listPageCount }}</span>
+                <button
+                    type="button" class="maq-pager__btn" aria-label="Nœuds suivants"
+                    :disabled="listPage >= listPageCount - 1" @click="stepListPage(1)"
+                >
+                  <i class="pi pi-chevron-down"></i>
+                </button>
+              </div>
+              <BaseButton variant="ghost" icon="pi-times" title="Replier la liste" @click="listingIndex = null" />
             </div>
 
             <!-- Pile des rangées. Wrapper PERMANENT (jamais de v-if sur le chemin du
@@ -294,7 +291,9 @@
          largeur, et la section du cran focusé n'a plus rien à commenter. `v-show`
          et non `v-if` : rien à remonter (tables de styles, scrollbar) au retour. -->
     <div v-show="!searching" class="maquette__aside-col" @wheel.prevent="onAsideWheel">
-      <CustomScrollbar :top-offset="42">
+      <!-- 84 = les DEUX barres (doc-bar + barre de la maquette) : la track démarre
+           sous elles, la colonne défile derrière. -->
+      <CustomScrollbar :top-offset="84">
         <MaquetteAside
             :fmt-page="fmtPage"
             :style-defaults="styleDefaults"
@@ -343,13 +342,13 @@ import MaquetteAnalyseCell from './MaquetteAnalyseCell.vue'
 import MaquetteAside from './MaquetteAside.vue'
 import MaquetteNodeIdent from './MaquetteNodeIdent.vue'
 import MaquetteStructureNav from './MaquetteStructureNav.vue'
+import MaquetteBar from './MaquetteBar.vue'
 import VocabulaireCloud from '../analyse/lexical/VocabulaireCloud.vue'
 import OccurrencesCard from '../analyse/lexical/OccurrencesCard.vue'
 import SemantiqueCard from '../analyse/semantic/SemantiqueCard.vue'
 import FolioView from '../editor/FolioView.vue'
 import CustomScrollbar from '../ui/atoms/CustomScrollbar.vue'
 import BaseButton from '../ui/atoms/BaseButton.vue'
-import BaseSelect from '../ui/atoms/BaseSelect.vue'
 import PageDiagram from '../config/PageDiagram.vue'
 import StyleEditorPanel from '../config/StyleEditorPanel.vue'
 import AccordeonControls from '../liminaire/AccordeonControls.vue'
@@ -724,8 +723,9 @@ const chapTallyRows = computed(() =>
 )
 
 // ── Dézoom de la frame principale ───────────────────────────────────────────
-// Réglage PERMANENT de la scène, pas un attribut d'un mode : ×1 = la planche
-// d'ouverture (deux pages), ×3 = six pages de large. Il pilote `visible-pages` du
+// Réglage PERMANENT de l'écran (d'où sa place dans la barre, cf. MaquetteBar),
+// pas un attribut d'un mode : ×1 = la planche d'ouverture (deux pages), ×3 =
+// six pages de large. Il pilote `visible-pages` du
 // FolioView, et la trame de fond pointillée suit l'échelle d'elle-même (cf.
 // updateSpreadBg). Recherche : la planche ne porte qu'UNE page de résultats (cf.
 // RESULTS_PER_PAGE), le dézoom part donc d'une page et non d'un vis-à-vis.
@@ -1061,7 +1061,8 @@ onUnmounted(() => { if (section) section.value = null })
   display: flex;
   flex-direction: column;
   min-height: 0;
-  padding-top: calc(var(--bar-size) + 2em);
+  /* Sous les DEUX barres : la doc-bar et la barre de la maquette (MaquetteBar). */
+  padding-top: calc(2 * var(--bar-size) + 1em);
   padding-left: 0;
   padding-bottom: calc(var(--maq-dock-h) + var(--sp-4));
 }
@@ -1115,13 +1116,16 @@ onUnmounted(() => { if (section) section.value = null })
 
 /* Scène du FolioView unique : remplit le main, sert de repère au overlay absolu
    des contrôles liminaire. Même hauteur bornée pour les 3 sources → échelle iso.
-   Le padding-tête réserve la bande de la barre de scène (posée en absolu), qui
-   porte le dézoom en permanence. */
+   Le padding-tête ne réserve la bande de la barre de scène (posée en absolu) que
+   là où celle-ci existe : en liste. */
 .folio-stage {
   position: relative;
   display: flex;
   flex: 1 1 auto;
   min-height: 0;
+}
+
+.folio-stage--list {
   padding-top: 2.2em;
 }
 
@@ -1190,7 +1194,8 @@ onUnmounted(() => { if (section) section.value = null })
   padding: 0 4em 0 0;
 }
 
-/* Barre de scène : des réglages, pas des actions — discrète, en tête de scène. */
+/* Barre de scène : l'état de la liste (compte, pager, repli), discrète, en tête
+   de scène. Les réglages permanents de l'écran, eux, vivent dans MaquetteBar. */
 .maq-scene-bar {
   position: absolute;
   top: 0;
@@ -1207,7 +1212,6 @@ onUnmounted(() => { if (section) section.value = null })
   font-variant-numeric: tabular-nums;
 }
 
-.maq-scene-bar__zoom,
 .maq-scene-bar__pager {
   display: flex;
   align-items: center;
@@ -1230,7 +1234,9 @@ onUnmounted(() => { if (section) section.value = null })
   position: fixed;
 
   right: 0px;
-  top: 4em;
+  /* `fixed` = calé sur le viewport : le décalage compte la pile de barres, dont
+     la troisième (MaquetteBar) fait partie. */
+  top: calc(4em + var(--bar-size));
   bottom: calc(var(--maq-dock-h) + var(--sp-4));
   width: 60%;
   /* Au-dessus de l'iframe du folio, qui porte `z-index: 1` en double-page (cf.
@@ -1250,7 +1256,7 @@ onUnmounted(() => { if (section) section.value = null })
 .maq-analyse-aside {
   position: fixed;
   right: 0;
-  top: 4em;
+  top: calc(4em + var(--bar-size));
   bottom: calc(var(--maq-dock-h) + var(--sp-4));
   width: 22em;
   max-width: 40%;

@@ -1,0 +1,146 @@
+<template>
+  <!-- Troisième rangée de l'écran Maquette, empilée sous le menu principal et la
+       doc-bar : la RECHERCHE à gauche (elle a quitté la doc-bar, puis la carte du
+       sommaire flottant), le DÉZOOM à droite. Deux réglages permanents de l'écran
+       — pas des actions, d'où une bande sans fond propre, juste un filet. -->
+  <div class="maq-bar">
+    <!-- Loupe teal, champ sans bord ni fond : la barre porte le cadre, pas lui. -->
+    <label class="maq-search">
+      <i class="pi pi-search maq-search__icon"></i>
+      <input
+          ref="inputEl"
+          v-model="query"
+          type="search"
+          class="maq-search__input"
+          placeholder="Rechercher…"
+          @focus="open = true"
+      />
+    </label>
+
+    <label class="maq-bar__zoom">
+      <span>Dézoom</span>
+      <!-- `.number` ne traverse pas un v-model de composant (BaseSelect ne lit pas
+           modelModifiers) : la conversion se fait ici. -->
+      <BaseSelect :model-value="zoom" @update:model-value="$emit('update:zoom', Number($event))">
+        <option v-for="z in zooms" :key="z" :value="z">×{{ z }}</option>
+      </BaseSelect>
+    </label>
+  </div>
+</template>
+
+<script setup>
+import { ref, watch, onUnmounted } from 'vue'
+import BaseSelect from '../ui/atoms/BaseSelect.vue'
+
+defineProps({
+  zoom: { type: Number, required: true },
+  zooms: { type: Array, required: true },
+})
+
+// `update:searching` : la maquette replie son accordéon tant que la recherche est
+// ouverte, et le rend tel quel à la fermeture. `update:query` : elle en fait ses
+// résultats (la planche qui remplace l'aperçu).
+const emit = defineEmits(['update:zoom', 'update:searching', 'update:query'])
+
+const query = ref('')
+const open = ref(false)
+const inputEl = ref(null)
+
+watch(query, (q) => {
+  emit('update:query', q)
+  // Champ vidé = recherche close. Le champ vit maintenant dans une barre, pas
+  // dans la carte du sommaire : « clic dehors » fermerait la recherche au premier
+  // clic sur la scène, alors que TOUT l'écran est devenu son résultat (planche de
+  // passages, accordéon d'analyse). La sortie est donc explicite.
+  if (!q) open.value = false
+})
+
+function onDocKeydown(e) {
+  // Échap vide ET ferme : garder la saisie dans un champ dont la recherche est
+  // close laisserait les deux états en désaccord.
+  if (e.key !== 'Escape') return
+  query.value = ''
+  open.value = false
+  inputEl.value?.blur()
+}
+
+watch(open, (isOpen) => {
+  emit('update:searching', isOpen)
+  document[isOpen ? 'addEventListener' : 'removeEventListener']('keydown', onDocKeydown)
+})
+onUnmounted(() => document.removeEventListener('keydown', onDocKeydown))
+</script>
+
+<style scoped>
+/* Bande pleine largeur, posée en absolu sous la doc-bar (elle ne pousse rien : le
+   contenu de la maquette se décale par ses propres marges, cf. MaquetteView).
+   Au-dessus du sommaire flottant (z 160), sous les modales (z 200). */
+.maq-bar {
+  position: absolute;
+  top: var(--bar-size);
+  left: 0;
+  right: 0;
+  height: var(--bar-size);
+  z-index: 170;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  /* Alignée sur la colonne du sommaire (marge de .maq-nav + padding de sa carte). */
+  padding-left: calc(1em + var(--sp-3));
+  padding-right: 1em;
+  color: var(--c-ink2);
+  font-size: var(--fs-sm);
+  border-bottom: 1px solid var(--c-border);
+  backdrop-filter: var(--c-backdrop-filter-blur);
+}
+
+/* Le champ ne prend pas toute la barre : il reste au-dessus de la colonne du
+   sommaire, d'où il vient. Le dézoom se ferre à l'autre bout. */
+.maq-search {
+  flex: 0 1 26em;
+  display: flex;
+  align-items: center;
+  gap: 1em;
+}
+
+/* Loupe teal, plus présente que le champ : PrimeIcons est une police d'icônes,
+   `font-weight` n'y fait rien — l'épaisseur vient du contour. */
+.maq-search__icon {
+  flex: 0 0 auto;
+  font-size: 1.15em;
+  color: var(--c-accent-alt-darker);
+  -webkit-text-stroke: 0.6px currentColor;
+}
+
+.maq-search__input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: var(--fs-sm);
+}
+
+.maq-search__input:focus {
+  outline: none;
+}
+
+.maq-search__input::placeholder {
+  color: inherit;
+  opacity: var(--op-faint);
+}
+
+/* Chrome/Safari : retire la croix native du type=search (double emploi visuel). */
+.maq-search__input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+}
+
+.maq-bar__zoom {
+  margin-left: auto;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+</style>
