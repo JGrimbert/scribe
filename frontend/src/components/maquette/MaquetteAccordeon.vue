@@ -7,7 +7,7 @@
        OVERLAP) ; PLIÉE, elle les empile (recouvrement 95 %) et rend la place aux
        autres. La liste plate des crans arrive déjà construite (chaque cran porte
        sa zone : `sectionKey`/`sectionLabel`/`isSectionStart`). -->
-  <div class="maq-accordeon">
+  <div class="maq-accordeon" @mouseenter="atRest = false" @mouseleave="atRest = true">
     <!-- `.stop` : l'accordéon de recherche est monté DANS le panneau de celui du
          livre (cf. slot `panel`). Sans lui, une molette au-dessus du second
          remonterait au premier et ferait défiler les deux. -->
@@ -55,7 +55,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import MaquetteAccordeonSection from './MaquetteAccordeonSection.vue'
 import MaquetteSpreadCell from './MaquetteSpreadCell.vue'
 import { useWheelStepper } from '../../composables/useWheelStepper'
@@ -79,9 +79,18 @@ const props = defineProps({
   // on ne descend plus (l'escalier s'arrête). L'écart HORIZONTAL, borné par le
   // conteneur, suffit à distinguer les crans qui se chevauchent.
   dropSpan: { type: Number, default: 2 },
+  // Repos : hors survol du dock, toutes les zones se réduisent à leur onglet — la
+  // pellicule n'est plus qu'une file d'onglets, en X seulement (RIEN ne bouge en
+  // Y : les feuillets restent à leur hauteur, ils se recouvrent). C'est un ÉTAT
+  // (comme la recherche), pas une préférence : `folds` n'est pas touché et se
+  // retrouve intact au survol.
+  collapseOnLeave: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['update:focused', 'update:folds'])
+
+const atRest = ref(true)
+const resting = computed(() => props.collapseOnLeave && atRest.value)
 
 // Géométrie en unités RÉELLES (em). Tous les vis-à-vis ont la même largeur (deux
 // pages au ratio effectif) → on ménage de VRAIS intervalles vides entre groupes.
@@ -119,7 +128,8 @@ const layout = computed(() => {
   const cw = 2 * CARD_H * props.ratio
   let x = 0
   const sections = groups.value.map((g) => {
-    const level = LEVELS.includes(props.folds[g.key]) ? props.folds[g.key] : 'open'
+    const pref = LEVELS.includes(props.folds[g.key]) ? props.folds[g.key] : 'open'
+    const level = resting.value ? 'tab' : pref
     const step = (level === 'open' ? OVERLAP : OVERLAP_FOLDED) * cw
     const sec = { ...g, level, step, offset: x }
     x += level === 'tab' ? TAB_W : GROUP_GAP + cw + (g.items.length - 1) * step

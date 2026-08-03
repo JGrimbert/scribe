@@ -12,6 +12,9 @@
     <MaquetteBar
         :zoom="zoom"
         :zooms="ZOOMS"
+        :tally-row="activeTallyRow"
+        :listing="isListing"
+        @toggle-listing="toggleListing"
         @update:zoom="zoom = $event"
         @update:searching="onSearching"
         @update:query="onQuery"
@@ -36,6 +39,7 @@
       <template #footer>
         <MaquetteAccordeon
             v-model:folds="folds"
+            collapse-on-leave
             :crans="crans"
             :focused="focused"
             :ratio="previewRatio"
@@ -313,11 +317,8 @@
             :model-names="modelNames"
             :model-label="witnessItem?.titre ?? null"
             :tally-rows="chapTallyRows"
-            :listing="isListing"
-            @focus-level="focusSeries(`chap-${$event}`)"
             @extend="extendLiminaire"
             @exclude="excludeLiminaire"
-            @toggle-listing="toggleListing"
         />
       </CustomScrollbar>
     </div>
@@ -439,9 +440,6 @@ const chapSections = computed(() =>
 const series = computed(() => {
   const out = []
   out.push({ key: 'format', label: 'Format', spreads: [{ sourceKey: 'maquette' }] })
-  // Validation : même ZONE d'accordéon que Format (cf. sectionOf), donc un second
-  // feuillet collé au sien plutôt qu'un onglet de plus.
-  out.push({ key: 'validation', label: 'Validation', spreads: [{ sourceKey: 'validation' }] })
 
   const sp = limSpreads.value
   out.push({
@@ -457,14 +455,20 @@ const series = computed(() => {
       spreads: [{ sourceKey: 'chapitrage', sectionIndex: i, depthKey: sec.depthKey }],
     })
   })
+
+  // Validation ferme la marche : elle ouvre la zone « Annotations », dernière de
+  // la pellicule (ce qu'on dit du texte, après ce qui le compose).
+  out.push({ key: 'validation', label: 'Validation', spreads: [{ sourceKey: 'validation' }] })
   return out
 })
 
 // Section d'accordéon d'une série : Format · Liminaire · Chapitrage (tous les
-// niveaux de chapitrage fondus en UNE section, sans séparation visuelle interne).
+// niveaux de chapitrage fondus en UNE section, sans séparation visuelle interne)
+// · Annotations.
 function sectionOf(seriesKey) {
-  if (seriesKey === 'format' || seriesKey === 'validation') return { key: 'format', label: 'Format' }
+  if (seriesKey === 'format') return { key: 'format', label: 'Format' }
   if (seriesKey === 'liminaire') return { key: 'liminaire', label: 'Liminaire' }
+  if (seriesKey === 'validation') return { key: 'annotations', label: 'Annotations' }
   return { key: 'chapitrage', label: 'Chapitrage' }
 }
 
@@ -491,15 +495,39 @@ const crans = computed(() => {
 const focusedCran = computed(() => crans.value[focused.value] ?? null)
 const focusedSourceKey = computed(() => focusedCran.value?.sourceKey ?? null)
 
-// Niveau de pli par zone de l'accordéon ('open' | 'stack' | 'tab'). Tout est
-// déplié au départ.
+// Niveau de pli par zone de l'accordéon ('open' | 'stack' | 'tab'). Piloté par la
+// zone focusée (cf. applyAutoFolds) : une seule zone dépliée à la fois.
 const folds = ref({})
 const sectionKeys = computed(() => [...new Set(crans.value.map((c) => c.sectionKey))])
 
 // Recherche ouverte → l'accordéon se réduit à ses onglets (il rend sa place au
-// panneau). C'est un EFFET de la recherche, pas une préférence : on mémorise
-// l'état d'avant pour le rendre à la fermeture.
+// panneau). C'est un EFFET de la recherche, pas une préférence : à la fermeture,
+// le pli automatique reprend la main.
 const searching = ref(false)
+
+// Zone d'accordéon du cran focusé (à ne pas confondre avec `focusedSection`, la
+// section de CHAPITRAGE focusée).
+const focusedZoneKey = computed(() => focusedCran.value?.sectionKey ?? null)
+
+// Rétraction automatique : quitter une zone l'empile (feuillets recouverts à
+// 95 %), seule celle du cran focusé reste dépliée. L'animation est déjà portée
+// par l'accordéon (transform sur la zone et ses feuillets).
+function applyAutoFolds() {
+  folds.value = Object.fromEntries(
+    sectionKeys.value.map((k) => [k, k === focusedZoneKey.value ? 'open' : 'stack']),
+  )
+}
+
+// On ne réapplique QU'au changement de zone (et à l'apparition d'une zone, quand
+// les données arrivent après coup) : un pli posé à la main sur l'onglet reste
+// souverain tant qu'on ne change pas de zone. Volontairement pas sur
+// `sectionKeys` lui-même — ce computed se recrée à chaque recomposition des crans
+// (extension du liminaire…) et écraserait ce pli manuel.
+watch(
+  [focusedZoneKey, () => sectionKeys.value.join('|')],
+  () => { if (!searching.value) applyAutoFolds() },
+  { immediate: true },
+)
 const searchQuery = ref('')
 // Saisie DÉBOUNCÉE : chaque changement de `searchQuery` repagine l'iframe (Paged.js,
 // plusieurs dizaines de ms), une frappe au caractère en lançait autant en parallèle.
@@ -606,17 +634,14 @@ onUnmounted(() => cloudRo?.disconnect())
 // vivaient dans le panneau du dock, disparu avec lui).
 const { statItems } = useDocStats()
 
-let foldBeforeSearch = null
 function onSearching(active) {
   searching.value = active
   if (active) {
     // La planche de résultats prend la scène : la liste d'un niveau n'y a plus sa place.
     listingIndex.value = null
-    if (foldBeforeSearch === null) foldBeforeSearch = folds.value
     folds.value = Object.fromEntries(sectionKeys.value.map((k) => [k, 'tab']))
-  } else if (foldBeforeSearch !== null) {
-    folds.value = foldBeforeSearch
-    foldBeforeSearch = null
+  } else {
+    applyAutoFolds()
   }
 }
 
@@ -720,6 +745,14 @@ const chapTallyRows = computed(() =>
     fromModel: constraintsByDepth.value[sec.depthKey]?.fromModel ?? true,
     ...(chapTally.value[sec.depthKey] ?? { total: 0, validables: 0, valides: 0, perimes: 0 }),
   })),
+)
+
+// Le décompte du SEUL niveau focusé, pour la barre (l'aside n'affiche plus le
+// tableau des niveaux). null hors chapitrage : le groupe quitte la barre.
+const activeTallyRow = computed(() =>
+  focusedCran.value?.sourceKey === 'chapitrage'
+    ? (chapTallyRows.value[focusedCran.value.sectionIndex] ?? null)
+    : null,
 )
 
 // ── Dézoom de la frame principale ───────────────────────────────────────────

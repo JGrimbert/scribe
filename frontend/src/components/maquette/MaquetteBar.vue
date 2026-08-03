@@ -2,7 +2,9 @@
   <!-- Troisième rangée de l'écran Maquette, empilée sous le menu principal et la
        doc-bar : la RECHERCHE à gauche (elle a quitté la doc-bar, puis la carte du
        sommaire flottant), le DÉZOOM à droite. Deux réglages permanents de l'écran
-       — pas des actions, d'où une bande sans fond propre, juste un filet. -->
+       — pas des actions, d'où une bande sans fond propre, juste un filet. Au
+       milieu, le seul élément CONTEXTUEL : l'avancement du niveau de chapitrage
+       focusé (l'aside n'a plus ni titre de section ni tableau de décompte). -->
   <div class="maq-bar">
     <!-- Loupe teal, champ sans bord ni fond : la barre porte le cadre, pas lui. -->
     <label class="maq-search">
@@ -17,6 +19,30 @@
       />
     </label>
 
+    <!-- Une seule ligne, celle du niveau focusé : « n°2 · 63 % ». Le détail
+         chiffré vit dans l'infobulle — la barre n'est pas un tableau de bord. -->
+    <div v-if="tallyRow" class="maq-tally">
+      <span class="maq-tally__level">n°{{ tallyRow.index + 1 }}</span>
+      <span
+          class="maq-tally__pct"
+          :title="`${tallyRow.validables} validables · ${tallyRow.valides} validés / ${tallyRow.total}`"
+      >{{ pct }} %</span>
+
+      <!-- Bascule : l'aperçu d'UN nœud témoin ↔ la liste de TOUS les nœuds du
+           niveau. Rien ne s'ouvre par-dessus — la scène dézoome et le témoin y
+           devient la rangée n°1. -->
+      <button
+          type="button"
+          class="maq-tally__action"
+          :class="{ 'maq-tally__action--on': listing }"
+          :aria-pressed="listing"
+          :title="listing ? 'Replier la liste des nœuds' : 'Dérouler la liste des nœuds de ce niveau'"
+          @click="$emit('toggle-listing', tallyRow.index)"
+      >
+        <i class="pi pi-check-square" aria-hidden="true"></i>
+      </button>
+    </div>
+
     <label class="maq-bar__zoom">
       <span>Dézoom</span>
       <!-- `.number` ne traverse pas un v-model de composant (BaseSelect ne lit pas
@@ -29,18 +55,29 @@
 </template>
 
 <script setup>
-import { ref, watch, onUnmounted } from 'vue'
+import { computed, ref, watch, onUnmounted } from 'vue'
 import BaseSelect from '../ui/atoms/BaseSelect.vue'
 
-defineProps({
+const props = defineProps({
   zoom: { type: Number, required: true },
   zooms: { type: Array, required: true },
+  // Décompte du SEUL niveau de chapitrage focusé (cf. chapitrageValidation.js) :
+  // `{ index, total, validables, valides }`. null hors chapitrage (Format,
+  // Liminaire, Validation) : le groupe disparaît alors de la barre.
+  tallyRow: { type: Object, default: null },
+  // La liste des nœuds du niveau est-elle déroulée dans la scène ?
+  listing: { type: Boolean, default: false },
 })
 
 // `update:searching` : la maquette replie son accordéon tant que la recherche est
 // ouverte, et le rend tel quel à la fermeture. `update:query` : elle en fait ses
 // résultats (la planche qui remplace l'aperçu).
-const emit = defineEmits(['update:zoom', 'update:searching', 'update:query'])
+const emit = defineEmits(['update:zoom', 'update:searching', 'update:query', 'toggle-listing'])
+
+const pct = computed(() => {
+  const r = props.tallyRow
+  return r?.total ? Math.round((r.validables / r.total) * 100) : 0
+})
 
 const query = ref('')
 const open = ref(false)
@@ -134,6 +171,50 @@ onUnmounted(() => document.removeEventListener('keydown', onDocKeydown))
 /* Chrome/Safari : retire la croix native du type=search (double emploi visuel). */
 .maq-search__input::-webkit-search-cancel-button {
   -webkit-appearance: none;
+}
+
+/* Deux `margin-left: auto` (ici et sur le dézoom) : l'espace libre se partage,
+   le groupe se pose entre la recherche et le dézoom sans largeur imposée. */
+.maq-tally {
+  margin-left: auto;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.maq-tally__level {
+  opacity: var(--op-muted);
+}
+
+.maq-tally__pct {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  cursor: default;
+}
+
+/* Reprise du .maq-sec-action de l'aside (l'en-tête de section a disparu). */
+.maq-tally__action {
+  display: flex;
+  align-items: center;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  padding: 0.2em 0.35em;
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-md);
+}
+
+.maq-tally__action:hover {
+  color: var(--c-accent-alt);
+}
+
+/* Liste déroulée : la bascule reste enfoncée — la scène a changé d'état, le
+   bouton doit dire lequel. */
+.maq-tally__action--on {
+  color: var(--c-accent-alt);
+  background: color-mix(in srgb, var(--c-accent-alt) 12%, transparent);
 }
 
 .maq-bar__zoom {
