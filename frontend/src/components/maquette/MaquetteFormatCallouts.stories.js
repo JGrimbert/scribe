@@ -15,6 +15,7 @@ function makeDefaults() {
     runningTitles: {
       header: { enabled: true, recto: 'titre', verso: 'chapitre', heightCm: 1, justification: 'regard' },
       footer: { enabled: true, recto: 'folio', verso: 'folio', heightCm: 1, justification: 'regard' },
+      folioFormat: 'numerique',
     },
     hyphenation: false,
   })

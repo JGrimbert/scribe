@@ -47,9 +47,16 @@ export interface RunningBand {
   justification: Justification
 }
 
+// Style de numérotation du folio. GLOBAL au livre (pas par bande) : un ouvrage
+// numérote d'une seule façon, quelle que soit la zone qui porte le numéro.
+// `alpha` = a, b, c… (usage : cahiers hors-texte). → text:number-format à l'export.
+export const FOLIO_FORMATS = ['numerique', 'romain', 'alpha'] as const
+export type FolioFormat = (typeof FOLIO_FORMATS)[number]
+
 export interface RunningTitles {
   header: RunningBand
   footer: RunningBand
+  folioFormat: FolioFormat
 }
 
 export interface StyleDefaults {
@@ -65,6 +72,7 @@ export interface StyleDefaults {
 export const DEFAULT_RUNNING_TITLES: RunningTitles = {
   header: { enabled: false, recto: 'chapitre', verso: 'titre', heightCm: null, justification: 'regard' },
   footer: { enabled: false, recto: 'folio', verso: 'folio', heightCm: null, justification: 'centre' },
+  folioFormat: 'numerique',
 }
 
 export const DEFAULT_STYLE_DEFAULTS: StyleDefaults = {
@@ -157,6 +165,9 @@ function runningTitlesErrors(rt: unknown): string[] {
     }
     if (b.heightCm != null && !isPosCm(b.heightCm)) errors.push(`runningTitles.${band}.heightCm doit être un nombre positif ou null`)
   }
+  if (rt.folioFormat != null && !FOLIO_FORMATS.includes(rt.folioFormat as FolioFormat)) {
+    errors.push(`runningTitles.folioFormat doit valoir ${FOLIO_FORMATS.join(' | ')}`)
+  }
   return errors
 }
 
@@ -190,6 +201,10 @@ function content(v: unknown, fallback: RunningContent): RunningContent {
   return RUNNING_CONTENTS.includes(v as RunningContent) ? (v as RunningContent) : fallback
 }
 
+function folioFormat(v: unknown, fallback: FolioFormat): FolioFormat {
+  return FOLIO_FORMATS.includes(v as FolioFormat) ? (v as FolioFormat) : fallback
+}
+
 function normalizeRunningTitles(raw: unknown): RunningTitles {
   const d = DEFAULT_RUNNING_TITLES
   if (!isObject(raw)) return cloneRunningTitles(d)
@@ -202,6 +217,7 @@ function normalizeRunningTitles(raw: unknown): RunningTitles {
     return {
       header: { enabled: raw.enabled === true, recto: content(raw.recto, d.header.recto), verso: content(raw.verso, d.header.verso), heightCm: null, justification: d.header.justification },
       footer: { enabled: footerFolio, recto: footerFolio ? 'folio' : 'aucun', verso: footerFolio ? 'folio' : 'aucun', heightCm: null, justification: d.footer.justification },
+      folioFormat: d.folioFormat,
     }
   }
 
@@ -215,6 +231,7 @@ function normalizeRunningTitles(raw: unknown): RunningTitles {
   return {
     header: normalizeBand(raw.header, d.header),
     footer: normalizeBand(footerRaw, d.footer),
+    folioFormat: folioFormat(raw.folioFormat, d.folioFormat),
   }
 }
 
@@ -234,7 +251,7 @@ function cloneBand(b: RunningBand): RunningBand {
 }
 
 function cloneRunningTitles(rt: RunningTitles): RunningTitles {
-  return { header: cloneBand(rt.header), footer: cloneBand(rt.footer) }
+  return { header: cloneBand(rt.header), footer: cloneBand(rt.footer), folioFormat: rt.folioFormat }
 }
 
 // ─── Merge dimensions / marges pour le rendu ───────────────────────────────

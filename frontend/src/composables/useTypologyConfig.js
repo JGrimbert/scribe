@@ -51,6 +51,8 @@ export function useTypologyConfig() {
     runningTitles: {
       header: { enabled: false, recto: 'chapitre', verso: 'titre', heightCm: null, justification: 'regard' },
       footer: { enabled: false, recto: 'folio', verso: 'folio', heightCm: null, justification: 'centre' },
+      // Numérotation du folio : globale au livre, quelle que soit la bande qui le porte.
+      folioFormat: 'numerique',
     },
   })
   // Surcharges d'apparence PAR STYLE (police, corps, césure…), éditées dans le
@@ -280,6 +282,7 @@ export function useTypologyConfig() {
       // Remplacé en profondeur (bandes) : un rechargement repart de la base.
       Object.assign(styleDefaults.runningTitles.header, defaults.runningTitles.header)
       Object.assign(styleDefaults.runningTitles.footer, defaults.runningTitles.footer)
+      styleDefaults.runningTitles.folioFormat = defaults.runningTitles.folioFormat
 
       // Remplacé, pas fusionné (comme liminaireConfig) : un rechargement repart de
       // la base. `base` (valeurs .odt) est en lecture seule.

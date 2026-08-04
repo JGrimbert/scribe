@@ -66,6 +66,41 @@ describe('buildFormatAnchors', () => {
     expect(a['footer-content'].x).toBeCloseTo(301, 5)
   })
 
+  it('rend une zone surlignable PAR PAGE, jamais un rect enjambant la gouttière', () => {
+    const a = build()
+    // Blanc de tête : la bande de marge de chaque page, pas un bandeau continu.
+    expect(a['zone-blanc-tete']).toEqual([
+      { x: 0, y: 0, w: 148, h: 20 },
+      { x: 168, y: 0, w: 148, h: 20 },
+    ])
+    expect(a['zone-blanc-pied']).toEqual([
+      { x: 0, y: 180, w: 148, h: 30 },
+      { x: 168, y: 180, w: 148, h: 30 },
+    ])
+  })
+
+  it('coche les DEUX colonnes d\'un fond, aux bords extérieurs pour le petit', () => {
+    const a = build()
+    // Planche séquentielle : petit fond (1,5 cm) à gauche du recto, à droite du verso.
+    expect(a['zone-petit-fond']).toEqual([
+      { x: 0, y: 0, w: 15, h: 210 },
+      { x: 301, y: 0, w: 15, h: 210 },
+    ])
+    // Grand fond (2,5 cm) : l'inverse, côté gouttière.
+    expect(a['zone-grand-fond']).toEqual([
+      { x: 123, y: 0, w: 25, h: 210 },
+      { x: 168, y: 0, w: 25, h: 210 },
+    ])
+  })
+
+  it('zone de bande : une par page, vide tant que la bande dort', () => {
+    expect(build()['zone-header']).toEqual([])
+    const rt = { header: { enabled: true, recto: 'titre', verso: 'titre', heightCm: 1, justification: 'centre' } }
+    const zone = build({ runningTitles: rt })['zone-header']
+    expect(zone).toHaveLength(2)
+    expect(zone[0]).toEqual({ x: 15, y: 20, w: 108, h: 10 })
+  })
+
   it('décale toutes les ancres de l\'origine de la boîte', () => {
     const a = build({ origin: { left: 40, top: 12 } })
     expect(a['blanc-tete'].span).toEqual({ x1: 276, y1: -12, x2: 276, y2: 8 })

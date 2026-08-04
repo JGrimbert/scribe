@@ -2,7 +2,7 @@
   <!-- Select NU (ni fond ni cadre) des callouts de format : juste le libellé + un
        chevron. La valeur reste lisible posée sur le folio ou dans la colonne. -->
   <span class="bare-select" :class="{ 'bare-select--muted': muted }">
-    <select :value="modelValue" @change="$emit('update:modelValue', $event.target.value)">
+    <select :value="modelValue" :disabled="disabled" @change="$emit('update:modelValue', $event.target.value)">
       <option v-for="o in options" :key="o.value" :value="o.value">{{ o.label }}</option>
     </select>
     <i class="bare-select__chevron pi pi-angle-down" aria-hidden="true"></i>
@@ -14,6 +14,7 @@ defineProps({
   modelValue: { type: [String, Number], default: '' },
   options: { type: Array, default: () => [] }, // [{ value, label }]
   muted: { type: Boolean, default: false },
+  disabled: { type: Boolean, default: false },
 })
 defineEmits(['update:modelValue'])
 </script>
@@ -42,6 +43,11 @@ defineEmits(['update:modelValue'])
 
 .bare-select--muted select {
   color: var(--c-ink2);
+}
+
+.bare-select select:disabled {
+  opacity: var(--op-muted);
+  cursor: not-allowed;
 }
 
 .bare-select select:focus {

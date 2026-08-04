@@ -14,7 +14,12 @@ const SPREAD_PAD = 12
 // `onScaled` est notifié après chaque mise à l'échelle (le frame vient de changer
 // de largeur/hauteur) : la CustomScrollbar qui enveloppe la rangée de pages en
 // édition ne surveille pas le style inline du frame, il faut la remesurer.
-export function useFolioScale(props, { rootRef, frameRef, frameDoc, onScaled }) {
+// `onResized` est notifié à chaque redimensionnement de la vue, échelle changée ou
+// NON : la planche double-page est centrée, un redimensionnement horizontal la
+// DÉPLACE sans la redimensionner — `applyScale` est alors idempotent (il ne
+// notifierait pas `onScaled`) alors que tout ce qui s'ancre sur les coordonnées
+// écran des pages (trame de fond, callouts de format) doit se recaler.
+export function useFolioScale(props, { rootRef, frameRef, frameDoc, onScaled, onResized }) {
   const scaleRef = ref(1)
   const scalePercent = computed(() => scaleRef.value * 100)
 
@@ -75,8 +80,9 @@ export function useFolioScale(props, { rootRef, frameRef, frameDoc, onScaled }) 
     }
 
     if (props.mode === 'spread') {
-      // Double-page : rangée HORIZONTALE de pages, FERRÉE À GAUCHE (comme l'édition) —
-      // la 1re page ne bouge pas. L'échelle est calée sur `visiblePages` et la hauteur
+      // Double-page : rangée HORIZONTALE de pages, CENTRÉE tant qu'elle tient dans la
+      // vue, ferrée à gauche au-delà (cf. .folio-pad). L'échelle est calée sur
+      // `visiblePages` et la hauteur
       // du bandeau (toutes deux indépendantes du NOMBRE de pages) → taille de page
       // stable quel que soit le contenu. La frame fait toute la largeur de la rangée :
       // les pages au-delà de la planche d'ouverture sont RÉVÉLÉES par défilement
@@ -96,7 +102,7 @@ export function useFolioScale(props, { rootRef, frameRef, frameDoc, onScaled }) 
 
   let resizeObserver = null
   onMounted(() => {
-    resizeObserver = new ResizeObserver(fitScale)
+    resizeObserver = new ResizeObserver(() => { fitScale(); onResized?.() })
     resizeObserver.observe(rootRef.value)
   })
   onBeforeUnmount(() => resizeObserver?.disconnect())

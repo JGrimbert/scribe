@@ -281,6 +281,11 @@ const { scaleRef, scalePercent, fitScale } = useFolioScale(props, {
   // de contenu) → on la remesure. No-op en mode read (pas de scrollbar). En
   // double-page, on recale aussi le fond des gouttières sur la nouvelle échelle.
   onScaled: () => { scrollbarRef.value?.measure(); updateSpreadBg() },
+  // Redimensionnement à échelle CONSTANTE : la planche centrée s'est déplacée
+  // sans changer de taille (cf. useFolioScale). Rien à remesurer côté scrollbar
+  // (le frame n'a pas bougé), mais tout ce qui s'ancre en coordonnées écran doit
+  // suivre — la trame de fond et la géométrie émise aux callouts de format.
+  onResized: updateSpreadBg,
 })
 
 const caret = useFakeCaret(findFragEl, frameOffset)
@@ -450,7 +455,7 @@ function frameReadyForStyle() {
 function runningTitlesSignature(rt) {
   if (!rt) return ''
   const band = (b) => (b ? `${b.enabled}|${b.recto}|${b.verso}|${b.heightCm}|${b.justification}` : '')
-  return `${band(rt.header)}#${band(rt.footer)}`
+  return `${band(rt.header)}#${band(rt.footer)}#${rt.folioFormat}`
 }
 </script>
 
@@ -485,11 +490,15 @@ function runningTitlesSignature(rt) {
   height: 100%;
 }
 
-/* Double-page : la rangée est FERRÉE À GAUCHE (pas de respiration à gauche, la 1re
-   page reste collée au bord) ; l'ombre portée a sa place via SPREAD_PAD réservé DANS
-   la frame (cf. useFolioScale). Le défilement horizontal vit dans la CustomScrollbar. */
+/* Double-page : la rangée est CENTRÉE dans la vue, réserve de 16em de part et
+   d'autre (à droite elle loge les callouts de format). `margin-inline: auto`
+   retombe de lui-même à 0 dès que la rangée déborde (dézoom) : elle redevient
+   alors ferrée à gauche, la 1re page collée à sa réserve, et les suivantes se
+   révèlent au défilement. L'ombre portée, elle, a sa place via SPREAD_PAD réservé
+   DANS la frame (cf. useFolioScale). Le défilement vit dans la CustomScrollbar. */
 .folio-view--spread .folio-pad {
   padding: 0 16em;
+  margin-inline: auto;
 }
 
 /* Respiration généreuse autour de la rangée de pages (cf. EDIT_PAD, que fitScale

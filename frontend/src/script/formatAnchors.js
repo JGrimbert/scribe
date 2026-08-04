@@ -103,5 +103,24 @@ export function buildFormatAnchors({ pages, pageSize, margins, runningTitles, or
     'header-verso-box': verso.header,
     'footer-recto-box': recto.footer,
     'footer-verso-box': verso.footer,
+    // Zones SURLIGNABLES : une LISTE de rects ({ x, y, w, h }), un PAR PAGE — la
+    // surface qu'un contrôle désigne ne s'étend jamais d'une page à l'autre (un
+    // rectangle unique enjamberait la gouttière, où il n'y a pas de papier).
+    // Blancs = la bande de marge de chaque page ; fonds = le liséré de marge
+    // intérieure (petit) ou extérieure (grand) des DEUX pages — sur la planche
+    // séquentielle les petits fonds tombent aux bords extérieurs (cf. en-tête du
+    // module) ; bandes = l'emprise de l'en-tête / du pied sur chaque page.
+    'zone-blanc-tete': [recto, verso].map((p) => ({ x: p.left, y: p.top, w: p.right - p.left, h: p.empTop - p.top })),
+    'zone-blanc-pied': [recto, verso].map((p) => ({ x: p.left, y: p.empBottom, w: p.right - p.left, h: p.bottom - p.empBottom })),
+    'zone-petit-fond': [
+      { x: recto.left, y: recto.top, w: recto.empLeft - recto.left, h: recto.bottom - recto.top },
+      { x: verso.empRight, y: verso.top, w: verso.right - verso.empRight, h: verso.bottom - verso.top },
+    ],
+    'zone-grand-fond': [
+      { x: recto.empRight, y: recto.top, w: recto.right - recto.empRight, h: recto.bottom - recto.top },
+      { x: verso.left, y: verso.top, w: verso.empLeft - verso.left, h: verso.bottom - verso.top },
+    ],
+    'zone-header': [recto.header, verso.header].filter(Boolean),
+    'zone-footer': [recto.footer, verso.footer].filter(Boolean),
   }
 }

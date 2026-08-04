@@ -1207,7 +1207,7 @@ onUnmounted(() => { if (section) section.value = null })
   flex: 1 1 auto;
   min-width: 0;
   min-height: 0;
-  overflow: hidden;
+  overflow: visible;
 }
 
 /* Rangée : hors liste elle remplit la pile ; en liste sa hauteur est posée en
@@ -1238,11 +1238,18 @@ onUnmounted(() => { if (section) section.value = null })
 }
 
 
-/* Hors liste, la planche réserve 16em de part et d'autre (elle vit dans une
-   colonne large, à côté de l'aside). En liste les rangées sont ferrées à gauche :
-   le dézoom n'aurait aucun intérêt s'il fallait défiler pour voir la 1re page. */
+/* Hors liste, la planche réserve 16em de part et d'autre et se centre dedans (cf.
+   .folio-view--spread .folio-pad). En liste les rangées sont ferrées à gauche : le
+   dézoom n'aurait aucun intérêt s'il fallait défiler pour voir la 1re page. */
 .folio-stage--list :deep(.folio-view--spread .folio-pad) {
   padding: 0 4em 0 0;
+  margin-inline: 0;
+}
+
+/* Recherche : la scène est PARTAGÉE — la vue d'analyse est ferrée à droite sur
+   60 % de la fenêtre. Centrer la page de résultats la ferait glisser dessous. */
+.folio-stage--search :deep(.folio-view--spread .folio-pad) {
+  margin-inline: 0;
 }
 
 /* Barre de scène : l'état de la liste (compte, pager, repli), discrète, en tête

@@ -45,6 +45,7 @@ describe('styleDefaultsErrors', () => {
     expect(styleDefaultsErrors({ runningTitles: { header: { recto: 'sous-titre' } } })[0]).toContain('header.recto')
     expect(styleDefaultsErrors({ runningTitles: { footer: { heightCm: -2 } } })[0]).toContain('footer.heightCm')
     expect(styleDefaultsErrors({ runningTitles: { header: { justification: 'ailleurs' } } })[0]).toContain('justification')
+    expect(styleDefaultsErrors({ runningTitles: { folioFormat: 'cunéiforme' } })[0]).toContain('folioFormat')
   })
 
   it('accepte la forme héritée plate (migrée à la normalisation)', () => {
@@ -84,6 +85,13 @@ describe('normalizeStyleDefaults', () => {
     // folio est un contenu valide ; justification inconnue → défaut ; heightCm ≤ 0 → null.
     const f = normalizeStyleDefaults({ runningTitles: { footer: { enabled: true, recto: 'folio', verso: 'folio', heightCm: 0, justification: 'ailleurs' } } }).runningTitles.footer
     expect(f).toEqual({ enabled: true, recto: 'folio', verso: 'folio', heightCm: null, justification: 'centre' })
+  })
+
+  it('normalise le style de numérotation du folio (global, numérique par défaut)', () => {
+    expect(normalizeStyleDefaults({ runningTitles: { folioFormat: 'romain' } }).runningTitles.folioFormat).toBe('romain')
+    expect(normalizeStyleDefaults({ runningTitles: { folioFormat: 'cunéiforme' } }).runningTitles.folioFormat).toBe('numerique')
+    // Forme héritée (aucun folioFormat à migrer) : défaut, pas d'absence.
+    expect(normalizeStyleDefaults({ runningTitles: { enabled: true, recto: 'chapitre' } }).runningTitles.folioFormat).toBe('numerique')
   })
 
   it('migre la forme héritée à folio séparé : folio actif → contenu du pied + justification', () => {

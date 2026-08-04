@@ -4,7 +4,7 @@
   <span class="num-input">
     <input
         type="number" min="0" :step="step" inputmode="decimal" :placeholder="placeholder"
-        :value="value"
+        :value="value" :disabled="disabled"
         @input="$emit('input', $event.target.value)"
     />
     <span class="num-input__unit">{{ unit }}</span>
@@ -17,6 +17,7 @@ defineProps({
   step: { type: [Number, String], default: 0.1 },
   unit: { type: String, default: '' },
   placeholder: { type: String, default: '' },
+  disabled: { type: Boolean, default: false },
 })
 defineEmits(['input'])
 </script>
@@ -44,6 +45,11 @@ defineEmits(['input'])
 .num-input input:focus {
   outline: none;
   border-bottom-color: var(--c-accent, var(--c-ink2));
+}
+
+.num-input input:disabled {
+  opacity: var(--op-muted);
+  cursor: not-allowed;
 }
 
 .num-input__unit {

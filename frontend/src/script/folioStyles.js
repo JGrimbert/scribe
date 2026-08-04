@@ -289,6 +289,12 @@ function cssString(s) {
 // Contenu LITTÉRAL (pas de `string-set`) : FolioView pagine un seul chapitre, on
 // tient déjà le titre du livre et le nom du chapitre — inutile de les faire
 // remonter par un compteur de chaîne nommée.
+// Folio : FolioView ne pagine qu'un chapitre, le numéro du livre entier n'existe
+// pas encore — on pose un GABARIT au style de numérotation choisi (largeur
+// représentative), pas un vrai numéro.
+const FOLIO_PLACEHOLDER = { numerique: '88', romain: 'XVIII', alpha: 'aa' }
+const folioPlaceholder = (format) => FOLIO_PLACEHOLDER[format] ?? FOLIO_PLACEHOLDER.numerique
+
 const RUNNING_BOX_BASE = 'font-size:9pt;color:#666;'
 // Aligne le titre courant au bord de l'empagement (près du corps), séparé par le
 // même blanc que la réserve. `vertical-align` sur une margin box : appui Paged.js
@@ -309,7 +315,7 @@ export function buildRunningTitlesCss(running, { bookTitle = '', chapterTitle = 
   const contentFor = (which) => {
     if (which === 'titre') return cssString(bookTitle)
     if (which === 'chapitre') return cssString(chapterTitle)
-    if (which === 'folio') return '"XX"' // numéro de page (placeholder ; XX à paginer)
+    if (which === 'folio') return cssString(folioPlaceholder(running.folioFormat))
     return 'none' // 'aucun'
   }
   const rules = []
