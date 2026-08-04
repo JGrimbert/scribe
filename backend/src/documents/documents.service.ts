@@ -20,6 +20,16 @@ import { DocumentRules, normalizeRules, rulesErrors } from './rules'
 import { LiminaireConfig, liminaireConfigErrors, normalizeLiminaireConfig } from './liminaire-config'
 import { StyleDefaults, applyPageSize, normalizeStyleDefaults, styleDefaultsErrors } from './style-defaults'
 import { StyleOverrides, mergeVisuals, normalizeStyleOverrides, styleOverridesErrors } from './style-overrides'
+import {
+  StyleMergeRequest,
+  StyleMergeResponse,
+  mergeEntries,
+  mergeInventory,
+  mergeOverrides,
+  mergeRules,
+  mergeTypology,
+  styleMergeErrors,
+} from './style-merge'
 import { PreviousValidation, RebuiltNode, remapNodeIds, remapValidations } from './recalibration'
 import {
   CommitImportRequest,
@@ -660,6 +670,61 @@ export class DocumentsService {
       data: { styleOverrides: overrides as unknown as Prisma.InputJsonValue },
     })
     return overrides
+  }
+
+  // Fusion de deux styles : `drop` disparaît du document au profit de `keep`.
+  // DESTRUCTIF et sans mémoire (choix utilisateur) — le `.odt` conservé, lui,
+  // n'est pas touché : une recalibration ramènera les deux styles d'origine.
+  //
+  // Tout part en UNE transaction : les deux tables porteuses d'un styleName
+  // (paragraphes et titres) et les métadonnées Json du document, qui référencent
+  // toutes le nom fondu (inventaire, typologie, surcharges, règles, liminaire /
+  // final). En laisser une de côté, c'est un style qui survit là où plus aucun
+  // paragraphe ne le porte.
+  async mergeStyles(id: string, body: unknown): Promise<StyleMergeResponse> {
+    const errors = styleMergeErrors(body)
+    if (errors.length) throw new BadRequestException(errors)
+    const req = body as StyleMergeRequest
+
+    const document = await this.prisma.document.findUnique({
+      where: { id },
+      select: {
+        id: true, styleInventory: true, styleTypology: true, styleOverrides: true,
+        validationRules: true, liminaire: true, final: true,
+      },
+    })
+    if (!document) throw new NotFoundException(`Document ${id} introuvable`)
+
+    const json = (value: unknown) => value as unknown as Prisma.InputJsonValue
+
+    return this.prisma.$transaction(async (tx) => {
+      const paragraphs = await tx.paragraph.updateMany({
+        where: { styleName: req.drop, node: { documentId: id } },
+        data: { styleName: req.keep },
+      })
+      const nodes = await tx.node.updateMany({
+        where: { documentId: id, styleName: req.drop },
+        data: { styleName: req.keep },
+      })
+
+      const data: Prisma.DocumentUpdateInput = {}
+      const inventory = mergeInventory(document.styleInventory as any, req)
+      if (inventory) data.styleInventory = json(inventory)
+      const typology = mergeTypology(document.styleTypology as any, req)
+      if (typology) data.styleTypology = json(typology)
+      const overrides = mergeOverrides(document.styleOverrides as any, req)
+      if (overrides) data.styleOverrides = json(overrides)
+      const rules = mergeRules(document.validationRules as any, req)
+      if (rules) data.validationRules = json(rules)
+      const liminaire = mergeEntries(document.liminaire as any, req)
+      if (liminaire) data.liminaire = json(liminaire)
+      const final = mergeEntries(document.final as any, req)
+      if (final) data.final = json(final)
+
+      await tx.document.update({ where: { id }, data })
+
+      return { keep: req.keep, drop: req.drop, paragraphs: paragraphs.count, nodes: nodes.count }
+    })
   }
 
   // nodeId → contentHash au moment de la validation. Consommé aussi par

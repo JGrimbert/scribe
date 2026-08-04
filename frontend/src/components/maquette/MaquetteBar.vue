@@ -28,16 +28,16 @@
           :title="`${tallyRow.validables} validables · ${tallyRow.valides} validés / ${tallyRow.total}`"
       >{{ pct }} %</span>
 
-      <!-- Bascule : l'aperçu d'UN nœud témoin ↔ la liste de TOUS les nœuds du
-           niveau. Rien ne s'ouvre par-dessus — la scène dézoome et le témoin y
-           devient la rangée n°1. -->
+      <!-- Validation du niveau : pour l'instant, la scène ne fait que se dézoomer
+           (rien ne s'ouvre par-dessus, rien ne se masque). Re-clic : retour à la
+           planche d'ouverture. -->
       <button
           type="button"
           class="maq-tally__action"
-          :class="{ 'maq-tally__action--on': listing }"
-          :aria-pressed="listing"
-          :title="listing ? 'Replier la liste des nœuds' : 'Dérouler la liste des nœuds de ce niveau'"
-          @click="$emit('toggle-listing', tallyRow.index)"
+          :class="{ 'maq-tally__action--on': validating }"
+          :aria-pressed="validating"
+          :title="validating ? 'Revenir à la planche d’ouverture' : 'Valider ce niveau (dézoom de la scène)'"
+          @click="$emit('validate')"
       >
         <i class="pi pi-check-square" aria-hidden="true"></i>
       </button>
@@ -65,14 +65,14 @@ const props = defineProps({
   // `{ index, total, validables, valides }`. null hors chapitrage (Format,
   // Liminaire, Validation) : le groupe disparaît alors de la barre.
   tallyRow: { type: Object, default: null },
-  // La liste des nœuds du niveau est-elle déroulée dans la scène ?
-  listing: { type: Boolean, default: false },
+  // La scène est-elle au dézoom de validation ?
+  validating: { type: Boolean, default: false },
 })
 
 // `update:searching` : la maquette replie son accordéon tant que la recherche est
 // ouverte, et le rend tel quel à la fermeture. `update:query` : elle en fait ses
 // résultats (la planche qui remplace l'aperçu).
-const emit = defineEmits(['update:zoom', 'update:searching', 'update:query', 'toggle-listing'])
+const emit = defineEmits(['update:zoom', 'update:searching', 'update:query', 'validate'])
 
 const pct = computed(() => {
   const r = props.tallyRow
@@ -210,7 +210,7 @@ onUnmounted(() => document.removeEventListener('keydown', onDocKeydown))
   color: var(--c-accent-alt);
 }
 
-/* Liste déroulée : la bascule reste enfoncée — la scène a changé d'état, le
+/* Scène dézoomée : la bascule reste enfoncée — la scène a changé d'état, le
    bouton doit dire lequel. */
 .maq-tally__action--on {
   color: var(--c-accent-alt);

@@ -94,29 +94,29 @@
                 :rule-set="activeChap.sec.ruleSet ?? rules.default"
                 @hover-style="$emit('hover-style', $event)"
             />
-
-<!--            <h4 class="maq-sub maq-sub&#45;&#45;spaced">
-              Hors modèle <span class="maq-count">{{ chapStyles.others.length }}</span>
-            </h4>-->
           </template>
 
-          <!-- Le reste de l'inventaire du niveau : présent quelque part dans ces
-               chapitres, absent du modèle. Pas de succession (ces styles ne se
-               suivent nulle part en particulier), « exigé » reste offert. Table
-               montée seulement si elle a quelque chose à dire — sauf s'il n'y a
-               pas de modèle, où elle porte alors l'état vide du niveau. -->
-          <StyleRolesTable
-              v-if="chapStyles.others.length || !chapStyles.model.length"
-              :styles="chapStyles.others"
-              :style-roles="styleRoles"
-              show-require
-              :show-adjacency="false"
-              full-width
-              :depth-key="activeChap.sec.depthKey"
-              :zone-key="activeChap.sec.zone.key"
-              :rule-set="activeChap.sec.ruleSet ?? rules.default"
-              @hover-style="$emit('hover-style', $event)"
-          />
+          <!-- Styles HORS MODÈLE, SOUS le modèle et seulement en vue validation :
+               la MÊME table (StyleRolesTable) enrichie — poids (compte coloré +
+               part du problème) et bouton de fusion par ligne. Les lignes portent
+               leurs métriques (cf. deviationStyleRows). -->
+          <template v-if="validating && styleRows.length">
+            <h4 class="maq-sub maq-sub--spaced">
+              Hors modèle <span class="maq-count">{{ styleRows.length }}</span>
+            </h4>
+            <StyleRolesTable
+                :styles="styleRows"
+                :style-roles="styleRoles"
+                show-fusion
+                full-width
+                :merging="merging"
+                :depth-key="activeChap.sec.depthKey"
+                :zone-key="activeChap.sec.zone.key"
+                :rule-set="activeChap.sec.ruleSet ?? rules.default"
+                @hover-style="$emit('hover-style', $event)"
+                @merge="$emit('merge', $event)"
+            />
+          </template>
         </template>
 
         <p v-else class="maq-aside__placeholder">
@@ -174,9 +174,17 @@ const props = defineProps({
   // mêmes sont affichés par MaquetteBar ; ici on n'en lit que `fromModel`, qui
   // décide de la phrase expliquant ce que « validable » veut dire à ce niveau.
   tallyRows: { type: Array, default: () => [] },
+  // Styles HORS MODÈLE enrichis (cf. deviationStyleRows) : `[{ name, count,
+  // problemShare, keep, gain }]`. Rendus sous le modèle, en vue validation.
+  styleRows: { type: Array, default: () => [] },
+  // Vue validation active (dézoom ×6) : sans elle, la table hors modèle reste
+  // masquée (elle n'a de sens qu'à côté des familles d'écart).
+  validating: { type: Boolean, default: false },
+  // Une fusion réécrit le document : désarme les boutons le temps de l'opération.
+  merging: { type: Boolean, default: false },
 })
 
-defineEmits(['extend', 'exclude', 'hover-style'])
+defineEmits(['extend', 'exclude', 'hover-style', 'merge'])
 
 // Résolution 'chap-N' → la section de chapitrage (avec son rang) ; null pour
 // 'format'/'liminaire' ou un index hors bornes.

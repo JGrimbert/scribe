@@ -6,6 +6,7 @@ import { DocumentRules } from './rules'
 import { LiminaireConfig } from './liminaire-config'
 import { StyleDefaults } from './style-defaults'
 import { StyleOverrides } from './style-overrides'
+import { StyleMergeResponse } from './style-merge'
 import {
   CommitImportRequest,
   CommitResponse,
@@ -130,6 +131,14 @@ export class DocumentsController {
   @Put(':id/style-overrides')
   saveStyleOverrides(@Param('id') id: string, @Body() body: unknown): Promise<StyleOverrides> {
     return this.documentsService.saveStyleOverrides(id, body)
+  }
+
+  // Fusion de deux styles : `drop` disparaît, ses paragraphes passent sous
+  // `keep`. DESTRUCTIF (réécrit le document) et non mémorisé — une
+  // recalibration, qui reparse le `.odt`, ramènera les deux styles.
+  @Post(':id/styles/merge')
+  mergeStyles(@Param('id') id: string, @Body() body: unknown): Promise<StyleMergeResponse> {
+    return this.documentsService.mergeStyles(id, body)
   }
 
   // Validation manuelle d'un chapitre (cf. NodeValidation, schema.prisma).

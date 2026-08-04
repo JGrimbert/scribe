@@ -72,6 +72,24 @@ avant écriture en base). Le parseur qu'il pilote vit dans `../import/odt-parser
     `Paragraph.content`), mais **le jour où l'édition sera persistée, recalibrer
     détruira le texte écrit dans Scribe**. À traiter avant d'ouvrir l'écriture :
     rejouer les éditions par-dessus, ou refuser de recalibrer un document édité.
+- **`POST /documents/:id/styles/merge`** — `{ keep, drop }` : fondre deux styles
+  qui font le même travail sous deux noms (détectés côté frontend, cf.
+  `script/chapitrageFusion.js` : même rang, jamais coprésents). `drop` disparaît,
+  ses paragraphes passent sous `keep`. Rend le compte de ce qui a été réécrit.
+  - **Une transaction, sept porteurs du nom** : les deux tables
+    (`Paragraph.styleName`, `Node.styleName` — un titre n'est pas un paragraphe)
+    et les cinq colonnes Json qui le référencent (`styleInventory` compteurs +
+    `visuals`, `styleTypology` + `declaredStyles`, `styleOverrides`,
+    `validationRules`, `liminaire`/`final`). En oublier une, c'est un style qui
+    survit là où plus aucun paragraphe ne le porte. La logique de chacune est
+    pure et testée (`style-merge.ts`) ; le service ne fait que la transaction.
+  - Le rôle, la surcharge et l'apparence du style fondu **reviennent à `keep`
+    s'il n'en avait pas** : l'utilisateur a tranché une fois, on ne le lui
+    redemande pas.
+  - ⚠️ **DESTRUCTIF et sans mémoire** (choix utilisateur explicite) : rien ne dit
+    que la fusion a eu lieu, et le `.odt` conservé n'est pas touché — **une
+    recalibration ramènera les deux styles d'origine**. Même famille de piège que
+    l'écrasement du contenu signalé plus bas.
 - **`POST`/`DELETE /documents/:id/nodes/:nodeId/validation`** — validation
   manuelle d'un chapitre. Rejouer le `POST` rafraîchit l'empreinte (revalidation
   d'un chapitre périmé) ; le `DELETE` est idempotent. `GET /documents/:id` renvoie

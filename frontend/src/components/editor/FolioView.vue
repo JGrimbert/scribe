@@ -155,9 +155,10 @@ const props = defineProps({
   wheelPaging: { type: Boolean, default: false },
   // Portée de la trame de fond (mode `spread`) : 'window' (défaut) la pose en
   // `fixed` sur toute la fenêtre — une seule planche à l'écran, elle passe sous la
-  // doc-bar et descend jusqu'en bas. 'local' la borne à CETTE planche : plusieurs
-  // FolioView empilés (rangées de l'écran de validation) sinon peindraient chacun
-  // leur grille sur la fenêtre entière, les unes par-dessus les autres.
+  // doc-bar et descend jusqu'en bas. 'local' la borne à CETTE planche, seule
+  // portée tenable si plusieurs FolioView coexistent à l'écran (en `fixed`,
+  // chacun peindrait sa grille sur la fenêtre entière). Aucun appelant
+  // aujourd'hui : la maquette ne monte qu'UNE planche à la fois.
   bgScope: { type: String, default: 'window' },
 })
 
@@ -272,7 +273,7 @@ const blocks = computed(() => {
   return section.value ? buildBlocks([section.value]) : []
 })
 
-const { scaleRef, scalePercent, fitScale } = useFolioScale(props, {
+const { scaleRef, scalePercent, fitScale, animateScale } = useFolioScale(props, {
   rootRef,
   frameRef,
   frameDoc,
@@ -417,9 +418,10 @@ watch(() => [props.nodeId, props.depth, props.spreadPages, props.bodyCross, prop
 
 // Nombre de pages visées dans la largeur : c'est le ZOOM. Rien à repaginer — mais
 // `fitScale` n'est rappelé que par le ResizeObserver (la racine ne bouge pas) ou
-// une repagination, d'où ce rappel explicite (cf. le dézoom de l'écran de
-// validation, qui ne change que cette prop).
-watch(() => props.visiblePages, fitScale)
+// une repagination, d'où ce rappel explicite (le dézoom de la maquette ne change
+// que cette prop). GLISSÉ (et non `fitScale` sec) : c'est le seul changement
+// d'échelle demandé par l'utilisateur, il doit se voir se faire.
+watch(() => props.visiblePages, animateScale)
 
 // Surlignage : SURTOUT PAS dans le watch ci-dessus. Il change à chaque ligne
 // survolée dans l'aside — on réécrit une feuille en place, rien à repaginer.

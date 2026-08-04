@@ -5,6 +5,10 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 const EDIT_PAD = 40
 // Respiration autour de la planche double-page (px), retirée de la place dispo.
 const SPREAD_PAD = 12
+// Durée du glissement d'échelle (cf. `animate`). Les autres mises à l'échelle
+// (redimensionnement de fenêtre, repagination) restent instantanées : animer un
+// resize traînerait derrière la souris.
+const SCALE_ANIM_MS = 320
 
 // L'échelle du rendu Folio. `fitScale` ajuste sur la largeur (viser `visiblePages`)
 // ET la hauteur — le plus contraignant l'emporte ; le `clientHeight` vient du flex
@@ -22,6 +26,10 @@ const SPREAD_PAD = 12
 export function useFolioScale(props, { rootRef, frameRef, frameDoc, onScaled, onResized }) {
   const scaleRef = ref(1)
   const scalePercent = computed(() => scaleRef.value * 100)
+
+  // Instant (ms) jusqu'auquel les écritures d'échelle sont glissées, cf. `animate`.
+  let animUntil = 0
+  let animFrame = null
 
   // Applique l'échelle + les dimensions du frame, mais SEULEMENT si elles changent
   // vraiment (tolérance sub-pixel). `fitScale` peut être rappelé par le ResizeObserver
@@ -46,10 +54,36 @@ export function useFolioScale(props, { rootRef, frameRef, frameDoc, onScaled, on
     const skip = Math.abs(curW - frameW) < 0.5 && Math.abs(curH - frameH) < 0.5 && Math.abs(scaleRef.value - scale) < 0.0005
     if (skip) return
     scaleRef.value = scale
+    // Transition posée à la volée plutôt qu'en CSS : elle ne doit valoir que pour
+    // les passes demandées par `animateScale` (le dézoom), pas pour un resize.
+    const anim = performance.now() < animUntil
+    render.style.transition = anim ? `transform ${SCALE_ANIM_MS}ms ease` : ''
+    frame.style.transition = anim ? `width ${SCALE_ANIM_MS}ms ease, height ${SCALE_ANIM_MS}ms ease` : ''
     render.style.transform = pad ? `translate(${pad}px, ${pad}px) scale(${scale})` : `scale(${scale})`
     frame.style.width = `${frameW}px`
     frame.style.height = `${frameH}px`
     onScaled?.()
+  }
+
+  // Mise à l'échelle GLISSÉE (dézoom de la maquette) : la frame et le rendu
+  // s'animent en CSS, mais tout ce qui s'ancre sur les coordonnées écran des pages
+  // (trame de fond, géométrie émise) est posé en JS et sauterait à la valeur
+  // finale — d'où le rappel d'`onResized` à chaque frame de la transition.
+  function animateScale() {
+    animUntil = performance.now() + SCALE_ANIM_MS
+    fitScale()
+    if (animFrame) return
+    const tick = () => {
+      onResized?.()
+      if (performance.now() < animUntil) { animFrame = requestAnimationFrame(tick); return }
+      animFrame = null
+      // Transition retirée : la prochaine passe (resize, repagination) doit
+      // reprendre au pixel, sans traîner.
+      const render = frameDoc()?.getElementById('render')
+      if (render) render.style.transition = ''
+      if (frameRef.value) frameRef.value.style.transition = ''
+    }
+    animFrame = requestAnimationFrame(tick)
   }
 
   function fitScale() {
@@ -105,7 +139,10 @@ export function useFolioScale(props, { rootRef, frameRef, frameDoc, onScaled, on
     resizeObserver = new ResizeObserver(() => { fitScale(); onResized?.() })
     resizeObserver.observe(rootRef.value)
   })
-  onBeforeUnmount(() => resizeObserver?.disconnect())
+  onBeforeUnmount(() => {
+    resizeObserver?.disconnect()
+    if (animFrame) cancelAnimationFrame(animFrame)
+  })
 
-  return { scaleRef, scalePercent, fitScale }
+  return { scaleRef, scalePercent, fitScale, animateScale }
 }

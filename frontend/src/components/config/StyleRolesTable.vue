@@ -44,6 +44,18 @@
           </button>
         </td>
 
+        <!-- Colonnes de fusion (maquette, vue validation) : le POIDS du style — son
+             compte de chapitres coloré par palier + sa part du problème — puis sa
+             fusion vers une cible du modèle. Reçues par ligne (`count`/
+             `problemShare`/`keep`/`gain`, cf. deviationStyleRows). -->
+        <td v-if="showFusion" class="weight-col">
+          <span class="w-count" :class="`w-count--${tier(style.problemShare)}`">{{ style.count }}</span>
+          <span class="w-meter">
+            <span class="w-bar" :class="`w-bar--${tier(style.problemShare)}`" :style="{ width: `${pct(style.problemShare)}%` }"></span>
+          </span>
+          <span class="w-pct">{{ pct(style.problemShare) }} %</span>
+        </td>
+
         <!-- Colonne « succession » : entre style et rôle. Une puce chevauchant la
              bordure avec la ligne suivante = exiger que les deux styles voisins
              se succèdent toujours. Rien sous la dernière ligne (pas de suivant). -->
@@ -74,6 +86,21 @@
             />
             <span>exigé</span>
           </label>
+        </td>
+
+        <!-- Bouton de fusion : présent si un candidat fond ce style dans une cible
+             du modèle. Le gain (+N conformes) en gras. -->
+        <td v-if="showFusion" class="fusion-col">
+          <button
+              v-if="style.keep"
+              type="button"
+              class="fusion-btn"
+              :disabled="merging"
+              :title="`Fondre « ${style.name} » dans « ${style.keep} »`"
+              @click="emit('merge', { keep: style.keep, drop: style.name, droppedCount: style.count })"
+          >
+            → {{ style.keep }} <b>+{{ style.gain }}</b>
+          </button>
         </td>
 
       </tr>
@@ -143,12 +170,27 @@ const props = defineProps({
   // Pleine largeur (aside Maquette) : la table remplit sa colonne au lieu de se
   // resserrer sur son contenu, et le nom de style se tronque (« … ») s'il déborde.
   fullWidth: { type: Boolean, default: false },
+  // Colonnes de fusion (maquette, vue validation) : poids (compte coloré + part du
+  // problème) + bouton de fusion. Les lignes doivent alors porter `count`/
+  // `problemShare`/`keep`/`gain` (cf. deviationStyleRows).
+  showFusion: { type: Boolean, default: false },
+  // Une fusion est en cours : les boutons se désarment (l'opération réécrit le
+  // document, cf. MaquetteView.applyMerge).
+  merging: { type: Boolean, default: false },
 })
 
 // `hover-style` : le style de la ligne survolée (null en sortie). La Maquette s'en
 // sert pour désigner, dans l'aperçu Folio, le texte qui le porte. Inerte partout
 // ailleurs — un écran qui ne l'écoute pas ne paie rien.
-const emit = defineEmits(['hover-style'])
+// `merge` : demande de fusion `{ keep, drop, droppedCount }` (colonne de fusion).
+const emit = defineEmits(['hover-style', 'merge'])
+
+// Poids d'un style → palier de couleur (bas/moyen/haut) ; % arrondi de la part du
+// problème. Trois paliers, pas un dégradé : on lit un rang, pas une valeur exacte.
+const pct = (share) => Math.round((share ?? 0) * 100)
+function tier(share) {
+  return share >= 0.5 ? 'hi' : share >= 0.2 ? 'mid' : 'lo'
+}
 
 // Ouvre le panneau d'édition d'apparence (fourni par ConfigView). Injecté plutôt
 // que remonté par événement : la table est réutilisée dans TypologySection ET
@@ -368,6 +410,74 @@ function confirmAdd() {
 .require-col {
   width: 1%;
   white-space: nowrap;
+}
+
+/* Colonne « poids » (fusion) : compte coloré + jauge + part du problème. */
+.weight-col {
+  white-space: nowrap;
+}
+
+.w-count {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.w-count--lo { color: var(--c-ink2); }
+.w-count--mid { color: var(--c-accent-alt-darker); }
+.w-count--hi { color: var(--c-danger); }
+
+.w-meter {
+  position: relative;
+  display: inline-block;
+  width: 3em;
+  height: 0.6em;
+  margin: 0 var(--sp-1);
+  vertical-align: middle;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--c-ink) 6%, transparent);
+  overflow: hidden;
+}
+
+.w-bar {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+}
+.w-bar--lo { background: color-mix(in srgb, var(--c-accent-alt) 30%, transparent); }
+.w-bar--mid { background: color-mix(in srgb, var(--c-accent-alt) 55%, transparent); }
+.w-bar--hi { background: color-mix(in srgb, var(--c-danger) 55%, transparent); }
+
+.w-pct {
+  color: var(--c-muted);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Colonne de fusion : bouton discret (lien accentué), gain en gras. */
+.fusion-col {
+  width: 1%;
+  white-space: nowrap;
+  text-align: right;
+}
+
+.fusion-btn {
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--c-accent-alt);
+  cursor: pointer;
+  padding: 0.1em 0.45em;
+  font: inherit;
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+}
+.fusion-btn:hover:not(:disabled) {
+  border-color: var(--c-accent-alt);
+  background: color-mix(in srgb, var(--c-accent-alt) 8%, transparent);
+}
+.fusion-btn:disabled {
+  opacity: var(--op-faint);
+  cursor: default;
 }
 
 .require {
