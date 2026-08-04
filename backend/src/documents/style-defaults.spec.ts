@@ -48,6 +48,13 @@ describe('styleDefaultsErrors', () => {
     expect(styleDefaultsErrors({ runningTitles: { folioFormat: 'cunéiforme' } })[0]).toContain('folioFormat')
   })
 
+  it('accepte / refuse une manchette', () => {
+    expect(styleDefaultsErrors({ manchette: { enabled: true, widthCm: 1.8 } })).toEqual([])
+    expect(styleDefaultsErrors({ manchette: { enabled: true, widthCm: null } })).toEqual([])
+    expect(styleDefaultsErrors({ manchette: { widthCm: 0 } })[0]).toContain('widthCm')
+    expect(styleDefaultsErrors({ manchette: 'oui' })[0]).toContain('objet')
+  })
+
   it('accepte la forme héritée plate (migrée à la normalisation)', () => {
     expect(styleDefaultsErrors({ runningTitles: { enabled: true, verso: 'titre', recto: 'chapitre', folio: true } })).toEqual([])
     expect(styleDefaultsErrors({ runningTitles: { verso: 'sous-titre' } })[0]).toContain('verso')
@@ -92,6 +99,13 @@ describe('normalizeStyleDefaults', () => {
     expect(normalizeStyleDefaults({ runningTitles: { folioFormat: 'cunéiforme' } }).runningTitles.folioFormat).toBe('numerique')
     // Forme héritée (aucun folioFormat à migrer) : défaut, pas d'absence.
     expect(normalizeStyleDefaults({ runningTitles: { enabled: true, recto: 'chapitre' } }).runningTitles.folioFormat).toBe('numerique')
+  })
+
+  it('normalise la manchette : largeur libre ou automatique', () => {
+    expect(normalizeStyleDefaults({}).manchette).toEqual({ enabled: false, widthCm: null })
+    expect(normalizeStyleDefaults({ manchette: { enabled: true, widthCm: 1.8 } }).manchette).toEqual({ enabled: true, widthCm: 1.8 })
+    // Largeur ≤ 0 ou mal typée → auto ; `enabled` n'est vrai que sur un vrai booléen.
+    expect(normalizeStyleDefaults({ manchette: { enabled: 'oui', widthCm: 0 } }).manchette).toEqual({ enabled: false, widthCm: null })
   })
 
   it('migre la forme héritée à folio séparé : folio actif → contenu du pied + justification', () => {

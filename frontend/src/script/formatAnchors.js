@@ -4,14 +4,13 @@
 // événement `spread-geometry`) et le gabarit en cm, rend des points et des
 // segments à relier (cf. MaquetteFormatCallouts).
 //
-// Deux traits de l'aperçu, repris TELS QUELS — un trait doit désigner ce qui est
-// rendu, pas ce qu'un livre ferait :
-//  - la planche est SÉQUENTIELLE : la page 1 (recto, impaire) s'affiche à GAUCHE
-//    et le verso à droite, l'inverse d'une vraie planche (cf. `swapParity`,
-//    folioStyles.js) ;
-//  - les marges ne sont pas re-miroitées pour cet ordre (`buildPageCss` laisse le
-//    petit fond à gauche du recto et à droite du verso) : sur la planche affichée
-//    les petits fonds tombent donc aux deux bords EXTÉRIEURS.
+// Trait de l'aperçu à garder en tête : la planche est SÉQUENTIELLE — la page 1
+// (recto, impaire) s'affiche à GAUCHE et le verso à droite, l'inverse d'une vraie
+// planche. Le rendu compense en échangeant les marges pour cet ordre
+// (`swapParity`, folioStyles.js) : sur la planche affichée le GRAND fond tombe aux
+// deux bords extérieurs et le petit de part et d'autre de la gouttière, comme sur
+// un livre ouvert. Les zones ci-dessous suivent ce rendu — les deux doivent
+// s'accorder, sans quoi un trait désignerait un liséré qui n'est pas le sien.
 
 import { bandHeightCm } from './folioStyles.js'
 
@@ -20,6 +19,15 @@ import { bandHeightCm } from './folioStyles.js'
 // titre courant d'une ligne courte.
 const FOLIO_W_CM = 1.2
 const TITLE_W_RATIO = 0.4
+
+// Manchette : blanc qui la sépare de l'empagement (et du bord de feuille quand sa
+// largeur est automatique) — le même que celui des titres courants (RUNNING_GAP_CM,
+// folioStyles). Les filets gris qui simulent son texte : épaisseur + interligne.
+const MANCHETTE_GAP_CM = 0.4
+const MANCHETTE_LINES = 4
+const MANCHETTE_INK_CM = 0.15
+const MANCHETTE_LEAD_CM = 0.38
+const MANCHETTE_LAST_RATIO = 0.55 // dernière ligne d'un paragraphe : courte
 
 const vSpan = (x, y1, y2) => ({ x1: x, y1, x2: x, y2 })
 const hSpan = (y, x1, x2) => ({ x1, y1: y, x2, y2: y })
@@ -30,7 +38,7 @@ const anchorOf = (span) => ({ x: (span.x1 + span.x2) / 2, y: (span.y1 + span.y2)
 
 // `pages` : rects ÉCRAN des pages, dans l'ordre d'affichage (recto puis verso).
 // `origin` : rect de la boîte des callouts, pour rendre des coordonnées locales.
-export function buildFormatAnchors({ pages, pageSize, margins, runningTitles, origin } = {}) {
+export function buildFormatAnchors({ pages, pageSize, margins, runningTitles, manchette, origin } = {}) {
   if (!pages || pages.length < 2 || !pageSize?.heightCm) return {}
   const ox = origin?.left ?? 0
   const oy = origin?.top ?? 0
@@ -46,8 +54,10 @@ export function buildFormatAnchors({ pages, pageSize, margins, runningTitles, or
     const bottom = top + rect.height
     const inner = (m.innerCm ?? 0) * k
     const outer = (m.outerCm ?? 0) * k
-    const empLeft = left + (parity === 'recto' ? inner : outer)
-    const empRight = right - (parity === 'recto' ? outer : inner)
+    // Planche séquentielle re-miroitée par le rendu : le recto est affiché à
+    // GAUCHE, son grand fond est donc à sa gauche (et l'inverse au verso).
+    const empLeft = left + (parity === 'recto' ? outer : inner)
+    const empRight = right - (parity === 'recto' ? inner : outer)
     const empTop = top + (m.topCm ?? 0) * k
     const empBottom = bottom - (m.bottomCm ?? 0) * k
     // Une bande occupe le sommet (en-tête) ou le bas (pied) de l'empagement.
@@ -83,6 +93,40 @@ export function buildFormatAnchors({ pages, pageSize, margins, runningTitles, or
   const blockAnchor = (blk) => (blk ? anchorOf(vSpan(blk.x + blk.w, blk.y, blk.y + blk.h)) : null)
   const bandAnchor = (box) => (box ? anchorOf(vSpan(box.x + box.w, box.y, box.y + box.h)) : null)
 
+  // Colonne de manchette : dans le GRAND fond, collée au bord de l'empagement dont
+  // un blanc la sépare. Largeur libre (`widthCm`) ou, à défaut, le grand fond moins
+  // ses deux blancs. Hauteur = celle du CORPS (sous l'en-tête, au-dessus du pied) :
+  // une note en marge se lit en regard du texte, pas des titres courants.
+  const gap = MANCHETTE_GAP_CM * k
+  const manchetteColumn = (p) => {
+    const strip = p.parity === 'recto' ? p.empLeft - p.left : p.right - p.empRight
+    const w = manchette?.widthCm ? Math.min(manchette.widthCm * k, strip - gap) : strip - 2 * gap
+    if (!(w > 0)) return null
+    const x = p.parity === 'recto' ? p.empLeft - gap - w : p.empRight + gap
+    const top = p.header ? p.header.y + p.header.h + gap : p.empTop
+    const bottom = p.footer ? p.footer.y - gap : p.empBottom
+    return bottom > top ? { x, y: top, w, h: bottom - top } : null
+  }
+
+  // Les filets gris qui simulent son texte, rendus tels quels par l'overlay : des
+  // lignes pleines, la dernière courte (fin de paragraphe). Rognés à la hauteur
+  // disponible plutôt que débordés sur le pied.
+  const manchetteLines = (col) => {
+    if (!col) return []
+    const ink = MANCHETTE_INK_CM * k
+    const lead = MANCHETTE_LEAD_CM * k
+    const out = []
+    for (let i = 0; i < MANCHETTE_LINES; i += 1) {
+      const y = col.y + i * lead
+      if (y + ink > col.y + col.h) break
+      const last = i === MANCHETTE_LINES - 1
+      out.push({ x: col.x, y, w: last ? col.w * MANCHETTE_LAST_RATIO : col.w, h: ink })
+    }
+    return out
+  }
+
+  const manchetteCols = [recto, verso].map(manchetteColumn).filter(Boolean)
+
   return {
     // Blancs de tête/pied : cotés sur le bord extérieur de la page de droite.
     'blanc-tete': anchorOf(vSpan(verso.right, verso.top, verso.empTop)),
@@ -94,9 +138,9 @@ export function buildFormatAnchors({ pages, pageSize, margins, runningTitles, or
     // Hauteurs : l'accolade cote la bande elle-même.
     'header-height': bandAnchor(verso.header),
     'footer-height': bandAnchor(verso.footer),
-    // Fonds : cotés sous la page de droite (petit fond à SA droite, cf. en-tête).
-    'petit-fond': anchorOf(hSpan(verso.bottom, verso.empRight, verso.right)),
-    'grand-fond': anchorOf(hSpan(verso.bottom, verso.left, verso.empLeft)),
+    // Fonds : cotés sous la page de droite (petit fond à SA gauche, côté gouttière).
+    'petit-fond': anchorOf(hSpan(verso.bottom, verso.left, verso.empLeft)),
+    'grand-fond': anchorOf(hSpan(verso.bottom, verso.empRight, verso.right)),
     // Boîtes des bandes ({ x, y, w, h } | null) : les selects de contenu (titre
     // courant / folio) se posent DESSUS, à même la zone grisée (pas de trait).
     'header-recto-box': recto.header,
@@ -107,20 +151,24 @@ export function buildFormatAnchors({ pages, pageSize, margins, runningTitles, or
     // surface qu'un contrôle désigne ne s'étend jamais d'une page à l'autre (un
     // rectangle unique enjamberait la gouttière, où il n'y a pas de papier).
     // Blancs = la bande de marge de chaque page ; fonds = le liséré de marge
-    // intérieure (petit) ou extérieure (grand) des DEUX pages — sur la planche
-    // séquentielle les petits fonds tombent aux bords extérieurs (cf. en-tête du
-    // module) ; bandes = l'emprise de l'en-tête / du pied sur chaque page.
+    // intérieure (petit, côté gouttière) ou extérieure (grand, aux deux bords de la
+    // planche) des DEUX pages ; bandes = l'emprise de l'en-tête / du pied sur
+    // chaque page ; manchette = sa colonne, dans le grand fond.
     'zone-blanc-tete': [recto, verso].map((p) => ({ x: p.left, y: p.top, w: p.right - p.left, h: p.empTop - p.top })),
     'zone-blanc-pied': [recto, verso].map((p) => ({ x: p.left, y: p.empBottom, w: p.right - p.left, h: p.bottom - p.empBottom })),
     'zone-petit-fond': [
-      { x: recto.left, y: recto.top, w: recto.empLeft - recto.left, h: recto.bottom - recto.top },
-      { x: verso.empRight, y: verso.top, w: verso.right - verso.empRight, h: verso.bottom - verso.top },
-    ],
-    'zone-grand-fond': [
       { x: recto.empRight, y: recto.top, w: recto.right - recto.empRight, h: recto.bottom - recto.top },
       { x: verso.left, y: verso.top, w: verso.empLeft - verso.left, h: verso.bottom - verso.top },
     ],
+    'zone-grand-fond': [
+      { x: recto.left, y: recto.top, w: recto.empLeft - recto.left, h: recto.bottom - recto.top },
+      { x: verso.empRight, y: verso.top, w: verso.right - verso.empRight, h: verso.bottom - verso.top },
+    ],
     'zone-header': [recto.header, verso.header].filter(Boolean),
     'zone-footer': [recto.footer, verso.footer].filter(Boolean),
+    'zone-manchette': manchetteCols,
+    // Filets gris de la manchette, à plat (les deux pages mêlées) : l'overlay les
+    // peint tels quels, il n'a rien à recalculer.
+    'manchette-lines': manchetteCols.flatMap(manchetteLines),
   }
 }

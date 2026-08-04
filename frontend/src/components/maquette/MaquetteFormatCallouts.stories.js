@@ -17,13 +17,16 @@ function makeDefaults() {
       footer: { enabled: true, recto: 'folio', verso: 'folio', heightCm: 1, justification: 'regard' },
       folioFormat: 'numerique',
     },
+    manchette: { enabled: true, widthCm: null },
     hyphenation: false,
   })
 }
 
 // La scène reproduit une planche : deux pages A5 côte à côte (recto gauche, verso
-// droite), leur empagement + bande d'en-tête esquissés. Après montage on MESURE
-// leurs rects écran → `geometry`, exactement comme le FolioView réel.
+// droite), leur empagement + bande d'en-tête esquissés. Marges re-miroitées comme
+// le rendu (`swapParity`) : le grand fond (36 px) tombe aux bords extérieurs, le
+// petit (21 px) de part et d'autre de la gouttière. Après montage on MESURE leurs
+// rects écran → `geometry`, exactement comme le FolioView réel.
 export const SurLaPlanche = {
   render: () => ({
     components: { MaquetteFormatCallouts },
@@ -51,12 +54,12 @@ export const SurLaPlanche = {
       <div style="position:relative;width:820px;height:520px;margin:0 auto;">
         <div style="position:absolute;inset:0;display:flex;gap:2px;align-items:center;justify-content:center;">
           <div ref="rectoEl" style="position:relative;width:211px;height:300px;border:1px solid var(--c-border);background:var(--c-surface);box-shadow:0 1px 6px rgba(0,0,0,.15);">
-            <div style="position:absolute;left:21px;right:36px;top:29px;bottom:43px;border:1px solid var(--c-border);"></div>
-            <div style="position:absolute;left:21px;right:36px;top:29px;height:14px;background:color-mix(in srgb, var(--c-ink2) 24%, transparent);"></div>
-          </div>
-          <div ref="versoEl" style="position:relative;width:211px;height:300px;border:1px solid var(--c-border);background:var(--c-surface);box-shadow:0 1px 6px rgba(0,0,0,.15);">
             <div style="position:absolute;left:36px;right:21px;top:29px;bottom:43px;border:1px solid var(--c-border);"></div>
             <div style="position:absolute;left:36px;right:21px;top:29px;height:14px;background:color-mix(in srgb, var(--c-ink2) 24%, transparent);"></div>
+          </div>
+          <div ref="versoEl" style="position:relative;width:211px;height:300px;border:1px solid var(--c-border);background:var(--c-surface);box-shadow:0 1px 6px rgba(0,0,0,.15);">
+            <div style="position:absolute;left:21px;right:36px;top:29px;bottom:43px;border:1px solid var(--c-border);"></div>
+            <div style="position:absolute;left:21px;right:36px;top:29px;height:14px;background:color-mix(in srgb, var(--c-ink2) 24%, transparent);"></div>
           </div>
         </div>
         <MaquetteFormatCallouts :page="null" :style-defaults="styleDefaults" :geometry="geometry" />

@@ -102,10 +102,18 @@ export function buildHighlightCss(styleName) {
 // { topCm, bottomCm, innerCm, outerCm }) si présentes, sinon celles du .odt
 // (`page`, symétriques). Sur une page RECTO (droite), l'intérieur (petit fond) est
 // à gauche, l'extérieur (grand fond) à droite. Renvoie null si rien de connu.
-function rectoMargins(page, margins) {
-  if (margins) return { top: margins.topCm, right: margins.outerCm, bottom: margins.bottomCm, left: margins.innerCm }
-  if (page) return { top: page.marginTopCm, right: page.marginRightCm, bottom: page.marginBottomCm, left: page.marginLeftCm }
-  return null
+// `swapParity` : la planche de l'aperçu est SÉQUENTIELLE (le recto s'affiche à
+// gauche, cf. buildRunningTitlesCss) — sans échange, le petit fond tomberait aux
+// deux bords extérieurs de la planche, l'inverse de ce qu'on imprime. Même
+// correction que celle appliquée aux titres courants.
+function rectoMargins(page, margins, swapParity = false) {
+  const m = margins
+    ? { top: margins.topCm, right: margins.outerCm, bottom: margins.bottomCm, left: margins.innerCm }
+    : page
+      ? { top: page.marginTopCm, right: page.marginRightCm, bottom: page.marginBottomCm, left: page.marginLeftCm }
+      : null
+  if (!m || !swapParity) return m
+  return { ...m, left: m.right, right: m.left }
 }
 
 // Réserve (en cm) que les titres courants retirent au CORPS. Convention (Imprimerie
@@ -136,7 +144,9 @@ export function runningReserves(runningTitles) {
 // étant VIDES, `overflow:visible` sur la zone de contenu laisse le rectangle, posé
 // dans le blanc de tête/pied (hors zone de contenu), s'afficher sans être rogné.
 const GUIDE_LINE = '#b8b8b8'
-const GUIDE_FILL = '#c9c9c9' // gris typographique du rectangle en-tête/pied
+// Gris typographique des pavés du gabarit (en-tête/pied ici, manchette dans
+// l'overlay des callouts qui l'importe) : une seule valeur pour tout le gabarit.
+export const GUIDE_FILL = '#c9c9c9'
 const GUIDE_TEXT_WIDTH = '40%' // titre courant : ligne courte (pas toute la largeur)
 const GUIDE_FOLIO_WIDTH = '1.2cm' // numéro de page : largeur d'un folio
 const BODY_CROSS =
@@ -192,11 +202,11 @@ export function buildFormatGuidesCss(runningTitles) {
 // vaut pour le recto et `@page:left` inverse gauche/droite pour le verso.
 // `reserves` (titres courants) s'ajoute au HAUT/BAS seulement — le corps se réduit,
 // le titre courant occupe l'espace réservé dans la marge. Vide si ni dimensions
-// ni marges → paged.css garde son A5 par défaut.
-export function buildPageCss(page, margins = null, reserves = { top: 0, bottom: 0 }) {
+// ni marges → paged.css garde son A5 par défaut. `swapParity` : cf. rectoMargins.
+export function buildPageCss(page, margins = null, reserves = { top: 0, bottom: 0 }, { swapParity = false } = {}) {
   if (!page && !margins) return ''
   const size = page ? `size:${page.widthCm}cm ${page.heightCm}cm;` : ''
-  const m = rectoMargins(page, margins)
+  const m = rectoMargins(page, margins, swapParity)
   if (!m) return size ? `@page{${size}}` : ''
   const top = m.top + (reserves.top || 0)
   const bottom = m.bottom + (reserves.bottom || 0)
@@ -219,10 +229,10 @@ export function buildPageCss(page, margins = null, reserves = { top: 0, bottom: 
 // (paged.css). Les marges épinglées sont celles du RECTO ; le verso miroir est
 // posé par `@page:left` (buildPageCss) après le polyfill — un très bref transitoire
 // de marge peut subsister sur le verso, sans conséquence sur les dimensions.
-export function buildPagePinCss(page, margins = null, reserves = { top: 0, bottom: 0 }) {
+export function buildPagePinCss(page, margins = null, reserves = { top: 0, bottom: 0 }, { swapParity = false } = {}) {
   const w = page ? `${page.widthCm}cm` : '148mm'
   const h = page ? `${page.heightCm}cm` : '210mm'
-  const m = rectoMargins(page, margins) ?? { top: 2.2, right: 2, bottom: 2.2, left: 2 }
+  const m = rectoMargins(page, margins, swapParity) ?? { top: 2.2, right: 2, bottom: 2.2, left: 2 }
   const cm = (v) => `${v}cm`
   const top = m.top + (reserves.top || 0)
   const bottom = m.bottom + (reserves.bottom || 0)

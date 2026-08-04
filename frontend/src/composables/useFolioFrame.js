@@ -61,6 +61,12 @@ export function useFolioFrame(props, { frameRef, frameDoc, blocks, section, onRe
   // dépassées (sans quoi un rendu périmé reste affiché : compte de résultats faux).
   let generation = 0
 
+  // Planche (mode spread) : pages en ordre séquentiel → parité inversée d'une vraie
+  // planche. On échange @page:left/:right pour que folio, titres courants ET fonds
+  // tombent du bon côté (grand fond aux bords extérieurs de la planche affichée).
+  // Une seule option, lue par les trois feuilles de page — elles doivent s'accorder.
+  const pageOpts = () => ({ swapParity: props.mode === 'spread' })
+
   // Styles à NE PAS balayer entre deux repaginations : le boot, l'épingle de
   // géométrie et les guides de format (mis à jour en place, pas régénérés).
   const isPersistentStyle = (el) =>
@@ -149,7 +155,7 @@ export function useFolioFrame(props, { frameRef, frameDoc, blocks, section, onRe
     // config) — refresh() la met à jour, alors que __boot est figé au montage.
     const pin = doc.createElement('style')
     pin.id = '__pagepin'
-    pin.textContent = buildPagePinCss(props.page, props.margins, runningReserves(props.runningTitles))
+    pin.textContent = buildPagePinCss(props.page, props.margins, runningReserves(props.runningTitles), pageOpts())
     doc.head.appendChild(pin)
 
     // Guides de l'aperçu de format : feuille À PART (comme le pin), toujours créée
@@ -213,7 +219,7 @@ export function useFolioFrame(props, { frameRef, frameDoc, blocks, section, onRe
     // depuis buildFrame) — avant la pagination, pour que l'ancien rendu affiché
     // bascule tout de suite à la nouvelle taille.
     const pin = doc.getElementById('__pagepin')
-    if (pin) pin.textContent = buildPagePinCss(props.page, props.margins, runningReserves(props.runningTitles))
+    if (pin) pin.textContent = buildPagePinCss(props.page, props.margins, runningReserves(props.runningTitles), pageOpts())
 
     // Guides de format : présents seulement en `bodyCross` (sinon vidés) ; suivent
     // les titres courants édités en direct (aside).
@@ -317,14 +323,11 @@ export function useFolioFrame(props, { frameRef, frameDoc, blocks, section, onRe
     // DOIVENT passer par les sheets que le previewer traite, pas un <style> brut
     // (le navigateur ignorerait @top-center). Le nom du chapitre vient du nœud rendu.
     const docPageCss = [
-      buildPageCss(props.page, props.margins, runningReserves(props.runningTitles)),
+      buildPageCss(props.page, props.margins, runningReserves(props.runningTitles), pageOpts()),
       buildRunningTitlesCss(props.runningTitles, {
         bookTitle: props.bookTitle,
         chapterTitle: section.value?.titre ?? '',
-        // Planche (mode spread) : pages en ordre séquentiel → parité inversée d'une
-        // vraie planche. On échange @page:left/:right pour que folio/titres tombent
-        // au bon coin extérieur (rien d'autre ne change).
-        swapParity: props.mode === 'spread',
+        ...pageOpts(),
       }),
     ].filter(Boolean).join('\n')
     const sheets = [CSS_HREF]

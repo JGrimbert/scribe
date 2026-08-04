@@ -59,11 +59,23 @@ export interface RunningTitles {
   folioFormat: FolioFormat
 }
 
+// ─── Manchette (notes en marge) ────────────────────────────────────────────
+// Colonne de notes marginales ouverte dans le GRAND fond, sur les deux pages.
+// `widthCm` null = automatique (le grand fond moins ses blancs), comme la hauteur
+// d'une bande de titre courant.
+export interface Manchette {
+  enabled: boolean
+  widthCm: number | null
+}
+
+export const DEFAULT_MANCHETTE: Manchette = { enabled: false, widthCm: null }
+
 export interface StyleDefaults {
   hyphenation: { global: boolean }
   pageSize: PageSize | null
   pageMargins: PageMargins | null
   runningTitles: RunningTitles
+  manchette: Manchette
 }
 
 // Défaut métier : titre du livre en verso (pages paires), nom du chapitre en
@@ -80,6 +92,7 @@ export const DEFAULT_STYLE_DEFAULTS: StyleDefaults = {
   pageSize: null,
   pageMargins: null,
   runningTitles: DEFAULT_RUNNING_TITLES,
+  manchette: DEFAULT_MANCHETTE,
 }
 
 function isObject(v: unknown): v is Record<string, unknown> {
@@ -122,6 +135,15 @@ export function styleDefaultsErrors(body: unknown): string[] {
         const v = pm[key]
         if (typeof v !== 'number' || !Number.isFinite(v) || v < 0) errors.push(`pageMargins.${key} doit être un nombre ≥ 0`)
       }
+    }
+  }
+
+  const mn = body.manchette
+  if (mn != null) {
+    if (!isObject(mn)) errors.push('manchette doit être un objet')
+    else {
+      if (mn.enabled != null && typeof mn.enabled !== 'boolean') errors.push('manchette.enabled doit être un booléen')
+      if (mn.widthCm != null && !isPosCm(mn.widthCm)) errors.push('manchette.widthCm doit être un nombre positif ou null')
     }
   }
 
@@ -181,6 +203,15 @@ export function normalizeStyleDefaults(raw: unknown): StyleDefaults {
     pageSize: normalizePageSize(isObject(raw) ? raw.pageSize : null),
     pageMargins: normalizePageMargins(isObject(raw) ? raw.pageMargins : null),
     runningTitles: normalizeRunningTitles(isObject(raw) ? raw.runningTitles : null),
+    manchette: normalizeManchette(isObject(raw) ? raw.manchette : null),
+  }
+}
+
+function normalizeManchette(raw: unknown): Manchette {
+  if (!isObject(raw)) return { ...DEFAULT_MANCHETTE }
+  return {
+    enabled: raw.enabled === true,
+    widthCm: isPosCm(raw.widthCm) ? raw.widthCm : null,
   }
 }
 

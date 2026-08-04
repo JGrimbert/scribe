@@ -54,6 +54,8 @@ export function useTypologyConfig() {
       // Numérotation du folio : globale au livre, quelle que soit la bande qui le porte.
       folioFormat: 'numerique',
     },
+    // Colonne de notes en marge, ouverte dans le grand fond. widthCm null = auto.
+    manchette: { enabled: false, widthCm: null },
   })
   // Surcharges d'apparence PAR STYLE (police, corps, césure…), éditées dans le
   // panneau de style, persistées à part (`GET/PUT /documents/:id/style-overrides`).
@@ -283,6 +285,7 @@ export function useTypologyConfig() {
       Object.assign(styleDefaults.runningTitles.header, defaults.runningTitles.header)
       Object.assign(styleDefaults.runningTitles.footer, defaults.runningTitles.footer)
       styleDefaults.runningTitles.folioFormat = defaults.runningTitles.folioFormat
+      Object.assign(styleDefaults.manchette, defaults.manchette)
 
       // Remplacé, pas fusionné (comme liminaireConfig) : un rechargement repart de
       // la base. `base` (valeurs .odt) est en lecture seule.

@@ -93,6 +93,13 @@ describe('buildPageCss', () => {
     expect(css).toContain('@page:left{margin:2cm 1.5cm 2cm 3cm;}')
   })
 
+  it('swapParity : planche séquentielle → intérieur/extérieur échangés', () => {
+    const css = buildPageCss(odt, { topCm: 2, bottomCm: 2, innerCm: 1.5, outerCm: 3 }, { top: 0, bottom: 0 }, { swapParity: true })
+    // Le recto s'affichant à GAUCHE, son grand fond passe à sa gauche.
+    expect(css).toContain('@page{size:14.801cm 21.001cm;margin:2cm 1.5cm 2cm 3cm;}')
+    expect(css).toContain('@page:left{margin:2cm 3cm 2cm 1.5cm;}')
+  })
+
   it('marges miroir symétriques : pas de règle @page:left superflue', () => {
     const css = buildPageCss(odt, { topCm: 2, bottomCm: 2, innerCm: 2, outerCm: 2 })
     expect(css).not.toContain('@page:left')

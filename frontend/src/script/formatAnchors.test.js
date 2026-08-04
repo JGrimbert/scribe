@@ -30,11 +30,11 @@ describe('buildFormatAnchors', () => {
     expect(build()['blanc-pied'].span).toEqual({ x1: 316, y1: 180, x2: 316, y2: 210 })
   })
 
-  it('place les fonds sous la page de droite, petit fond côté extérieur', () => {
-    // Verso affiché à DROITE : petit fond à sa droite, grand fond à sa gauche
-    // (la planche est séquentielle, cf. l'en-tête du module).
-    expect(build()['petit-fond'].span).toEqual({ x1: 301, y1: 210, x2: 316, y2: 210 })
-    expect(build()['grand-fond'].span).toEqual({ x1: 168, y1: 210, x2: 193, y2: 210 })
+  it('place les fonds sous la page de droite, petit fond côté gouttière', () => {
+    // Verso affiché à DROITE, marges re-miroitées par le rendu : petit fond (1,5 cm)
+    // à sa gauche, grand fond (2,5 cm) à sa droite.
+    expect(build()['petit-fond'].span).toEqual({ x1: 168, y1: 210, x2: 183, y2: 210 })
+    expect(build()['grand-fond'].span).toEqual({ x1: 291, y1: 210, x2: 316, y2: 210 })
   })
 
   it('ignore les bandes tant qu\'elles ne sont pas activées', () => {
@@ -47,23 +47,24 @@ describe('buildFormatAnchors', () => {
   it('cote la bande d\'en-tête au sommet de l\'empagement, à sa hauteur', () => {
     const rt = { header: { enabled: true, recto: 'titre', verso: 'titre', heightCm: 1, justification: 'centre' } }
     const a = build({ runningTitles: rt })
-    // Bande = [empTop, empTop + hauteur] au bord droit de l'empagement du verso.
-    expect(a['header-height'].span).toEqual({ x1: 301, y1: 20, x2: 301, y2: 30 })
+    // Bande = [empTop, empTop + hauteur] au bord droit de l'empagement du verso
+    // (grand fond, 2,5 cm, à sa droite).
+    expect(a['header-height'].span).toEqual({ x1: 291, y1: 20, x2: 291, y2: 30 })
   })
 
   it('suit le pavé gris : centré vs en regard, et la largeur du folio', () => {
     const centre = { header: { enabled: true, recto: 'titre', verso: 'titre', heightCm: 1, justification: 'centre' } }
-    // Empagement du recto : [15, 123] → pavé de 40 % (43,2 px) centré → bord droit à 90,6.
-    expect(build({ runningTitles: centre })['header-recto'].x).toBeCloseTo(90.6, 5)
+    // Empagement du recto : [25, 133] → pavé de 40 % (43,2 px) centré → bord droit à 100,6.
+    expect(build({ runningTitles: centre })['header-recto'].x).toBeCloseTo(100.6, 5)
 
     const regard = { header: { ...centre.header, justification: 'regard' } }
     // En regard, le recto (affiché à gauche) porte son pavé au bord GAUCHE.
-    expect(build({ runningTitles: regard })['header-recto'].x).toBeCloseTo(58.2, 5)
+    expect(build({ runningTitles: regard })['header-recto'].x).toBeCloseTo(68.2, 5)
 
     const folio = { footer: { enabled: true, recto: 'folio', verso: 'folio', heightCm: 1, justification: 'regard' } }
     const a = build({ runningTitles: folio })
     // Verso en regard : pavé de 1,2 cm collé au bord droit de son empagement.
-    expect(a['footer-content'].x).toBeCloseTo(301, 5)
+    expect(a['footer-content'].x).toBeCloseTo(291, 5)
   })
 
   it('rend une zone surlignable PAR PAGE, jamais un rect enjambant la gouttière', () => {
@@ -79,18 +80,44 @@ describe('buildFormatAnchors', () => {
     ])
   })
 
-  it('coche les DEUX colonnes d\'un fond, aux bords extérieurs pour le petit', () => {
+  it('coche les DEUX colonnes d\'un fond, aux bords extérieurs pour le grand', () => {
     const a = build()
-    // Planche séquentielle : petit fond (1,5 cm) à gauche du recto, à droite du verso.
+    // Marges re-miroitées pour la planche séquentielle : petit fond (1,5 cm) de part
+    // et d'autre de la gouttière.
     expect(a['zone-petit-fond']).toEqual([
-      { x: 0, y: 0, w: 15, h: 210 },
-      { x: 301, y: 0, w: 15, h: 210 },
+      { x: 133, y: 0, w: 15, h: 210 },
+      { x: 168, y: 0, w: 15, h: 210 },
     ])
-    // Grand fond (2,5 cm) : l'inverse, côté gouttière.
+    // Grand fond (2,5 cm) : aux deux bords extérieurs de la planche.
     expect(a['zone-grand-fond']).toEqual([
-      { x: 123, y: 0, w: 25, h: 210 },
-      { x: 168, y: 0, w: 25, h: 210 },
+      { x: 0, y: 0, w: 25, h: 210 },
+      { x: 291, y: 0, w: 25, h: 210 },
     ])
+  })
+
+  it('pose la manchette dans le grand fond, largeur auto = fond moins ses blancs', () => {
+    const a = build()
+    // Grand fond de 25 px moins 2 blancs de 4 px → 17 px, collée à l'empagement
+    // (recto : bord gauche de l'empagement à 25, donc x = 25 − 4 − 17 = 4).
+    expect(a['zone-manchette']).toEqual([
+      { x: 4, y: 20, w: 17, h: 160 },
+      { x: 295, y: 20, w: 17, h: 160 },
+    ])
+    // Largeur imposée : collée au même bord, le reste tombe côté bord de feuille.
+    expect(build({ manchette: { enabled: true, widthCm: 1 } })['zone-manchette'][0])
+      .toEqual({ x: 11, y: 20, w: 10, h: 160 })
+  })
+
+  it('descend la manchette sous l\'en-tête et rend ses filets, le dernier court', () => {
+    const rt = { header: { enabled: true, recto: 'titre', verso: 'titre', heightCm: 1, justification: 'centre' } }
+    const a = build({ runningTitles: rt })
+    // Corps = sous la bande (20 → 30) plus son blanc de 4 px.
+    expect(a['zone-manchette'][0]).toMatchObject({ y: 34, h: 146 })
+    const lines = a['manchette-lines']
+    expect(lines).toHaveLength(8) // 4 filets par page
+    expect(lines[0]).toEqual({ x: 4, y: 34, w: 17, h: 1.5 })
+    expect(lines[3]).toMatchObject({ y: 45.4 })
+    expect(lines[3].w).toBeCloseTo(9.35, 5)
   })
 
   it('zone de bande : une par page, vide tant que la bande dort', () => {
@@ -98,7 +125,7 @@ describe('buildFormatAnchors', () => {
     const rt = { header: { enabled: true, recto: 'titre', verso: 'titre', heightCm: 1, justification: 'centre' } }
     const zone = build({ runningTitles: rt })['zone-header']
     expect(zone).toHaveLength(2)
-    expect(zone[0]).toEqual({ x: 15, y: 20, w: 108, h: 10 })
+    expect(zone[0]).toEqual({ x: 25, y: 20, w: 108, h: 10 })
   })
 
   it('décale toutes les ancres de l\'origine de la boîte', () => {
