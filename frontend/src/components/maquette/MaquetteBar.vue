@@ -28,15 +28,14 @@
           :title="`${tallyRow.validables} validables · ${tallyRow.valides} validés / ${tallyRow.total}`"
       >{{ pct }} %</span>
 
-      <!-- Validation du niveau : pour l'instant, la scène ne fait que se dézoomer
-           (rien ne s'ouvre par-dessus, rien ne se masque). Re-clic : retour à la
-           planche d'ouverture. -->
+      <!-- Validation du niveau : ouvre le volet des familles de cas ferré en bas
+           de fenêtre. Re-clic : le referme. -->
       <button
           type="button"
           class="maq-tally__action"
           :class="{ 'maq-tally__action--on': validating }"
           :aria-pressed="validating"
-          :title="validating ? 'Revenir à la planche d’ouverture' : 'Valider ce niveau (dézoom de la scène)'"
+          :title="validating ? 'Fermer la validation' : 'Valider ce niveau'"
           @click="$emit('validate')"
       >
         <i class="pi pi-check-square" aria-hidden="true"></i>
@@ -65,7 +64,7 @@ const props = defineProps({
   // `{ index, total, validables, valides }`. null hors chapitrage (Format,
   // Liminaire, Validation) : le groupe disparaît alors de la barre.
   tallyRow: { type: Object, default: null },
-  // La scène est-elle au dézoom de validation ?
+  // Le volet de validation (familles de cas) est-il ouvert ?
   validating: { type: Boolean, default: false },
 })
 
@@ -210,7 +209,7 @@ onUnmounted(() => document.removeEventListener('keydown', onDocKeydown))
   color: var(--c-accent-alt);
 }
 
-/* Scène dézoomée : la bascule reste enfoncée — la scène a changé d'état, le
+/* Validation ouverte : la bascule reste enfoncée — la scène a changé d'état, le
    bouton doit dire lequel. */
 .maq-tally__action--on {
   color: var(--c-accent-alt);

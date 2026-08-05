@@ -6,14 +6,14 @@
        (Format · Liminaire · un bloc par niveau de chapitrage). Le cran focusé
        dans l'accordéon fait remonter sa section en tête (scroll-spy).
        Persistance via l'action « Enregistrer » de la doc-bar (`save`). -->
-  <div class="maquette">
+  <div class="maquette" :class="{ 'maquette--validating': showGroupes }">
     <!-- Troisième barre de l'écran, empilée sous le menu et la doc-bar : la
          recherche à gauche, le dézoom à droite. Deux réglages permanents. -->
     <MaquetteBar
         :zoom="zoom"
         :zooms="ZOOMS"
         :tally-row="activeTallyRow"
-        :validating="isValidating"
+        :validating="validating"
         @validate="toggleValidation"
         @update:zoom="zoom = $event"
         @update:searching="onSearching"
@@ -107,7 +107,7 @@
                 'folio-stage--search': searching,
               }"
           >
-            <div class="folio-col" :class="{ 'folio-col--groupes': showGroupes }">
+            <div class="folio-col">
               <FolioView
                   class="maq-folio"
                   mode="spread"
@@ -128,20 +128,6 @@
                   :highlight-style="hoveredStyle"
                   @step="stepResultPage"
                   @spread-geometry="spreadGeometry = $event"
-              />
-
-              <!-- Validation : la planche dézoomée garde la tête de la scène, les
-                   familles de cas du niveau prennent le reste de la hauteur. -->
-              <MaquetteGroupes
-                  v-if="showGroupes"
-                  class="maq-groupes-zone"
-                  :groups="deviationGroups"
-                  :hovered="hoveredGroup?.key ?? null"
-                  :suggestion="mergeSuggestion"
-                  :corps-suggestion="corpsSuggestion"
-                  :merging="merging"
-                  @hover-group="onHoverGroup"
-                  @merge="applyMerge"
               />
 
               <!-- Contrôles de format DOCKÉS sur l'aperçu (l'aside est masquée
@@ -261,15 +247,34 @@
             :model-names="modelNames"
             :model-label="witnessItem?.titre ?? null"
             :tally-rows="chapTallyRows"
-            :style-rows="styleRows"
-            :validating="showGroupes"
-            :merging="merging"
             @extend="extendLiminaire"
             @exclude="excludeLiminaire"
-            @merge="applyMerge"
         />
       </CustomScrollbar>
     </div>
+
+    <!-- Validation : les familles de cas du niveau, ferrées EN BAS de la fenêtre
+         (au-dessus du dock, entre la gouttière du sommaire et l'aside pleine
+         hauteur). Elles portent leur PROPRE aside : la table des styles hors
+         modèle, sortie de l'aside principale. Le folio réserve sa place au-dessus
+         (cf. .maquette--validating). -->
+    <MaquetteGroupes
+        v-if="showGroupes"
+        class="maq-groupes-zone"
+        :groups="deviationGroups"
+        :hovered="hoveredGroup?.key ?? null"
+        :suggestion="mergeSuggestion"
+        :corps-suggestion="corpsSuggestion"
+        :merging="merging"
+        :style-rows="styleRows"
+        :style-roles="styles"
+        :depth-key="focusedSection?.depthKey ?? 0"
+        :zone-key="focusedSection?.zone.key ?? null"
+        :rule-set="focusedSection?.ruleSet ?? rules.default"
+        @hover-group="onHoverGroup"
+        @merge="applyMerge"
+        @hover-style="hoveredStyle = $event"
+    />
 
     <StyleEditorPanel
         :style-name="editingStyle"
@@ -707,15 +712,13 @@ const zoom = ref(1)
 const folioVisiblePages = computed(() => (searching.value ? 1 : 2) * zoom.value)
 
 // ── Validation d'un niveau de chapitrage ────────────────────────────────────
-// Première étape : l'action ne fait QUE dézoomer la scène — rien ne s'ouvre, rien
-// ne se masque, l'aperçu témoin reste seul en scène. Re-clic : retour à la
-// planche d'ouverture. L'état se lit donc sur le dézoom lui-même (choisir ×6 à la
-// main dans la barre vaut le même état de scène, pas de second état à tenir).
-const VALIDATION_ZOOM = 6
-const isValidating = computed(() => zoom.value === VALIDATION_ZOOM)
+// Mode à part entière (et non plus un dézoom de la scène) : la bascule ouvre le
+// volet des familles de cas ferré en bas de fenêtre. Le dézoom reste un réglage
+// 100 % indépendant — la validation n'y touche pas.
+const validating = ref(false)
 
 function toggleValidation() {
-  zoom.value = isValidating.value ? 1 : VALIDATION_ZOOM
+  validating.value = !validating.value
 }
 
 // Les nœuds du niveau focusé rangés par écart au modèle — le modèle restant celui
@@ -732,9 +735,9 @@ const deviationGroups = computed(() =>
   levelNodes.value ? groupByDeviation(levelNodes.value, modelNamesAt(focusedSection.value.depthKey), titleStyleOf) : [],
 )
 
-// La scène ne les montre qu'une fois dézoomée : c'est le dézoom qui leur fait la
-// place sous la planche.
-const showGroupes = computed(() => isValidating.value && !searching.value && !!deviationGroups.value.length)
+// Montrées quand la validation est ouverte : le volet des familles se ferre en
+// bas de fenêtre (cf. .maq-groupes-zone), le folio réserve sa place au-dessus.
+const showGroupes = computed(() => validating.value && !searching.value && !!deviationGroups.value.length)
 
 // Survol d'une ligne : la planche monte le premier nœud du groupe. DÉBOUNCÉ —
 // changer de nœud repagine l'iframe (Paged.js, quelques dizaines de ms), et
@@ -989,6 +992,12 @@ onUnmounted(() => { if (section) section.value = null })
    pleine hauteur, défile SOUS la barre). La page ne scrolle pas globalement —
    chaque colonne porte sa propre CustomScrollbar. */
 .maquette {
+  /* Gouttière du sommaire + hauteur du dock + hauteur du volet de validation :
+     hissées ici pour être vues À LA FOIS par la colonne gauche et par le volet
+     groupes ferré au viewport (cf. .maq-groupes-zone). */
+  --maq-gutter: 15em;
+  --maq-dock-h: 13.2em;
+  --maq-groupes-h: 15em;
   position: relative;
   display: flex;
   align-items: stretch;
@@ -1005,8 +1014,6 @@ onUnmounted(() => { if (section) section.value = null })
    hauteur du stage, jamais celle de l'aperçu, dont le FolioView ne se remet donc
    plus à l'échelle à chaque pli. */
 .maquette__left {
-  --maq-gutter: 15em;
-  --maq-dock-h: 13.2em;
   flex: 2 1 0;
   min-width: 0;
   display: flex;
@@ -1016,6 +1023,12 @@ onUnmounted(() => { if (section) section.value = null })
   padding-top: calc(2 * var(--bar-size) + 1em);
   padding-left: 0;
   padding-bottom: calc(var(--maq-dock-h) + var(--sp-4));
+}
+
+/* Validation ouverte : le folio remonte pour réserver la place du volet des
+   familles (ferré au bas de fenêtre, au-dessus du dock) — pas de recouvrement. */
+.maquette--validating .maquette__left {
+  padding-bottom: calc(var(--maq-dock-h) + var(--maq-groupes-h) + 2 * var(--sp-4));
 }
 
 /* Bande de l'aperçu : prend la hauteur restante, colonne flex sans overflow —
@@ -1045,25 +1058,18 @@ onUnmounted(() => { if (section) section.value = null })
   min-height: 0;
 }
 
-/* Validation : la planche cède la moitié basse de la scène aux familles de cas.
-   Hauteur en % du parent (et non du contenu) : `fitScale` mesure la hauteur de sa
-   racine, une base qui dépendrait du contenu rendu boucler l'échelle. */
-.folio-col--groupes {
-  gap: var(--sp-3);
-}
-
-.folio-col--groupes .maq-folio {
-  flex: 0 0 45%;
-}
-
-/* La scène occupe toute la largeur de la fenêtre, mais deux volets FLOTTENT
-   par-dessus : le sommaire à gauche (`--maq-gutter` + sa marge), l'aside à droite
-   (30 %). La liste se cale dans la bande qui reste, avec un peu d'air des deux
-   côtés. En `rem` et non en `em` : la liste pose sa propre `font-size` (--fs-sm),
-   des marges en `em` s'y rapporteraient et rentreraient sous le sommaire. */
+/* Volet des familles de cas : ferré EN BAS de la fenêtre, au-dessus du dock
+   (`bottom`), entre la gouttière du sommaire (`left`) et l'aside pleine hauteur
+   (`right`, qui reste montrée avec le modèle du niveau). En `rem` et non en `em` :
+   le volet pose sa propre `font-size` (--fs-sm), des marges en `em` s'y
+   rapporteraient et rentreraient sous le sommaire. */
 .maq-groupes-zone {
-  margin-left: 17rem;
-  margin-right: calc(30% + 1rem);
+  position: fixed;
+  left: 17rem;
+  right: 2em;
+  bottom: 2em;
+  height: var(--maq-groupes-h);
+  z-index: 3;
 }
 
 /* Colonne aside : pleine hauteur, sans cadre propre. Sa CustomScrollbar défile
