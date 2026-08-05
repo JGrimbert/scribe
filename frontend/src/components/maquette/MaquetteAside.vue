@@ -27,67 +27,33 @@
           <HighlightsList :items="highlightItems" :highlights="highlights" :zoned="zoned" />
         </template>
 
-        <!-- Liminaire : verdict d'éligibilité + jalon de fin. -->
+        <!-- Liminaire : styles & rôles du vis-à-vis focusé (+ « ce qui précède »
+             par style). Une planche liminaire ne porte que quelques styles, la
+             table les suit. Pas de colonnes « exigé »/« succession » (elles visent
+             un niveau de chapitrage). -->
         <template v-else-if="activeBlock === 'liminaire'">
-<!--
-          <h4 class="maq-sub">Éligibilité</h4>
-          <LiminaireEligibilite :elig="elig" />
--->
-<!--
-          &lt;!&ndash; Fin du liminaire : étendre/exclure (le jalon n'est plus qu'informatif). &ndash;&gt;
-          <h4 class="maq-sub maq-sub&#45;&#45;spaced">Fin du liminaire</h4>
-          <MaquetteLiminaireJalon
-              :can-extend="limCanExtend"
-              :next-title="limNextTitle"
-              :border-shift="limBorderShift"
-              @extend="$emit('extend')"
-              @exclude="$emit('exclude')"
-          />-->
-
-          <!-- Styles du VIS-À-VIS focusé (et non de toute la zone) : une planche
-               liminaire ne porte que quelques styles, la table les suit. Pas de
-               colonnes « exigé »/« succession » — elles visent un niveau de
-               chapitrage, le liminaire n'en a pas. -->
-<!--          <h4 class="maq-sub maq-sub&#45;&#45;spaced">Styles &amp; rôles</h4>-->
           <StyleRolesTable
               :styles="limStyles"
               :style-roles="styleRoles"
               full-width
+              show-precedes
               zone-key="liminaire"
               @hover-style="$emit('hover-style', $event)"
           />
         </template>
 
-        <!-- Niveau de chapitrage : modèle exigé puis table des styles (rôle ·
-             exigé · succession), en pleine largeur. -->
+        <!-- Niveau de chapitrage : table des styles du modèle (rôle · exigé ·
+             succession · ce qui précède), en pleine largeur. -->
         <template v-else-if="activeChap">
-<!--
-
-          <h4 class="maq-sub">Modèles relevés</h4>
-          <StructureModelList :shape-group="activeChap.sec.shapeGroup" :interactive="false" />
--->
-<!--
-          <h4 class="maq-sub maq-sub&#45;&#45;spaced">Styles &amp; rôles</h4>-->
-          <!-- Où en est la relecture du niveau : le décompte est monté dans la
-               barre (MaquetteBar), il ne reste ici que ce qu'il veut dire. -->
-<!--          <p class="maq-hint">
-            <template v-if="tallyRows[activeChap.index]?.fromModel">
-              Validable = iso modèle ci-dessous. Cocher « exigé » remplace ce critère.
-            </template>
-            <template v-else>Validable = les styles exigés à ce niveau.</template>
-          </p>-->
-
           <!-- Les styles du nœud INSPECTÉ (le modèle du niveau), dans l'ordre du
                texte : c'est une séquence, seule table où la puce de succession a
                un sens. -->
           <template v-if="chapStyles.model.length">
-<!--            <h4 class="maq-sub">
-              Modèle <span v-if="modelLabel" class="maq-count">{{ modelLabel }}</span>
-            </h4>-->
             <StyleRolesTable
                 :styles="chapStyles.model"
                 :style-roles="styleRoles"
                 show-require
+                show-precedes
                 full-width
                 :depth-key="activeChap.sec.depthKey"
                 :zone-key="activeChap.sec.zone.key"
@@ -107,24 +73,12 @@
 
 <script setup>
 import { computed } from 'vue'
-import MaquetteLiminaireJalon from './MaquetteLiminaireJalon.vue'
 import StyleRolesTable from '../config/StyleRolesTable.vue'
-import StructureModelList from '../config/StructureModelList.vue'
 import RuleSetForm from '../config/RuleSetForm.vue'
 import HighlightsList from '../config/HighlightsList.vue'
-import LiminaireEligibilite from '../liminaire/LiminaireEligibilite.vue'
 import { splitByModel } from '../../script/chapitrageModele'
 
 const props = defineProps({
-  // Format de page relevé du .odt (point de départ des contrôles).
-  fmtPage: { type: Object, default: null },
-  // styleDefaults muté en place par les contrôles (Format + en-têtes/pieds).
-  styleDefaults: { type: Object, required: true },
-  // Verdict d'éligibilité liminaire (deriveEligibility).
-  elig: { type: Object, required: true },
-  limCanExtend: { type: Boolean, default: true },
-  limNextTitle: { type: String, default: null },
-  limBorderShift: { type: Number, default: 0 },
   // Styles du vis-à-vis liminaire focusé (cf. spreadStyles), forme StyleRolesTable.
   limStyles: { type: Array, default: () => [] },
   // Sections de chapitrage enrichies (ruleSet/defaultRuleSet), une par niveau.
@@ -146,15 +100,9 @@ const props = defineProps({
   // texte, cf. script/chapitrageModele.js). Vide tant que les formes ne sont pas
   // chargées : la table du niveau est alors entière, comme avant.
   modelNames: { type: Array, default: () => [] },
-  // Titre du nœud inspecté, pour dire de QUI le modèle est relevé.
-  modelLabel: { type: String, default: null },
-  // Décompte par niveau (cf. script/chapitrageValidation.js). Les chiffres eux-
-  // mêmes sont affichés par MaquetteBar ; ici on n'en lit que `fromModel`, qui
-  // décide de la phrase expliquant ce que « validable » veut dire à ce niveau.
-  tallyRows: { type: Array, default: () => [] },
 })
 
-defineEmits(['extend', 'exclude', 'hover-style'])
+defineEmits(['hover-style'])
 
 // Résolution 'chap-N' → la section de chapitrage (avec son rang) ; null pour
 // 'format'/'liminaire' ou un index hors bornes.

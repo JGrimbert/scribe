@@ -266,7 +266,6 @@ const {
 // c'est du vocabulaire d'affichage, `DocumentLayout` n'a pas à en arbitrer.
 // `scoped` ne suffirait pas — il ne sépare que l'édition du reste.
 const SCREEN_LABELS = {
-  config: 'Configuration',
   maquette: 'Maquette',
   document: 'Analyse',
   editor: 'Édition',

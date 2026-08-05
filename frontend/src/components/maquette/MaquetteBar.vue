@@ -42,6 +42,21 @@
       </button>
     </div>
 
+    <!-- Recalibrage : relit le .odt d'origine et rouvre la calibration des bornes
+         (le liminaire et la partie finale). Réglage permanent de l'écran — d'où sa
+         place ici et non dans le CTA de la doc-bar (pris par « Enregistrer »).
+         Barré si le .odt d'origine n'est pas conservé. -->
+    <button
+        type="button"
+        class="maq-recal"
+        :disabled="!recalibratable"
+        :title="recalibratable ? 'Relire le .odt d’origine et redéfinir les bornes' : NO_SOURCE_HINT"
+        @click="$emit('recalibrate')"
+    >
+      <i class="pi pi-refresh" aria-hidden="true"></i>
+      <span>Redéfinir les bornes</span>
+    </button>
+
     <label class="maq-bar__zoom">
       <span>Dézoom</span>
       <!-- `.number` ne traverse pas un v-model de composant (BaseSelect ne lit pas
@@ -66,12 +81,19 @@ const props = defineProps({
   tallyRow: { type: Object, default: null },
   // Le volet de validation (familles de cas) est-il ouvert ?
   validating: { type: Boolean, default: false },
+  // Le .odt d'origine est-il conservé ? Sinon le recalibrage est barré (seul un
+  // réimport peut refixer les bornes).
+  recalibratable: { type: Boolean, default: true },
 })
 
 // `update:searching` : la maquette replie son accordéon tant que la recherche est
 // ouverte, et le rend tel quel à la fermeture. `update:query` : elle en fait ses
-// résultats (la planche qui remplace l'aperçu).
-const emit = defineEmits(['update:zoom', 'update:searching', 'update:query', 'validate'])
+// résultats (la planche qui remplace l'aperçu). `recalibrate` : ouvre la modale de
+// recalibration (l'hôte détient le flux).
+const emit = defineEmits(['update:zoom', 'update:searching', 'update:query', 'validate', 'recalibrate'])
+
+const NO_SOURCE_HINT =
+    "Recalibrage impossible : le .odt d'origine n'a pas été conservé (document importé avant cette fonctionnalité). Seul un réimport permet de refixer les bornes."
 
 const pct = computed(() => {
   const r = props.tallyRow
@@ -216,8 +238,37 @@ onUnmounted(() => document.removeEventListener('keydown', onDocKeydown))
   background: color-mix(in srgb, var(--c-accent-alt) 12%, transparent);
 }
 
-.maq-bar__zoom {
+/* Recalibrage : bouton discret (ghost), MENEUR du cluster de droite — il porte le
+   `margin-left: auto`, le dézoom se colle à lui. Ainsi recal+dézoom restent
+   ensemble à droite, avec ou sans tally (qui a son propre auto et flotte au
+   milieu quand elle est là). */
+.maq-recal {
   margin-left: auto;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: var(--fs-sm);
+  padding: 0.25em 0.6em;
+  cursor: pointer;
+}
+
+.maq-recal:hover:not(:disabled) {
+  border-color: var(--c-accent-alt);
+  color: var(--c-accent-alt);
+}
+
+.maq-recal:disabled {
+  opacity: var(--op-faint);
+  cursor: default;
+}
+
+.maq-bar__zoom {
   flex: 0 0 auto;
   display: flex;
   align-items: center;

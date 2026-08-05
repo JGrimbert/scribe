@@ -18,7 +18,8 @@ completeness/conformity/lexical/semantic/topics). Vocabulaires/helpers purs :
   `AnalyseView`, `useAnalyse()` dans les cards. `DocumentLayout` le fournit aussi
   hors dashboard (config), d'où `AnalyseBlock` utilisable comme cadre autonome.
 - **`AnalyseBlock.vue`** (racine `analyse/`, importé par toutes les familles via
-  `../AnalyseBlock.vue` et, hors dashboard, par `../liminaire/LiminaireComposer`) —
+  `../AnalyseBlock.vue` et, hors dashboard, par `../maquette/MaquetteView` — cran
+  de recherche) —
   cadre commun d'un bloc : révélation, spinner, états vide/erreur, colonnes 2/3 ·
   1/3 (`aside="right"`). Le primitif `.split` (`analyse.css`) est importé
   **globalement par `main.js`**. Prop `bare` → `.split--bare` : inverse

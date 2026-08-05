@@ -95,6 +95,29 @@ describe('groupLiminairePages', () => {
     expect(merged).toHaveLength(1)
   })
 
+  it('precedesOf ouvre une page sur un style réglé break/blank, sans saut .odt', () => {
+    const entries = [
+      { type: 'paragraph', text: 'Fin du chapitre', styleName: 'Corps' },
+      { type: 'paragraph', text: 'CHAPITRE II', styleName: 'Titre chapitre' },
+    ]
+    const precedesOf = (name) => (name === 'Titre chapitre' ? 'break' : 'none')
+    const pages = groupLiminairePages(entries, {}, precedesOf)
+    expect(pages).toHaveLength(2)
+    expect(pages.map((p) => p.precedes)).toEqual(['none', 'break'])
+    expect(pages[1].preview).toBe('CHAPITRE II')
+  })
+
+  it('la fusion manuelle (joined) désarme l’ouverture par style', () => {
+    const entries = [
+      { type: 'paragraph', text: 'Fin', styleName: 'Corps' },
+      { type: 'paragraph', text: 'Suite', styleName: 'Titre chapitre' },
+    ]
+    const keyed = withEntryKeys(entries)
+    const precedesOf = (name) => (name === 'Titre chapitre' ? 'blank' : 'none')
+    const merged = groupLiminairePages(entries, { [keyed[1].key]: { break: 'joined' } }, precedesOf)
+    expect(merged).toHaveLength(1)
+  })
+
   it('rend une liste vide sur une entrée absente', () => {
     expect(groupLiminairePages([])).toEqual([])
     expect(groupLiminairePages(undefined)).toEqual([])

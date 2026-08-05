@@ -1,22 +1,9 @@
-// Le côté EFFECTIF d'une page pour la composition, par ordre d'autorité :
-//  1. `side` CHOISI par l'utilisateur (config.side) — il tranche ;
-//  2. `sideFromOdt` — le côté RÉEL lu du .odt (ground truth de CE document) ;
-//  3. `typeSide` — la CONVENTION du type tagué (faux-titre=recto, mentions=verso…),
-//     l'ancre de parité : sans elle, taguer une page ne la place nulle part et le
-//     liminaire dérive. Le composer la fournit depuis LIMINAIRE_PAGES[].side.
-// 'auto' = libre (la parité coule).
-export function effectiveSide(page) {
-  if (page?.side && page.side !== 'auto') return page.side
-  if (page?.sideFromOdt && page.sideFromOdt !== 'auto') return page.sideFromOdt
-  return page?.typeSide && page.typeSide !== 'auto' ? page.typeSide : 'auto'
-}
-
 // Numérotation PHYSIQUE des pages, façon imposition : chaque page occupe un
-// folio ; une page contrainte à un côté (recto = impair / verso = pair) qui
-// tomberait du mauvais côté fait insérer une page blanche IMPLICITE avant elle
-// pour rétablir la parité — sauf si la précédente est déjà blanche (règle
-// « deux sauts consécutifs → une seule blanche »). Les pages doivent porter un
-// `side` effectif (cf. effectiveSide).
+// folio, numéroté séquentiellement. Plus de parité recto/verso automatique — le
+// modèle est EXPLICITE : une page blanche n'apparaît que si le .odt en porte une
+// (page `isBlank`) ou si le STYLE de tête de la page suivante la demande
+// (`precedes === 'blank'`, une belle page). Le côté recto/verso reste calculé
+// (impair/pair) pour composer les planches, mais ne CONTRAINT plus rien.
 export function computeImposition(pages) {
   const slots = []
   let n = 1
@@ -25,8 +12,7 @@ export function computeImposition(pages) {
   for (const page of pages ?? []) {
     if (page.isBlank) {
       // Blanche AVANT le premier contenu = intérieur de couverture (non
-      // numérotée) : sans quoi elle prendrait la page 1 et pousserait le
-      // faux-titre en verso, alors qu'il doit être recto.
+      // numérotée) : sans quoi elle prendrait la page 1.
       if (!started) {
         slots.push({ number: 0, parity: 'verso', blank: true, cover: true, page })
         continue
@@ -35,23 +21,14 @@ export function computeImposition(pages) {
       n++
       continue
     }
-    started = true
-    const want = effectiveSide(page)
-    if (want !== 'auto' && parity(n) !== want) {
-      const prev = slots[slots.length - 1]
-      if (prev && prev.blank && !prev.cover) {
-        // Une blanche précède ET la parité est fausse : elle est mal placée. On
-        // l'ABSORBE (au lieu d'en ajouter une seconde, ce qui ferait deux
-        // blanches d'affilée) — la page reprend son numéro et retombe sur son
-        // côté conventionnel. C'est « la convention l'emporte sur les blanches
-        // du .odt » : Writer pose des blanches sans connaître nos types.
-        slots.pop()
-        n--
-      } else {
-        slots.push({ number: n, parity: parity(n), blank: true, implicit: true })
-        n++
-      }
+    // Belle page : le style de tête demande une blanche AVANT sa page. Insérée
+    // telle quelle (une seule, explicite), une fois le contenu commencé — avant
+    // lui, c'est la couverture qui joue ce rôle.
+    if (started && page.precedes === 'blank') {
+      slots.push({ number: n, parity: parity(n), blank: true, implicit: true })
+      n++
     }
+    started = true
     slots.push({ number: n, parity: parity(n), blank: false, page })
     n++
   }

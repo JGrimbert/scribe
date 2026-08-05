@@ -113,6 +113,14 @@ export function mergeTypology(
       .filter((s) => s.name !== drop)
       .map((s) => (s.afterName === drop ? { ...s, afterName: keep } : s))
   }
+  // « Ce qui précède » suit la même règle que le rôle : revient à `keep` s'il n'en
+  // avait pas, sinon le sien tient. Sans ça, la clé `drop` survivrait, orpheline.
+  if (typology.stylePrecedence) {
+    const precedence = { ...typology.stylePrecedence }
+    if (precedence[drop] && !precedence[keep]) precedence[keep] = precedence[drop]
+    delete precedence[drop]
+    out.stylePrecedence = precedence
+  }
   return out
 }
 

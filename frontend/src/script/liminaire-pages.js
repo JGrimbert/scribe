@@ -46,11 +46,15 @@ export function withEntryKeys(entries) {
 //    page en cours (mentions légales → Dédicace) : le .odt ne met pas toujours
 //    un saut entre deux pages liminaires, mais deux types ne partagent jamais
 //    une page. On exige les DEUX types non nuls — un style anonyme (ornement,
-//    ligne vide) ne scinde rien, sans quoi la page de titre exploserait.
-// Le côté RÉEL (`sideFromOdt`) et le tag (type/côté) sont ancrés sur la PREMIÈRE
-// entrée de la page (`key`). Une page dont toutes les entrées sont vides est une
-// page blanche (`isBlank`), non taggable.
-export function groupLiminairePages(entries, config = {}) {
+//    ligne vide) ne scinde rien, sans quoi la page de titre exploserait ; ou
+//  - son STYLE est réglé pour OUVRIR une page (`precedesOf` = 'break' ou 'blank',
+//    cf. typologie) : le premier style d'une page dit ce qui la précède.
+// Une fusion manuelle (`joined`) désarme aussi ce dernier déclencheur.
+// Le côté RÉEL (`sideFromOdt`) est ancré sur la PREMIÈRE entrée de la page
+// (`key`), tout comme `precedes` (ce que le style de tête impose avant la page).
+// Une page dont toutes les entrées sont vides est une page blanche (`isBlank`),
+// non taggable.
+export function groupLiminairePages(entries, config = {}, precedesOf = () => 'none') {
   const keyed = withEntryKeys(entries)
   const pages = []
   // Type de style qui ANCRE la page en cours (le premier rencontré) : c'est lui
@@ -60,9 +64,16 @@ export function groupLiminairePages(entries, config = {}) {
     const brk = config?.[entry.key]?.break
     const styleType = typeOfStyleName(entry.styleName)
     const styleSplit = brk !== 'joined' && styleType != null && anchorType != null && styleType !== anchorType
-    const starts = i === 0 || brk === 'start' || (brk !== 'joined' && entry.pageStart != null) || styleSplit
+    const styleStarts = brk !== 'joined' && precedesOf(entry.styleName) !== 'none'
+    const starts = i === 0 || brk === 'start' || (brk !== 'joined' && entry.pageStart != null) || styleSplit || styleStarts
     if (starts || !pages.length) {
-      pages.push({ ordinal: pages.length, key: entry.key, sideFromOdt: sideOfPageStart(entry.pageStart), entries: [] })
+      pages.push({
+        ordinal: pages.length,
+        key: entry.key,
+        sideFromOdt: sideOfPageStart(entry.pageStart),
+        precedes: precedesOf(entry.styleName),
+        entries: [],
+      })
       anchorType = null
     }
     pages[pages.length - 1].entries.push(entry)

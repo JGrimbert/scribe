@@ -38,9 +38,9 @@ async function onCommitted(summary) {
   pendingPreview.value = null
   await fetchDocuments()
   startAnalyse(summary.id)
-  // Le document arrive sur sa config : ce qu'on vient de calibrer est fait,
-  // l'étape suivante est d'arbitrer ses styles.
-  router.push({ name: 'config', params: { id: summary.id } })
+  // Le document arrive sur sa maquette : ce qu'on vient de calibrer est fait,
+  // l'étape suivante est d'arbitrer ses styles (maquette, ex-config).
+  router.push({ name: 'maquette', params: { id: summary.id } })
 }
 
 // Annuler ne navigue plus : on reste là où l'import a été lancé (accueil ou aside

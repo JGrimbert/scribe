@@ -14,13 +14,17 @@ chargé à la demande (ne toucher qu'une famille n'en charge que le doc). Carte 
   trame/data) + `DocumentBar` (2e topbar, fil d'Ariane, validation, scope). Voir
   `layout/CLAUDE.md`.
 - **`home/`** — accueil + registre : `HomeView`, `DocumentList`. Voir `home/CLAUDE.md`.
-- **`config/`** — écran de configuration (typologie, styles, modèles, règles,
-  recalibration). Voir `config/CLAUDE.md`.
+- **`config/`** — **plus d'écran routé** (`ConfigView` supprimé le 2026-08-05,
+  fondu dans la maquette) : dossier de composants PARTAGÉS de configuration
+  (typologie/styles/règles/recalibration : `StyleRolesTable`, `RecalibrationModal`,
+  `RuleSetForm`, `HighlightsList`, `PageDiagram`, `StyleEditorPanel`…), consommés
+  par la maquette. Voir `config/CLAUDE.md`.
 - **`analyse/`** — dashboard de `/documents/:id` (`AnalyseView` + `AnalyseBlock`,
   echarts) ; cards rangées par famille `structure/`·`lexical/`·`semantic/`·`themes/`.
   Voir `analyse/CLAUDE.md`.
-- **`liminaire/`** — typage/composition des pages liminaires (`LiminaireComposer`
-  + accordéon/découpage/éligibilité/folio). Voir `liminaire/CLAUDE.md`.
+- **`liminaire/`** — typage/composition des pages liminaires (`AccordeonControls`
+  + `LiminaireDecoupage` + `LiminaireFolio`, montés par la maquette ; l'ancien
+  `LiminaireComposer`/accordéon dédié a été supprimé). Voir `liminaire/CLAUDE.md`.
 - **`ui/`** — design system en atomic design : `atoms/`, `molecules/`,
   `organisms/` (`BaseChart`) + Storybook. Voir `ui/CLAUDE.md`.
 

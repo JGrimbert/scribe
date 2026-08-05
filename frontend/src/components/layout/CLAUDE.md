@@ -6,14 +6,14 @@ les distribue ; fournit le store d'analyse (`provideAnalyse`, cf.
 `../analyse/CLAUDE.md`) — monté ici et non dans `AnalyseView` pour que
 `DocumentBar`, présent hors dashboard, y accède.
 
-## Aside contextuelle — registre vs structure
+## Aside contextuelle — structure
 
-L'aside porte `../structure/StructureView.vue` **partout sauf en config**, seul
-écran qui puisse reconstruire l'arbre des nœuds ; là elle porte le registre
-(`../home/DocumentList.vue`), **là et seulement là où l'arbre des nœuds ne sert à
-rien**. L'arbitrage tient dans `asideMode` ; `DocumentBar` reçoit `asideLabel`
-(son chevron ne peut pas dire « Replier la structure » là où il replie le
-registre).
+L'aside porte `../structure/StructureView.vue` (arbre des nœuds). `asideMode`
+renvoie **toujours `'structure'`** depuis la suppression de l'écran de config
+(2026-08-05) — c'était le seul écran qui montrait le registre (`DocumentList`) à
+la place ; la maquette (ex-config) est pleine largeur avec son propre sommaire
+flottant. Le registre reste câblé (`openDocument`) mais n'est plus monté ici.
+`DocumentBar` reçoit `asideLabel` (« la structure »).
 
 ## Cycle trame/data — piège du démontage
 

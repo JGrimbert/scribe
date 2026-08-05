@@ -31,6 +31,18 @@ export const HIGHLIGHT_ROLES = ['annotation', 'emphase', 'ignorer'] as const
 
 export type HighlightRole = (typeof HIGHLIGHT_ROLES)[number]
 
+// Ce qui PRÉCÈDE un style quand il ouvre une page, par nom de style. Remplace
+// l'ancien côté recto/verso par entrée (jugé peu fiable) : c'est le premier style
+// d'une page qui dit ce qui vient avant elle.
+//  - 'break' : le style OUVRE une page (saut de page avant lui) ;
+//  - 'blank' : idem, plus UNE page blanche insérée avant (belle page) — insertion
+//    explicite, sans logique de parité recto/verso ;
+//  - 'none'  : rien d'imposé (le style coule dans la page courante ; le regroupement
+//    reste piloté par le .odt et les changements de type).
+export const PRECEDES_KINDS = ['none', 'break', 'blank'] as const
+
+export type PrecedesKind = (typeof PRECEDES_KINDS)[number]
+
 // Style DÉCLARÉ par l'utilisateur, absent du .odt : une ligne ajoutée à la main
 // dans le tableau de config (bouton « + »). Il ne sera jamais rencontré dans le
 // contenu (donc toujours non satisfait s'il est « exigé » — risque assumé), mais
@@ -53,6 +65,9 @@ export interface DocumentTypology {
   // (pour que conformité/exigé/succession les visent sans cas particulier) ;
   // cette liste ne porte que ce que la map ignore : leur place.
   declaredStyles?: DeclaredStyle[]
+  // Par nom de style → ce qui précède la page qu'il ouvre (saut / blanche / rien).
+  // Absent = 'none'. Cf. PRECEDES_KINDS.
+  stylePrecedence?: Record<string, PrecedesKind>
 }
 
 // Suggestions par nom de style. Ce ne sont QUE des propositions : c'est
@@ -116,7 +131,12 @@ export function suggestTypology(inventory: StyleInventory): DocumentTypology {
 // suite. Idem pour un style absent de l'inventaire : c'est un client qui parle
 // d'un document qu'il n'a pas.
 export function typologyErrors(
-  body: { styles: Record<string, string>; highlights: Record<string, string>; declaredStyles?: DeclaredStyle[] },
+  body: {
+    styles: Record<string, string>
+    highlights: Record<string, string>
+    declaredStyles?: DeclaredStyle[]
+    stylePrecedence?: Record<string, string>
+  },
   inventory: StyleInventory,
 ): string[] {
   const errors: string[] = []
@@ -149,6 +169,10 @@ export function typologyErrors(
   for (const [color, role] of Object.entries(body.highlights ?? {})) {
     if (!knownColors.has(color)) errors.push(`Surlignage inconnu dans ce document : « ${color} »`)
     if (!HIGHLIGHT_ROLES.includes(role as HighlightRole)) errors.push(`Rôle de surlignage inconnu : « ${role} » (${color})`)
+  }
+  for (const [name, kind] of Object.entries(body.stylePrecedence ?? {})) {
+    if (!knownStyles.has(name)) errors.push(`Style inconnu dans ce document : « ${name} »`)
+    if (!PRECEDES_KINDS.includes(kind as PrecedesKind)) errors.push(`Ce qui précède inconnu : « ${kind} » (style « ${name} »)`)
   }
   return errors
 }

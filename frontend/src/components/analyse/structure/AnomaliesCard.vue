@@ -25,8 +25,9 @@
           Les styles de ce document ne sont pas encore typés : impossible de dire ce qu'un chapitre
           doit contenir pour être validable.
           <!-- Chemin littéral et non route nommée : le routeur en mémoire des
-               stories est un attrape-tout, sans noms (cf. .storybook/preview.js). -->
-          <RouterLink :to="`/documents/${route.params.id}/config`">
+               stories est un attrape-tout, sans noms (cf. .storybook/preview.js).
+               La typologie se règle désormais dans la maquette (ex-config). -->
+          <RouterLink :to="`/documents/${route.params.id}`">
             Configurer la typologie
           </RouterLink>
         </UiNote>

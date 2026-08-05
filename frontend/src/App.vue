@@ -33,14 +33,6 @@
         />
         <BaseButton
             variant="ghost"
-            icon="pi-sliders-h"
-            :active="route.name === 'config'"
-            :disabled="!targetDocId"
-            title="Configuration du document"
-            @click="router.push(`/documents/${targetDocId}/config`)"
-        />
-        <BaseButton
-            variant="ghost"
             icon="pi-clone"
             :active="route.name === 'maquette'"
             :disabled="!targetDocId"
@@ -131,10 +123,10 @@ document.addEventListener('click', onDocClick)
 onBeforeUnmount(() => document.removeEventListener('click', onDocClick))
 
 // Deux mémoires distinctes, et pas une seule : `lastDocumentId` sert les boutons
-// qui RECONSTRUISENT une URL (analyse, config), tandis qu'« Éditeur » doit
-// rouvrir un CHEMIN d'édition précis — le chapitre où l'on était. Les confondre
-// allumait le bouton dès qu'on avait vu un document, et le renvoyait sur la
-// dernière route quelconque (l'analyse, la config) au lieu de l'éditeur.
+// qui RECONSTRUISENT une URL (maquette), tandis qu'« Éditeur » doit rouvrir un
+// CHEMIN d'édition précis — le chapitre où l'on était. Les confondre allumait le
+// bouton dès qu'on avait vu un document, et le renvoyait sur la dernière route
+// quelconque (l'analyse, la maquette) au lieu de l'éditeur.
 const lastEditorPath = ref(null)
 const lastDocumentId = ref(null)
 router.afterEach((to) => {

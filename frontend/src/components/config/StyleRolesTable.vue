@@ -4,7 +4,7 @@
       <tr
           v-for="(style, i) in styles"
           :key="style.name"
-          :class="{ 'row--declared': style.declared }"
+          :class="{ 'row--declared': style.declared, 'row--page-start': showPrecedes && precedesOf(style.name) !== 'none' }"
           @mouseenter="emit('hover-style', style.name)"
           @mouseleave="emit('hover-style', null)"
       >
@@ -72,6 +72,20 @@
         <td class="role-col">
           <BaseSelect v-model="styleRoles[style.name]">
             <option v-for="role in STYLE_ROLES" :key="role" :value="role">{{ role }}</option>
+          </BaseSelect>
+        </td>
+
+        <!-- Ce qui précède la page ouverte par ce style : rien / saut de page /
+             page blanche (belle page). Décision PAR STYLE, remplace le côté
+             recto/verso par entrée. Un filet coiffe la ligne quand le style ouvre
+             une page (cf. .row--page-start). -->
+        <td v-if="showPrecedes" class="precedes-col">
+          <BaseSelect
+              :model-value="precedesOf(style.name)"
+              :title="`Ce qui précède la page ouverte par « ${style.name} »`"
+              @update:model-value="setPrecedes(style.name, $event)"
+          >
+            <option v-for="k in PRECEDES_KINDS" :key="k" :value="k">{{ PRECEDES_LABELS[k] }}</option>
           </BaseSelect>
         </td>
 
@@ -145,6 +159,7 @@ import BaseSelect from '../ui/atoms/BaseSelect.vue'
 import SuccessionLink from '../ui/atoms/SuccessionLink.vue'
 import UiTable from '../ui/molecules/UiTable.vue'
 import { STYLE_ROLES } from '../../script/typology'
+import { PRECEDES_KINDS, PRECEDES_LABELS } from '../../script/liminaire-vocab'
 
 // `styleRoles` est muté en place (v-model sur `styleRoles[style.name]`) : c'est la
 // map réactive de la typologie, détenue par le composable. Les styles arrivent
@@ -161,6 +176,9 @@ const props = defineProps({
   // styles hors modèle de la maquette) doit la retirer sans perdre « exigé » —
   // exiger une paire de styles qui ne se suivent nulle part n'a pas de sens.
   showAdjacency: { type: Boolean, default: true },
+  // Colonne « ce qui précède » (saut / blanche / rien) par style. Requiert que
+  // `stylePrecedence` soit injecté (map réactive de la typologie).
+  showPrecedes: { type: Boolean, default: false },
   ruleSet: { type: Object, default: null },
   // Profondeur du niveau — passée aux mutations de règles pour viser son jeu.
   depthKey: { type: Number, default: null },
@@ -213,6 +231,19 @@ const toggleRequireStyle = inject('toggleRequireStyle', null)
 const toggleAdjacency = inject('toggleAdjacency', null)
 const addDeclaredStyle = inject('addDeclaredStyle', null)
 const removeDeclaredStyle = inject('removeDeclaredStyle', null)
+
+// Ce qui précède la page ouverte par un style (map réactive de la typologie,
+// injectée comme les toggles). Absente d'une map = 'none' ; on retire la clé
+// plutôt que d'y écrire 'none', pour que la map ne porte que des décisions.
+const stylePrecedence = inject('stylePrecedence', null)
+function precedesOf(name) {
+  return stylePrecedence?.[name] ?? 'none'
+}
+function setPrecedes(name, kind) {
+  if (!stylePrecedence) return
+  if (kind === 'none') delete stylePrecedence[name]
+  else stylePrecedence[name] = kind
+}
 
 function isRequired(name) {
   return !!props.ruleSet?.requiresStyles?.includes(name)
@@ -319,8 +350,22 @@ function confirmAdd() {
 .succ-col,
 .role-col,
 .require-col,
+.precedes-col,
 .add-col {
   user-select: none;
+}
+
+/* Colonne « ce qui précède » : étroite, calée sur son select. */
+.precedes-col {
+  width: 1%;
+  white-space: nowrap;
+}
+
+/* Le style OUVRE une page : un filet teal coiffe la ligne — on lit d'un coup où
+   commencent les pages. Posé sur les cellules (border-collapse) pour courir toute
+   la largeur. */
+.row--page-start > td {
+  border-top: 2px solid color-mix(in srgb, var(--c-accent-alt) 55%, transparent);
 }
 
 .edit-style {

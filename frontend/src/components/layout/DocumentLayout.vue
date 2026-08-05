@@ -158,14 +158,15 @@ const isEditor = computed(() => route.name === 'editor')
 // d'aside gauche pour elle (elle reste pleine largeur).
 const isMaquette = computed(() => route.name === 'maquette')
 
-// L'arbre des nœuds n'a rien à dire sur l'écran qui peut le reconstruire : la
-// config y cède la place au registre.
-const asideMode = computed(() => (route.name === 'config' ? 'registry' : 'structure'))
+// L'aside gauche porte toujours la structure du document : l'ancien écran de
+// config (qui y montrait le registre) a fondu dans la maquette, laquelle reste
+// pleine largeur avec son propre sommaire flottant.
+const asideMode = computed(() => 'structure')
 
 // Changer de document depuis le registre garde l'écran ET le volet : on compare
-// des configurations, on ne repart pas dans le dashboard à chaque clic.
+// des maquettes, on ne repart pas dans le dashboard à chaque clic.
 function openDocument(id) {
-  if (id !== route.params.id) router.push({ name: 'config', params: { id }, query: route.query })
+  if (id !== route.params.id) router.push({ name: 'maquette', params: { id }, query: route.query })
 }
 
 // Supprimer un AUTRE document ne fait que raccourcir la liste ; supprimer celui

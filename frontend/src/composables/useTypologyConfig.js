@@ -28,6 +28,11 @@ export function useTypologyConfig() {
 
   const styles = reactive({})
   const highlights = reactive({})
+  // Ce qui PRÉCÈDE la page qu'un style ouvre, par nom de style ('none' par
+  // défaut → clé absente) : 'break' (saut de page) ou 'blank' (belle page). Décidé
+  // dans la table des styles, remplace le côté recto/verso par entrée. Persisté
+  // DANS le blob typologie (`stylePrecedence`, cf. backend typology.ts).
+  const stylePrecedence = reactive({})
   // Styles AJOUTÉS à la main (bouton « + » du tableau), absents du .odt : chacun
   // { name, role, zoneKey, afterName }. Le rôle vit AUSSI dans `styles` (pour que
   // rôle/exigé/succession les visent sans cas particulier) ; cette liste porte
@@ -223,6 +228,7 @@ export function useTypologyConfig() {
     if (i === -1) return
     declaredStyles.splice(i, 1)
     delete styles[name]
+    delete stylePrecedence[name]
 
     const strip = (set) => {
       set.requiresStyles = set.requiresStyles.filter((s) => s !== name)
@@ -266,6 +272,10 @@ export function useTypologyConfig() {
       // déclarés repart de la base. Leur rôle est déjà dans `styles` ci-dessus.
       declaredStyles.splice(0, declaredStyles.length, ...(data.typology?.declaredStyles ?? []))
 
+      // Remplacé, pas fusionné : un rechargement (recalibrage) repart de la base.
+      for (const k of Object.keys(stylePrecedence)) delete stylePrecedence[k]
+      Object.assign(stylePrecedence, data.typology?.stylePrecedence ?? {})
+
       const loaded = await rulesRes.json()
       rules.default = loaded.default
       rules.byDepth = loaded.byDepth ?? {}
@@ -308,7 +318,7 @@ export function useTypologyConfig() {
       // Désérialisé en profondeur : `rules` est un proxy réactif imbriqué, un
       // spread de surface enverrait des proxies dans le JSON.
       const [typoBody] = await Promise.all([
-        put(id, 'typology', { styles: { ...styles }, highlights: { ...highlights }, declaredStyles: JSON.parse(JSON.stringify(declaredStyles)) }),
+        put(id, 'typology', { styles: { ...styles }, highlights: { ...highlights }, declaredStyles: JSON.parse(JSON.stringify(declaredStyles)), stylePrecedence: { ...stylePrecedence } }),
         put(id, 'rules', JSON.parse(JSON.stringify(rules))),
         // `liminaireConfig` est un proxy réactif imbriqué : désérialisé en
         // profondeur comme `rules`. Le backend normalise (jette 'auto'/vides).
@@ -340,12 +350,12 @@ export function useTypologyConfig() {
 
   // Toute modification efface l'accusé d'enregistrement : sinon il resterait
   // affiché au-dessus de changements qui, eux, ne le sont pas.
-  watch([styles, highlights, declaredStyles, rules, liminaireConfig, styleDefaults, styleOverrides], () => { saved.value = false })
+  watch([styles, highlights, declaredStyles, rules, liminaireConfig, styleDefaults, styleOverrides, stylePrecedence], () => { saved.value = false })
 
   return {
     loading, loadError, saveError, saving, saved, settled,
     inventory, styles, highlights, rules, liminaireConfig, styleDefaults, zoned,
-    styleOverrides, styleBase, effectiveVisuals,
+    styleOverrides, styleBase, effectiveVisuals, stylePrecedence,
     sections, unzonedStyles, structureShapes, shapeGroups, shapesError,
     declaredStyles, addDeclaredStyle, removeDeclaredStyle,
     load, save, toggleDepth, toggleRequireStyle, toggleAdjacency,

@@ -3,7 +3,6 @@ import HomeView from '../components/home/HomeView.vue'
 import DocumentLayout from '../components/layout/DocumentLayout.vue'
 import AnalyseView from '../components/analyse/AnalyseView.vue'
 import EditorView from '../components/editor/EditorView.vue'
-import ConfigView from '../components/config/ConfigView.vue'
 import MaquetteView from '../components/maquette/MaquetteView.vue'
 
 const routes = [
@@ -18,13 +17,16 @@ const routes = [
       // icône n'y mène, on n'y accède qu'en tapant l'URL (choix délibéré).
       { path: '', name: 'maquette', component: MaquetteView },
       { path: 'analyse', name: 'document', component: AnalyseView },
-      { path: 'config', name: 'config', component: ConfigView },
-      // L'ancien écran de typologie a fondu dans la config (plus de volets).
-      // Redirection plutôt que suppression : les liens posés (dashboard,
-      // favoris) visent encore /styles.
+      // L'écran de config a fondu dans la maquette (styles, règles, recalibrage
+      // y vivent désormais). Redirection plutôt que 404 : les liens posés
+      // (dashboard, favoris, ancien /config, ancien /styles) visent encore ces URL.
+      {
+        path: 'config',
+        redirect: (to) => ({ name: 'maquette', params: to.params }),
+      },
       {
         path: 'styles',
-        redirect: (to) => ({ name: 'config', params: to.params }),
+        redirect: (to) => ({ name: 'maquette', params: to.params }),
       },
       // `:nodeId` OPTIONNEL : le menu doit pouvoir ouvrir l'éditeur sans savoir
       // sur quel chapitre (il n'a pas la trame). Sans chapitre, EditorView

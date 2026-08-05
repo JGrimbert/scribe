@@ -14,11 +14,42 @@
         :zooms="ZOOMS"
         :tally-row="activeTallyRow"
         :validating="validating"
+        :recalibratable="recalibratable"
         @validate="toggleValidation"
+        @recalibrate="startRecalibration"
         @update:zoom="zoom = $event"
         @update:searching="onSearching"
         @update:query="onQuery"
     />
+
+    <!-- Recalibration des bornes (relecture du .odt) : modale globale, déclenchée
+         depuis MaquetteBar. Le flux (attente, calibration, commit) vit dans
+         useRecalibration ; l'hôte enchaîne les rechargements au commit. -->
+    <RecalibrationModal
+        :open="recalOpen"
+        :starting="recalStarting"
+        :recal-error="recalErr"
+        :preview="recalPreview"
+        :shifted-start-index="shiftedStartIndex"
+        @close="closeRecal"
+        @committed="onRecalCommitted"
+    />
+
+    <!-- Rapport de recalibrage : carte flottante en tête de l'aperçu (pas de toast
+         — une relecture perdue doit pouvoir se lire et se refaire). Fermable. -->
+    <div v-if="recalReport" class="maq-recal-report">
+      <UiCallout :tone="recalReport.droppedValidations.length ? 'error' : 'info'" title="Recalibré">
+        {{ recalReport.restoredValidations }} validation(s) reposée(s)<template
+            v-if="recalReport.droppedValidations.length"
+        >, {{ recalReport.droppedValidations.length }} perdue(s) — à relire :
+          <span class="maq-recal-report__dropped">
+            {{ recalReport.droppedValidations.map((d) => `${d.slug} (${d.reason})`).join(', ') }}
+          </span></template><template v-else>, aucune perdue.</template>
+      </UiCallout>
+      <button type="button" class="maq-recal-report__close" title="Fermer" @click="recalReport = null">
+        <i class="pi pi-times" aria-hidden="true"></i>
+      </button>
+    </div>
 
     <!-- Sommaire flottant (hors flux) : parties + arbre des axes. Toujours actif ;
          le cran focusé surligne sa partie, le nœud témoin son axe. -->
@@ -212,12 +243,8 @@
                   :focused="limFocused"
                   :types="limTypes"
                   :suggestions="limSuggestions"
-                  :sides="limSides"
-                  :expected-sides="limExpectedSides"
-                  :conflicts="limConflicts"
                   @update:focused="setLimFocused"
                   @set-type="limSetType"
-                  @set-side="limSetSide"
               />
               <LiminaireDecoupage :pages="limFocusedPages" :config="liminaireConfig" :empty-label="limEmptyLabel" />
             </div>
@@ -240,14 +267,7 @@
            sous elles, la colonne défile derrière. -->
       <CustomScrollbar :top-offset="84">
         <MaquetteAside
-            :fmt-page="fmtPage"
-            :style-defaults="styleDefaults"
             :lim-styles="limSpreadStyles"
-            @hover-style="hoveredStyle = $event"
-            :elig="limElig"
-            :lim-can-extend="limCanExtend"
-            :lim-next-title="limNextTitle"
-            :lim-border-shift="limBorderShift"
             :chap-sections="chapSections"
             :style-roles="styles"
             :rules="rules"
@@ -256,10 +276,7 @@
             :zoned="zoned"
             :active-block="focusedCran?.seriesKey ?? null"
             :model-names="modelNames"
-            :model-label="witnessItem?.titre ?? null"
-            :tally-rows="chapTallyRows"
-            @extend="extendLiminaire"
-            @exclude="excludeLiminaire"
+            @hover-style="hoveredStyle = $event"
         />
       </CustomScrollbar>
     </div>
@@ -317,11 +334,15 @@ import FolioView from '../editor/FolioView.vue'
 import CustomScrollbar from '../ui/atoms/CustomScrollbar.vue'
 import PageDiagram from '../config/PageDiagram.vue'
 import StyleEditorPanel from '../config/StyleEditorPanel.vue'
+import RecalibrationModal from '../config/RecalibrationModal.vue'
+import UiCallout from '../ui/atoms/UiCallout.vue'
 import AccordeonControls from '../liminaire/AccordeonControls.vue'
 import LiminaireDecoupage from '../liminaire/LiminaireDecoupage.vue'
 import { effectivePage, effectiveMargins } from '../../script/pageFormats'
 import { pathToInAxes } from '../../script/trame'
 import { useTypologyConfig } from '../../composables/useTypologyConfig'
+import { useRegistry } from '../../composables/useRegistry'
+import { useRecalibration } from '../../composables/useRecalibration'
 import { useLiminaireBornes } from '../../composables/useLiminaireBornes'
 import { useLiminaireComposition } from '../../composables/useLiminaireComposition'
 import { useAnalyse } from '../../composables/useAnalyse'
@@ -348,10 +369,14 @@ const documentTitle = inject('documentTitle', null)
 const {
   styles, rules, liminaireConfig, styleDefaults, sections,
   inventory, highlights, zoned, structureShapes,
-  styleOverrides, styleBase, effectiveVisuals, saving,
+  styleOverrides, styleBase, effectiveVisuals, saving, stylePrecedence,
   toggleRequireStyle, toggleAdjacency, addDeclaredStyle, removeDeclaredStyle,
   load, save,
 } = useTypologyConfig()
+
+// Ce qu'un style impose avant sa page ('none' par défaut) : la table des styles
+// le règle, le regroupement liminaire et l'imposition le lisent.
+const precedesOf = (styleName) => stylePrecedence[styleName] ?? 'none'
 
 onMounted(() => { if (route.params.id) load(route.params.id) })
 
@@ -362,28 +387,56 @@ const bookTitle = computed(() => documentTitle?.value ?? '')
 const editingStyle = ref(null)
 provide('openStyleEditor', (name) => { editingStyle.value = name })
 provide('styleOverrides', styleOverrides)
+provide('stylePrecedence', stylePrecedence)
 provide('toggleRequireStyle', toggleRequireStyle)
 provide('toggleAdjacency', toggleAdjacency)
 provide('addDeclaredStyle', addDeclaredStyle)
 provide('removeDeclaredStyle', removeDeclaredStyle)
 
 // ── Source 2 : Liminaire ────────────────────────────────────────────────────
-// borderShift = déplacement LOCAL de la borne de fin (aperçu, non persisté). Étendre
-// absorbe le chapitre suivant dans le liminaire, exclure relâche le dernier.
+// borderShift = déplacement LOCAL de la borne de fin (aperçu, non persisté),
+// consommé par la recalibration (borne proposée) ; pas d'UI pour le décaler
+// aujourd'hui (l'ancien jalon étendre/exclure a été retiré) → reste à 0.
 const {
   liminairePages,
   borderShift: limBorderShift,
-  canExtend: limCanExtend,
-  nextTitle: limNextTitle,
-} = useLiminaireBornes(trame, documentData, liminaireConfig)
+} = useLiminaireBornes(trame, documentData, liminaireConfig, precedesOf)
+
+// ── Recalibration des bornes (relecture du .odt) ────────────────────────────
+// Reprise du flux de l'ancien écran de config (disparu) : la borne proposée à la
+// calibration dépend du décalage prévisualisé du liminaire (limBorderShift).
+const { documents, ensureLoaded, fetchDocuments } = useRegistry()
+onMounted(ensureLoaded)
+
+const docId = computed(() => route.params.id)
+const {
+  preview: recalPreview, report: recalReport, recalOpen, starting: recalStarting,
+  recalError: recalErr, shiftedStartIndex,
+  startRecalibration, closeRecal, finishCommit,
+} = useRecalibration({ docId, borderShift: limBorderShift })
+
+// hasSource absent (document importé avant DocumentSource) → recalibrage barré.
+// Tant que le registre n'est pas chargé on ne barre pas (il clignoterait) ; le
+// 404 backend reste le filet.
+const currentDoc = computed(() => documents.value.find((d) => d.id === route.params.id) ?? null)
+const recalibratable = computed(() => currentDoc.value?.hasSource !== false)
+
+// Commit réussi : le rapport est retenu par le composable ; l'hôte enchaîne les
+// rechargements (registre pour les stats, trame/data car les ids de nœuds sont
+// regénérés, typologie car la ventilation change).
+async function onRecalCommitted(summary) {
+  finishCommit(summary)
+  await fetchDocuments()
+  reloadDocument?.()
+  await load(route.params.id)
+}
 
 const focused = ref(0)
 
 const {
   spreads: limSpreads, types: limTypes, suggestions: limSuggestions,
-  sides: limSides, expectedSides: limExpectedSides, conflicts: limConflicts,
-  elig: limElig, focusedPages: limFocusedPages, emptyLabel: limEmptyLabel,
-  onSetType: limSetType, onSetSide: limSetSide,
+  focusedPages: limFocusedPages, emptyLabel: limEmptyLabel,
+  onSetType: limSetType,
 } = useLiminaireComposition({
   pages: () => liminairePages.value,
   config: () => liminaireConfig,
@@ -476,12 +529,14 @@ const searching = ref(false)
 // section de CHAPITRAGE focusée).
 const focusedZoneKey = computed(() => focusedCran.value?.sectionKey ?? null)
 
-// Rétraction automatique : quitter une zone l'empile (feuillets recouverts à
-// 95 %), seule celle du cran focusé reste dépliée. L'animation est déjà portée
-// par l'accordéon (transform sur la zone et ses feuillets).
+// Rétraction automatique : quitter une zone la réduit à son ONGLET (2ᵉ cran,
+// `tab`) — comme l'état de repos (hors survol), pas un simple empilement. Seule
+// la zone du cran focusé reste dépliée : au survol, tout est en onglet sauf elle.
+// L'animation est déjà portée par l'accordéon (transform sur la zone et ses
+// feuillets).
 function applyAutoFolds() {
   folds.value = Object.fromEntries(
-    sectionKeys.value.map((k) => [k, k === focusedZoneKey.value ? 'open' : 'stack']),
+    sectionKeys.value.map((k) => [k, k === focusedZoneKey.value ? 'open' : 'tab']),
   )
 }
 
@@ -825,6 +880,7 @@ async function applyMerge({ keep, drop, droppedCount }) {
     // useTypologyConfig) : sans ce retrait, le style fondu y survivrait et la
     // prochaine sauvegarde le réintroduirait dans la typologie persistée.
     delete styles[drop]
+    delete stylePrecedence[drop]
     await Promise.all([load(route.params.id), reloadDocument?.()])
   } catch (e) {
     window.alert(`Fusion impossible : ${e.message}`)
@@ -875,11 +931,6 @@ function selectNode(nodeId) {
   if (i !== -1) focusSeries(`chap-${i}`)
 }
 
-// Fin du liminaire (migrée du jalon vers l'aside — le jalon n'est plus qu'un
-// marqueur informatif) : étendre absorbe le chapitre suivant, exclure relâche le
-// dernier. Aperçu seul (recomposition des crans dans le même tick, non persisté).
-function extendLiminaire() { limBorderShift.value++ }
-function excludeLiminaire() { if (limBorderShift.value > 0) limBorderShift.value-- }
 
 // Focus liminaire LOCAL (index de planche) dérivé du focus global, et l'inverse.
 const limStart = computed(() => crans.value.findIndex((c) => c.sourceKey === 'liminaire'))
@@ -1275,6 +1326,43 @@ onUnmounted(() => { if (section) section.value = null })
 .folio-stage--lim:focus-within .lim-hover__controls {
   opacity: 1;
   pointer-events: auto;
+}
+
+/* Rapport de recalibrage : carte flottante centrée en tête de l'écran, sous les
+   deux barres. Au-dessus de l'aperçu et du sommaire, sous les modales (z 200). */
+.maq-recal-report {
+  position: fixed;
+  top: calc(2 * var(--bar-size) + 0.75em);
+  left: calc(var(--maq-gutter) + (100% - var(--maq-gutter)) / 2);
+  transform: translateX(-50%);
+  z-index: 175;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  width: min(46em, 60%);
+}
+
+.maq-recal-report__dropped {
+  font-family: var(--font-ui);
+  font-weight: 600;
+}
+
+.maq-recal-report__close {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.7em;
+  height: 1.7em;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-sm);
+  background: var(--c-surface);
+  color: var(--c-ink2);
+  cursor: pointer;
+}
+
+.maq-recal-report__close:hover {
+  color: var(--c-danger);
 }
 
 /* Aperçu de page dans la cellule d'accordéon : ajusté sur la HAUTEUR du cran (le

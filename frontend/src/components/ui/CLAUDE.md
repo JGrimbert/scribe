@@ -19,15 +19,15 @@ ne sont pas des primitives : ils vivent dans les dossiers métier et n'ont pas �
 migrer sous `ui/` —
 - **organismes** (compositions à état/domaine) : les cards du dashboard
   (`../analyse/**`), la topbar `../layout/DocumentBar.vue`, l'aside
-  `../structure/StructureView.vue`, la calibration `../import/ImportCalibration.vue`,
-  le composeur `../liminaire/LiminaireComposer.vue`. `BaseChart` est le seul
-  organisme sans domaine, d'où sa place dans `organisms/`.
+  `../structure/StructureView.vue`, la calibration `../import/ImportCalibration.vue`.
+  `BaseChart` est le seul organisme sans domaine, d'où sa place dans `organisms/`.
 - **templates** : la coquille `../layout/DocumentLayout.vue` (asides + topbar +
   `<router-view>`).
 - **pages** : les vues montées par le routeur (`../home/HomeView`,
-  `../analyse/AnalyseView`, `../config/ConfigView`, `../editor/EditorView`) — le
-  « niveau 1 » historique des dossiers, cf. `../../router/CLAUDE.md`. (L'import
-  n'a plus de page : c'est une modale, `../import/ImportCalibrationModal.vue`.)
+  `../maquette/MaquetteView`, `../analyse/AnalyseView`, `../editor/EditorView`) —
+  le « niveau 1 » historique des dossiers, cf. `../../router/CLAUDE.md`. (L'import
+  n'a plus de page : c'est une modale, `../import/ImportCalibrationModal.vue` ;
+  la config non plus — fondue dans la maquette.)
 
 ## Tokens
 

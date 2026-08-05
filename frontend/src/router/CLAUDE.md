@@ -10,10 +10,9 @@ vues. Routes (`index.js`, `vue-router`) :
 - **Import : plus de route ni d'écran dédiés.** La calibration d'import passe par
   une **modale globale** (`../components/import/ImportCalibrationModal.vue`, montée
   une fois dans `App.vue`), pilotée par `pendingPreview` (`useRegistry`) —
-  déclenchable depuis l'accueil comme depuis l'aside de config. Le preview ne vit
-  qu'en mémoire des deux côtés (module + `Map` backend) ; un rechargement le perd
-  et la modale se referme d'elle-même. Le commit navigue vers la config du
-  document créé.
+  déclenchable depuis l'accueil. Le preview ne vit qu'en mémoire des deux côtés
+  (module + `Map` backend) ; un rechargement le perd et la modale se referme
+  d'elle-même. Le commit navigue vers la **maquette** du document créé.
 - **`/documents/:id` — `DocumentLayout.vue`** : fetch unique de
   `GET /api/documents/:id`, fournit `trame`/`data` via `provide`/`inject` aux
   routes enfants, monte `DocumentBar` + l'aside (registre XOR `StructureView`
@@ -25,10 +24,14 @@ vues. Routes (`index.js`, `vue-router`) :
     de cards). Voir `../components/analyse/CLAUDE.md`. Le name reste `document`
     (scope d'analyse, labels…). **Plus aucune icône du menu n'y mène** — la route
     subsiste mais on n'y accède qu'en tapant l'URL (choix délibéré).
-  - **`config` — `ConfigView.vue`** (`../components/config/`) : la configuration,
-    **un seul écran** par typologie de contenu. Voir `../components/config/CLAUDE.md`.
-    **`styles` redirige ici** (l'ancien écran de typologie a fondu dans la config ;
-    les liens posés visent encore `/styles`).
+  - **`config` et `styles` — REDIRIGENT vers `maquette`.** L'écran de config
+    (`ConfigView.vue`) a été **supprimé** (2026-08-05) : styles, règles,
+    surlignages, recalibrage vivent désormais dans la maquette (aside + MaquetteBar).
+    Les deux chemins restent des redirections (liens posés : dashboard, favoris,
+    ancien `/config`, ancien `/styles`). Le dossier `../components/config/` **existe
+    encore** (composants partagés : `StyleRolesTable`, `RecalibrationModal`,
+    `PageDiagram`, `RuleSetForm`, `HighlightsList`, `StyleEditorPanel`…), mais plus
+    de page routée.
   - **`noeud/:nodeId?` (`editor`) — `EditorView.vue`** → `FolioView` en édition.
     `:nodeId` **OPTIONNEL** : le menu doit pouvoir ouvrir l'éditeur sans savoir
     sur quel chapitre (il n'a pas la trame) ; sans chapitre, `EditorView` retombe

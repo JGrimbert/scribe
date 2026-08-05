@@ -51,11 +51,12 @@ Carte des autres composables (détails dans le `CLAUDE.md` du composant
 consommateur) :
 
 - **`useRegistry.js`** — état de **MODULE** (pas d'instance) : liste des
-  documents + import, montés à deux endroits (accueil, aside config). Deux copies
-  divergeraient au premier import. Porte aussi `pendingPreview`,
-  `confirmAndDelete`. Voir `../components/CLAUDE.md` (« Registre et aside »).
-- **`useTypologyConfig.js`** — données de l'écran de config (inventaire, styles,
-  highlights, rules, settled, sections). Voir `../components/config/CLAUDE.md`.
+  documents + import, monté à l'accueil (l'aside registre de la config a disparu
+  avec l'écran). Porte aussi `pendingPreview`, `confirmAndDelete`. Voir
+  `../components/CLAUDE.md` (« Registre et aside »).
+- **`useTypologyConfig.js`** — données de configuration (inventaire, styles,
+  `stylePrecedence`, highlights, rules, settled, sections), consommées par la
+  **maquette** (ex-config). Voir `../components/config/CLAUDE.md`.
 - **`useStructureShapes.js`** — modèles de structure par niveau, traduits en
   rôles contre la typologie en cours d'édition. Voir `../components/config/`.
 - **`useAnalyse.js`** — store du dashboard (`provideAnalyse()` dans la vue,

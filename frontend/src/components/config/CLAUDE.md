@@ -1,45 +1,45 @@
 # Configuration du document — `components/config/`
 
-`/documents/:id/config` (`ConfigView.vue`), **un seul écran** (plus de volets)
-organisé par **typologie de contenu**, dans l'ordre de lecture : Liminaire →
-Chapitrage niveau 1/2/3+ → Partie finale, puis un socle « Règles par défaut » et
-une section Surlignages. Chaque section de chapitrage porte SES styles, SES
-modèles et SES règles côte à côte — l'axe n'est pas « type de réglage »
-(structure vs styles) mais « type de contenu ». Le vocabulaire par défaut n'est
-plus « Axes/Blocs/Articles » (métier Marvarid) mais le **niveau de chapitrage**
-(`../../script/zones.js`, `typology.js` + `DEPTH_LABELS` backend, alignés).
+**⚠️ Plus d'écran routé (2026-08-05).** `ConfigView.vue` a été SUPPRIMÉ et la
+route `config` retirée (`/config` et `/styles` **redirigent vers `maquette`**) :
+styles, règles, surlignages et recalibrage vivent désormais dans la **maquette**
+(`../maquette/MaquetteView.vue` + `MaquetteAside` + `MaquetteBar`). Ce dossier
+reste un **fournisseur de composants partagés** que la maquette monte. Les
+sections d'orchestration propres à l'ancien écran — `TypologySection.vue`,
+`LayoutSection.vue`, `PageFormatSection.vue`, `RunningBandControl.vue`,
+`StructureModelList.vue` — ont été supprimées avec lui.
 
-`/documents/:id/styles` **redirige** ici (l'ancien écran de typologie a fondu
-dans la config ; les liens posés visent encore l'ancienne URL).
+Le vocabulaire reste le **niveau de chapitrage** (`../../script/zones.js`,
+`typology.js` + `DEPTH_LABELS` backend, alignés).
 
 ## Découpage
 
-- **`ConfigView.vue`** orchestre : en-tête (stats + suppression), boucle de
-  `TypologySection`, socle « Règles par défaut », section Surlignages, footer
-  d'enregistrement. Héberge le flux de recalibration (`RecalibrationModal`, une
-  modale `UiModal`) et **pose le CTA « Redéfinir les bornes » dans la doc-bar**
-  via `inject('documentBarAction')` (cf. `../layout/CLAUDE.md`).
+- **L'orchestration vit maintenant dans `../maquette/MaquetteView.vue`** (aside =
+  `MaquetteAside`, socle règles + surlignages sur le cran « Validation », flux de
+  recalibration, action « Enregistrer » dans la doc-bar). L'ancien `ConfigView`
+  qui bouclait sur `TypologySection` n'existe plus.
 - **`../../composables/useTypologyConfig.js`** porte les données : inventaire,
   `styles`, `highlights`, `rules` (`{ default, byDepth }`), `settled`, les
   modèles (`useStructureShapes`), et le calcul des `sections` (une par zone,
   `groupByZone` + `shapeGroups` + profondeur des règles). `load(id)`/`save(id)`.
 - **`HighlightsList.vue`** — les surlignages relevés (couleur · comptes ·
-  ventilation · échantillon · rôle), extraits de `ConfigView` : l'aside
-  « Validation » de la maquette (`../maquette/MaquetteAside.vue`) monte le MÊME
-  bloc, avec `RuleSetForm`. `highlights` est muté en place.
-- **`TypologySection.vue`** rend une typologie : styles (2/3) ‖ modèles (1/3) via
-  `AnalyseBlock aside="right"` pour les zones de chapitrage, puis les règles
-  dessous ; styles seuls pour liminaire/final. Slot `#lead` pour la reprise des
-  bornes dans le liminaire.
-- **`StyleRolesTable.vue`** — table style · (succession) · rôle · (exigé), scopée
-  à une zone, réutilisée dans les deux cas. `styleRoles` est muté **en place**.
+  ventilation · échantillon · rôle) : l'aside « Validation » de la maquette
+  (`../maquette/MaquetteAside.vue`) le monte avec `RuleSetForm`. `highlights` est
+  muté en place.
+- **`StyleRolesTable.vue`** — table style · (succession) · rôle · (exigé) ·
+  (ce qui précède), scopée à une zone, montée par `MaquetteAside` (liminaire +
+  chapitrage). `styleRoles` est muté **en place**. Colonne **`show-precedes`**
+  (opt-in) : `precedesOf`/`setPrecedes` sur la map **`stylePrecedence`** INJECTÉE
+  (rien/saut/blanche par style, cf. `../liminaire/CLAUDE.md` et backend
+  `typology.ts`) ; un **filet teal coiffe** les lignes qui ouvrent une page
+  (`.row--page-start`).
   Sous chapitrage (`show-require` + `depth-key`), deux contrôles d'éligibilité par
   ligne : la case **« exigé »** (par STYLE → `requiresStyles`) et, entre style et
   rôle, la puce **`SuccessionLink`** chevauchant la bordure avec la ligne suivante
   (paire → `requiresAdjacency`). Les deux appellent `toggleRequireStyle`/
-  `toggleAdjacency` **injectés** (fournis par `ConfigView`, mutent `rules` dans le
-  composable) — comme `openStyleEditor`, pour ne pas remonter d'événement sur deux
-  profondeurs. Plus d'encart « Règles d'éligibilité » : tout se règle en ligne.
+  `toggleAdjacency` **injectés** (fournis par `MaquetteView`, mutent `rules` dans le
+  composable) — comme `openStyleEditor`/`stylePrecedence`, pour ne pas remonter
+  d'événement sur deux profondeurs. Plus d'encart « Règles d'éligibilité » : tout se règle en ligne.
   Un bouton **« + »** (au survol, dans la gouttière de gauche, avec `zone-key`)
   ouvre un popover **téléporté dans `<body>`** (sinon rogné par l'`overflow` d'
   `UiTable`) : nom libre + rôle → `addDeclaredStyle`. Une ligne déclarée s'affiche
@@ -52,20 +52,19 @@ dans la config ; les liens posés visent encore l'ancienne URL).
 ## Recalibration — deux déclencheurs, une modale
 
 `POST /documents/:id/recalibrate` rend un `PreviewResponse` ordinaire ;
-`ConfigView` monte alors le MÊME `ImportCalibration` (cf. `../import/CLAUDE.md`) en
-`mode="recalibration"`, dans `RecalibrationModal` (une `UiModal`). Le `previewId`
-sait qu'il s'agit d'un remplacement, le commit repasse par la route de commit
-normale. **Deux déclencheurs, gardés tous les deux** :
-- le **CTA de la doc-bar** (« Redéfinir les bornes »), à la place du « Relancer
-  l'analyse » propre au dashboard — le même slot d'action globale, contextuel par
-  écran. `ConfigView` le pose via `inject('documentBarAction')` (un `ref` fourni
-  par `DocumentLayout`, lu par `DocumentBar`) tant que la config est montée ;
-- « Redéfinir le liminaire » dans la section **Liminaire** : contextuel — il
-  valide un aperçu de décalage de borne (`borderShift`), c'est elle qui définit
-  où le liminaire s'arrête.
+`../maquette/MaquetteView.vue` monte alors le MÊME `ImportCalibration` (cf.
+`../import/CLAUDE.md`) en `mode="recalibration"`, dans `RecalibrationModal` (une
+`UiModal`). Le `previewId` sait qu'il s'agit d'un remplacement, le commit repasse
+par la route de commit normale.
 
-Les deux sont **barrés** si le `.odt` d'origine n'est pas conservé
-(`recalibratable`), avec une pastille `?` qui dit pourquoi.
+**Un seul déclencheur (2026-08-05)** : le bouton **« Redéfinir les bornes » de
+`MaquetteBar`** (3e barre — le slot CTA de la doc-bar est pris par « Enregistrer »
+en maquette). MaquetteView câble `useRecalibration({ docId, borderShift: limBorderShift })`
++ `onRecalCommitted` (finishCommit → fetchDocuments → reloadDocument → load) ;
+le rapport s'affiche en carte flottante fermable. Barré si le `.odt` d'origine
+n'est pas conservé (`recalibratable` = `doc.hasSource`). L'ancien second
+déclencheur « Redéfinir le liminaire » (section Liminaire de `ConfigView`) a
+disparu avec l'écran — `borderShift` reste à 0 (plus d'UI étendre/exclure).
 
 **Avertissement de recalibrage** (`bornesChanged`, `useCalibration`) : porte sur
 les bornes **ET** les niveaux forcés (un override change aussi l'arbre → analyses

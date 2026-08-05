@@ -68,6 +68,22 @@ export function typeOfStyleName(styleName) {
 // 'page' (simple saut, sans côté) → côté 'auto'.
 export const PAGE_SIDES = ['auto', 'recto', 'verso']
 
+// Ce qui PRÉCÈDE une page, décidé PAR STYLE (le premier style de la page).
+// Remplace le côté recto/verso par entrée (peu fiable). Miroir du backend
+// (typology.ts, PRECEDES_KINDS) :
+//  - 'break' : le style OUVRE une page (saut de page avant lui) ;
+//  - 'blank' : idem, plus UNE page blanche insérée avant (belle page) — explicite,
+//    sans parité recto/verso ;
+//  - 'none'  : rien d'imposé (le style coule ; regroupement piloté par le .odt et
+//    les changements de type).
+export const PRECEDES_KINDS = ['none', 'break', 'blank']
+
+export const PRECEDES_LABELS = {
+  none: 'rien',
+  break: 'saut de page',
+  blank: 'page blanche',
+}
+
 // Le côté imposé par un pageStart lu du .odt : recto/verso le portent, un simple
 // saut ('page') ou rien n'imposent aucun côté.
 export function sideOfPageStart(pageStart) {

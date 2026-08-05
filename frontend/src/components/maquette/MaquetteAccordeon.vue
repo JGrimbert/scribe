@@ -100,7 +100,7 @@ const CARD_H = 10.5    // hauteur d'un feuillet focusé, cf. .maq-cran
 const GROUP_GAP = 2.6  // vide entre deux zones ET marge de tête (accueille l'onglet)
 const OVERLAP = 0.34   // pas intra-zone dépliée, en fraction de la largeur d'un feuillet
 const OVERLAP_FOLDED = 0.05 // zone pliée : les feuillets se recouvrent à 95 %
-const TAB_W = 2.2      // zone réduite à son onglet : de quoi loger le bouton (1.4em) et l'air autour
+const TAB_W = 1.6      // zone réduite à son onglet : jalons resserrés (le bouton fait 1.4em, l'air autour est mince)
 
 // Cycle du clic sur un onglet.
 const LEVELS = ['open', 'stack', 'tab']

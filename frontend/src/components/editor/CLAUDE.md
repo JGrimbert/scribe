@@ -3,7 +3,7 @@
 `FolioView.vue` est l'**UNIQUE** rendu paginé (Paged.js dans une `<iframe>`),
 modes `read` (aperçu compact d'une page) et `edit` (rangée de pages + édition).
 `EditorView.vue` (route `noeud/:nodeId?`) le monte en `mode="edit"` ; l'aperçu
-`read` sert aussi dans la config (`../config/TypologySection.vue`). La logique pure
+`read`/`spread` sert aussi dans la maquette (`../maquette/MaquetteView.vue`). La logique pure
 (buildBlocks, registry, fragment, liveEdit, syncQuill, quillCaret) et le glossaire
 fragment/bloc/paragraphe vivent dans `../../script/CLAUDE.md` ; le cycle d'édition
 dans `../../composables/CLAUDE.md`.
