@@ -13,9 +13,12 @@ const routes = [
     name: 'document-layout',
     component: DocumentLayout,
     children: [
-      { path: '', name: 'document', component: AnalyseView },
+      // La maquette est la vue par défaut du document ; l'analyse garde son
+      // name `document` (scope, labels…) mais vit sur `/analyse` — plus aucune
+      // icône n'y mène, on n'y accède qu'en tapant l'URL (choix délibéré).
+      { path: '', name: 'maquette', component: MaquetteView },
+      { path: 'analyse', name: 'document', component: AnalyseView },
       { path: 'config', name: 'config', component: ConfigView },
-      { path: 'maquette', name: 'maquette', component: MaquetteView },
       // L'ancien écran de typologie a fondu dans la config (plus de volets).
       // Redirection plutôt que suppression : les liens posés (dashboard,
       // favoris) visent encore /styles.

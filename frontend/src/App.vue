@@ -25,14 +25,6 @@
              registre, elles s'éteignent sur place plutôt que de disparaître. -->
         <BaseButton
             variant="ghost"
-            icon="pi-chart-bar"
-            :active="route.name === 'document'"
-            :disabled="!targetDocId"
-            title="Analyse"
-            @click="router.push(`/documents/${targetDocId}`)"
-        />
-        <BaseButton
-            variant="ghost"
             icon="pi-file-edit"
             :active="route.name === 'editor'"
             :disabled="!targetDocId"
@@ -53,7 +45,7 @@
             :active="route.name === 'maquette'"
             :disabled="!targetDocId"
             title="Maquette"
-            @click="router.push(`/documents/${targetDocId}/maquette`)"
+            @click="router.push(`/documents/${targetDocId}`)"
         />
         <BaseButton
             variant="ghost"

@@ -54,5 +54,5 @@ export async function gotoEditor(page, options = {}) {
 
 export async function gotoAnalyse(page, options = {}) {
   await stubApi(page, options)
-  await page.goto(`/documents/${DOC_ID}`)
+  await page.goto(`/documents/${DOC_ID}/analyse`)
 }

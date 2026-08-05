@@ -19,8 +19,12 @@ vues. Routes (`index.js`, `vue-router`) :
   routes enfants, monte `DocumentBar` + l'aside (registre XOR `StructureView`
   selon `asideMode`). Détient l'état de validation et le scope d'analyse (cf.
   `../components/CLAUDE.md`, « Menus »). Enfants :
-  - **`''` (`document`) — `AnalyseView.vue`** : dashboard d'analyse (grille de
-    cards). Voir `../components/analyse/CLAUDE.md`.
+  - **`''` (`maquette`) — `MaquetteView.vue`** : la vue par défaut du document.
+    Voir `../components/maquette/CLAUDE.md`.
+  - **`analyse` (`document`) — `AnalyseView.vue`** : dashboard d'analyse (grille
+    de cards). Voir `../components/analyse/CLAUDE.md`. Le name reste `document`
+    (scope d'analyse, labels…). **Plus aucune icône du menu n'y mène** — la route
+    subsiste mais on n'y accède qu'en tapant l'URL (choix délibéré).
   - **`config` — `ConfigView.vue`** (`../components/config/`) : la configuration,
     **un seul écran** par typologie de contenu. Voir `../components/config/CLAUDE.md`.
     **`styles` redirige ici** (l'ancien écran de typologie a fondu dans la config ;

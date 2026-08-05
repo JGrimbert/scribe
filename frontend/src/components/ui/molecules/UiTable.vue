@@ -76,7 +76,10 @@ onBeforeUnmount(() => headRo?.disconnect())
 .ui-table-box {
   /*margin-top: var(--sp-2);*/
   padding: 0.6em;
-  background: var(--c-table-ring);
+  //background: var(--c-table-ring);
+
+  background: color-mix(in srgb, var(--c-accent-alt) 6%, transparent);
+
   backdrop-filter: var(--c-backdrop-filter-blur);
   border: 1px solid var(--c-border);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
