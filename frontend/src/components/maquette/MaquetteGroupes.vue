@@ -144,11 +144,19 @@ function sample(g) {
 
 /* Colonne des familles : les suggestions ne défilent pas (c'est l'action de
    l'écran, elle reste sous les yeux), seule la liste défile sous elles. */
+/* Bande fusion + liste : bordée comme une table, en verre dépoli (voile + flou de
+   ce qui passe derrière). L'aside hors modèle, elle, reste transparente. */
 .maq-groupes__families {
   flex: 1 1 auto;
   min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
+  padding: var(--sp-3);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-md);
+  background: var(--c-card-float);
+  backdrop-filter: var(--c-backdrop-filter-blur);
 }
 
 .maq-groupes__families :deep(.custom-scrollbar) {
@@ -156,20 +164,18 @@ function sample(g) {
   min-height: 0;
 }
 
-/* Aside propre du volet : carte flottante (mêmes traits que .maq-analyse-aside),
-   table hors modèle défilante sous son titre. */
+/* Aside propre du volet : SANS fond ni cadre — elle se lit comme la suite de
+   l'aside principale, pas comme une carte. Calée sur la table « Modèle » de
+   l'aside : même largeur (30 % de fenêtre, l'aside principale est à 30 % et
+   `.maquette` occupe la fenêtre) et même retrait latéral (sp-4), pour que les
+   deux `StyleRolesTable full-width` rendent à la MÊME largeur. */
 .maq-groupes__horsmodele {
-  flex: 0 0 auto;
-  width: 22em;
-  max-width: 40%;
+  flex: 0 0 30vw;
+  max-width: 30vw;
   display: flex;
   flex-direction: column;
   min-height: 0;
-  padding: var(--sp-2);
-  border: 1px solid var(--c-border);
-  border-radius: var(--radius-md);
-  background: var(--c-card-float);
-  backdrop-filter: var(--c-backdrop-filter-blur);
+  padding: 0 var(--sp-4);
 }
 
 .maq-groupes__horsmodele :deep(.custom-scrollbar) {

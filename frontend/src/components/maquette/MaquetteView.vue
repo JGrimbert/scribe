@@ -6,7 +6,7 @@
        (Format · Liminaire · un bloc par niveau de chapitrage). Le cran focusé
        dans l'accordéon fait remonter sa section en tête (scroll-spy).
        Persistance via l'action « Enregistrer » de la doc-bar (`save`). -->
-  <div class="maquette" :class="{ 'maquette--validating': showGroupes }">
+  <div class="maquette">
     <!-- Troisième barre de l'écran, empilée sous le menu et la doc-bar : la
          recherche à gauche, le dézoom à droite. Deux réglages permanents. -->
     <MaquetteBar
@@ -128,6 +128,17 @@
                   :highlight-style="hoveredStyle"
                   @step="stepResultPage"
                   @spread-geometry="spreadGeometry = $event"
+              />
+
+              <!-- Validation : aperçu LÉGER (hors Paged.js) du nœud survolé dans la
+                   liste des familles, posé par-dessus le témoin du modèle. -->
+              <MaquetteFragmentPreview
+                  v-if="showGroupes && hoveredNode"
+                  :node="hoveredNode"
+                  :node-id="hoveredGroup?.nodes[0]?.nodeId ?? null"
+                  :depth="mainDepth"
+                  :visuals="effectiveVisuals"
+                  :ratio="previewRatio"
               />
 
               <!-- Contrôles de format DOCKÉS sur l'aperçu (l'aside est masquée
@@ -253,11 +264,11 @@
       </CustomScrollbar>
     </div>
 
-    <!-- Validation : les familles de cas du niveau, ferrées EN BAS de la fenêtre
-         (au-dessus du dock, entre la gouttière du sommaire et l'aside pleine
-         hauteur). Elles portent leur PROPRE aside : la table des styles hors
-         modèle, sortie de l'aside principale. Le folio réserve sa place au-dessus
-         (cf. .maquette--validating). -->
+    <!-- Validation : les familles de cas du niveau, ferrées EN BAS de la fenêtre.
+         Elles portent leur PROPRE aside : la table des styles hors modèle, sortie
+         de l'aside principale. En SUR-IMPRESSION du bas de la scène (pas de
+         réserve de place) — cliquer « Valider » ne doit pas redimensionner le
+         folio (donc ne pas dézoomer les pages). -->
     <MaquetteGroupes
         v-if="showGroupes"
         class="maq-groupes-zone"
@@ -296,6 +307,7 @@ import MaquetteAnalyseCell from './MaquetteAnalyseCell.vue'
 import MaquetteAside from './MaquetteAside.vue'
 import MaquetteFormatCallouts from './MaquetteFormatCallouts.vue'
 import MaquetteGroupes from './MaquetteGroupes.vue'
+import MaquetteFragmentPreview from './MaquetteFragmentPreview.vue'
 import MaquetteStructureNav from './MaquetteStructureNav.vue'
 import MaquetteBar from './MaquetteBar.vue'
 import VocabulaireCloud from '../analyse/lexical/VocabulaireCloud.vue'
@@ -736,19 +748,27 @@ const deviationGroups = computed(() =>
 )
 
 // Montrées quand la validation est ouverte : le volet des familles se ferre en
-// bas de fenêtre (cf. .maq-groupes-zone), le folio réserve sa place au-dessus.
+// bas de fenêtre en sur-impression (cf. .maq-groupes-zone) — sans toucher à la
+// taille du folio, donc sans dézoomer les pages.
 const showGroupes = computed(() => validating.value && !searching.value && !!deviationGroups.value.length)
 
-// Survol d'une ligne : la planche monte le premier nœud du groupe. DÉBOUNCÉ —
-// changer de nœud repagine l'iframe (Paged.js, quelques dizaines de ms), et
-// balayer 23 lignes en lancerait autant de suite.
-const HOVER_DEBOUNCE = 160
+// Survol d'une ligne : un aperçu LÉGER du premier nœud du groupe se pose sur la
+// scène (MaquetteFragmentPreview, HTML nu — plus de repagination Paged.js). Un
+// petit débounce suffit à lisser le balayage des lignes (le rendu est instantané).
+const HOVER_DEBOUNCE = 40
 const hoveredGroup = ref(null)
 let hoverTimer = null
 function onHoverGroup(group) {
   clearTimeout(hoverTimer)
   hoverTimer = setTimeout(() => { hoveredGroup.value = group }, HOVER_DEBOUNCE)
 }
+
+// Le nœud survolé, esquissé par l'aperçu léger (null hors survol → le témoin du
+// modèle reste seul en scène).
+const hoveredNode = computed(() => {
+  const id = hoveredGroup.value?.nodes[0]?.nodeId
+  return id ? documentData?.value?.[id] ?? null : null
+})
 // ── Fusion de deux styles ───────────────────────────────────────────────────
 // Le même rôle sous deux noms condamne des centaines de chapitres pour rien. On
 // ne propose que la paire la plus payante : trois lignes de suggestions, personne
@@ -952,9 +972,10 @@ const mainSpreadPages = computed(() => {
   if (isLiminaire.value) return limSpreadPages.value
   return null
 })
-// Le nœud rendu par la planche : le témoin du niveau, ou — liste des familles
-// survolée — le premier nœud du groupe sous le curseur.
-const mainNodeId = computed(() => hoveredGroup.value?.nodes[0]?.nodeId ?? modelNodeId.value)
+// Le nœud rendu par la planche Paged.js : TOUJOURS le témoin du niveau. Le survol
+// d'une famille ne le change plus (ça repaginait l'iframe, cf. le lag) — il pose
+// un aperçu léger par-dessus (MaquetteFragmentPreview).
+const mainNodeId = computed(() => modelNodeId.value)
 const mainDepth = computed(() =>
   focusedSourceKey.value === 'chapitrage' ? (focusedSection.value?.depthKey ?? 0) : 0,
 )
@@ -997,7 +1018,9 @@ onUnmounted(() => { if (section) section.value = null })
      groupes ferré au viewport (cf. .maq-groupes-zone). */
   --maq-gutter: 15em;
   --maq-dock-h: 13.2em;
-  --maq-groupes-h: 15em;
+  /* Hauteur du volet de validation : en `vh` pour remonter dans la fenêtre et
+     recouvrir le bas de la planche du folio (au-delà du dock). */
+  --maq-groupes-h: 48vh;
   position: relative;
   display: flex;
   align-items: stretch;
@@ -1023,12 +1046,6 @@ onUnmounted(() => { if (section) section.value = null })
   padding-top: calc(2 * var(--bar-size) + 1em);
   padding-left: 0;
   padding-bottom: calc(var(--maq-dock-h) + var(--sp-4));
-}
-
-/* Validation ouverte : le folio remonte pour réserver la place du volet des
-   familles (ferré au bas de fenêtre, au-dessus du dock) — pas de recouvrement. */
-.maquette--validating .maquette__left {
-  padding-bottom: calc(var(--maq-dock-h) + var(--maq-groupes-h) + 2 * var(--sp-4));
 }
 
 /* Bande de l'aperçu : prend la hauteur restante, colonne flex sans overflow —
@@ -1058,18 +1075,22 @@ onUnmounted(() => { if (section) section.value = null })
   min-height: 0;
 }
 
-/* Volet des familles de cas : ferré EN BAS de la fenêtre, au-dessus du dock
-   (`bottom`), entre la gouttière du sommaire (`left`) et l'aside pleine hauteur
-   (`right`, qui reste montrée avec le modèle du niveau). En `rem` et non en `em` :
-   le volet pose sa propre `font-size` (--fs-sm), des marges en `em` s'y
-   rapporteraient et rentreraient sous le sommaire. */
+/* Volet des familles de cas : ferré EN BAS de la fenêtre, remontant assez haut
+   pour RECOUVRIR le bas de la planche du folio (`--maq-groupes-h` en `vh`). Il
+   passe DEVANT l'accordéon (dock, z 160) — la validation prend le pas sur la
+   pellicule — tout en restant sous les modales (z 200). Depuis la gouttière du
+   sommaire (`left`) jusqu'au bord droit. En `rem` et non en `em` : le volet pose
+   sa propre `font-size` (--fs-sm), des marges en `em` s'y rapporteraient. */
 .maq-groupes-zone {
   position: fixed;
   left: 17rem;
-  right: 2em;
-  bottom: 2em;
+  right: 0em;
+  bottom: 0em;
   height: var(--maq-groupes-h);
-  z-index: 3;
+  z-index: 165;
+  /* Fond/flou portés par la seule bande fusion+liste (cf. .maq-groupes__families),
+     pas par le volet entier — l'aside hors modèle reste transparente. */
+  padding-top: var(--sp-4);
 }
 
 /* Colonne aside : pleine hauteur, sans cadre propre. Sa CustomScrollbar défile
