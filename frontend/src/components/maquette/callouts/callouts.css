@@ -1,0 +1,67 @@
+/* Styles PARTAGÉS des callouts de format (posés sur la planche du FolioView) :
+   le conteneur positionné `.fc-grp` et la ligne `.fc-row`, mutualisés entre
+   `MaquetteFormatCallouts` (hôte) et ses briques `FcGroup`/`FcCote`/`FcBand`.
+   GLOBAL à dessein : le scope d'un SFC ne traverse pas la frontière de composant,
+   or `.fc-grp--left .fc-row` doit joindre un enfant à son conteneur parent. */
+
+/* Groupe de champs nus, ferré à un rail (haut = en-tête, bas = pied, etc.). */
+.fc-grp {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  pointer-events: auto;
+}
+
+/* Ancrage vertical par modifieur : centré (--mid) ou ferré par le bas (--bottom). */
+.fc-grp--mid {
+  transform: translateY(-50%);
+}
+
+.fc-grp--bottom {
+  transform: translateY(-100%);
+}
+
+/* Colonne de GAUCHE : ferrée par la DROITE à son rail (intitulé côté planche, champ
+   vers l'extérieur) — miroir de la colonne de droite. Les combinés l'emportent en
+   spécificité. */
+.fc-grp--left {
+  transform: translateX(-100%);
+}
+
+.fc-grp--left.fc-grp--mid {
+  transform: translate(-100%, -50%);
+}
+
+.fc-grp--left.fc-grp--bottom {
+  transform: translate(-100%, -100%);
+}
+
+/* Colonne de gauche : contenu ferré à DROITE (vers la planche). */
+.fc-grp--left .fc-row {
+  align-items: flex-end;
+}
+
+/* Une cote = intitulé puis champ(s), EMPILÉS, avec un peu de padding pour aérer. */
+.fc-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-1);
+  padding: var(--sp-2) var(--sp-6);
+  font-size: var(--fs-sm);
+}
+
+.fc-row__label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  color: var(--c-ink2);
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+/* Cases à cocher aux couleurs Scribe (teal). */
+.fc-row__label input[type="checkbox"] {
+  accent-color: var(--c-accent-alt);
+}

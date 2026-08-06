@@ -143,6 +143,16 @@ const props = defineProps({
   // blocs peignent est visible — cf. les lambeaux de recherche, qui portent leur
   // propre fond et leur découpe en style inline (`entries[].style`).
   barePages: { type: Boolean, default: false },
+  // Aperçu SQUELETTE (imposition liminaire) : chaque entrée de contenu est bornée à
+  // 2 lignes et suffixée « [ … ] ». Réduit la hauteur du contenu → une planche
+  // trop longue tient sur ses 2 pages au lieu de déborder sur une 3e (cf.
+  // useFolioFrame, feuille `__impclamp`). Actif pendant la pagination → le compte
+  // de pages en dépend.
+  clampEntries: { type: Boolean, default: false },
+  // Limiter l'aperçu à UN vis-à-vis : au-delà de `capPages` pages, les pages sont
+  // MASQUÉES (pas supprimées — cf. useFolioFrame, classe `.folio-hidden`). 0 = pas
+  // de cap. Sert au chapitrage, borné à sa planche d'ouverture (2 pages).
+  capPages: { type: Number, default: 0 },
   // Debug : rendre visible le Quill flottant (sinon seul le miroir Folio l'est).
   quillVisible: { type: Boolean, default: false },
   // Nom du style à SURLIGNER dans le rendu (survol d'une ligne de la table des
@@ -165,7 +175,9 @@ const props = defineProps({
 // `step` : cran de pagination applicative demandé à la molette (±1), cf. wheelPaging.
 // `spread-geometry` : rects ÉCRAN des pages de la planche (mode spread), pour les
 // callouts dockés de l'aperçu de format (cf. maquette/MaquetteFormatCallouts).
-const emit = defineEmits(['step', 'spread-geometry', 'block-geometry'])
+// `style-geometry` : rect ÉCRAN de la PREMIÈRE occurrence VISIBLE de chaque style
+// (`data-style`), pour ancrer les callouts de styles (liminaire/chapitrage) au texte.
+const emit = defineEmits(['step', 'spread-geometry', 'block-geometry', 'style-geometry'])
 
 const rootRef = ref(null)
 const frameRef = ref(null)
@@ -195,7 +207,7 @@ function updateSpreadBg() {
   const frame = frameRef.value
   if (!bg || !doc || !frame) return
   const pages = doc.querySelectorAll('.pagedjs_page')
-  if (!pages.length) { bg.style.opacity = '0'; emit('spread-geometry', null); emit('block-geometry', []); return }
+  if (!pages.length) { bg.style.opacity = '0'; emit('spread-geometry', null); emit('block-geometry', []); emit('style-geometry', {}); return }
   const first = pages[0]
   const r0 = first.getBoundingClientRect()
   // Rects ÉCRAN des pages : les callouts de format s'y ancrent (cf. formatAnchors
@@ -225,6 +237,21 @@ function updateSpreadBg() {
     blocks.push({ key, left: r.left + fr.left, top: r.top + fr.top, width: r.width, height: r.height })
   })
   emit('block-geometry', blocks)
+  // Rects ÉCRAN de la PREMIÈRE occurrence VISIBLE de chaque style (`data-style`) :
+  // les callouts de styles (liminaire/chapitrage) y ancrent leur fuyante. On saute
+  // les pages MASQUÉES (`.folio-hidden` du cap : leur contenu est hors scope) ;
+  // l'ordre du DOM = ordre de lecture, donc la 1re occurrence rencontrée fait foi.
+  const seenStyles = new Set()
+  const styleRects = {}
+  doc.querySelectorAll('.pagedjs_page:not(.folio-hidden) [data-style]').forEach((el) => {
+    const name = el.getAttribute('data-style')
+    if (seenStyles.has(name)) return
+    const r = el.getBoundingClientRect()
+    if (r.width === 0 && r.height === 0) return
+    seenStyles.add(name)
+    styleRects[name] = { left: r.left + fr.left, top: r.top + fr.top, width: r.width, height: r.height }
+  })
+  emit('style-geometry', styleRects)
   // Période = page + gouttière. Mesurée entre deux pages quand elles existent ;
   // sinon déduite de la marge de la page — `getComputedStyle` rend une valeur de
   // MISE EN PAGE (avant transform), d'où le produit par l'échelle, alors qu'un
@@ -318,7 +345,13 @@ const { registry, fragments, buildFrame, refresh, teardown, applyHighlight } = u
   // double-buffer de useFolioFrame (pagination dans un tampon caché, swap en un
   // seul tick avec fitScale) évite tout flash/blanc — plus de masquage opacity ici.
   onReset: () => caret.clear(),
-  onPaginated: () => fitScale(),
+  // Recaler l'échelle après la repagination, PUIS ré-émettre la géométrie. `fitScale`
+  // seul ne suffit pas : `applyScale` est idempotent (skip si échelle/dimensions
+  // inchangées) et n'appelle alors pas `onScaled` → la géométrie ne se rafraîchirait
+  // pas alors que le CONTENU a changé (nouvelles pages / positions de styles). Sans
+  // ce rappel, les overlays (callouts, fuyantes) gardaient l'ancre de l'ancien rendu
+  // jusqu'à un défilement molette (qui, lui, rappelle updateSpreadBg).
+  onPaginated: () => { fitScale(); updateSpreadBg() },
   // Les listeners du doc iframe (édition), résolus au (dé)montage — cf. editListeners.
   getEditListeners: () => editListeners,
 })
@@ -429,7 +462,7 @@ onBeforeUnmount(teardown)
 // Changement de nœud/niveau : repagine. L'édition, elle, repagine via refresh()
 // (appelé par useFragmentEditor) — pas besoin d'observer le contenu ici, ce qui
 // éviterait de repaginer deux fois après une frappe.
-watch(() => [props.nodeId, props.depth, props.spreadPages, props.bodyCross, props.barePages], refresh)
+watch(() => [props.nodeId, props.depth, props.spreadPages, props.bodyCross, props.barePages, props.clampEntries, props.capPages], refresh)
 
 // Nombre de pages visées dans la largeur : c'est le ZOOM. Rien à repaginer — mais
 // `fitScale` n'est rappelé que par le ResizeObserver (la racine ne bouge pas) ou

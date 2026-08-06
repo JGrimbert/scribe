@@ -14,6 +14,22 @@ const IMPOSITION_CSS = '.imp-break{break-before:page;}'
 // nulles — sans elle le texte toucherait le bord du folio.
 const FRAG_TOP_PAD = '2em'
 
+// Aperçu SQUELETTE d'une planche d'imposition (cf. FolioView `clampEntries`) : chaque
+// entrée de contenu (`[data-block-id]`, hors slot blanc/garde) est bornée à 2 lignes
+// (`2lh` = 2 interlignes du style, quelle que soit l'apparence .odt inline) et
+// suffixée « [ … ] » fondu à droite. `overflow:hidden` ⇒ Paged.js ne fragmente plus
+// la boîte (hauteur fixe) : le contenu tient sur moins de pages, et comme la feuille
+// est active PENDANT la pagination, le compte de pages en tient compte.
+const IMP_CLAMP_CSS = [
+  '.pagedjs_page_content [data-block-id]:not(.imp-slot){max-height:2lh;overflow:hidden;position:relative;}',
+  // « [ …] » UNIQUEMENT sur les entrées réellement tronquées (marquées `.imp-clamped`
+  // après pagination : une 3e ligne existe). Une entrée d'1 ou 2 lignes tient dans le
+  // cap et n'en porte pas.
+  '.pagedjs_page_content [data-block-id].imp-clamped::after{'
+  + 'content:"[ … ]";position:absolute;right:0;bottom:0;color:#888;'
+  + 'background:linear-gradient(to right,transparent,#fff 2em);padding-left:2.5em;}',
+].join('')
+
 // Hachures bleutées des pages blanche / de garde — mêmes couleurs que le carrousel
 // (LiminaireFolio) : fond `aliceblue` (--c-folio-bg) rayé d'un filet tiré de
 // `--c-border` (#e0d8cc). Valeurs littérales : l'iframe est isolée (about:blank),
@@ -71,7 +87,7 @@ export function useFolioFrame(props, { frameRef, frameDoc, blocks, section, onRe
   // géométrie et les guides de format (mis à jour en place, pas régénérés).
   const isPersistentStyle = (el) =>
     el.id === '__boot' || el.id === '__pagepin' || el.id === '__formatguides'
-    || el.id === '__bare' || el.id === '__highlight'
+    || el.id === '__bare' || el.id === '__impclamp' || el.id === '__highlight'
 
   // Surlignage du style survolé dans l'aside. Feuille À PART, écrite EN PLACE :
   // désigner un paragraphe ne doit rien repaginer (le survol change à chaque ligne
@@ -139,6 +155,9 @@ export function useFolioFrame(props, { frameRef, frameDoc, blocks, section, onRe
       '.folio-blank .pagedjs_area,.folio-cover .pagedjs_area,.folio-blank .pagedjs_page_content,.folio-cover .pagedjs_page_content{position:static;outline:none;}',
       '.pagedjs_page.folio-blank .imp-slot,.pagedjs_page.folio-cover .imp-slot{position:absolute;inset:0;margin:0;display:flex;align-items:center;justify-content:center;}',
       '.folio-blank .pagedjs_margin-content,.folio-cover .pagedjs_margin-content{display:none;}',
+      // Un seul vis-à-vis : les pages hors scope sont masquées (cf. capPages) — rien
+      // n'est retiré du flow paginé, juste caché.
+      '.pagedjs_page.folio-hidden{display:none;}',
     ].join('')
     // `read` empile les pages (aperçu vertical d'UNE page) ; `edit`/`spread`
     // gardent la rangée horizontale de paged.css (pages côte à côte). L'ombre est
@@ -180,6 +199,13 @@ export function useFolioFrame(props, { frameRef, frameDoc, blocks, section, onRe
     bare.id = '__bare'
     bare.textContent = props.barePages ? BARE_CSS : ''
     doc.head.appendChild(bare)
+
+    // Clamp squelette (imposition liminaire) : même cycle de vie que `__bare` —
+    // l'instance unifiée bascule d'une source à l'autre sans démonter le FolioView.
+    const impClamp = doc.createElement('style')
+    impClamp.id = '__impclamp'
+    impClamp.textContent = props.clampEntries ? IMP_CLAMP_CSS : ''
+    doc.head.appendChild(impClamp)
 
     const highlight = doc.createElement('style')
     highlight.id = '__highlight'
@@ -235,6 +261,10 @@ export function useFolioFrame(props, { frameRef, frameDoc, blocks, section, onRe
 
     const bare = doc.getElementById('__bare')
     if (bare) bare.textContent = props.barePages ? BARE_CSS : ''
+
+    // Clamp squelette : mis à jour AVANT la pagination (le compte de pages en dépend).
+    const impClamp = doc.getElementById('__impclamp')
+    if (impClamp) impClamp.textContent = props.clampEntries ? IMP_CLAMP_CSS : ''
 
     applyHighlight()
 
@@ -388,6 +418,27 @@ export function useFolioFrame(props, { frameRef, frameDoc, blocks, section, onRe
             sheet.style.paddingTop = `max(${FRAG_TOP_PAD}, ${sheet.style.paddingTop || '0px'})`
             sheet.style.paddingBottom = `max(${FRAG_TOP_PAD}, ${sheet.style.paddingBottom || '0px'})`
           }
+        })
+      }
+
+      // Clamp squelette : marque les entrées réellement tronquées (contenu > cap de
+      // 2 lignes → une 3e ligne existe) pour n'y afficher « [ … ] » que là. Mesuré
+      // sur le tampon (opacity:0 mais MIS EN PAGE, donc scrollHeight/clientHeight
+      // valides) avant le clonage → les clones héritent la classe. `> 1` : tolérance
+      // sub-pixel pour ne pas marquer une entrée pile à 2 lignes.
+      if (props.clampEntries) {
+        buffer.querySelectorAll('.pagedjs_page_content [data-block-id]').forEach((el) => {
+          if (el.classList.contains('imp-slot')) return
+          if (el.scrollHeight - el.clientHeight > 1) el.classList.add('imp-clamped')
+        })
+      }
+
+      // Un seul vis-à-vis : masque les pages au-delà du cap (chapitrage borné à sa
+      // planche d'ouverture). Marquage DOM avant le clonage (les clones l'héritent) —
+      // rien n'est retiré du flow, juste caché.
+      if (props.capPages) {
+        buffer.querySelectorAll('.pagedjs_page').forEach((pg, i) => {
+          if (i >= props.capPages) pg.classList.add('folio-hidden')
         })
       }
 

@@ -65,74 +65,49 @@
            blancs sont cotés sur le bord extérieur de la page de gauche (recto), le
            grand fond tombe aux bords extérieurs (marges re-miroitées, cf.
            formatAnchors). ────────────────────────────────────────────────────── -->
-      <div class="fc-grp fc-grp--left" :style="{ left: `${geo.leftRailX}px`, top: `${geo.top}px` }">
-        <div class="fc-row" :ref="(el) => setRow('blanc-tete', el)"
-             @mouseenter="hovered = 'blanc-tete'" @mouseleave="hovered = null">
-          <span class="fc-row__label">Blanc de tête</span>
-          <NumInput :value="toUnit(marginsView.topCm, unit)" :step="step" :unit="unit"
-                    @input="setMargin('topCm', $event)" />
-        </div>
-      </div>
-      <div class="fc-grp fc-grp--left fc-grp--mid" :style="{ left: `${geo.leftRailX}px`, top: `${geo.fondY}px` }">
-        <div class="fc-row" :ref="(el) => setRow('grand-fond', el)"
-             @mouseenter="hovered = 'grand-fond'" @mouseleave="hovered = null">
-          <span class="fc-row__label">Grand fond</span>
-          <NumInput :value="toUnit(marginsView.outerCm, unit)" :step="step" :unit="unit"
-                    @input="setMargin('outerCm', $event)" />
-        </div>
-      </div>
-      <div class="fc-grp fc-grp--left fc-grp--bottom" :style="{ left: `${geo.leftRailX}px`, top: `${geo.bottom}px` }">
-        <div class="fc-row" :ref="(el) => setRow('blanc-pied', el)"
-             @mouseenter="hovered = 'blanc-pied'" @mouseleave="hovered = null">
-          <span class="fc-row__label">Blanc de pied</span>
-          <NumInput :value="toUnit(marginsView.bottomCm, unit)" :step="step" :unit="unit"
-                    @input="setMargin('bottomCm', $event)" />
-        </div>
-      </div>
+      <FcGroup :x="geo.leftRailX" :y="geo.top" side="left" anchor="top">
+        <FcCote label="Blanc de tête" :value="toUnit(marginsView.topCm, unit)" :step="step" :unit="unit"
+                hover-key="blanc-tete" :measure-ref="(el) => setRow('blanc-tete', el)"
+                @hover="hovered = $event" @input="setMargin('topCm', $event)" />
+      </FcGroup>
+      <FcGroup :x="geo.leftRailX" :y="geo.fondY" side="left" anchor="mid">
+        <FcCote label="Grand fond" :value="toUnit(marginsView.outerCm, unit)" :step="step" :unit="unit"
+                hover-key="grand-fond" :measure-ref="(el) => setRow('grand-fond', el)"
+                @hover="hovered = $event" @input="setMargin('outerCm', $event)" />
+      </FcGroup>
+      <FcGroup :x="geo.leftRailX" :y="geo.bottom" side="left" anchor="bottom">
+        <FcCote label="Blanc de pied" :value="toUnit(marginsView.bottomCm, unit)" :step="step" :unit="unit"
+                hover-key="blanc-pied" :measure-ref="(el) => setRow('blanc-pied', el)"
+                @hover="hovered = $event" @input="setMargin('bottomCm', $event)" />
+      </FcGroup>
 
       <!-- ── Colonne DROITE : hauteur d'en-tête + justif (haut), manchette (milieu),
            hauteur de pied + justif (bas), ferrées par leur GAUCHE au rail droit. ── -->
-      <div class="fc-grp" :style="{ left: `${geo.railX}px`, top: `${geo.top}px` }">
-        <label class="fc-row" :ref="(el) => setRow('header-height', el)"
-               @mouseenter="hovered = 'header'" @mouseleave="hovered = null">
-          <span class="fc-row__label">
-            <input type="checkbox" v-model="header.enabled" /> Hauteur en-tête
-          </span>
-          <NumInput :value="toUnit(header.heightCm, unit)" :step="step" :unit="unit" placeholder="auto"
-                    :disabled="!header.enabled" @input="setBandHeight(header, $event)" />
-        </label>
-        <!-- Placement du titre courant dans la bande : select toujours sous son label. -->
-        <div class="fc-row"
-             @mouseenter="hovered = 'header'" @mouseleave="hovered = null">
-          <BareSelect v-model="header.justification" :options="JUSTIF_OPTIONS" :disabled="!header.enabled" />
-        </div>
-      </div>
+      <FcGroup :x="geo.railX" :y="geo.top" anchor="top">
+        <FcBand :band="header" label="En-tête" :value="toUnit(header.heightCm, unit)" :step="step" :unit="unit"
+                hover-key="header" :measure-ref="(el) => setRow('header-height', el)"
+                @hover="hovered = $event" @input="setBandHeight(header, $event)">
+          <template #default="{ disabled }">
+            <BareSelect v-model="header.justification" :options="JUSTIF_OPTIONS" :disabled="disabled" />
+          </template>
+        </FcBand>
+      </FcGroup>
 
-      <div class="fc-grp fc-grp--mid" :style="{ left: `${geo.railX}px`, top: `${geo.midY}px` }">
-        <label class="fc-row" :ref="(el) => setRow('manchette', el)"
-               @mouseenter="hovered = 'manchette'" @mouseleave="hovered = null">
-          <span class="fc-row__label">
-            <input type="checkbox" v-model="manchette.enabled" /> Manchette
-          </span>
-          <NumInput :value="toUnit(manchette.widthCm, unit)" :step="step" :unit="unit" placeholder="auto"
-                    :disabled="!manchette.enabled" @input="setManchetteWidth($event)" />
-        </label>
-      </div>
+      <FcGroup :x="geo.railX" :y="geo.midY" anchor="mid">
+        <FcBand :band="manchette" label="Manchette" :value="toUnit(manchette.widthCm, unit)" :step="step" :unit="unit"
+                hover-key="manchette" :measure-ref="(el) => setRow('manchette', el)"
+                @hover="hovered = $event" @input="setManchetteWidth($event)" />
+      </FcGroup>
 
-      <div class="fc-grp fc-grp--bottom" :style="{ left: `${geo.railX}px`, top: `${geo.bottom}px` }">
-        <label class="fc-row" :ref="(el) => setRow('footer-height', el)"
-               @mouseenter="hovered = 'footer'" @mouseleave="hovered = null">
-          <span class="fc-row__label">
-            <input type="checkbox" v-model="footer.enabled" /> Hauteur pied
-          </span>
-          <NumInput :value="toUnit(footer.heightCm, unit)" :step="step" :unit="unit" placeholder="auto"
-                    :disabled="!footer.enabled" @input="setBandHeight(footer, $event)" />
-        </label>
-        <div class="fc-row"
-             @mouseenter="hovered = 'footer'" @mouseleave="hovered = null">
-          <BareSelect v-model="footer.justification" :options="JUSTIF_OPTIONS" :disabled="!footer.enabled" />
-        </div>
-      </div>
+      <FcGroup :x="geo.railX" :y="geo.bottom" anchor="bottom">
+        <FcBand :band="footer" label="Hauteur pied" :value="toUnit(footer.heightCm, unit)" :step="step" :unit="unit"
+                hover-key="footer" :measure-ref="(el) => setRow('footer-height', el)"
+                @hover="hovered = $event" @input="setBandHeight(footer, $event)">
+          <template #default="{ disabled }">
+            <BareSelect v-model="footer.justification" :options="JUSTIF_OPTIONS" :disabled="disabled" />
+          </template>
+        </FcBand>
+      </FcGroup>
 
       <!-- Petit fond : côté gouttière, label posé sur la page de droite (verso). -->
       <div class="fc-onpage" :style="{ left: `${geo.versoCenterX}px`, top: `${geo.fondY}px` }"
@@ -165,6 +140,10 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, watchEffect } from 'vue'
 import BareSelect from './BareSelect.vue'
 import NumInput from './NumInput.vue'
+import FcGroup from './callouts/FcGroup.vue'
+import FcCote from './callouts/FcCote.vue'
+import FcBand from './callouts/FcBand.vue'
+import './callouts/callouts.css' // `.fc-row__label` du petit-fond (label posé sur page)
 import { buildFormatAnchors } from '../../script/formatAnchors'
 import { GUIDE_FILL } from '../../script/folioStyles'
 import {
@@ -559,69 +538,9 @@ watch(() => props.styleDefaults, measure, { deep: true })
   font-size: min(var(--fs-sm), calc(var(--fc-band-h, 1rem) - 4px));
 }
 
-/* Groupe de champs nus à droite du folio (haut = en-tête, bas = pied). */
-.fc-grp {
-  position: absolute;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  pointer-events: auto;
-}
-
-/* Groupe centré sur son ordonnée (manchette, colonne de droite). */
-.fc-grp--mid {
-  transform: translateY(-50%);
-}
-
-/* Groupe du bas : ferré PAR LE BAS au bas du folio (les lignes remontent). */
-.fc-grp--bottom {
-  transform: translateY(-100%);
-}
-
-/* Colonne de GAUCHE : ferrée par la DROITE à son rail (intitulé côté planche, champ
-   vers l'extérieur) — miroir de la colonne de droite. Position verticale par
-   modifieur : haut par défaut, centrée (--mid) ou basse (--bottom), les combinés
-   l'emportant en spécificité. */
-.fc-grp--left {
-  transform: translateX(-100%);
-}
-
-.fc-grp--left.fc-grp--mid {
-  transform: translate(-100%, -50%);
-}
-
-.fc-grp--left.fc-grp--bottom {
-  transform: translate(-100%, -100%);
-}
-
-/* Colonne de gauche : contenu ferré à DROITE (vers la planche). */
-.fc-grp--left .fc-row {
-  align-items: flex-end;
-}
-
-/* Une cote = intitulé puis champ, EMPILÉS, avec un peu de padding pour aérer. */
-.fc-row {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--sp-1);
-  padding: var(--sp-2) var(--sp-6);
-  font-size: var(--fs-sm);
-}
-
-.fc-row__label {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-2);
-  color: var(--c-ink2);
-  white-space: nowrap;
-  font-weight: 600;
-}
-
-/* Cases à cocher aux couleurs Scribe (teal). */
-.fc-row__label input[type="checkbox"] {
-  accent-color: var(--c-accent-alt);
-}
+/* `.fc-grp`, `.fc-row` et `.fc-row__label` sont mutualisés avec les briques
+   `FcGroup`/`FcCote`/`FcBand` → déplacés dans `callouts/callouts.css` (global,
+   pour traverser la frontière de composant). */
 
 /* Dimensions : layer flottant au-dessus de la planche, centré sur la gouttière. */
 .fc-float {

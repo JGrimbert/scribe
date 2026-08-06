@@ -145,6 +145,8 @@
                   :visible-pages="folioVisiblePages"
                   :body-cross="isFormat && !searching"
                   :bare-pages="searching"
+                  :clamp-entries="isLiminaire"
+                  :cap-pages="isChapitrage && !searching ? 2 : 0"
                   :wheel-paging="searching"
                   :spread-pages="mainSpreadPages"
                   :node-id="mainNodeId"
@@ -160,6 +162,7 @@
                   @step="stepResultPage"
                   @spread-geometry="spreadGeometry = $event"
                   @block-geometry="blockGeometry = $event"
+                  @style-geometry="styleGeometry = $event"
               />
 
               <!-- Validation : aperçu LÉGER (hors Paged.js) du nœud survolé dans la
@@ -181,6 +184,31 @@
                   :page="fmtPage"
                   :style-defaults="styleDefaults"
                   :geometry="spreadGeometry"
+              />
+              <!-- Styles du vis-à-vis posés SUR la planche (callouts ferrés au rail
+                   droit, fuyante vers le texte via `data-style`). Liminaire : « ce qui
+                   précède ». Chapitrage : + « exigé ». L'aside garde sa table en
+                   parallèle (à retirer une fois validé en navigateur). -->
+              <MaquetteStyleCallouts
+                  v-if="isLiminaire && !searching"
+                  :geometry="spreadGeometry"
+                  :style-geometry="styleGeometry"
+                  :styles="limSpreadStyles"
+                  :style-roles="styles"
+                  zone-key="liminaire"
+                  @hover-style="hoveredStyle = $event"
+              />
+              <MaquetteStyleCallouts
+                  v-if="isChapitrage && !searching"
+                  :geometry="spreadGeometry"
+                  :style-geometry="styleGeometry"
+                  :styles="chapSpreadStyles"
+                  :style-roles="styles"
+                  show-require
+                  :depth-key="focusedSection?.depthKey ?? null"
+                  :zone-key="focusedSection?.zone.key ?? null"
+                  :rule-set="focusedSection?.ruleSet ?? rules.default"
+                  @hover-style="hoveredStyle = $event"
               />
               <!-- Pager : la molette au-dessus du folio fait la même chose, mais elle
                    ne s'annonce pas. -->
@@ -266,23 +294,20 @@
          Recherche ouverte : elle s'efface — la planche de résultats prend toute la
          largeur, et la section du cran focusé n'a plus rien à commenter. `v-show`
          et non `v-if` : rien à remonter (tables de styles, scrollbar) au retour. -->
-    <!-- Format : l'aside est masquée, l'écran se pilote par les callouts dockés
-         sur l'aperçu (cf. MaquetteFormatCallouts). -->
-    <div v-show="!searching && !isFormat" class="maquette__aside-col" @wheel.prevent="onAsideWheel">
+    <!-- Aside réservée à la VALIDATION (règles + surlignages). Format, liminaire et
+         chapitrage se pilotent désormais par les callouts posés SUR la planche
+         (MaquetteFormatCallouts / MaquetteStyleCallouts) — leurs tables d'aside ont
+         été retirées. -->
+    <div v-show="!searching && isValidation" class="maquette__aside-col" @wheel.prevent="onAsideWheel">
       <!-- 84 = les DEUX barres (doc-bar + barre de la maquette) : la track démarre
            sous elles, la colonne défile derrière. -->
       <CustomScrollbar :top-offset="84">
         <MaquetteAside
-            :lim-styles="limSpreadStyles"
-            :chap-sections="chapSections"
-            :style-roles="styles"
             :rules="rules"
             :highlight-items="inventory.highlights"
             :highlights="highlights"
             :zoned="zoned"
             :active-block="focusedCran?.seriesKey ?? null"
-            :model-names="modelNames"
-            @hover-style="hoveredStyle = $event"
         />
       </CustomScrollbar>
     </div>
@@ -329,6 +354,7 @@ import MaquetteChapitreCell from './MaquetteChapitreCell.vue'
 import MaquetteAnalyseCell from './MaquetteAnalyseCell.vue'
 import MaquetteAside from './MaquetteAside.vue'
 import MaquetteFormatCallouts from './MaquetteFormatCallouts.vue'
+import MaquetteStyleCallouts from './MaquetteStyleCallouts.vue'
 import MaquetteGroupes from './MaquetteGroupes.vue'
 import MaquetteFragmentPreview from './MaquetteFragmentPreview.vue'
 import MaquetteStructureNav from './MaquetteStructureNav.vue'
@@ -958,6 +984,13 @@ const liminaireInventory = computed(
 )
 const limSpreadStyles = computed(() => spreadStyles(limFocusedSpread.value, liminaireInventory.value))
 
+// Styles VISIBLES sur la planche chapitrage (ancrés au texte via `styleGeometry`),
+// forme StyleRolesTable. Ordre des clés = ordre du DOM = ordre de lecture. La
+// planche chapitrage est bornée à 2 pages (cap-pages) → seuls les styles de ce
+// vis-à-vis. Pas de résolution d'inventaire ici : le nom suffit (crayon d'édition
+// sur tout style non déclaré).
+const chapSpreadStyles = computed(() => Object.keys(styleGeometry.value).map((name) => ({ name })))
+
 // Style survolé dans une table de l'aside → surligné dans l'aperçu (teal + pointillé
 // posé en dehors, cf. buildHighlightCss). Relâché au changement de cran : la table
 // disparaît sans que la souris la quitte, son `mouseleave` ne partirait jamais.
@@ -975,6 +1008,9 @@ const spreadGeometry = ref(null)
 // Rects écran des paragraphes rendus (clés par entry.key) : l'overlay liminaire y
 // ancre ses contrôles de découpage en marge.
 const blockGeometry = ref([])
+// Rects écran de la 1re occurrence visible de chaque style (clés par nom) : les
+// callouts de styles (liminaire/chapitrage) y ancrent leur fuyante.
+const styleGeometry = ref({})
 
 // Format/marges/titres EFFECTIFS = relevé .odt + surcharges EN COURS (styleDefaults,
 // muté en place par MaquetteFormatCallouts). Nouvel objet à chaque
@@ -998,6 +1034,7 @@ const isLiminaire = computed(() => focusedSourceKey.value === 'liminaire')
 // Validation : même double page vide que le format, mais SANS la croix
 // d'empagement — elle parle du gabarit, hors sujet pour des règles.
 const isValidation = computed(() => focusedSourceKey.value === 'validation')
+const isChapitrage = computed(() => focusedSourceKey.value === 'chapitrage')
 
 // Une cellule d'imposition → un slot de planche. Cellule nulle = face intérieure de
 // couverture (garde). On garde TOUTES les entrées de contenu (blancs/ornements

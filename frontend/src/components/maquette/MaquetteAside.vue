@@ -1,18 +1,13 @@
 <template>
-  <!-- Aside PLEINE HAUTEUR de l'écran Maquette, extraite de MaquetteView pour
-       l'alléger. Ne montre QUE la section de la série focusée (prop
-       `active-block` : Format · Liminaire · un niveau de chapitrage) ; à chaque
-       changement l'ancienne s'efface puis la nouvelle apparaît en fondu
-       (Transition out-in, opacité seule). -->
+  <!-- Aside PLEINE HAUTEUR de l'écran Maquette, réservée à la VALIDATION (règles par
+       défaut + surlignages). Format, liminaire et chapitrage se pilotent par les
+       callouts posés SUR la planche (MaquetteFormatCallouts / MaquetteStyleCallouts) ;
+       leurs tables d'aside (styles · rôles · précède · exigé) ont été retirées. -->
   <aside class="maq-aside">
     <Transition name="maq-rise" mode="out-in">
       <section :key="activeBlock" class="maq-aside__block" :data-block="activeBlock">
-        <!-- Format : plus rien ici — les réglages sont dockés sur l'aperçu
-             (MaquetteFormatCallouts) et l'aside est masquée pour cette source. -->
-
         <!-- Validation : ce qui décide qu'un chapitre est en règle — le socle de
-             règles par défaut, puis le sens donné à chaque surlignage. Rapatrié
-             de l'écran de config, « Non situés » abandonné au passage. -->
+             règles par défaut, puis le sens donné à chaque surlignage. -->
         <template v-if="activeBlock === 'validation'">
           <h4 class="maq-sub">Règles par défaut</h4>
           <p class="maq-hint">
@@ -27,42 +22,6 @@
           <HighlightsList :items="highlightItems" :highlights="highlights" :zoned="zoned" />
         </template>
 
-        <!-- Liminaire : styles & rôles du vis-à-vis focusé (+ « ce qui précède »
-             par style). Une planche liminaire ne porte que quelques styles, la
-             table les suit. Pas de colonnes « exigé »/« succession » (elles visent
-             un niveau de chapitrage). -->
-        <template v-else-if="activeBlock === 'liminaire'">
-          <StyleRolesTable
-              :styles="limStyles"
-              :style-roles="styleRoles"
-              full-width
-              show-precedes
-              zone-key="liminaire"
-              @hover-style="$emit('hover-style', $event)"
-          />
-        </template>
-
-        <!-- Niveau de chapitrage : table des styles du modèle (rôle · exigé ·
-             succession · ce qui précède), en pleine largeur. -->
-        <template v-else-if="activeChap">
-          <!-- Les styles du nœud INSPECTÉ (le modèle du niveau), dans l'ordre du
-               texte : c'est une séquence, seule table où la puce de succession a
-               un sens. -->
-          <template v-if="chapStyles.model.length">
-            <StyleRolesTable
-                :styles="chapStyles.model"
-                :style-roles="styleRoles"
-                show-require
-                show-precedes
-                full-width
-                :depth-key="activeChap.sec.depthKey"
-                :zone-key="activeChap.sec.zone.key"
-                :rule-set="activeChap.sec.ruleSet ?? rules.default"
-                @hover-style="$emit('hover-style', $event)"
-            />
-          </template>
-        </template>
-
         <p v-else class="maq-aside__placeholder">
           Aucune section à afficher.
         </p>
@@ -72,21 +31,11 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
-import StyleRolesTable from '../config/StyleRolesTable.vue'
 import RuleSetForm from '../config/RuleSetForm.vue'
 import HighlightsList from '../config/HighlightsList.vue'
-import { splitByModel } from '../../script/chapitrageModele'
 
-const props = defineProps({
-  // Styles du vis-à-vis liminaire focusé (cf. spreadStyles), forme StyleRolesTable.
-  limStyles: { type: Array, default: () => [] },
-  // Sections de chapitrage enrichies (ruleSet/defaultRuleSet), une par niveau.
-  chapSections: { type: Array, default: () => [] },
-  // Map réactive rôle-par-style (mutée en place par StyleRolesTable).
-  styleRoles: { type: Object, required: true },
-  // Jeu de règles ({ default, byDepth }) — repli du modèle exigé, et socle édité
-  // par le cran Validation.
+defineProps({
+  // Jeu de règles ({ default, byDepth }) — socle édité par le cran Validation.
   rules: { type: Object, required: true },
   // Surlignages relevés (inventory.highlights) + map réactive couleur → rôle,
   // mutée en place par HighlightsList. Cran Validation.
@@ -94,29 +43,9 @@ const props = defineProps({
   highlights: { type: Object, required: true },
   // La ventilation par zone est-elle disponible ? (StackedBar des surlignages)
   zoned: { type: Boolean, default: false },
-  // Clé de la série focusée (scroll-spy) : 'format' | 'liminaire' | 'chap-0'…
+  // Clé de la série focusée (scroll-spy) : 'validation' quand l'aside est visible.
   activeBlock: { type: String, default: null },
-  // Styles du nœud INSPECTÉ au niveau focusé = le modèle (noms, dans l'ordre du
-  // texte, cf. script/chapitrageModele.js). Vide tant que les formes ne sont pas
-  // chargées : la table du niveau est alors entière, comme avant.
-  modelNames: { type: Array, default: () => [] },
 })
-
-defineEmits(['hover-style'])
-
-// Résolution 'chap-N' → la section de chapitrage (avec son rang) ; null pour
-// 'format'/'liminaire' ou un index hors bornes.
-const activeChap = computed(() => {
-  const m = /^chap-(\d+)$/.exec(props.activeBlock || '')
-  if (!m) return null
-  const index = Number(m[1])
-  const sec = props.chapSections[index]
-  return sec ? { index, sec } : null
-})
-
-// Les styles du niveau, scindés : ceux du modèle (ordre du texte) et les autres
-// (ordre de l'inventaire).
-const chapStyles = computed(() => splitByModel(activeChap.value?.sec.styles ?? [], props.modelNames))
 </script>
 
 <style scoped>
@@ -125,7 +54,6 @@ const chapStyles = computed(() => splitByModel(activeChap.value?.sec.styles ?? [
 .maq-aside {
   display: flex;
   flex-direction: column;
-  /*border-left: 1px solid teal;*/
   padding: calc(2 * var(--bar-size) + 1.25em) var(--sp-4) var(--fs-xl);
 }
 
@@ -135,10 +63,8 @@ const chapStyles = computed(() => splitByModel(activeChap.value?.sec.styles ?? [
   display: flex;
   flex-direction: column;
   gap: var(--sp-3);
-  /*padding: var(--sp-3);*/
   border: 1px solid #fff;
   border-radius: var(--radius-md);
-  /*background: var(--c-card-float);*/
   backdrop-filter: var(--c-backdrop-filter-blur);
 }
 
@@ -157,7 +83,7 @@ const chapStyles = computed(() => splitByModel(activeChap.value?.sec.styles ?? [
   opacity: 0;
 }
 
-/* Sous-titre d'un pack (En-têtes et pieds · Modèle exigé · Styles & rôles). */
+/* Sous-titre d'un pack (Règles par défaut · Surlignages). */
 .maq-sub {
   margin: 0;
   font-size: var(--fs-sm);
