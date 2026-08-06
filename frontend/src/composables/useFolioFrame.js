@@ -144,7 +144,14 @@ export function useFolioFrame(props, { frameRef, frameDoc, blocks, section, onRe
     // gardent la rangée horizontale de paged.css (pages côte à côte). L'ombre est
     // portée PAR PAGE (cf. `.pagedjs_page` du boot), identique sur les pleines comme
     // sur les blanches/garde (cf. plus haut) → bas continu quel que soit le vis-à-vis.
-    const layout = props.mode === 'read' ? '.pagedjs_pages{display:block;} .pagedjs_page{margin:0;}' : ''
+    // Spread : gouttière AMPLE entre les deux pages — marge horizontale par page
+    // (le fond pointillé de la planche la mesure et suit, cf. updateSpreadBg dans
+    // FolioView). `edit` garde la rangée serrée de paged.css.
+    const layout = props.mode === 'read'
+      ? '.pagedjs_pages{display:block;} .pagedjs_page{margin:0;}'
+      : props.mode === 'spread'
+        ? '.pagedjs_page{margin-inline:0.6cm;}'
+        : ''
     boot.textContent = common + layout
     doc.head.appendChild(boot)
 

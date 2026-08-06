@@ -21,13 +21,14 @@ describe('buildFormatAnchors', () => {
   })
 
   it('cote le blanc de tête du bord de feuille au bord de l\'empagement', () => {
+    // Bord extérieur de la page de GAUCHE (recto affiché à gauche) : x = recto.left.
     const a = build()['blanc-tete']
-    expect(a.span).toEqual({ x1: 316, y1: 0, x2: 316, y2: 20 })
-    expect(a).toMatchObject({ x: 316, y: 10 })
+    expect(a.span).toEqual({ x1: 0, y1: 0, x2: 0, y2: 20 })
+    expect(a).toMatchObject({ x: 0, y: 10 })
   })
 
   it('cote le blanc de pied sous l\'empagement', () => {
-    expect(build()['blanc-pied'].span).toEqual({ x1: 316, y1: 180, x2: 316, y2: 210 })
+    expect(build()['blanc-pied'].span).toEqual({ x1: 0, y1: 180, x2: 0, y2: 210 })
   })
 
   it('place les fonds sous la page de droite, petit fond côté gouttière', () => {
@@ -130,6 +131,6 @@ describe('buildFormatAnchors', () => {
 
   it('décale toutes les ancres de l\'origine de la boîte', () => {
     const a = build({ origin: { left: 40, top: 12 } })
-    expect(a['blanc-tete'].span).toEqual({ x1: 276, y1: -12, x2: 276, y2: 8 })
+    expect(a['blanc-tete'].span).toEqual({ x1: -40, y1: -12, x2: -40, y2: 8 })
   })
 })

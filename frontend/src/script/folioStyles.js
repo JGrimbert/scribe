@@ -144,11 +144,10 @@ export function runningReserves(runningTitles) {
 // étant VIDES, `overflow:visible` sur la zone de contenu laisse le rectangle, posé
 // dans le blanc de tête/pied (hors zone de contenu), s'afficher sans être rogné.
 const GUIDE_LINE = '#b8b8b8'
-// Gris typographique des pavés du gabarit (en-tête/pied ici, manchette dans
-// l'overlay des callouts qui l'importe) : une seule valeur pour tout le gabarit.
+// Gris typographique des pavés du gabarit : plus peint sur les bandes en-tête/pied
+// (le pavé a migré sur le SELECT de contenu de l'overlay, cf. MaquetteFormatCallouts),
+// mais toujours utilisé par la manchette de ce même overlay, qui l'importe.
 export const GUIDE_FILL = '#c9c9c9'
-const GUIDE_TEXT_WIDTH = '40%' // titre courant : ligne courte (pas toute la largeur)
-const GUIDE_FOLIO_WIDTH = '1.2cm' // numéro de page : largeur d'un folio
 const BODY_CROSS =
   'linear-gradient(to top right,transparent calc(50% - .5px),#d9d9d9 calc(50% - .5px),#d9d9d9 calc(50% + .5px),transparent calc(50% + .5px)),'
   + 'linear-gradient(to bottom right,transparent calc(50% - .5px),#d9d9d9 calc(50% - .5px),#d9d9d9 calc(50% + .5px),transparent calc(50% + .5px))'
@@ -163,33 +162,16 @@ export function buildFormatGuidesCss(runningTitles) {
 
   // Une bande = un CADRE bordé pleine largeur (matérialise la zone en-tête/pied,
   // comme `.band` du PageDiagram), calé au bord de l'empagement (séparé du corps par
-  // le blanc `RUNNING_GAP_CM`, cf. runningReserves). Le gris typographique est peint
-  // À L'INTÉRIEUR, en background, seulement si le côté porte un contenu : largeur d'une
-  // ligne de titre (`40%`) ou d'un folio (`1.2cm`). Placement : `centre` = centré ;
-  // `regard` = bord EXTÉRIEUR, en miroir. En planche (mode spread), le recto (page
-  // impaire = `pagedjs_right_page`) s'affiche à GAUCHE et le verso (`pagedjs_left_page`)
-  // à DROITE — « extérieur » (loin de la reliure) = gauche au recto, droite au verso
-  // (cf. `swapParity`, buildRunningTitlesCss).
+  // le blanc `RUNNING_GAP_CM`, cf. runningReserves). Le pavé gris du titre courant /
+  // folio a migré sur le SELECT de contenu de l'overlay (cf. MaquetteFormatCallouts,
+  // `.fc-band`) : ici on ne peint que le cadre.
   const addBand = (band, pseudo, offset) => {
     if (!band?.enabled) return
     parts.push(
       `.pagedjs_page_content::${pseudo}{content:"";position:absolute;left:0;right:0;`
       + `${offset}:calc(100% + ${RUNNING_GAP_CM}cm);height:${bandHeightCm(band)}cm;`
-      + `border:1px solid ${GUIDE_LINE};box-sizing:border-box;background-repeat:no-repeat;}`,
+      + `border:1px solid ${GUIDE_LINE};box-sizing:border-box;}`,
     )
-    const regard = band.justification === 'regard'
-    const side = (pageClass, content, outer) => {
-      if (!content || content === 'aucun') return
-      const width = content === 'folio' ? GUIDE_FOLIO_WIDTH : GUIDE_TEXT_WIDTH
-      const posX = regard ? outer : 'center'
-      parts.push(
-        `.${pageClass} .pagedjs_page_content::${pseudo}{`
-        + `background-image:linear-gradient(${GUIDE_FILL},${GUIDE_FILL});`
-        + `background-size:${width} 100%;background-position:${posX} center;}`,
-      )
-    }
-    side('pagedjs_right_page', band.recto, 'left')
-    side('pagedjs_left_page', band.verso, 'right')
   }
   addBand(rt.header, 'before', 'bottom')
   addBand(rt.footer, 'after', 'top')

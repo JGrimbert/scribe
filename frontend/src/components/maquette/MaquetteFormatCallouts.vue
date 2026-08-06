@@ -24,8 +24,6 @@
     </template>
 
     <svg class="fc__wires" :width="box.w" :height="box.h" aria-hidden="true">
-      <line v-if="rail" class="fc-rail" :x1="rail.x" :y1="rail.y1" :x2="rail.x" :y2="rail.y2" />
-      <line v-if="railLeft" class="fc-rail" :x1="railLeft.x" :y1="railLeft.y1" :x2="railLeft.x" :y2="railLeft.y2" />
       <g v-for="l in leaders" :key="l.key" class="fc-lead" :class="{ 'fc-lead--on': hovered === l.key }">
         <line :x1="l.x1" :y1="l.y1" :x2="l.x2" :y2="l.y2" />
         <circle :cx="l.x2" :cy="l.y2" r="2.2" />
@@ -34,40 +32,67 @@
 
     <!-- ── Selects de contenu, posés sur les bandes grisées ─────────────────── -->
     <template v-if="header.enabled">
-      <div v-if="anchors['header-recto-box']" class="fc-band" :style="bandStyle(anchors['header-recto-box'])"
+      <div v-if="anchors['header-recto-box']" class="fc-band"
+           :style="bandSelectStyle(anchors['header-recto-box'], 'recto', header.justification)"
            @mouseenter="hovered = 'header'" @mouseleave="hovered = null">
         <BareSelect v-model="header.recto" :options="HEADER_OPTIONS" />
       </div>
-      <div v-if="anchors['header-verso-box']" class="fc-band" :style="bandStyle(anchors['header-verso-box'])"
+      <div v-if="anchors['header-verso-box']" class="fc-band"
+           :style="bandSelectStyle(anchors['header-verso-box'], 'verso', header.justification)"
            @mouseenter="hovered = 'header'" @mouseleave="hovered = null">
         <BareSelect v-model="header.verso" :options="HEADER_OPTIONS" />
       </div>
     </template>
     <template v-if="footer.enabled">
-      <!-- Contenu du pied : quand c'est le folio, son STYLE de numérotation se
-           choisit à côté (1 / I / a) — réglage global au livre, donc le même select
-           des deux côtés de la planche. -->
-      <div v-if="anchors['footer-recto-box']" class="fc-band" :style="bandStyle(anchors['footer-recto-box'])"
+      <!-- Pied = folio : un seul select par page, le STYLE de numérotation (1 / I / a),
+           réglage global au livre (même valeur des deux côtés). Placé selon la justif. -->
+      <div v-if="anchors['footer-recto-box']" class="fc-band"
+           :style="bandSelectStyle(anchors['footer-recto-box'], 'recto', footer.justification)"
            @mouseenter="hovered = 'footer'" @mouseleave="hovered = null">
-        <BareSelect v-model="footerContent" :options="FOOTER_OPTIONS" />
-        <BareSelect v-if="footerContent === 'folio'" v-model="folioFormat" :options="FOLIO_FORMAT_OPTIONS" muted />
+        <BareSelect v-model="folioFormat" :options="FOLIO_FORMAT_OPTIONS" />
       </div>
-      <div v-if="anchors['footer-verso-box']" class="fc-band" :style="bandStyle(anchors['footer-verso-box'])"
+      <div v-if="anchors['footer-verso-box']" class="fc-band"
+           :style="bandSelectStyle(anchors['footer-verso-box'], 'verso', footer.justification)"
            @mouseenter="hovered = 'footer'" @mouseleave="hovered = null">
-        <BareSelect v-model="footerContent" :options="FOOTER_OPTIONS" />
-        <BareSelect v-if="footerContent === 'folio'" v-model="folioFormat" :options="FOLIO_FORMAT_OPTIONS" muted />
+        <BareSelect v-model="folioFormat" :options="FOLIO_FORMAT_OPTIONS" />
       </div>
     </template>
 
     <template v-if="geo">
-      <!-- ── Groupe HAUT (en-tête), ferré au sommet du folio ────────────────── -->
-      <div class="fc-grp" :style="{ left: `${geo.railX}px`, top: `${geo.top}px` }">
+      <!-- ── Colonne GAUCHE : les cotes VERTICALES + le grand fond, ferrées par leur
+           DROITE au rail gauche (intitulé côté planche, champ vers l'extérieur).
+           Blanc de tête en haut, grand fond au milieu, blanc de pied en bas. Les
+           blancs sont cotés sur le bord extérieur de la page de gauche (recto), le
+           grand fond tombe aux bords extérieurs (marges re-miroitées, cf.
+           formatAnchors). ────────────────────────────────────────────────────── -->
+      <div class="fc-grp fc-grp--left" :style="{ left: `${geo.leftRailX}px`, top: `${geo.top}px` }">
         <div class="fc-row" :ref="(el) => setRow('blanc-tete', el)"
              @mouseenter="hovered = 'blanc-tete'" @mouseleave="hovered = null">
           <span class="fc-row__label">Blanc de tête</span>
           <NumInput :value="toUnit(marginsView.topCm, unit)" :step="step" :unit="unit"
                     @input="setMargin('topCm', $event)" />
         </div>
+      </div>
+      <div class="fc-grp fc-grp--left fc-grp--mid" :style="{ left: `${geo.leftRailX}px`, top: `${geo.fondY}px` }">
+        <div class="fc-row" :ref="(el) => setRow('grand-fond', el)"
+             @mouseenter="hovered = 'grand-fond'" @mouseleave="hovered = null">
+          <span class="fc-row__label">Grand fond</span>
+          <NumInput :value="toUnit(marginsView.outerCm, unit)" :step="step" :unit="unit"
+                    @input="setMargin('outerCm', $event)" />
+        </div>
+      </div>
+      <div class="fc-grp fc-grp--left fc-grp--bottom" :style="{ left: `${geo.leftRailX}px`, top: `${geo.bottom}px` }">
+        <div class="fc-row" :ref="(el) => setRow('blanc-pied', el)"
+             @mouseenter="hovered = 'blanc-pied'" @mouseleave="hovered = null">
+          <span class="fc-row__label">Blanc de pied</span>
+          <NumInput :value="toUnit(marginsView.bottomCm, unit)" :step="step" :unit="unit"
+                    @input="setMargin('bottomCm', $event)" />
+        </div>
+      </div>
+
+      <!-- ── Colonne DROITE : hauteur d'en-tête + justif (haut), manchette (milieu),
+           hauteur de pied + justif (bas), ferrées par leur GAUCHE au rail droit. ── -->
+      <div class="fc-grp" :style="{ left: `${geo.railX}px`, top: `${geo.top}px` }">
         <label class="fc-row" :ref="(el) => setRow('header-height', el)"
                @mouseenter="hovered = 'header'" @mouseleave="hovered = null">
           <span class="fc-row__label">
@@ -76,18 +101,52 @@
           <NumInput :value="toUnit(header.heightCm, unit)" :step="step" :unit="unit" placeholder="auto"
                     :disabled="!header.enabled" @input="setBandHeight(header, $event)" />
         </label>
-        <!-- Placement du contenu dans la bande : ferré à droite sous la hauteur,
-             sans intitulé (le libellé de l'option se suffit). -->
-        <div class="fc-row fc-row--sub"
+        <!-- Placement du titre courant dans la bande : select toujours sous son label. -->
+        <div class="fc-row"
              @mouseenter="hovered = 'header'" @mouseleave="hovered = null">
-          <BareSelect v-model="header.justification" :options="JUSTIF_OPTIONS" muted :disabled="!header.enabled" />
+          <BareSelect v-model="header.justification" :options="JUSTIF_OPTIONS" :disabled="!header.enabled" />
         </div>
       </div>
 
-      <!-- ── Dimensions : au milieu à droite, centré verticalement. Sans zone
-           surlignable : elles désignent la planche entière, que rien n'a besoin
-           de montrer (on la voit déjà) — le survol la barbouillerait pour rien. -->
-      <div class="fc-dims" :style="{ left: `${geo.railX}px`, top: `${geo.midY}px` }">
+      <div class="fc-grp fc-grp--mid" :style="{ left: `${geo.railX}px`, top: `${geo.midY}px` }">
+        <label class="fc-row" :ref="(el) => setRow('manchette', el)"
+               @mouseenter="hovered = 'manchette'" @mouseleave="hovered = null">
+          <span class="fc-row__label">
+            <input type="checkbox" v-model="manchette.enabled" /> Manchette
+          </span>
+          <NumInput :value="toUnit(manchette.widthCm, unit)" :step="step" :unit="unit" placeholder="auto"
+                    :disabled="!manchette.enabled" @input="setManchetteWidth($event)" />
+        </label>
+      </div>
+
+      <div class="fc-grp fc-grp--bottom" :style="{ left: `${geo.railX}px`, top: `${geo.bottom}px` }">
+        <label class="fc-row" :ref="(el) => setRow('footer-height', el)"
+               @mouseenter="hovered = 'footer'" @mouseleave="hovered = null">
+          <span class="fc-row__label">
+            <input type="checkbox" v-model="footer.enabled" /> Hauteur pied
+          </span>
+          <NumInput :value="toUnit(footer.heightCm, unit)" :step="step" :unit="unit" placeholder="auto"
+                    :disabled="!footer.enabled" @input="setBandHeight(footer, $event)" />
+        </label>
+        <div class="fc-row"
+             @mouseenter="hovered = 'footer'" @mouseleave="hovered = null">
+          <BareSelect v-model="footer.justification" :options="JUSTIF_OPTIONS" :disabled="!footer.enabled" />
+        </div>
+      </div>
+
+      <!-- Petit fond : côté gouttière, label posé sur la page de droite (verso). -->
+      <div class="fc-onpage" :style="{ left: `${geo.versoCenterX}px`, top: `${geo.fondY}px` }"
+           :ref="(el) => setRow('petit-fond', el)"
+           @mouseenter="hovered = 'petit-fond'" @mouseleave="hovered = null">
+        <span class="fc-row__label">Petit fond</span>
+        <NumInput :value="toUnit(marginsView.innerCm, unit)" :step="step" :unit="unit"
+                  @input="setMargin('innerCm', $event)" />
+      </div>
+
+      <!-- ── Dimensions : layer flottant au-dessus de la planche, centré sur la
+           gouttière. Sans zone surlignable : elles désignent la planche entière,
+           qu'on voit déjà — le survol la barbouillerait pour rien. ───────────── -->
+      <div class="fc-float" :style="{ left: `${geo.centerX}px`, top: `${geo.top}px` }">
         <BareSelect v-model="selectedKey" :options="DIM_OPTIONS" />
         <span class="fc-dims__wh">
           <NumInput :value="toUnit(effective && effective.widthCm, unit)" :step="step" unit=""
@@ -98,66 +157,12 @@
           <BareSelect v-model="unit" :options="UNIT_OPTIONS" muted />
         </span>
       </div>
-
-      <!-- ── Groupe BAS (pied), ferré au bas du folio. Ordre inversé (miroir du
-           groupe haut) : placement, Hauteur pied, puis Blanc de pied au ras du
-           bas. ──────────────────────────────────────────────────────────────── -->
-      <div class="fc-grp fc-grp--bottom" :style="{ left: `${geo.railX}px`, top: `${geo.bottom}px` }">
-        <div class="fc-row fc-row--sub"
-             @mouseenter="hovered = 'footer'" @mouseleave="hovered = null">
-          <BareSelect v-model="footer.justification" :options="JUSTIF_OPTIONS" muted :disabled="!footer.enabled" />
-        </div>
-        <label class="fc-row" :ref="(el) => setRow('footer-height', el)"
-               @mouseenter="hovered = 'footer'" @mouseleave="hovered = null">
-          <span class="fc-row__label">
-            <input type="checkbox" v-model="footer.enabled" /> Hauteur pied
-          </span>
-          <NumInput :value="toUnit(footer.heightCm, unit)" :step="step" :unit="unit" placeholder="auto"
-                    :disabled="!footer.enabled" @input="setBandHeight(footer, $event)" />
-        </label>
-        <div class="fc-row" :ref="(el) => setRow('blanc-pied', el)"
-             @mouseenter="hovered = 'blanc-pied'" @mouseleave="hovered = null">
-          <span class="fc-row__label">Blanc de pied</span>
-          <NumInput :value="toUnit(marginsView.bottomCm, unit)" :step="step" :unit="unit"
-                    @input="setMargin('bottomCm', $event)" />
-        </div>
-      </div>
-
-      <!-- ── Fonds. Le GRAND fond tombe aux bords extérieurs de la planche (les
-           marges sont re-miroitées pour l'ordre séquentiel, cf. formatAnchors) :
-           son groupe SORT donc à gauche, en miroir de la colonne de droite
-           (lignes inversées, rail, fuyantes vers la page). La manchette, qui vit
-           dans ce fond, s'y range dessous. Le PETIT fond, côté gouttière, garde
-           son label posé sur la page de droite. ─────────────────────────────── -->
-      <div class="fc-grp fc-grp--left" :style="{ left: `${geo.leftRailX}px`, top: `${geo.fondY}px` }">
-        <div class="fc-row" :ref="(el) => setRow('grand-fond', el)"
-             @mouseenter="hovered = 'grand-fond'" @mouseleave="hovered = null">
-          <span class="fc-row__label">Grand fond</span>
-          <NumInput :value="toUnit(marginsView.outerCm, unit)" :step="step" :unit="unit"
-                    @input="setMargin('outerCm', $event)" />
-        </div>
-        <label class="fc-row" :ref="(el) => setRow('manchette', el)"
-               @mouseenter="hovered = 'manchette'" @mouseleave="hovered = null">
-          <span class="fc-row__label">
-            <input type="checkbox" v-model="manchette.enabled" /> Manchette
-          </span>
-          <NumInput :value="toUnit(manchette.widthCm, unit)" :step="step" :unit="unit" placeholder="auto"
-                    :disabled="!manchette.enabled" @input="setManchetteWidth($event)" />
-        </label>
-      </div>
-      <div class="fc-onpage" :style="{ left: `${geo.versoCenterX}px`, top: `${geo.fondY}px` }"
-           :ref="(el) => setRow('petit-fond', el)"
-           @mouseenter="hovered = 'petit-fond'" @mouseleave="hovered = null">
-        <span class="fc-row__label">Petit fond</span>
-        <NumInput :value="toUnit(marginsView.innerCm, unit)" :step="step" :unit="unit"
-                  @input="setMargin('innerCm', $event)" />
-      </div>
     </template>
   </div>
 </template>
 
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, watchEffect } from 'vue'
 import BareSelect from './BareSelect.vue'
 import NumInput from './NumInput.vue'
 import { buildFormatAnchors } from '../../script/formatAnchors'
@@ -178,10 +183,14 @@ const header = computed(() => props.styleDefaults.runningTitles.header)
 const footer = computed(() => props.styleDefaults.runningTitles.footer)
 const manchette = computed(() => props.styleDefaults.manchette)
 
-// Pied symétrique : un seul choix, écrit recto ET verso.
-const footerContent = computed({
-  get: () => footer.value.recto,
-  set: (v) => { footer.value.recto = v; footer.value.verso = v },
+// Le pied n'affiche plus QUE le folio (numéro de page) : on n'y choisit que le style
+// de numérotation (1 / I / a). Son contenu est donc verrouillé sur `folio` des deux
+// côtés dès qu'il est actif.
+watchEffect(() => {
+  if (footer.value.enabled) {
+    footer.value.recto = 'folio'
+    footer.value.verso = 'folio'
+  }
 })
 
 // Numérotation du folio : GLOBALE au livre (pas par bande), d'où sa place à côté
@@ -194,12 +203,6 @@ const folioFormat = computed({
 const HEADER_OPTIONS = [
   { value: 'titre', label: 'Titre du livre' },
   { value: 'chapitre', label: 'Nom du chapitre' },
-  { value: 'aucun', label: 'Rien' },
-]
-const FOOTER_OPTIONS = [
-  { value: 'titre', label: 'Titre du livre' },
-  { value: 'chapitre', label: 'Nom du chapitre' },
-  { value: 'folio', label: 'Numéro de page' },
   { value: 'aucun', label: 'Rien' },
 ]
 const JUSTIF_OPTIONS = [
@@ -316,13 +319,29 @@ const geo = computed(() => {
   return {
     railX: verso.right + GAP, leftRailX: recto.left - GAP, top, bottom, midY,
     versoCenterX: (verso.left + verso.right) / 2,
-    // Label des fonds : à mi-chemin entre l'en-tête (haut) et les dimensions (milieu).
+    // Centre de la gouttière (bords intérieurs des deux pages) : ancre du layer
+    // flottant des dimensions.
+    centerX: (recto.right + verso.left) / 2,
+    // Label du grand fond : à mi-chemin entre le blanc de tête (haut) et la
+    // manchette (milieu).
     fondY: (top + midY) / 2,
   }
 })
 
-function bandStyle(bx) {
-  return { left: `${bx.x + bx.w / 2}px`, top: `${bx.y + bx.h / 2}px` }
+// Position d'un select de contenu sur sa bande, selon la justification : `centre`
+// = centré ; `regard` = bord EXTÉRIEUR (recto affiché à gauche → bord gauche ; verso
+// à droite → bord droit), le select ferré contre ce bord.
+function bandSelectStyle(box, side, justif) {
+  const cy = box.y + box.h / 2
+  // `--fc-band-h` borne la hauteur (et la police) du select à celle de la bande
+  // rendue par FolioView : il ne la dépasse jamais.
+  const h = { '--fc-band-h': `${box.h}px` }
+  if (justif === 'regard') {
+    return side === 'recto'
+      ? { ...h, left: `${box.x}px`, top: `${cy}px`, transform: 'translateY(-50%)' }
+      : { ...h, left: `${box.x + box.w}px`, top: `${cy}px`, transform: 'translate(-100%, -50%)' }
+  }
+  return { ...h, left: `${box.x + box.w / 2}px`, top: `${cy}px`, transform: 'translate(-50%, -50%)' }
 }
 
 // ── Survol : la zone désignée par le contrôle survolé se marque ───────────────
@@ -362,10 +381,13 @@ function nearestRect(rects, x) {
   return rects.reduce((best, r) => (Math.abs(r.x + r.w / 2 - x) < Math.abs(best.x + best.w / 2 - x) ? r : best))
 }
 
-// Lignes de la COLONNE de droite : fuyante depuis le rail (railX, centre de ligne).
-const RAIL_KEYS = ['blanc-tete', 'header-height', 'footer-height', 'blanc-pied']
-// Colonne de GAUCHE : même chose depuis son propre rail, vers la zone désignée.
-const LEFT_KEYS = ['grand-fond', 'manchette']
+// Chaque rail porte un mix de deux fuyantes : « vers un point » (blancs, hauteurs
+// de bande — le trait vise l'ancre cotée) et « horizontale vers zone » (fonds,
+// manchette — le trait file vers le centre du liséré désigné).
+const LEFT_POINT = ['blanc-tete', 'blanc-pied']
+const LEFT_ZONE = ['grand-fond']
+const RIGHT_POINT = ['header-height', 'footer-height']
+const RIGHT_ZONE = ['manchette']
 // Petit fond : label posé sur la page, trait HORIZONTAL vers le centre de son liséré.
 const ONPAGE_KEYS = ['petit-fond']
 
@@ -376,8 +398,6 @@ function setRow(key, el) {
 }
 
 const leaders = ref([])
-const rail = ref(null)
-const railLeft = ref(null)
 
 // Ordonnée du centre d'une ligne mesurée, ou null si elle n'est pas montée.
 function rowCenterY(key, oy) {
@@ -401,24 +421,27 @@ async function measure() {
   const o = origin.value
   const railX = geo.value?.railX ?? 0
   const leftRailX = geo.value?.leftRailX ?? 0
-  const cys = []
-  const leftCys = []
   const next = []
-  for (const key of RAIL_KEYS) {
+
+  // Fuyante « vers un point » : du bord de la carte (ferrée au rail) vers l'ancre cotée.
+  const pointLead = (key, rx) => {
     const cy = rowCenterY(key, o.top)
-    if (cy == null) continue
-    cys.push(cy)
-    if (anc[key]) next.push({ key, x1: railX, y1: cy, x2: anc[key].x, y2: anc[key].y })
+    if (cy != null && anc[key]) next.push({ key, x1: rx, y1: cy, x2: anc[key].x, y2: anc[key].y })
   }
-  // Colonne de gauche : trait horizontal du rail au centre de la zone désignée sur
-  // la page la PLUS PROCHE (une zone en couvre deux, une par page).
-  for (const key of LEFT_KEYS) {
+  // Fuyante horizontale « vers zone » : du bord de la carte au centre du liséré le
+  // PLUS PROCHE (une zone en couvre deux, une par page).
+  const zoneLead = (key, rx) => {
     const cy = rowCenterY(key, o.top)
-    if (cy == null) continue
-    leftCys.push(cy)
-    const z = nearestRect(anc[`zone-${key}`], leftRailX)
-    if (z) next.push({ key, x1: leftRailX, y1: cy, x2: z.x + z.w / 2, y2: cy })
+    if (cy == null) return
+    const z = nearestRect(anc[`zone-${key}`], rx)
+    if (z) next.push({ key, x1: rx, y1: cy, x2: z.x + z.w / 2, y2: cy })
   }
+
+  for (const key of LEFT_POINT) pointLead(key, leftRailX)
+  for (const key of LEFT_ZONE) zoneLead(key, leftRailX)
+  for (const key of RIGHT_POINT) pointLead(key, railX)
+  for (const key of RIGHT_ZONE) zoneLead(key, railX)
+
   // Label posé sur une page : le trait part de son bord gauche, même règle de zone.
   for (const key of ONPAGE_KEYS) {
     const el = rowEls.get(key)
@@ -430,8 +453,6 @@ async function measure() {
     next.push({ key, x1: rr.left - o.left, y1: cy, x2: z.x + z.w / 2, y2: cy })
   }
   leaders.value = next
-  rail.value = cys.length ? { x: railX, y1: Math.min(...cys), y2: Math.max(...cys) } : null
-  railLeft.value = leftCys.length ? { x: leftRailX, y1: Math.min(...leftCys), y2: Math.max(...leftCys) } : null
 }
 
 let ro = null
@@ -462,11 +483,6 @@ watch(() => props.styleDefaults, measure, { deep: true })
   pointer-events: none;
 }
 
-.fc-rail {
-  stroke: var(--c-border);
-  stroke-width: 1;
-}
-
 .fc-lead line {
   stroke: var(--c-ink2);
   stroke-width: 1;
@@ -493,13 +509,13 @@ watch(() => props.styleDefaults, measure, { deep: true })
 .fc-zone {
   position: absolute;
   pointer-events: auto;
-  border-radius: var(--radius-sm);
+  /*border-radius: var(--radius-sm);*/
   background: transparent;
   transition: background-color 0.12s ease;
 }
 
 .fc-zone--on {
-  background: color-mix(in srgb, var(--c-accent) 16%, transparent);
+  background: color-mix(in srgb, var(--c-accent2) 16%, transparent);
   outline: 1px dotted var(--c-accent);
   outline-offset: -1px;
 }
@@ -511,15 +527,36 @@ watch(() => props.styleDefaults, measure, { deep: true })
   pointer-events: none;
 }
 
-/* Groupe de selects posé sur une bande grisée. */
+/* Selects de contenu (titre courant / folio) posés sur la bande. Chacun porte SON
+   propre fond gris — le pavé gris peint dans l'iframe a été retiré (cf. folioStyles). */
 .fc-band {
   position: absolute;
-  transform: translate(-50%, -50%);
   display: inline-flex;
   align-items: center;
   gap: var(--sp-2);
+  /* Ne dépasse jamais la hauteur de la bande en-tête/pied rendue par FolioView. */
+  height: var(--fc-band-h, auto);
   white-space: nowrap;
   pointer-events: auto;
+}
+
+.fc-band :deep(.bare-select) {
+  height: 100%;
+}
+
+/* Fond teal léger (gris bleuté), franc sans radius — le pavé gris de l'iframe est
+   retiré, ce select EST le repère du titre courant / folio. Hauteur et police
+   bornées à la bande : le select tient dedans, sans la déborder. */
+.fc-band :deep(.bare-select select) {
+  height: 100%;
+  padding-top: 0;
+  padding-bottom: 0;
+  line-height: 1;
+  border-radius: 0;
+  border-color: transparent;
+  background: color-mix(in srgb, var(--c-accent-alt) 30%, var(--c-surface0));
+  color: var(--c-accent-alt-darker);
+  font-size: min(var(--fs-sm), calc(var(--fc-band-h, 1rem) - 4px));
 }
 
 /* Groupe de champs nus à droite du folio (haut = en-tête, bas = pied). */
@@ -531,40 +568,45 @@ watch(() => props.styleDefaults, measure, { deep: true })
   pointer-events: auto;
 }
 
+/* Groupe centré sur son ordonnée (manchette, colonne de droite). */
+.fc-grp--mid {
+  transform: translateY(-50%);
+}
+
 /* Groupe du bas : ferré PAR LE BAS au bas du folio (les lignes remontent). */
 .fc-grp--bottom {
   transform: translateY(-100%);
 }
 
-/* Groupe de GAUCHE : ferré par la droite à son rail, centré sur son ordonnée.
-   Lignes en miroir (intitulé côté planche, champ vers l'extérieur) — les deux
-   colonnes se répondent de part et d'autre du folio. */
+/* Colonne de GAUCHE : ferrée par la DROITE à son rail (intitulé côté planche, champ
+   vers l'extérieur) — miroir de la colonne de droite. Position verticale par
+   modifieur : haut par défaut, centrée (--mid) ou basse (--bottom), les combinés
+   l'emportant en spécificité. */
 .fc-grp--left {
+  transform: translateX(-100%);
+}
+
+.fc-grp--left.fc-grp--mid {
   transform: translate(-100%, -50%);
 }
 
+.fc-grp--left.fc-grp--bottom {
+  transform: translate(-100%, -100%);
+}
+
+/* Colonne de gauche : contenu ferré à DROITE (vers la planche). */
 .fc-grp--left .fc-row {
-  flex-direction: row-reverse;
+  align-items: flex-end;
 }
 
-/* Le pointeur de la case à cocher reste à gauche de son intitulé, comme à droite. */
-.fc-grp--left .fc-row__label {
-  flex-direction: row-reverse;
-}
-
+/* Une cote = intitulé puis champ, EMPILÉS, avec un peu de padding pour aérer. */
 .fc-row {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sp-3);
-  min-width: 12em;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-1);
+  padding: var(--sp-2) var(--sp-6);
   font-size: var(--fs-sm);
-}
-
-/* Ligne sans intitulé (placement d'une bande) : le champ seul, ferré à droite
-   comme ceux des lignes cotées au-dessus. */
-.fc-row--sub {
-  justify-content: flex-end;
 }
 
 .fc-row__label {
@@ -573,16 +615,22 @@ watch(() => props.styleDefaults, measure, { deep: true })
   gap: var(--sp-2);
   color: var(--c-ink2);
   white-space: nowrap;
+  font-weight: 600;
 }
 
-/* Dimensions : au milieu à droite du folio, centré verticalement sur le rail. */
-.fc-dims {
+/* Cases à cocher aux couleurs Scribe (teal). */
+.fc-row__label input[type="checkbox"] {
+  accent-color: var(--c-accent-alt);
+}
+
+/* Dimensions : layer flottant au-dessus de la planche, centré sur la gouttière. */
+.fc-float {
   position: absolute;
-  transform: translateY(-50%);
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 12em;
+  transform: translate(-50%, calc(-100% - var(--sp-3)));
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  white-space: nowrap;
   pointer-events: auto;
   font-size: var(--fs-sm);
 }

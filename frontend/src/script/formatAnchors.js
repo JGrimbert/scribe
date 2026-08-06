@@ -128,9 +128,10 @@ export function buildFormatAnchors({ pages, pageSize, margins, runningTitles, ma
   const manchetteCols = [recto, verso].map(manchetteColumn).filter(Boolean)
 
   return {
-    // Blancs de tête/pied : cotés sur le bord extérieur de la page de droite.
-    'blanc-tete': anchorOf(vSpan(verso.right, verso.top, verso.empTop)),
-    'blanc-pied': anchorOf(vSpan(verso.right, verso.empBottom, verso.bottom)),
+    // Blancs de tête/pied : cotés sur le bord extérieur de la page de GAUCHE (recto
+    // affiché à gauche) — leurs cartes vivent désormais dans la colonne de gauche.
+    'blanc-tete': anchorOf(vSpan(recto.left, recto.top, recto.empTop)),
+    'blanc-pied': anchorOf(vSpan(recto.left, recto.empBottom, recto.bottom)),
     // Contenus de bande : chacun sur SA page (impaires à gauche, paires à droite).
     'header-recto': blockAnchor(blockOf(rt.header, recto.header, 'recto')),
     'header-verso': blockAnchor(blockOf(rt.header, verso.header, 'verso')),

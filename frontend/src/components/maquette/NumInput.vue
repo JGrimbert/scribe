@@ -7,7 +7,7 @@
         :value="value" :disabled="disabled"
         @input="$emit('input', $event.target.value)"
     />
-    <span class="num-input__unit">{{ unit }}</span>
+    <span v-if="unit" class="num-input__unit">{{ unit }}</span>
   </span>
 </template>
 
@@ -23,28 +23,34 @@ defineEmits(['input'])
 </script>
 
 <style scoped>
+/* Boîte bordée UNIQUE : le nombre + son unité, l'unité en pastille teal accolée. */
 .num-input {
   display: inline-flex;
-  align-items: baseline;
-  gap: 4px;
+  align-items: stretch;
+  border: 1px solid var(--c-accent2);
+  border-radius: var(--radius-sm);
+ /* background: var(--c-surface0);*/
+  overflow: hidden;
+}
+
+.num-input:focus-within {
+  border-color: var(--c-accent-alt);
 }
 
 .num-input input {
-  width: 2.8em;
+  width: 3.4em;
   border: none;
-  background: transparent;
-  border-bottom: 1px solid var(--c-border);
+  background: #fff;
   color: var(--c-ink);
   font: inherit;
   font-size: var(--fs-sm);
   font-variant-numeric: tabular-nums;
-  padding: 0 0 1px;
+  padding: var(--sp-1) var(--sp-2);
   text-align: right;
 }
 
 .num-input input:focus {
   outline: none;
-  border-bottom-color: var(--c-accent, var(--c-ink2));
 }
 
 .num-input input:disabled {
@@ -52,8 +58,15 @@ defineEmits(['input'])
   cursor: not-allowed;
 }
 
+/* Unité : teal sur teal léger, dans la même boîte que le nombre. */
 .num-input__unit {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 var(--sp-2);
   font-size: var(--fs-xs);
-  color: var(--c-ink2);
+  color: var(--c-accent);
+  /*background: color-mix(in srgb, var(--c-accent-alt) 12%, var(--c-surface0));*/
+  background:
+      color-mix(in srgb, var(--c-accent-alt-ink) 24%, transparent);
 }
 </style>

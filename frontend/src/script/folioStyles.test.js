@@ -225,35 +225,35 @@ describe('buildFormatGuidesCss', () => {
     expect(css).not.toContain('::after')
   })
 
-  it('en-tête : CADRE bordé pleine largeur conservé + gris interne centré réduit', () => {
+  it('en-tête : CADRE bordé pleine largeur conservé, sans pavé gris interne', () => {
     const css = buildFormatGuidesCss(rt({ header: band({ enabled: true }) }))
     // Le cadre : pleine largeur, bordé (ne PAS le supprimer).
     expect(css).toContain('.pagedjs_page_content::before{')
     expect(css).toMatch(/::before\{[^}]*left:0;right:0;/)
     expect(css).toMatch(/::before\{[^}]*border:1px solid/)
-    // Le gris typographique interne : largeur d'une ligne, centré.
-    expect(css).toContain('background-size:40% 100%')
-    expect(css).toContain('background-position:center center')
+    // Le pavé gris (GUIDE_FILL #c9c9c9) a migré sur le select de l'overlay : plus
+    // aucun peint ici (le linear-gradient restant est la croix de corps, #d9d9d9).
+    expect(css).not.toContain('#c9c9c9')
+    expect(css).not.toContain('background-size')
   })
 
-  it('« en regard » : gris interne au bord extérieur, en miroir (recto gauche, verso droite)', () => {
+  it('« en regard » : plus de règle de pavé par côté (déplacé sur l’overlay)', () => {
     const css = buildFormatGuidesCss(rt({ header: band({ enabled: true, justification: 'regard' }) }))
-    expect(css).toMatch(/\.pagedjs_right_page[^}]*background-position:left center;/)
-    expect(css).toMatch(/\.pagedjs_left_page[^}]*background-position:right center;/)
+    expect(css).not.toContain('.pagedjs_right_page')
+    expect(css).not.toContain('.pagedjs_left_page')
   })
 
-  it('respecte « aucun » : cadre présent mais aucun gris du côté sans contenu', () => {
+  it('« aucun » ou non : cadre présent, aucune règle de pavé par côté', () => {
     const css = buildFormatGuidesCss(rt({ header: band({ enabled: true, recto: 'chapitre', verso: 'aucun' }) }))
     expect(css).toContain('.pagedjs_page_content::before{') // cadre toujours là
-    expect(css).toContain('.pagedjs_right_page .pagedjs_page_content::before')
+    expect(css).not.toContain('.pagedjs_right_page .pagedjs_page_content::before')
     expect(css).not.toContain('.pagedjs_left_page .pagedjs_page_content::before')
   })
 
-  it('folio en pied → gris à la largeur d’un numéro de page (pas 40%)', () => {
+  it('folio en pied : cadre ::after présent, sans pavé de largeur folio', () => {
     const css = buildFormatGuidesCss(rt({ footer: band({ enabled: true, recto: 'folio', verso: 'folio' }) }))
     expect(css).toContain('.pagedjs_page_content::after{')
-    expect(css).toContain('background-size:1.2cm 100%')
-    expect(css).not.toContain('background-size:40% 100%')
+    expect(css).not.toContain('background-size:1.2cm 100%')
   })
 
   it('pied → ::after ancré sous l’empagement, hauteur fixée respectée', () => {

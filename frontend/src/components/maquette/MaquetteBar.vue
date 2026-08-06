@@ -150,6 +150,7 @@ onUnmounted(() => document.removeEventListener('keydown', onDocKeydown))
   font-size: var(--fs-sm);
   border-bottom: 1px solid var(--c-border);
   backdrop-filter: var(--c-backdrop-filter-blur);
+  background: color-mix(in srgb, var(--c-accent-alt-ink) 24%, transparent);
 }
 
 /* Le champ ne prend pas toute la barre : il reste au-dessus de la colonne du

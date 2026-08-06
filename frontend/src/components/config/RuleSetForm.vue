@@ -19,15 +19,7 @@
       <span>caractères</span>
     </label>
 
-    <label v-if="showTable" class="rule">
-      <input v-model="ruleSet.requiresTable" type="checkbox" :disabled="disabled" />
-      <span>Un tableau des liens</span>
-    </label>
 
-    <label v-for="role in roles" :key="role" class="rule">
-      <input type="checkbox" :checked="ruleSet.requiresRoles.includes(role)" :disabled="disabled" @change="toggleRole(role)" />
-      <span>Un paragraphe « {{ role }} »</span>
-    </label>
   </div>
 </template>
 

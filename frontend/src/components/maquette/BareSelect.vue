@@ -29,12 +29,13 @@ defineEmits(['update:modelValue'])
 .bare-select select {
   appearance: none;
   -webkit-appearance: none;
-  border: none;
-  background: transparent;
+  border: 1px solid var(--c-accent2);
+  border-radius: var(--radius-sm);
+  background: var(--c-surface0);
   color: var(--c-ink);
   font: inherit;
   font-size: var(--fs-sm);
-  padding: 0 1.1em 0 0;
+  padding: var(--sp-1) 1.6em var(--sp-1) var(--sp-2);
   margin: 0;
   cursor: pointer;
   max-width: 11em;
@@ -52,12 +53,12 @@ defineEmits(['update:modelValue'])
 
 .bare-select select:focus {
   outline: none;
-  text-decoration: underline;
+  border-color: var(--c-accent, var(--c-ink2));
 }
 
 .bare-select__chevron {
   position: absolute;
-  right: 0;
+  right: var(--sp-2);
   font-size: 0.7em;
   color: var(--c-ink2);
   pointer-events: none;
