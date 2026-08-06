@@ -15,7 +15,7 @@
           type="search"
           class="maq-search__input"
           placeholder="Rechercher…"
-          @focus="open = true"
+          @focus="$emit('focus-search')"
       />
     </label>
 
@@ -84,13 +84,19 @@ const props = defineProps({
   // Le .odt d'origine est-il conservé ? Sinon le recalibrage est barré (seul un
   // réimport peut refixer les bornes).
   recalibratable: { type: Boolean, default: true },
+  // La recherche est-elle ouverte ? L'état ne vit PLUS ici : c'est le calque
+  // « Vocabulaire » de la pellicule, en tête de l'accordéon, qui le porte — on y
+  // entre et on en sort à la molette. La barre ne fait que viser ce cran
+  // (`focus-search` au focus du champ, `exit-search` sur Échap).
+  searching: { type: Boolean, default: false },
 })
 
-// `update:searching` : la maquette replie son accordéon tant que la recherche est
-// ouverte, et le rend tel quel à la fermeture. `update:query` : elle en fait ses
-// résultats (la planche qui remplace l'aperçu). `recalibrate` : ouvre la modale de
-// recalibration (l'hôte détient le flux).
-const emit = defineEmits(['update:zoom', 'update:searching', 'update:query', 'validate', 'recalibrate'])
+// `update:query` : la maquette en fait ses résultats (la planche qui remplace
+// l'aperçu). `recalibrate` : ouvre la modale de recalibration (l'hôte détient le
+// flux).
+const emit = defineEmits([
+  'update:zoom', 'update:query', 'validate', 'recalibrate', 'focus-search', 'exit-search',
+])
 
 const NO_SOURCE_HINT =
     "Recalibrage impossible : le .odt d'origine n'a pas été conservé (document importé avant cette fonctionnalité). Seul un réimport permet de refixer les bornes."
@@ -101,29 +107,22 @@ const pct = computed(() => {
 })
 
 const query = ref('')
-const open = ref(false)
 const inputEl = ref(null)
 
-watch(query, (q) => {
-  emit('update:query', q)
-  // Champ vidé = recherche close. Le champ vit maintenant dans une barre, pas
-  // dans la carte du sommaire : « clic dehors » fermerait la recherche au premier
-  // clic sur la scène, alors que TOUT l'écran est devenu son résultat (planche de
-  // passages, accordéon d'analyse). La sortie est donc explicite.
-  if (!q) open.value = false
-})
+// Vider le champ ne ferme PLUS la recherche : elle n'est plus un état de la barre
+// mais un cran de la pellicule. On en sort en scrollant l'accordéon (ou par Échap).
+watch(query, (q) => emit('update:query', q))
 
 function onDocKeydown(e) {
-  // Échap vide ET ferme : garder la saisie dans un champ dont la recherche est
+  // Échap vide ET sort : garder la saisie dans un champ dont la recherche est
   // close laisserait les deux états en désaccord.
   if (e.key !== 'Escape') return
   query.value = ''
-  open.value = false
   inputEl.value?.blur()
+  emit('exit-search')
 }
 
-watch(open, (isOpen) => {
-  emit('update:searching', isOpen)
+watch(() => props.searching, (isOpen) => {
   document[isOpen ? 'addEventListener' : 'removeEventListener']('keydown', onDocKeydown)
 })
 onUnmounted(() => document.removeEventListener('keydown', onDocKeydown))

@@ -15,10 +15,12 @@
         :tally-row="activeTallyRow"
         :validating="validating"
         :recalibratable="recalibratable"
+        :searching="searching"
         @validate="toggleValidation"
         @recalibrate="startRecalibration"
         @update:zoom="zoom = $event"
-        @update:searching="onSearching"
+        @focus-search="enterSearch"
+        @exit-search="exitSearch"
         @update:query="onQuery"
     />
 
@@ -77,8 +79,15 @@
             @update:focused="focused = $event"
         >
           <template #spread="{ cran }">
+            <!-- Le calque de tête : l'entrée du panneau de recherche (nuage +
+                 passages). Un seul feuillet, dans la zone au nom du livre. -->
+            <MaquetteAnalyseCell
+                v-if="cran.sourceKey === 'analyse'"
+                label="Vocabulaire"
+                :ratio="previewRatio"
+            />
             <PageDiagram
-                v-if="cran.sourceKey === 'maquette'"
+                v-else-if="cran.sourceKey === 'maquette'"
                 class="maq-format-cell"
                 :page-size="previewPage"
                 :margins="previewMargins"
@@ -98,28 +107,29 @@
             />
             <MaquetteSpreadCell v-else :ratio="previewRatio" />
           </template>
-
-          <!-- Recherche ouverte : la pellicule du livre se replie en onglets et
-               rend sa place à un SECOND accordéon, celui de la recherche — un cran
-               par section du dashboard d'analyse. Il se pose au bout de la
-               première (le panneau démarre à `stripEnd`), et son cran focusé
-               décide de la vue montée dans la scène (cf. .maq-analyse). -->
-          <template v-if="searching" #panel>
-            <MaquetteAccordeon
-                v-model:folds="searchFolds"
-                :crans="searchCrans"
-                :focused="searchFocused"
-                :ratio="previewRatio"
-                @update:focused="searchFocused = $event"
-            >
-              <template #spread="{ cran }">
-                <MaquetteAnalyseCell :label="cran.label" :ratio="previewRatio" />
-              </template>
-            </MaquetteAccordeon>
-          </template>
         </MaquetteAccordeon>
       </template>
     </MaquetteStructureNav>
+
+    <!-- Accordéon d'ANALYSE : indépendant de la pellicule du livre (qui tient la
+         gauche) et ferré au bord droit, dans la même bande. Un cran par section du
+         dashboard, Vocabulaire excepté — c'est le calque de tête de la pellicule,
+         et donc la vue par défaut à l'entrée. Le cran focusé ici décide de la vue
+         montée dans la scène (cf. .maq-analyse). -->
+    <div v-if="searching" class="maq-search-dock">
+      <MaquetteAccordeon
+          v-model:folds="searchFolds"
+          align="right"
+          :crans="searchCrans"
+          :focused="searchFocused"
+          :ratio="previewRatio"
+          @update:focused="searchFocused = $event"
+      >
+        <template #spread="{ cran }">
+          <MaquetteAnalyseCell :label="cran.label" :ratio="previewRatio" />
+        </template>
+      </MaquetteAccordeon>
+    </div>
 
     <!-- Colonne gauche (2/3) : aperçu témoin + dock accordéon, sous la doc-bar. -->
     <div class="maquette__left">
@@ -135,7 +145,7 @@
               class="folio-stage"
               :class="{
                 'folio-stage--lim': isLiminaire,
-                'folio-stage--search': searching,
+                'folio-stage--search': searchLayout,
               }"
           >
             <div class="folio-col">
@@ -160,7 +170,7 @@
                   :book-title="searching ? '' : bookTitle"
                   :highlight-style="hoveredStyle"
                   @step="stepResultPage"
-                  @spread-geometry="spreadGeometry = $event"
+                  @spread-geometry="onSpreadGeometry"
                   @block-geometry="blockGeometry = $event"
                   @style-geometry="styleGeometry = $event"
               />
@@ -212,7 +222,7 @@
               />
               <!-- Pager : la molette au-dessus du folio fait la même chose, mais elle
                    ne s'annonce pas. -->
-              <div v-if="searching && resultPageCount > 1" class="maq-pager">
+              <div v-if="searchLayout && resultPageCount > 1" class="maq-pager">
                 <button
                     type="button" class="maq-pager__btn" aria-label="Résultats précédents"
                     :disabled="resultPage === 0" @click="stepResultPage(-1)"
@@ -235,9 +245,10 @@
                  vide/révélation) — sauf le Vocabulaire, dont on garde le nuage nu,
                  déjà réglé pour cette boîte. -->
             <div
-                v-if="searching"
+                v-if="searchLayout"
                 ref="cloudEl"
                 class="maq-analyse"
+                :style="{ left: analyseLeft }"
             >
               <VocabulaireCloud
                   v-if="isCloudView"
@@ -256,7 +267,7 @@
                  téléporte son `#aside` (cf. AnalyseBlock, `analyseAsideTo`) ;
                  seul le Vocabulaire pose la sienne à la main — la scène monte
                  son nuage NU, sa card n'est donc jamais montée pour le faire. -->
-            <div v-if="searching" class="maq-analyse-aside">
+            <div v-if="searchLayout" class="maq-analyse-aside">
               <CustomScrollbar>
                 <div ref="analyseAsideEl" class="maq-analyse-aside__inner split-aside">
                   <template v-if="isCloudView">
@@ -379,7 +390,7 @@ import { useLiminaireComposition } from '../../composables/useLiminaireCompositi
 import { useAnalyse } from '../../composables/useAnalyse'
 import { useDocSearch } from '../../composables/useDocSearch'
 import { useDocStats } from '../../composables/useDocStats'
-import { visibleSections } from '../../script/analyseSections'
+import { visibleSections, sectionByKey } from '../../script/analyseSections'
 import { ANALYSE_CARDS } from '../analyse/analyseCards'
 import { fragmentPages } from '../../script/searchFragment'
 import { spreadStyles } from '../../script/liminaire-styles'
@@ -462,7 +473,9 @@ async function onRecalCommitted(summary) {
   await load(route.params.id)
 }
 
-const focused = ref(0)
+// Cran 1 = Format : le cran 0 est le calque « Vocabulaire », qui OUVRE la
+// recherche — l'écran s'ouvrirait dessus.
+const focused = ref(1)
 
 const {
   spreads: limSpreads, types: limTypes, suggestions: limSuggestions,
@@ -489,6 +502,11 @@ const chapSections = computed(() =>
 // chapitrage une par niveau.
 const series = computed(() => {
   const out = []
+  // En TÊTE, une zone au nom du livre avec un seul calque : le Vocabulaire, qui
+  // ouvre le panneau de recherche. On y entre et on en sort en scrollant la
+  // pellicule — la recherche est un cran comme un autre, pas un mode à part.
+  out.push({ key: 'vocabulaire', label: bookTitle.value || 'Le livre', spreads: [{ sourceKey: 'analyse' }] })
+
   out.push({ key: 'format', label: 'Format', spreads: [{ sourceKey: 'maquette' }] })
 
   const sp = limSpreads.value
@@ -516,6 +534,7 @@ const series = computed(() => {
 // niveaux de chapitrage fondus en UNE section, sans séparation visuelle interne)
 // · Annotations.
 function sectionOf(seriesKey) {
+  if (seriesKey === 'vocabulaire') return { key: 'vocabulaire', label: bookTitle.value || 'Le livre' }
   if (seriesKey === 'format') return { key: 'format', label: 'Format' }
   if (seriesKey === 'liminaire') return { key: 'liminaire', label: 'Liminaire' }
   if (seriesKey === 'validation') return { key: 'annotations', label: 'Annotations' }
@@ -550,10 +569,11 @@ const focusedSourceKey = computed(() => focusedCran.value?.sourceKey ?? null)
 const folds = ref({})
 const sectionKeys = computed(() => [...new Set(crans.value.map((c) => c.sectionKey))])
 
-// Recherche ouverte → l'accordéon se réduit à ses onglets (il rend sa place au
-// panneau). C'est un EFFET de la recherche, pas une préférence : à la fermeture,
-// le pli automatique reprend la main.
-const searching = ref(false)
+// La recherche n'est plus un mode de l'écran mais le CRAN de tête : elle est
+// ouverte tant que le calque « Vocabulaire » est focusé. La rétraction automatique
+// (applyAutoFolds) replie alors tout le reste en onglets, comme pour n'importe
+// quelle autre zone.
+const searching = computed(() => focusedSourceKey.value === 'analyse')
 
 // Zone d'accordéon du cran focusé (à ne pas confondre avec `focusedSection`, la
 // section de CHAPITRAGE focusée).
@@ -577,9 +597,20 @@ function applyAutoFolds() {
 // (extension du liminaire…) et écraserait ce pli manuel.
 watch(
   [focusedZoneKey, () => sectionKeys.value.join('|')],
-  () => { if (!searching.value) applyAutoFolds() },
+  applyAutoFolds,
   { immediate: true },
 )
+
+// Entrée/sortie du panneau de recherche : c'est un déplacement dans la pellicule,
+// la molette suffit. Le champ (au focus) et Échap ne font que viser le cran.
+const vocabIndex = computed(() => crans.value.findIndex((c) => c.sourceKey === 'analyse'))
+function enterSearch() {
+  if (vocabIndex.value !== -1) focused.value = vocabIndex.value
+}
+function exitSearch() {
+  if (searching.value) focused.value = Math.min(vocabIndex.value + 1, crans.value.length - 1)
+}
+
 const searchQuery = ref('')
 // Saisie DÉBOUNCÉE : chaque changement de `searchQuery` repagine l'iframe (Paged.js,
 // plusieurs dizaines de ms), une frappe au caractère en lançait autant en parallèle.
@@ -647,8 +678,11 @@ provide('analyseAsideTo', analyseAsideEl)
 provide('analyseFit', true)
 
 const analyseSections = computed(() => visibleSections(isRevealed))
+// Le Vocabulaire n'est plus de cet accordéon : c'est le calque de tête de la
+// pellicule du livre, et donc la vue par défaut du panneau.
+const searchSections = computed(() => analyseSections.value.filter((s) => s.key !== 'vocabulaire'))
 const searchCrans = computed(() =>
-  analyseSections.value.map((s, i) => ({
+  searchSections.value.map((s, i) => ({
     sourceKey: 'analyse',
     key: s.key,
     label: s.label,
@@ -657,12 +691,20 @@ const searchCrans = computed(() =>
     isSectionStart: i === 0,
   })),
 )
-const searchFocused = ref(0)
+// -1 = aucun cran de l'accordéon de droite retenu, donc le Vocabulaire (on vient
+// d'entrer par son calque). Le premier clic/molette sur cet accordéon prend la main.
+const searchFocused = ref(-1)
 const searchFolds = ref({})
+watch(searching, (on) => { if (on) searchFocused.value = -1 })
+
 // La section dont la VUE est montée dans la scène (à droite des résultats), et la
 // card correspondante. Le Vocabulaire fait exception : on y monte le nuage NU (la
 // card entière lui adjoindrait occurrences + proximité, deux colonnes de trop ici).
-const focusedAnalyse = computed(() => analyseSections.value[searchFocused.value] ?? null)
+const focusedAnalyse = computed(() =>
+  searchFocused.value < 0
+    ? sectionByKey('vocabulaire')
+    : searchSections.value[searchFocused.value] ?? null,
+)
 const isCloudView = computed(() => focusedAnalyse.value?.key === 'vocabulaire')
 const analyseCard = computed(() => ANALYSE_CARDS[focusedAnalyse.value?.key] ?? null)
 
@@ -685,15 +727,6 @@ onUnmounted(() => cloudRo?.disconnect())
 // Chiffres du document : ils sont la rangée de TÊTE du lambeau de statut (ils
 // vivaient dans le panneau du dock, disparu avec lui).
 const { statItems } = useDocStats()
-
-function onSearching(active) {
-  searching.value = active
-  if (active) {
-    folds.value = Object.fromEntries(sectionKeys.value.map((k) => [k, 'tab']))
-  } else {
-    applyAutoFolds()
-  }
-}
 
 // Section de chapitrage focusée (null hors d'un cran chapitrage).
 const focusedSection = computed(() => {
@@ -802,11 +835,15 @@ const activeTallyRow = computed(() =>
 // pas un attribut d'un mode : ×1 = la planche d'ouverture (deux pages), ×3 =
 // six pages de large. Il pilote `visible-pages` du
 // FolioView, et la trame de fond pointillée suit l'échelle d'elle-même (cf.
-// updateSpreadBg). Recherche : la planche ne porte qu'UNE page de résultats (cf.
-// RESULTS_PER_PAGE), le dézoom part donc d'une page et non d'un vis-à-vis.
+// updateSpreadBg). Le SEUL réglage de `visible-pages` : la recherche n'en change
+// plus (elle visait une page au lieu d'un vis-à-vis). C'est cette prop qui fixe
+// l'échelle des pages (cf. useFolioScale : min sur la largeur ET la hauteur) — la
+// faire varier d'un cran à l'autre remettait la planche à l'échelle en entrant
+// dans la recherche (gouttières haut/bas qui changent) et déclenchait en plus le
+// glissement animé d'`animateScale`, qui coupait la frame avant de la recaler.
 const ZOOMS = [1, 2, 3, 4, 6]
 const zoom = ref(1)
-const folioVisiblePages = computed(() => (searching.value ? 1 : 2) * zoom.value)
+const folioVisiblePages = computed(() => 2 * zoom.value)
 
 // ── Validation d'un niveau de chapitrage ────────────────────────────────────
 // Mode à part entière (et non plus un dézoom de la scène) : la bascule ouvre le
@@ -1005,6 +1042,27 @@ const fmtPage = computed(() => documentPageOdt?.value ?? null)
 // Géométrie de la planche (rects écran des pages), émise par le FolioView
 // persistant : alimente les ancres des callouts de format dockés sur l'aperçu.
 const spreadGeometry = ref(null)
+
+// La COMPOSITION de la scène en recherche (planche ferrée à gauche, vue d'analyse,
+// aside, pager) suit `searching` avec UN CRAN DE RETARD : elle n'est posée qu'une
+// fois le nouveau rendu paginé (le FolioView émet sa géométrie à chaque passe).
+// Sinon la planche glissait à sa nouvelle place, et la vue d'analyse la coupait,
+// pendant les ~150 ms où elle portait encore l'ancien contenu. Les PROPS du folio,
+// elles, changent tout de suite : c'est ce qui déclenche la repagination.
+const searchLayout = ref(false)
+function onSpreadGeometry(geometry) {
+  spreadGeometry.value = geometry
+  searchLayout.value = searching.value
+}
+
+// Bord gauche de la vue d'analyse : le bord droit de la page de résultats, plus la
+// gouttière. La planche gardant sa place et sa largeur de vis-à-vis, la vue occupe
+// exactement la case de la page de droite (et tout ce qui suit jusqu'au bord).
+// Repli sur 40 % tant que la géométrie n'est pas arrivée.
+const analyseLeft = computed(() => {
+  const p = spreadGeometry.value?.pages?.[0]
+  return p ? `${Math.round(p.left + p.width)}px` : '40%'
+})
 // Rects écran des paragraphes rendus (clés par entry.key) : l'overlay liminaire y
 // ancre ses contrôles de découpage en marge.
 const blockGeometry = ref([])
@@ -1217,9 +1275,8 @@ onUnmounted(() => { if (section) section.value = null })
   min-height: 0;
 }
 
-/* Colonne du folio : le FolioView + son pager. Elle prend toute la scène hors
-   recherche ; en recherche elle n'en prend qu'un TIERS — la page de résultats vaut
-   une page, le nuage en vaut deux (flex 1 / 2). */
+/* Colonne du folio : le FolioView + son pager. Elle prend toute la scène — la vue
+   d'analyse de la recherche est posée par-dessus, ferrée à la page de résultats. */
 .folio-col {
   position: relative;
   display: flex;
@@ -1229,26 +1286,23 @@ onUnmounted(() => { if (section) section.value = null })
   min-height: 0;
 }
 
-.folio-stage--search .folio-col {
-  flex: 1 1 0;
-}
+/* Recherche : la planche NE BOUGE PAS. Elle garde sa place et sa largeur (le
+   FolioView réserve la rangée de la planche visée même s'il n'a qu'une page, cf.
+   useFolioScale) — la page de résultats occupe donc exactement la case de la page
+   de gauche. C'est la vue d'analyse qui se cale sur elle (cf. analyseLeft), et non
+   plus la planche qui se ferre à gauche pour lui laisser la place. */
 
-/* Recherche : la scène est PARTAGÉE — la vue d'analyse est ferrée à droite sur
-   60 % de la fenêtre. Centrer la page de résultats la ferait glisser dessous. */
-.folio-stage--search :deep(.folio-view--spread .folio-pad) {
-  margin-inline: 0;
-}
-
-/* Vue de la section d'analyse focusée (nuage compris) : deux pages de large, en
-   regard de la page de résultats. `overflow` parce que le SVG du nuage déborde
-   volontiers de sa boîte.
+/* Vue de la section d'analyse focusée (nuage compris) : EN REGARD de la page de
+   résultats, son bord gauche calé sur le bord droit de cette page (`left` posé en
+   inline depuis la géométrie émise — la planche ne bouge plus, c'est la vue qui se
+   range à côté d'elle). `overflow` parce que le SVG du nuage déborde volontiers de
+   sa boîte.
    Bornée EN HAUT ET EN BAS plutôt qu'à une hauteur choisie : la boîte se calcule
    sur la fenêtre et s'arrête au-dessus du dock, sans valeur à réajuster à la main.
    Sans `bottom`, une card haute filait sous le bas de l'écran sans jamais défiler
    (`.maquette` est en `overflow: hidden`). `--maq-dock-h` est hérité de
    `.maquette__left`. */
 .maq-analyse {
-  flex: 2 1 0;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
@@ -1259,7 +1313,6 @@ onUnmounted(() => { if (section) section.value = null })
      la troisième (MaquetteBar) fait partie. */
   top: calc(4em + var(--bar-size));
   bottom: calc(var(--maq-dock-h) + var(--sp-4));
-  width: 60%;
   /* Au-dessus de l'iframe du folio, qui porte `z-index: 1` en double-page (cf.
      .folio-view--spread .folio-frame) et passerait sinon devant — la vue est
      positionnée, mais sans z-index elle perdrait l'empilement. */
@@ -1308,10 +1361,18 @@ onUnmounted(() => { if (section) section.value = null })
   font-size: var(--fs-sm);
 }
 
-/* Pager des résultats : discret, sous la page de folio (la molette fait la même
-   chose sans se montrer). */
+/* Pager des résultats : discret, au pied de la planche (la molette fait la même
+   chose sans se montrer). POSÉ SUR elle, comme tous les contrôles de cet écran,
+   et surtout PAS dans le flux de la colonne : une rangée y prendrait sa hauteur
+   au folio, qui se remettrait à l'échelle — la planche changerait de taille entre
+   le cran de recherche et les autres (gouttières haut/bas qui sautent). Racine
+   inerte, seuls les boutons reprennent le pointeur. */
 .maq-pager {
-  flex: 0 0 auto;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 3;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1319,9 +1380,11 @@ onUnmounted(() => { if (section) section.value = null })
   padding-top: var(--sp-2);
   font-size: var(--fs-sm);
   color: var(--c-muted);
+  pointer-events: none;
 }
 
 .maq-pager__btn {
+  pointer-events: auto;
   display: flex;
   align-items: center;
   border: 0;
@@ -1394,6 +1457,22 @@ onUnmounted(() => { if (section) section.value = null })
 
 .maq-recal-report__close:hover {
   color: var(--c-danger);
+}
+
+/* Accordéon d'analyse : même bande que le dock du livre (hauteur `--maq-dock-h`,
+   même talon en bas) mais ferré au bord DROIT de la fenêtre, et indépendant — la
+   pellicule du livre tient la gauche, réduite à ses onglets tant que la recherche
+   est ouverte. Même plan que le sommaire flottant (z 160), sous les modales. */
+.maq-search-dock {
+  position: fixed;
+  right: 0;
+  bottom: var(--sp-4);
+  width: 60vw;
+  /* Ne jamais recouvrir la pellicule du livre (zone dépliée + onglets) : sa scène
+     capterait la molette, et on ne pourrait plus SORTIR de la recherche. */
+  max-width: calc(100vw - 28em);
+  height: var(--maq-dock-h);
+  z-index: 160;
 }
 
 /* Aperçu de page dans la cellule d'accordéon : ajusté sur la HAUTEUR du cran (le

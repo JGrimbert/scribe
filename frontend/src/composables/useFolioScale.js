@@ -121,8 +121,28 @@ export function useFolioScale(props, { rootRef, frameRef, frameDoc, onScaled, on
       // stable quel que soit le contenu. La frame fait toute la largeur de la rangée :
       // les pages au-delà de la planche d'ouverture sont RÉVÉLÉES par défilement
       // horizontal (plus de clip). SPREAD_PAD réservé DANS la frame pour l'ombre portée.
-      const pagesArea = doc.querySelector('.pagedjs_pages')
-      const rowW = pagesArea ? pagesArea.scrollWidth : pageEl.offsetWidth
+      // Largeur de rangée RÉSERVÉE : celle de la planche visée (`visiblePages`),
+      // même quand le rendu ne porte qu'UNE page (résultats de recherche, chapitre
+      // court, planche liminaire dépareillée). Sinon la rangée rétrécit avec son
+      // contenu, la planche se recentre et les pages SAUTENT horizontalement d'un
+      // cran à l'autre. Au-delà de la planche visée c'est le contenu qui commande
+      // (les pages en plus se révèlent au défilement).
+      // Mesurer `pagesArea.scrollWidth` ne convient pas : la rangée est étirée à la
+      // largeur de la frame, donc sa mesure DÉPEND de la largeur qu'on est en train
+      // de calculer (elle ne convergeait qu'une repagination à la fois). On la
+      // reconstruit donc depuis la géométrie d'UNE page : pas d'une page à la
+      // suivante = page + gouttière, mesuré s'il y a deux pages, déduit des marges
+      // sinon (Paged.js en pose des deux côtés). La marge droite de la dernière
+      // page ne compte pas — elle n'entre pas non plus dans un `scrollWidth`.
+      // `:not(.folio-hidden)` : les pages hors cap sont en `display:none` (cf.
+      // capPages) — elles ne prennent pas de place et ne doivent pas en réserver.
+      const pages = doc.querySelectorAll('.pagedjs_page:not(.folio-hidden)')
+      const cs = doc.defaultView.getComputedStyle(pageEl)
+      const marginRight = parseFloat(cs.marginRight) || 0
+      const period = pages.length > 1
+        ? pages[1].offsetLeft - pages[0].offsetLeft
+        : pageEl.offsetWidth + marginRight + (parseFloat(cs.marginLeft) || 0)
+      const rowW = Math.max(pages.length, props.visiblePages) * period - marginRight
       const availW = root.clientWidth - 2 * SPREAD_PAD
       const availH = root.clientHeight - 2 * SPREAD_PAD
       const scale = Math.min(availW / (pageEl.offsetWidth * props.visiblePages), availH / pageEl.offsetHeight, 1)

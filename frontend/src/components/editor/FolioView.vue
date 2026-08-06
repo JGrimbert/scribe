@@ -89,7 +89,7 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import QuillBlock from './QuillBlock.vue'
 import CustomScrollbar from '../ui/atoms/CustomScrollbar.vue'
@@ -253,13 +253,18 @@ function updateSpreadBg() {
   })
   emit('style-geometry', styleRects)
   // Période = page + gouttière. Mesurée entre deux pages quand elles existent ;
-  // sinon déduite de la marge de la page — `getComputedStyle` rend une valeur de
-  // MISE EN PAGE (avant transform), d'où le produit par l'échelle, alors qu'un
-  // getBoundingClientRect est déjà scalé. Une seule page ne prive donc plus la
-  // planche de sa trame.
+  // sinon déduite des marges de la page — l'écart entre deux pages vaut la marge
+  // DROITE de l'une PLUS la GAUCHE de la suivante (Paged.js en pose des deux
+  // côtés). N'en compter qu'une donnait une gouttière deux fois trop courte, donc
+  // une trame différente — et surtout des BANDES HORIZONTALES différentes, qui en
+  // dérivent (gutterY) — dès qu'une planche ne portait qu'UNE page (résultats de
+  // recherche, chapitre court). `getComputedStyle` rend une valeur de MISE EN PAGE
+  // (avant transform), d'où le produit par l'échelle, alors qu'un
+  // getBoundingClientRect est déjà scalé.
+  const margins = pages.length > 1 ? null : doc.defaultView.getComputedStyle(first)
   const period = pages.length > 1
     ? pages[1].getBoundingClientRect().left - r0.left
-    : r0.width + (parseFloat(doc.defaultView.getComputedStyle(first).marginRight) || 0) * scaleRef.value
+    : r0.width + ((parseFloat(margins.marginRight) || 0) + (parseFloat(margins.marginLeft) || 0)) * scaleRef.value
   // Le rect des pages est intra-iframe : seule la phase traverse la frontière
   // iframe↔écran, d'où frameRect (qui porte aussi le SPREAD_PAD réservé dedans).
   const frameRect = frame.getBoundingClientRect()
@@ -351,7 +356,16 @@ const { registry, fragments, buildFrame, refresh, teardown, applyHighlight } = u
   // pas alors que le CONTENU a changé (nouvelles pages / positions de styles). Sans
   // ce rappel, les overlays (callouts, fuyantes) gardaient l'ancre de l'ancien rendu
   // jusqu'à un défilement molette (qui, lui, rappelle updateSpreadBg).
-  onPaginated: () => { fitScale(); updateSpreadBg() },
+  // Seconde passe à la frame suivante : au moment du swap, la rangée de pages n'a
+  // pas toujours sa largeur définitive (Paged.js finit de poser sa mise en page) —
+  // la frame restait alors trop large d'une page, jusqu'à ce qu'une repagination
+  // ultérieure la recale (c'était le rôle involontaire de la passe de style
+  // débouncée). `applyScale` est idempotent : sans changement, c'est un no-op.
+  onPaginated: () => {
+    fitScale()
+    updateSpreadBg()
+    requestAnimationFrame(() => { fitScale(); updateSpreadBg() })
+  },
   // Les listeners du doc iframe (édition), résolus au (dé)montage — cf. editListeners.
   getEditListeners: () => editListeners,
 })
@@ -459,10 +473,21 @@ const editListeners = props.mode === 'edit'
 onMounted(buildFrame)
 onBeforeUnmount(teardown)
 
+let styleTimer = null
+// Vrai le temps du tick d'une repagination STRUCTURELLE : la passe de style, qui
+// se déclenche au même tick quand on change de cran (le gabarit change avec la
+// structure), s'y efface — cf. son watch plus bas.
+let structuralTick = false
+
 // Changement de nœud/niveau : repagine. L'édition, elle, repagine via refresh()
 // (appelé par useFragmentEditor) — pas besoin d'observer le contenu ici, ce qui
 // éviterait de repaginer deux fois après une frappe.
-watch(() => [props.nodeId, props.depth, props.spreadPages, props.bodyCross, props.barePages, props.clampEntries, props.capPages], refresh)
+watch(() => [props.nodeId, props.depth, props.spreadPages, props.bodyCross, props.barePages, props.clampEntries, props.capPages], () => {
+  structuralTick = true
+  nextTick(() => { structuralTick = false })
+  clearTimeout(styleTimer)
+  refresh()
+})
 
 // Nombre de pages visées dans la largeur : c'est le ZOOM. Rien à repaginer — mais
 // `fitScale` n'est rappelé que par le ResizeObserver (la racine ne bouge pas) ou
@@ -479,7 +504,6 @@ watch(() => props.highlightStyle, applyHighlight)
 // DÉBOUNCÉ — la frappe dans un champ (corps, interligne) sinon repaginerait à chaque
 // caractère, sur jusqu'à 3 iframes. `props.visuals` est un nouvel objet à chaque
 // retouche (cf. effectiveVisuals), une comparaison de référence suffit.
-let styleTimer = null
 // `hyphenation.global` explicitement : dans la config il est muté EN PLACE (même
 // référence d'objet), une comparaison de l'objet seul le raterait.
 // `props.page` : nouvel objet à chaque changement de format (cf. previewPage,
@@ -490,6 +514,10 @@ watch(() => [
   props.runningTitles, runningTitlesSignature(props.runningTitles), props.bookTitle,
 ], () => {
   if (!frameReadyForStyle()) return
+  // Changement de cran : la passe structurelle du même tick rend DÉJÀ avec ces
+  // props. Sans ce garde, elle était suivie 250 ms plus tard d'une seconde
+  // repagination — la planche se recalait en deux temps, à vue.
+  if (structuralTick) return
   clearTimeout(styleTimer)
   styleTimer = setTimeout(refresh, 250)
 })

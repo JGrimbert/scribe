@@ -8,16 +8,18 @@
        autres. La liste plate des crans arrive déjà construite (chaque cran porte
        sa zone : `sectionKey`/`sectionLabel`/`isSectionStart`). -->
   <div class="maq-accordeon" @mouseenter="atRest = false" @mouseleave="atRest = true">
-    <!-- `.stop` : l'accordéon de recherche est monté DANS le panneau de celui du
-         livre (cf. slot `panel`). Sans lui, une molette au-dessus du second
-         remonterait au premier et ferait défiler les deux. -->
+    <!-- `.stop` : deux accordéons cohabitent à l'écran (la pellicule du livre et
+         celle de l'analyse, ferrée à droite). Sans lui, une molette au-dessus de
+         l'un pourrait remonter et faire défiler l'autre. -->
     <div class="maq-stage" @wheel.stop.prevent="onWheel">
       <!-- Pellicule posée à plat, à TAILLE FIXE : elle n'est jamais mise à l'échelle
            pour tenir dans la scène (sinon plier une zone, qui la raccourcit, ferait
-           grossir les feuillets). Elle est ferrée à gauche et ce qui dépasse à droite
-           est simplement clippé — plier une zone est justement ce qui rend la place
-           aux suivantes. -->
-      <div class="maq-strip">
+           grossir les feuillets). Ce qui dépasse du bord opposé à son ferrage est
+           simplement clippé — plier une zone est justement ce qui rend la place aux
+           suivantes. Ferrée à DROITE, la pellicule se décale de sa propre longueur
+           pour finir au bord (les offsets, eux, restent comptés dans le sens de
+           lecture). -->
+      <div class="maq-strip" :class="`is-${align}`" :style="stripStyle">
         <MaquetteAccordeonSection
             v-for="sec in sections"
             :key="sec.key"
@@ -42,13 +44,6 @@
             </slot>
           </template>
         </MaquetteAccordeonSection>
-      </div>
-
-      <!-- Espace laissé par la pellicule, jusqu'au bord droit de la scène : le
-           panneau du dock (stats/nuage pendant la recherche). Hors pellicule et
-           APRÈS elle dans le DOM → il couvre ce qui dépasse de la dernière zone. -->
-      <div v-if="$slots.panel" class="maq-panel" :style="{ left: `${layout.stripEnd.toFixed(3)}em` }">
-        <slot name="panel" />
       </div>
     </div>
   </div>
@@ -79,6 +74,9 @@ const props = defineProps({
   // on ne descend plus (l'escalier s'arrête). L'écart HORIZONTAL, borné par le
   // conteneur, suffit à distinguer les crans qui se chevauchent.
   dropSpan: { type: Number, default: 2 },
+  // Bord auquel la pellicule est ferrée : 'left' (le livre) ou 'right' (l'analyse,
+  // dock indépendant à l'autre bout de la bande).
+  align: { type: String, default: 'left' },
   // Repos : hors survol du dock, toutes les zones se réduisent à leur onglet — la
   // pellicule n'est plus qu'une file d'onglets, en X seulement (RIEN ne bouge en
   // Y : les feuillets restent à leur hauteur, ils se recouvrent). C'est un ÉTAT
@@ -142,6 +140,13 @@ const layout = computed(() => {
 
 const sections = computed(() => layout.value.sections)
 
+// Ferrage à droite : la pellicule recule de sa propre longueur pour finir au bord
+// droit de la scène. Elle suit donc le pli (une zone repliée la raccourcit et tout
+// glisse vers la droite), d'où la transition sur `.is-right`.
+const stripStyle = computed(() =>
+  props.align === 'right' ? { transform: `translateX(-${layout.value.stripEnd.toFixed(3)}em)` } : null,
+)
+
 // Clic sur un onglet : déplié → empilé → onglet seul → déplié. Une zone encore
 // absente de `folds` vaut 'open' (sinon le premier clic n'avancerait pas).
 function cycleSection(key) {
@@ -170,8 +175,8 @@ const { onWheel } = useWheelStepper({
   height: 13.2em;
 }
 
-/* Pellicule : contexte de positionnement des zones. Ferrée à gauche et jamais mise
-   à l'échelle ; ce qui dépasse à droite est clippé par la scène. */
+/* Pellicule : contexte de positionnement des zones. Jamais mise à l'échelle ; ce
+   qui dépasse du bord opposé au ferrage est clippé par la scène. */
 .maq-strip {
   position: absolute;
   top: 0;
@@ -179,13 +184,11 @@ const { onWheel } = useWheelStepper({
   height: 100%;
 }
 
-/* Panneau du dock : de la fin de la pellicule (piloté en inline) au bord droit.
-   SANS fond — la pellicule reste visible dessous ; le décor appartient aux blocs
-   qu'il porte (les chiffres se posent sur leur propre carte flottante). */
-.maq-panel {
-  position: absolute;
-  top: 0;
+/* Ferrée à droite : l'origine passe au bord droit, le recul de la longueur de la
+   pellicule est posé en inline (cf. stripStyle) — animé, il change à chaque pli. */
+.maq-strip.is-right {
+  left: auto;
   right: 0;
-  bottom: 0;
+  transition: transform 0.35s cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 </style>
