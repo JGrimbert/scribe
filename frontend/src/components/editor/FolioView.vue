@@ -165,7 +165,7 @@ const props = defineProps({
 // `step` : cran de pagination applicative demandé à la molette (±1), cf. wheelPaging.
 // `spread-geometry` : rects ÉCRAN des pages de la planche (mode spread), pour les
 // callouts dockés de l'aperçu de format (cf. maquette/MaquetteFormatCallouts).
-const emit = defineEmits(['step', 'spread-geometry'])
+const emit = defineEmits(['step', 'spread-geometry', 'block-geometry'])
 
 const rootRef = ref(null)
 const frameRef = ref(null)
@@ -195,7 +195,7 @@ function updateSpreadBg() {
   const frame = frameRef.value
   if (!bg || !doc || !frame) return
   const pages = doc.querySelectorAll('.pagedjs_page')
-  if (!pages.length) { bg.style.opacity = '0'; emit('spread-geometry', null); return }
+  if (!pages.length) { bg.style.opacity = '0'; emit('spread-geometry', null); emit('block-geometry', []); return }
   const first = pages[0]
   const r0 = first.getBoundingClientRect()
   // Rects ÉCRAN des pages : les callouts de format s'y ancrent (cf. formatAnchors
@@ -210,6 +210,21 @@ function updateSpreadBg() {
       return { left: r.left + fr.left, top: r.top + fr.top, width: r.width, height: r.height }
     }),
   })
+  // Rects ÉCRAN des blocs d'imposition PORTEURS d'une clé d'entrée (`data-entry-key`,
+  // stampée par buildImpositionBlocks pour le liminaire) : l'overlay liminaire y
+  // ancre ses contrôles de découpage en marge. Une entrée coupée entre deux pages
+  // rend plusieurs fragments qui gardent la clé — on ne garde que le PREMIER (le
+  // début de l'entrée). Coords fenêtre, comme les pages.
+  const seenKeys = new Set()
+  const blocks = []
+  doc.querySelectorAll('.pagedjs_page [data-entry-key]').forEach((el) => {
+    const key = el.getAttribute('data-entry-key')
+    if (seenKeys.has(key)) return
+    seenKeys.add(key)
+    const r = el.getBoundingClientRect()
+    blocks.push({ key, left: r.left + fr.left, top: r.top + fr.top, width: r.width, height: r.height })
+  })
+  emit('block-geometry', blocks)
   // Période = page + gouttière. Mesurée entre deux pages quand elles existent ;
   // sinon déduite de la marge de la page — `getComputedStyle` rend une valeur de
   // MISE EN PAGE (avant transform), d'où le produit par l'échelle, alors qu'un

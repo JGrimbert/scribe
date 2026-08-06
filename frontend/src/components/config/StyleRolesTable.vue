@@ -4,7 +4,7 @@
       <tr
           v-for="(style, i) in styles"
           :key="style.name"
-          :class="{ 'row--declared': style.declared, 'row--page-start': showPrecedes && precedesOf(style.name) !== 'none' }"
+          :class="{ 'row--declared': style.declared, 'row--page-start': showPrecedes && (precedesLocked(i) || precedesOf(style.name) !== 'none') }"
           @mouseenter="emit('hover-style', style.name)"
           @mouseleave="emit('hover-style', null)"
       >
@@ -81,8 +81,11 @@
              une page (cf. .row--page-start). -->
         <td v-if="showPrecedes" class="precedes-col">
           <BaseSelect
-              :model-value="precedesOf(style.name)"
-              :title="`Ce qui précède la page ouverte par « ${style.name} »`"
+              :model-value="precedesLocked(i) ? 'blank' : precedesOf(style.name)"
+              :disabled="precedesLocked(i)"
+              :title="precedesLocked(i)
+                ? 'La première page suit la page de garde (page blanche, folio 0) — non modifiable'
+                : `Ce qui précède la page ouverte par « ${style.name} »`"
               @update:model-value="setPrecedes(style.name, $event)"
           >
             <option v-for="k in PRECEDES_KINDS" :key="k" :value="k">{{ PRECEDES_LABELS[k] }}</option>
@@ -243,6 +246,14 @@ function setPrecedes(name, kind) {
   if (!stylePrecedence) return
   if (kind === 'none') delete stylePrecedence[name]
   else stylePrecedence[name] = kind
+}
+
+// Première page du livre = « Page de garde » sur le folio 0 : le tout premier
+// style du liminaire suit donc TOUJOURS une page blanche (la garde). Son select
+// « ce qui précède » est verrouillé sur `blank` et grisé — présentation seule (la
+// garde vient de la blanche de tête du .odt, pas de cette valeur).
+function precedesLocked(i) {
+  return props.showPrecedes && props.zoneKey === 'liminaire' && i === 0
 }
 
 function isRequired(name) {

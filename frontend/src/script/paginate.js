@@ -166,7 +166,10 @@ export function buildImpositionBlocks(pages) {
                     visual: e.visual,
                     // Data-attributes libres de l'entrée (ex : lambeaux de recherche →
                     // `data-toppath`, variante haut-plat posée après pagination).
-                    data: e.data,
+                    // La CLÉ de l'entrée est stampée en `data-entry-key` quand elle
+                    // existe (imposition liminaire) : l'overlay liminaire s'en sert
+                    // pour ancrer ses contrôles de découpage sur le paragraphe rendu.
+                    data: e.key ? { ...(e.data ?? {}), 'entry-key': e.key } : e.data,
                     breakBefore: first && index === 0,
                     html: renderTexteEntry(e),
                 })

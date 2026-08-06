@@ -37,30 +37,36 @@ subsistent mais ne sont plus consommés par l'imposition), plus `liminaire-borne
 
 ## Composants
 
-**⚠️ Supprimés le 2026-08-05** (avec `ConfigView`, leur seul hôte) :
+**⚠️ Supprimés** (avec `ConfigView`, leur seul hôte, le 2026-08-05) :
 `LiminaireComposer`, `LiminaireAccordeon`, `AccordeonRail`, `AccordeonFinalSlide`,
-`LimBorderButton`, `LiminaireEligibilite`. La maquette monte directement les
-survivants ci-dessous — l'accordéon des vis-à-vis liminaire est celui de
-`../maquette/` (`MaquetteAccordeon` + `MaquetteLiminaireCell`), pas un composant
-propre au liminaire.
+`LimBorderButton`, `LiminaireEligibilite`. **Puis `AccordeonControls` et
+`LiminaireDecoupage` (2026-08-05, items 2/3)** : la barre sous la scène et la
+liste de découpage ont été remplacées par des contrôles posés SUR la planche
+(`LiminaireControls`). La maquette monte directement les survivants ci-dessous —
+l'accordéon des vis-à-vis liminaire est celui de `../maquette/`
+(`MaquetteAccordeon` + `MaquetteLiminaireCell`), pas un composant propre au liminaire.
 
-- **`AccordeonControls.vue`** — la barre SOUS la scène (flèches · type(s)),
-  révélée au survol de l'aperçu par `MaquetteView` (`.lim-hover__controls`). Porte
-  `focusedControls` (dérive les 2 slots taguables du vis-à-vis focusé, largeur FIXE
-  pour que les flèches ne bougent jamais). Émet `set-type`. La pastille côté R/V/·
-  a été **retirée** (remplacée par `precedes` par style, cf. ci-dessus).
+- **`LiminaireControls.vue`** — overlay des contrôles posé SUR la planche du
+  `FolioView` (écran Maquette), **visible en permanence** (conteneur
+  `.lim-hover__controls` de `MaquetteView` : `z-index:3` au-dessus de l'iframe,
+  racine inerte `pointer-events:none`, chaque contrôle rétablit son pointeur).
+  Enfants positionnés ancrés sur la géométrie émise par FolioView, ramenée en
+  coords locales via l'origine de l'overlay (même patron que
+  `../maquette/MaquetteFormatCallouts`). Trois familles :
+  - **select de type** par page taguable, centré SOUS la page (`@spread-geometry`
+    → rects des pages ; `pages[0]` = verso/left, `pages[1]` = recto/right) ;
+  - **chevrons** de navigation aux bords extérieurs de la planche, bornés ;
+  - **découpage** : chaque élément rendu (paragraphe) reçoit un **outline visible
+    par défaut** ; sa **flèche** renvoi (rattacher la page) / nouvelle page
+    (scinder) n'apparaît qu'au survol de SON outline (flèche = enfant → pas de
+    clignotement, `:hover` CSS seul), centrée verticalement au bord extérieur
+    (gauche du verso, droite du recto). Ancré au grain paragraphe via
+    `@block-geometry` (rect par `entry.key`, cf. `../../script/paginate.js` qui
+    stampe `data-entry-key` dans `buildImpositionBlocks`, lu et émis par `FolioView`).
+  Émet `set-type`/`update:focused` ; `toggleBreak` mute la config EN PLACE.
 - **`LiminaireFolio.vue`** — UN folio physique, sans état ni contrôle : la page
   ne porte que son verdict (type/suggestion/aperçu). Monté par
-  `../maquette/MaquetteLiminaireCell.vue`. Gère couverture / page blanche /
-  blanche implicite (belle page).
-- **`LiminaireDecoupage.vue`** — le découpage des SEULES pages du vis-à-vis
-  focusé : la seule vue qui montre les entrées, donc la seule où scinder. Le
-  **type** se pose dans l'accordéon (une page a un type, pas une entrée) ; ici on
-  scinde / rattache une frontière (mêmes gestes, même gouttière). Config mutée en
-  place. Monté par `MaquetteView` (survol de l'aperçu).
+  `../maquette/MaquetteLiminaireCell.vue` (cellule d'accordéon, pas l'aperçu
+  principal). Gère couverture / page blanche / blanche implicite (belle page).
 - **`../../composables/useWheelStepper.js`** — molette : un cran par palier
   (seuil d'accumulation), avec cible anticipée pour un geste vif de pavé tactile.
-
-⚠️ **Reste à faire** (items 2/3) : sortir le select de type d'`AccordeonControls`
-et le découpage de la carte du bas (`.lim-hover__controls` de `MaquetteView`) pour
-les poser SUR les folios / dans les marges, ancrés sur `spreadGeometry`.

@@ -159,6 +159,7 @@
                   :highlight-style="hoveredStyle"
                   @step="stepResultPage"
                   @spread-geometry="spreadGeometry = $event"
+                  @block-geometry="blockGeometry = $event"
               />
 
               <!-- Validation : aperçu LÉGER (hors Paged.js) du nœud survolé dans la
@@ -237,16 +238,21 @@
                 </div>
               </CustomScrollbar>
             </div>
+            <!-- Contrôles liminaire posés SUR la planche (select de type + chevrons),
+                 révélés au survol. Ancrés sur la géométrie émise par le FolioView. -->
             <div v-if="isLiminaire" class="lim-hover__controls">
-              <AccordeonControls
-                  :spreads="limSpreads"
-                  :focused="limFocused"
+              <LiminaireControls
+                  :geometry="spreadGeometry"
+                  :block-geometry="blockGeometry"
+                  :spread="limFocusedSpread"
                   :types="limTypes"
                   :suggestions="limSuggestions"
-                  @update:focused="setLimFocused"
+                  :config="liminaireConfig"
+                  :focused="limFocused"
+                  :spread-count="limSpreads.length"
                   @set-type="limSetType"
+                  @update:focused="setLimFocused"
               />
-              <LiminaireDecoupage :pages="limFocusedPages" :config="liminaireConfig" :empty-label="limEmptyLabel" />
             </div>
           </div>
         </section>
@@ -336,8 +342,7 @@ import PageDiagram from '../config/PageDiagram.vue'
 import StyleEditorPanel from '../config/StyleEditorPanel.vue'
 import RecalibrationModal from '../config/RecalibrationModal.vue'
 import UiCallout from '../ui/atoms/UiCallout.vue'
-import AccordeonControls from '../liminaire/AccordeonControls.vue'
-import LiminaireDecoupage from '../liminaire/LiminaireDecoupage.vue'
+import LiminaireControls from '../liminaire/LiminaireControls.vue'
 import { effectivePage, effectiveMargins } from '../../script/pageFormats'
 import { pathToInAxes } from '../../script/trame'
 import { useTypologyConfig } from '../../composables/useTypologyConfig'
@@ -435,7 +440,6 @@ const focused = ref(0)
 
 const {
   spreads: limSpreads, types: limTypes, suggestions: limSuggestions,
-  focusedPages: limFocusedPages, emptyLabel: limEmptyLabel,
   onSetType: limSetType,
 } = useLiminaireComposition({
   pages: () => liminairePages.value,
@@ -968,6 +972,9 @@ const fmtPage = computed(() => documentPageOdt?.value ?? null)
 // Géométrie de la planche (rects écran des pages), émise par le FolioView
 // persistant : alimente les ancres des callouts de format dockés sur l'aperçu.
 const spreadGeometry = ref(null)
+// Rects écran des paragraphes rendus (clés par entry.key) : l'overlay liminaire y
+// ancre ses contrôles de découpage en marge.
+const blockGeometry = ref([])
 
 // Format/marges/titres EFFECTIFS = relevé .odt + surcharges EN COURS (styleDefaults,
 // muté en place par MaquetteFormatCallouts). Nouvel objet à chaque
@@ -1301,31 +1308,18 @@ onUnmounted(() => { if (section) section.value = null })
   font-variant-numeric: tabular-nums;
 }
 
-/* Contrôles liminaire (type/côté + découpage) : révélés AU SURVOL de la scène,
-   masqués sinon (l'aperçu doit rester lisible au repos). */
+/* Overlay des contrôles liminaire, posé SUR la planche (select de type, chevrons,
+   outlines des éléments + flèches de découpage). Visible EN PERMANENCE — les
+   outlines des éléments doivent l'être (cf. LiminaireControls, qui gate lui-même
+   les flèches au survol de leur outline). Racine inerte : chaque contrôle
+   rétablit le pointeur lui-même. */
 .lim-hover__controls {
   position: absolute;
-  left: 50%;
-  bottom: 0;
-  transform: translate(-50%, 0);
-  width: min(100%, 40em);
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-2);
-  padding: var(--sp-3);
-  border: 1px solid var(--c-border);
-  border-radius: var(--radius-md);
-  background: var(--c-card-float);
-  backdrop-filter: var(--c-backdrop-filter-blur);
-  opacity: 0;
+  inset: 0;
+  /* Au-dessus de l'iframe du FolioView (z-index 1 en double-page) : sans ça, les
+     contrôles posés sur les pages passeraient DERRIÈRE le folio. */
+  z-index: 3;
   pointer-events: none;
-  transition: opacity 0.15s ease;
-}
-
-.folio-stage--lim:hover .lim-hover__controls,
-.folio-stage--lim:focus-within .lim-hover__controls {
-  opacity: 1;
-  pointer-events: auto;
 }
 
 /* Rapport de recalibrage : carte flottante centrée en tête de l'écran, sous les

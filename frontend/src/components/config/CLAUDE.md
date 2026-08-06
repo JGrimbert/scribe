@@ -32,7 +32,10 @@ Le vocabulaire reste le **niveau de chapitrage** (`../../script/zones.js`,
   (opt-in) : `precedesOf`/`setPrecedes` sur la map **`stylePrecedence`** INJECTÉE
   (rien/saut/blanche par style, cf. `../liminaire/CLAUDE.md` et backend
   `typology.ts`) ; un **filet teal coiffe** les lignes qui ouvrent une page
-  (`.row--page-start`).
+  (`.row--page-start`). **1ʳᵉ ligne de la table liminaire** (`zone-key==='liminaire'`,
+  `i===0`) : select **verrouillé sur « page blanche » et grisé** (`precedesLocked`)
+  — la première page suit toujours la « Page de garde » (folio 0). Présentation
+  seule (la garde vient de la blanche de tête du `.odt`, pas de cette valeur).
   Sous chapitrage (`show-require` + `depth-key`), deux contrôles d'éligibilité par
   ligne : la case **« exigé »** (par STYLE → `requiresStyles`) et, entre style et
   rôle, la puce **`SuccessionLink`** chevauchant la bordure avec la ligne suivante
