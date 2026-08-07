@@ -42,7 +42,10 @@
   align-items: flex-end;
 }
 
-/* Une cote = intitulé puis champ(s), EMPILÉS, avec un peu de padding pour aérer. */
+/* Une cote = intitulé puis champ(s), EMPILÉS, avec un peu de padding pour aérer.
+   Voile clair posé sur la trame de fond : la row se détache du papier sans devenir
+   une carte (ni bordure ni radius — elle est calée sur les filets de la trame).
+   UNE seule row pour tous les callouts : format, liminaire, chapitrage. */
 .fc-row {
   display: flex;
   flex-direction: column;
@@ -50,6 +53,22 @@
   gap: var(--sp-1);
   padding: var(--sp-2) var(--sp-6);
   font-size: var(--fs-sm);
+  background: color-mix(in srgb, var(--c-accent-alt-ink) 24%, transparent);
+  /* La row prend la largeur du groupe, borné au rail (cf. FcGroup.maxWidth) :
+     `border-box` pour que le padding tienne DEDANS, `min-width: 0` pour que le
+     contenu accepte de se comprimer au lieu de déborder. */
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* Variante en RANGÉE (intitulé et champs sur une ligne) : cote posée à même une
+   page, bloc des dimensions. Même plaque, même encre — juste l'axe qui change. */
+.fc-row--inline {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--sp-2);
+  white-space: nowrap;
 }
 
 .fc-row__label {
@@ -59,6 +78,8 @@
   color: var(--c-ink2);
   white-space: nowrap;
   font-weight: 600;
+  min-width: 0;
+  max-width: 100%;
 }
 
 /* Cases à cocher aux couleurs Scribe (teal). */

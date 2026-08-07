@@ -143,10 +143,28 @@ export function useFolioScale(props, { rootRef, frameRef, frameDoc, onScaled, on
         ? pages[1].offsetLeft - pages[0].offsetLeft
         : pageEl.offsetWidth + marginRight + (parseFloat(cs.marginLeft) || 0)
       const rowW = Math.max(pages.length, props.visiblePages) * period - marginRight
+      // Réserve LATÉRALE (`sideRails` périodes de chaque côté) : la bande où se
+      // posent les callouts, large d'une page + sa gouttière — c'est le filet de
+      // la trame de fond, donc une limite qu'on VOIT. Elle entre dans la place à
+      // pourvoir : la vue minimale est gouttière à gouttière, pas planche à
+      // planche, et une fenêtre étroite rapetisse l'ensemble au lieu de rogner
+      // les callouts. Exprimée en unités naturelles, mise à l'échelle ensuite.
+      const rail = period * props.sideRails
+      // Place à pourvoir = la planche VISÉE (`visiblePages`, gouttières comprises,
+      // donc `period` et non la seule page — sinon la réserve manque d'une
+      // gouttière et le pad déborde de la vue au lieu de s'y centrer) + ses deux
+      // rails. Indépendante du NOMBRE de pages rendues : la taille de page ne
+      // dépend pas du contenu, les pages en trop se révèlent au défilement.
+      const spanW = props.visiblePages * period - marginRight + 2 * rail
       const availW = root.clientWidth - 2 * SPREAD_PAD
       const availH = root.clientHeight - 2 * SPREAD_PAD
-      const scale = Math.min(availW / (pageEl.offsetWidth * props.visiblePages), availH / pageEl.offsetHeight, 1)
+      const scale = Math.min(availW / spanW, availH / pageEl.offsetHeight, 1)
       applyScale(scale, rowW * scale, pageEl.offsetHeight * scale, SPREAD_PAD)
+      // La réserve est peinte par `.folio-pad` : posée ici (à l'échelle) plutôt
+      // qu'en CSS, elle reste la MÊME grandeur que celle qu'on vient de réserver.
+      // Sans rail demandé, on rend la main au défaut CSS.
+      if (rail > 0) root.style.setProperty('--folio-rail', `${rail * scale}px`)
+      else root.style.removeProperty('--folio-rail')
       return
     }
 

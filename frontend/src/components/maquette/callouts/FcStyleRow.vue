@@ -7,6 +7,11 @@
   <div class="fc-row fc-srow" :ref="measureRef"
        @mouseenter="$emit('hover', item.name)" @mouseleave="$emit('hover', null)">
     <span class="fc-row__label fc-srow__name">
+      <!-- Exiger un paragraphe de ce style au niveau (chapitrage) : case DANS le
+           label, devant l'intitulé — même patron que les bandes du format. -->
+      <input v-if="showRequire" type="checkbox" :checked="required"
+             :title="`Exiger un paragraphe « ${item.name} » à ce niveau`"
+             @change="$emit('toggle-require')" />
       <button v-if="canEdit && !item.declared" class="fc-srow__edit"
               :class="{ 'fc-srow__edit--mod': modified }"
               :title="modified ? 'Apparence modifiée — éditer' : 'Éditer l\'apparence de ce style'"
@@ -26,12 +31,6 @@
           :model-value="role"
           :options="ROLE_OPTIONS"
           @update:model-value="$emit('update:role', $event)" />
-      <!-- Exiger un paragraphe de ce style au niveau (chapitrage). -->
-      <label v-if="showRequire" class="fc-srow__require"
-             :title="`Exiger un paragraphe « ${item.name} » à ce niveau`">
-        <input type="checkbox" :checked="required" @change="$emit('toggle-require')" />
-        exigé
-      </label>
     </span>
   </div>
 </template>
@@ -63,20 +62,18 @@ const PRECEDES_OPTIONS = PRECEDES_KINDS.map((k) => ({ value: k, label: PRECEDES_
 </script>
 
 <style scoped>
-/* Voile clair posé sur la trame de fond : la ligne se détache du papier sans
-   devenir une carte (pas de bordure ni de radius — elle est calée sur les filets
-   de la trame, cf. `geo` de MaquetteStyleCallouts). */
-.fc-row.fc-srow {
-  background: color-mix(in srgb, var(--c-accent-alt-ink) 24%, transparent);
-}
-
-/* La ligne empile nom puis contrôles (héritage `.fc-row` de callouts.css). */
+/* La ligne empile nom puis contrôles (héritage `.fc-row` de callouts.css : plaque,
+   padding et encre sont mutualisés avec les cotes de format). */
 .fc-srow__name {
   display: inline-flex;
   align-items: center;
   gap: var(--sp-1);
+  min-width: 0;
 }
 
+/* Rail étroit : la ligne des contrôles étant la plus large des deux, ce sont les
+   selects qui cèdent d'abord ; le nom ne s'ellipse que s'il dépasse à son tour
+   (le `title` le porte alors en entier). */
 .fc-srow__style {
   max-width: 11em;
   overflow: hidden;
@@ -88,19 +85,8 @@ const PRECEDES_OPTIONS = PRECEDES_KINDS.map((k) => ({ value: k, label: PRECEDES_
   display: inline-flex;
   align-items: center;
   gap: var(--sp-2);
-}
-
-/* Case « exigé » (chapitrage), aux couleurs Scribe. */
-.fc-srow__require {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-1);
-  color: var(--c-ink2);
-  cursor: pointer;
-  white-space: nowrap;
-}
-.fc-srow__require input[type="checkbox"] {
-  accent-color: var(--c-accent-alt);
+  min-width: 0;
+  max-width: 100%;
 }
 
 /* Crayon d'édition d'apparence : discret, teal au survol / si surchargé. */

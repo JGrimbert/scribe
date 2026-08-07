@@ -153,6 +153,7 @@
                   class="maq-folio"
                   mode="spread"
                   :visible-pages="folioVisiblePages"
+                  :side-rails="1"
                   :body-cross="isFormat && !searching"
                   :bare-pages="searching"
                   :clamp-entries="isLiminaire"
@@ -1193,11 +1194,11 @@ onUnmounted(() => { if (section) section.value = null })
 
 /* Colonne gauche : l'aperçu témoin seul, sous la doc-bar (padding-top réserve sa
    hauteur, aligné sur ConfigView). Le dock accordéon n'est PAS ici — il est le
-   pied du sommaire flottant (`MaquetteStructureNav`) — mais l'aperçu lui réserve
-   une bande FIXE (`--maq-dock-h` = hauteur max du stage) et se retire de sa
-   gouttière (`--maq-gutter` = largeur du sommaire) : plier ou déplier change la
-   hauteur du stage, jamais celle de l'aperçu, dont le FolioView ne se remet donc
-   plus à l'échelle à chaque pli. */
+   pied du sommaire flottant (`MaquetteStructureNav`) et FLOTTE par-dessus, au bord
+   gauche. L'aperçu ne lui réserve donc plus de bande : il prend toute la hauteur
+   et se retire seulement de la gouttière du sommaire (`--maq-gutter`). Plier ou
+   déplier ne change toujours rien à sa hauteur — le FolioView ne se remet pas à
+   l'échelle à chaque pli. */
 .maquette__left {
   flex: 2 1 0;
   min-width: 0;
@@ -1206,8 +1207,17 @@ onUnmounted(() => { if (section) section.value = null })
   min-height: 0;
   /* Sous les DEUX barres : la doc-bar et la barre de la maquette (MaquetteBar). */
   padding-top: calc(2 * var(--bar-size) + 1em);
-  padding-left: 0;
-  padding-bottom: calc(var(--maq-dock-h) + var(--sp-4));
+  /* Gouttière du sommaire (flottant, hors flux) : sans elle l'aperçu se centre
+     sur la FENÊTRE et passe donc sous la liste. La zone utile commence à son
+     bord droit — c'est là que la planche et ses rails se centrent. */
+  padding-left: var(--maq-gutter);
+  /* Le dock ne s'AJOUTE plus à la hauteur réservée : il flotte au bord gauche et
+     sa bande est vide partout ailleurs (elle ne prend d'ailleurs plus le pointeur,
+     cf. MaquetteAccordeon). L'aperçu descend donc jusqu'en bas et grossit tant que
+     la LARGEUR le permet — sinon la planche restait petite avec du blanc dessous.
+     Ne reste réservé que ce qui se pose SOUS la planche : selects de type
+     (liminaire) et bloc des dimensions (format). */
+  padding-bottom: 5em;
 }
 
 /* Bande de l'aperçu : prend la hauteur restante, colonne flex sans overflow —

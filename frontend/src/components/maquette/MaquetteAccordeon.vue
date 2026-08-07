@@ -162,14 +162,22 @@ const { onWheel } = useWheelStepper({
 </script>
 
 <style scoped lang="scss">
+/* La bande du dock est bien plus large que la pellicule qu'elle porte, et l'aperçu
+   descend maintenant dedans : sa moitié vide ne doit pas avaler les clics ni la
+   molette destinés à la planche. Inerte par défaut, le pointeur est rendu à la
+   pellicule seule (boîte de largeur nulle : ce sont ses feuillets, qui en héritent,
+   qui sont cliquables). La molette et le survol de la pellicule remontent toujours
+   à la scène / à la racine — un descendant réceptif suffit à les faire naître. */
 .maq-accordeon {
   display: flex;
   flex-direction: column;
+  pointer-events: none;
 }
 
 /* Hauteur CONSTANTE : talon serré sous le feuillet focusé (top 2.4em + 10.5em =
-   12.9em). Elle ne dépend plus du pli — la bande que l'aperçu réserve au dock
-   (`--maq-dock-h` dans MaquetteView) doit rester d'accord avec cette valeur. */
+   12.9em). Elle ne dépend plus du pli. L'aperçu ne la réserve plus (il descend
+   dessous, cf. .maquette__left) ; `--maq-dock-h` ne sert qu'aux panneaux qui se
+   ferrent AU-DESSUS du dock (vue d'analyse, volet des familles). */
 .maq-stage {
   position: relative;
   height: 13.2em;
@@ -182,6 +190,7 @@ const { onWheel } = useWheelStepper({
   top: 0;
   left: 0;
   height: 100%;
+  pointer-events: auto;
 }
 
 /* Ferrée à droite : l'origine passe au bord droit, le recul de la longueur de la

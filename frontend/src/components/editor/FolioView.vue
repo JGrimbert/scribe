@@ -111,6 +111,11 @@ const props = defineProps({
   nodeId: { type: String, default: null },
   depth: { type: Number, default: 0 },
   visiblePages: { type: Number, default: 2.2 },
+  // Double-page : réserve latérale, en PÉRIODES de trame (page + gouttière), de
+  // chaque côté de la planche — la bande où l'appelant pose ses callouts. Elle
+  // entre dans le calcul d'échelle (cf. useFolioScale) : la vue minimale va d'un
+  // filet de trame à l'autre. 0 = réserve décorative du CSS seul.
+  sideRails: { type: Number, default: 0 },
   // Apparence des styles ODT (map nom→StyleVisual, cf. GET /documents/:id) :
   // la feuille injectée dans l'iframe rend chaque bloc fidèle au .odt. Null =
   // look générique de paged.css (document sans styles.xml lu).
@@ -496,6 +501,11 @@ watch(() => [props.nodeId, props.depth, props.spreadPages, props.bodyCross, prop
 // d'échelle demandé par l'utilisateur, il doit se voir se faire.
 watch(() => props.visiblePages, animateScale)
 
+// La réserve latérale entre dans le calcul d'échelle sans rien repaginer : même
+// rappel explicite, mais sec — elle change quand la vue change de nature
+// (recherche), pas sur un geste de zoom à faire voir.
+watch(() => props.sideRails, fitScale)
+
 // Surlignage : SURTOUT PAS dans le watch ci-dessus. Il change à chaque ligne
 // survolée dans l'aside — on réécrit une feuille en place, rien à repaginer.
 watch(() => props.highlightStyle, applyHighlight)
@@ -568,14 +578,17 @@ function runningTitlesSignature(rt) {
   height: 100%;
 }
 
-/* Double-page : la rangée est CENTRÉE dans la vue, réserve de 16em de part et
-   d'autre (à droite elle loge les callouts de format). `margin-inline: auto`
-   retombe de lui-même à 0 dès que la rangée déborde (dézoom) : elle redevient
-   alors ferrée à gauche, la 1re page collée à sa réserve, et les suivantes se
-   révèlent au défilement. L'ombre portée, elle, a sa place via SPREAD_PAD réservé
-   DANS la frame (cf. useFolioScale). Le défilement vit dans la CustomScrollbar. */
+/* Double-page : la rangée est CENTRÉE dans la vue, avec sa réserve latérale de
+   part et d'autre (elle loge les callouts). `--folio-rail` est posée par
+   `fitScale` dès qu'on demande des `sideRails` — la réserve vaut alors exactement
+   ce que l'échelle a mis de côté ; sinon le défaut de 16em s'applique.
+   `margin-inline: auto` retombe de lui-même à 0 dès que la rangée déborde
+   (dézoom) : elle redevient alors ferrée à gauche, la 1re page collée à sa
+   réserve, et les suivantes se révèlent au défilement. L'ombre portée, elle, a sa
+   place via SPREAD_PAD réservé DANS la frame (cf. useFolioScale). Le défilement
+   vit dans la CustomScrollbar. */
 .folio-view--spread .folio-pad {
-  padding: 0 16em;
+  padding: 0 var(--folio-rail, 16em);
   margin-inline: auto;
 }
 

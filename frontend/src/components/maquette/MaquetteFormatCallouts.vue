@@ -23,12 +23,7 @@
       <div v-for="(r, i) in manchetteLines" :key="i" class="fc-manch" :style="lineStyle(r)" />
     </template>
 
-    <svg class="fc__wires" :width="box.w" :height="box.h" aria-hidden="true">
-      <g v-for="l in leaders" :key="l.key" class="fc-lead" :class="{ 'fc-lead--on': hovered === l.key }">
-        <line :x1="l.x1" :y1="l.y1" :x2="l.x2" :y2="l.y2" />
-        <circle :cx="l.x2" :cy="l.y2" r="2.2" />
-      </g>
-    </svg>
+    <FcLeaders :leaders="leaders" :box="box" :hovered="hovered" />
 
     <!-- ── Selects de contenu, posés sur les bandes grisées ─────────────────── -->
     <template v-if="header.enabled">
@@ -65,17 +60,17 @@
            blancs sont cotés sur le bord extérieur de la page de gauche (recto), le
            grand fond tombe aux bords extérieurs (marges re-miroitées, cf.
            formatAnchors). ────────────────────────────────────────────────────── -->
-      <FcGroup :x="geo.leftRailX" :y="geo.top" side="left" anchor="top">
+      <FcGroup :x="geo.leftRailX" :y="geo.top" side="left" anchor="top" :max-width="geo.leftRailW">
         <FcCote label="Blanc de tête" :value="toUnit(marginsView.topCm, unit)" :step="step" :unit="unit"
                 hover-key="blanc-tete" :measure-ref="(el) => setRow('blanc-tete', el)"
                 @hover="hovered = $event" @input="setMargin('topCm', $event)" />
       </FcGroup>
-      <FcGroup :x="geo.leftRailX" :y="geo.fondY" side="left" anchor="mid">
+      <FcGroup :x="geo.leftRailX" :y="geo.fondY" side="left" anchor="mid" :max-width="geo.leftRailW">
         <FcCote label="Grand fond" :value="toUnit(marginsView.outerCm, unit)" :step="step" :unit="unit"
                 hover-key="grand-fond" :measure-ref="(el) => setRow('grand-fond', el)"
                 @hover="hovered = $event" @input="setMargin('outerCm', $event)" />
       </FcGroup>
-      <FcGroup :x="geo.leftRailX" :y="geo.bottom" side="left" anchor="bottom">
+      <FcGroup :x="geo.leftRailX" :y="geo.bottom" side="left" anchor="bottom" :max-width="geo.leftRailW">
         <FcCote label="Blanc de pied" :value="toUnit(marginsView.bottomCm, unit)" :step="step" :unit="unit"
                 hover-key="blanc-pied" :measure-ref="(el) => setRow('blanc-pied', el)"
                 @hover="hovered = $event" @input="setMargin('bottomCm', $event)" />
@@ -83,7 +78,7 @@
 
       <!-- ── Colonne DROITE : hauteur d'en-tête + justif (haut), manchette (milieu),
            hauteur de pied + justif (bas), ferrées par leur GAUCHE au rail droit. ── -->
-      <FcGroup :x="geo.railX" :y="geo.top" anchor="top">
+      <FcGroup :x="geo.railX" :y="geo.top" anchor="top" :max-width="geo.railW">
         <FcBand :band="header" label="En-tête" :value="toUnit(header.heightCm, unit)" :step="step" :unit="unit"
                 hover-key="header" :measure-ref="(el) => setRow('header-height', el)"
                 @hover="hovered = $event" @input="setBandHeight(header, $event)">
@@ -93,13 +88,13 @@
         </FcBand>
       </FcGroup>
 
-      <FcGroup :x="geo.railX" :y="geo.midY" anchor="mid">
+      <FcGroup :x="geo.railX" :y="geo.midY" anchor="mid" :max-width="geo.railW">
         <FcBand :band="manchette" label="Manchette" :value="toUnit(manchette.widthCm, unit)" :step="step" :unit="unit"
                 hover-key="manchette" :measure-ref="(el) => setRow('manchette', el)"
                 @hover="hovered = $event" @input="setManchetteWidth($event)" />
       </FcGroup>
 
-      <FcGroup :x="geo.railX" :y="geo.bottom" anchor="bottom">
+      <FcGroup :x="geo.railX" :y="geo.bottom" anchor="bottom" :max-width="geo.railW">
         <FcBand :band="footer" label="Hauteur pied" :value="toUnit(footer.heightCm, unit)" :step="step" :unit="unit"
                 hover-key="footer" :measure-ref="(el) => setRow('footer-height', el)"
                 @hover="hovered = $event" @input="setBandHeight(footer, $event)">
@@ -110,7 +105,8 @@
       </FcGroup>
 
       <!-- Petit fond : côté gouttière, label posé sur la page de droite (verso). -->
-      <div class="fc-onpage" :style="{ left: `${geo.versoCenterX}px`, top: `${geo.fondY}px` }"
+      <div class="fc-row fc-row--inline fc-onpage"
+           :style="{ left: `${geo.versoCenterX}px`, top: `${geo.fondY}px` }"
            :ref="(el) => setRow('petit-fond', el)"
            @mouseenter="hovered = 'petit-fond'" @mouseleave="hovered = null">
         <span class="fc-row__label">Petit fond</span>
@@ -122,7 +118,7 @@
            Deux lignes : le format choisi, puis la cote X × Y et son unité. Sans zone
            surlignable : elles désignent la planche entière, qu'on voit déjà — le
            survol la barbouillerait pour rien. ──────────────────────────────────── -->
-      <div class="fc-float" :style="{ left: `${geo.centerX}px`, top: `${geo.bottom}px` }">
+      <div class="fc-row fc-float" :style="{ left: `${geo.centerX}px`, top: `${geo.bottom}px` }">
         <BareSelect v-model="selectedKey" :options="DIM_OPTIONS" />
         <span class="fc-dims__wh">
           <NumInput :value="toUnit(effective && effective.widthCm, unit)" :step="step" unit=""
@@ -144,7 +140,8 @@ import NumInput from './NumInput.vue'
 import FcGroup from './callouts/FcGroup.vue'
 import FcCote from './callouts/FcCote.vue'
 import FcBand from './callouts/FcBand.vue'
-import './callouts/callouts.css' // `.fc-row__label` du petit-fond (label posé sur page)
+import FcLeaders from './callouts/FcLeaders.vue'
+import './callouts/callouts.css' // rows posées ici même (petit fond, dimensions)
 import { buildFormatAnchors } from '../../script/formatAnchors'
 import { GUIDE_FILL } from '../../script/folioStyles'
 import {
@@ -306,6 +303,10 @@ const geo = computed(() => {
   const gap = gutter > 0 ? gutter : GAP
   return {
     railX: verso.right + gap, leftRailX: recto.left - gap, top, bottom, midY,
+    // Largeur du rail : du point de ferrage au bord de l'aperçu. Les piles y sont
+    // bornées (cf. FcGroup.maxWidth) — au-delà elles sortiraient du champ.
+    leftRailW: recto.left - gap,
+    railW: box.value.w - (verso.right + gap),
     versoCenterX: (verso.left + verso.right) / 2,
     // Centre de la gouttière (bords intérieurs des deux pages) : ancre du layer
     // flottant des dimensions.
@@ -464,32 +465,6 @@ watch(() => props.styleDefaults, measure, { deep: true })
   z-index: 3;
 }
 
-.fc__wires {
-  position: absolute;
-  inset: 0;
-  overflow: visible;
-  pointer-events: none;
-}
-
-.fc-lead line {
-  stroke: var(--c-ink2);
-  stroke-width: 1;
-  opacity: var(--op-muted);
-}
-
-.fc-lead circle {
-  fill: var(--c-ink2);
-  opacity: var(--op-muted);
-}
-
-/* Fuyante du contrôle survolé : elle s'affirme (encre pleine, accent). */
-.fc-lead--on line,
-.fc-lead--on circle {
-  stroke: var(--c-accent);
-  fill: var(--c-accent);
-  opacity: 1;
-}
-
 /* Zone surlignable : transparente au repos (mais réceptive au survol), teintée et
    cernée d'un POINTILLÉ quand elle (ou son label) est survolée. `outline` posé
    vers l'intérieur : la zone est mesurée au pixel près sur le papier, un trait
@@ -551,18 +526,15 @@ watch(() => props.styleDefaults, measure, { deep: true })
    `FcGroup`/`FcCote`/`FcBand` → déplacés dans `callouts/callouts.css` (global,
    pour traverser la frontière de composant). */
 
-/* Dimensions : layer flottant SOUS la planche, centré sur la gouttière, empilé en
-   deux lignes (format, puis la cote). */
+/* Dimensions : row flottante SOUS la planche, centrée sur la gouttière — deux
+   lignes (le format, puis la cote), d'où le contenu centré au lieu d'être ferré. */
 .fc-float {
   position: absolute;
   transform: translate(-50%, var(--sp-3));
-  display: inline-flex;
-  flex-direction: column;
   align-items: center;
   gap: var(--sp-2);
   white-space: nowrap;
   pointer-events: auto;
-  font-size: var(--fs-sm);
 }
 
 .fc-dims__wh {
@@ -571,16 +543,11 @@ watch(() => props.styleDefaults, measure, { deep: true })
   gap: var(--sp-2);
 }
 
-/* Fond : label posé sur une page, centré sur ce point. */
+/* Fond : row posée sur une page, centrée sur ce point. */
 .fc-onpage {
   position: absolute;
   transform: translate(-50%, -50%);
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-2);
-  white-space: nowrap;
   pointer-events: auto;
-  font-size: var(--fs-sm);
 }
 
 .fc-times {

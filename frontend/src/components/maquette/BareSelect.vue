@@ -24,6 +24,9 @@ defineEmits(['update:modelValue'])
   position: relative;
   display: inline-flex;
   align-items: center;
+  /* Dans une row bornée au rail, le select doit accepter de rétrécir. */
+  min-width: 0;
+  max-width: 100%;
 }
 
 .bare-select select {
@@ -31,15 +34,26 @@ defineEmits(['update:modelValue'])
   -webkit-appearance: none;
   border: 1px solid var(--c-accent2);
   border-radius: var(--radius-sm);
-  background: var(--c-surface0);
+  /* Même voile que la pastille d'unité de `NumInput` : les deux champs d'une row
+     partagent une seule encre de fond, posée sur la plaque de la row. */
+  background: color-mix(in srgb, var(--c-accent-alt-ink) 24%, transparent);
   color: var(--c-ink);
   font: inherit;
   font-size: var(--fs-sm);
   padding: var(--sp-1) 1.6em var(--sp-1) var(--sp-2);
   margin: 0;
   cursor: pointer;
-  max-width: 11em;
+  /* 11em au repos (un libellé long n'étire pas le champ), mais jamais plus que la
+     place que la row lui laisse. */
+  max-width: min(11em, 100%);
   text-overflow: ellipsis;
+}
+
+/* La liste déroulée hérite sinon du fond TRANSLUCIDE du champ : posée sur le
+   papier, elle devient illisible. Elle, c'est du blanc plein. */
+.bare-select option {
+  background: var(--c-surface0);
+  color: var(--c-ink);
 }
 
 .bare-select--muted select {

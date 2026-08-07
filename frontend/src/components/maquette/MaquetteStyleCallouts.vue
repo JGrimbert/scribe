@@ -7,17 +7,13 @@
        (stylePrecedence / openStyleEditor / toggleRequireStyle) et le v-model de
        styleRoles ; l'aside garde sa table en parallèle. -->
   <div ref="rootRef" class="lc">
-    <svg class="lc__wires" :width="box.w" :height="box.h" aria-hidden="true">
-      <g v-for="l in leaders" :key="l.key" class="lc-lead" :class="{ 'lc-lead--on': hovered === l.key }">
-        <line :x1="l.x1" :y1="l.y1" :x2="l.x2" :y2="l.y2" />
-        <circle :cx="l.x2" :cy="l.y2" r="2.2" />
-      </g>
-    </svg>
+    <FcLeaders :leaders="leaders" :box="box" :hovered="hovered" />
 
     <!-- Deux colonnes : chaque style se pose du côté de la balise qu'il vise (rail
          gauche si son texte tombe à gauche de la gouttière, rail droit sinon). -->
     <template v-for="col in columns" :key="col.side">
-      <FcGroup v-if="col.list.length" :x="col.x" :y="col.top" :side="col.side" anchor="top">
+      <FcGroup v-if="col.list.length" :x="col.x" :y="col.top" :side="col.side" anchor="top"
+               :max-width="col.max">
         <FcStyleRow
             v-for="style in col.list" :key="style.name"
             :item="style"
@@ -43,6 +39,7 @@
 import { computed, inject, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import FcGroup from './callouts/FcGroup.vue'
 import FcStyleRow from './callouts/FcStyleRow.vue'
+import FcLeaders from './callouts/FcLeaders.vue'
 import './callouts/callouts.css'
 
 const props = defineProps({
@@ -144,9 +141,11 @@ const columns = computed(() => {
   if (!g) return []
   const left = [], right = []
   for (const style of props.styles) (onLeftPage(style) ? left : right).push(style)
+  // `max` = le rail lui-même : du point de ferrage au bord de l'aperçu. La pile ne
+  // le déborde pas (elle passerait sous le sommaire ou hors du champ).
   return [
-    { side: 'left', x: g.leftRailX, top: g.top, list: left },
-    { side: 'right', x: g.railX, top: g.top, list: right },
+    { side: 'left', x: g.leftRailX, top: g.top, list: left, max: g.leftRailX },
+    { side: 'right', x: g.railX, top: g.top, list: right, max: box.value.w - g.railX },
   ]
 })
 
@@ -221,29 +220,4 @@ watch(() => props.styleRoles, measure, { deep: true })
   z-index: 3;
 }
 
-.lc__wires {
-  position: absolute;
-  inset: 0;
-  overflow: visible;
-  pointer-events: none;
-}
-
-.lc-lead line {
-  stroke: var(--c-ink2);
-  stroke-width: 1;
-  opacity: var(--op-muted);
-}
-
-.lc-lead circle {
-  fill: var(--c-ink2);
-  opacity: var(--op-muted);
-}
-
-/* Fuyante de la ligne survolée : encre pleine, accent. */
-.lc-lead--on line,
-.lc-lead--on circle {
-  stroke: var(--c-accent);
-  fill: var(--c-accent);
-  opacity: 1;
-}
 </style>
