@@ -106,7 +106,8 @@ const rootRef = ref(null)
 const origin = ref({ left: 0, top: 0 })
 const box = ref({ w: 0, h: 0 })
 
-const GAP = 22 // écart rail ↔ bord droit du verso (même valeur que les callouts de format)
+// Repli quand la gouttière n'est pas mesurable (même règle que les callouts de format).
+const GAP = 22
 
 const geo = computed(() => {
   const g = props.geometry?.pages
@@ -115,9 +116,14 @@ const geo = computed(() => {
   const loc = (r) => ({ left: r.left - o.left, top: r.top - o.top, right: r.left - o.left + r.width })
   const recto = loc(g[0]) // page affichée à GAUCHE (recto en séquentiel)
   const verso = loc(g[1]) // page affichée à DROITE
+  // Rail ferré sur le FILET de la trame de fond : celle-ci en pose un à chaque bord
+  // de gouttière (cf. MaquetteFormatCallouts.geo), donc à une gouttière du bord de
+  // page. La pile s'aligne dessus au lieu de le chevaucher.
+  const gutter = verso.left - recto.right
+  const gap = gutter > 0 ? gutter : GAP
   return {
-    leftRailX: recto.left - GAP,
-    railX: verso.right + GAP,
+    leftRailX: recto.left - gap,
+    railX: verso.right + gap,
     top: recto.top,
     // Frontière gouttière : arbitre le côté de chaque style (fuyante non traversante).
     midX: (recto.right + verso.left) / 2,

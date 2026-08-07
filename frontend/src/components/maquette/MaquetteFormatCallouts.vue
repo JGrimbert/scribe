@@ -118,10 +118,11 @@
                   @input="setMargin('innerCm', $event)" />
       </div>
 
-      <!-- ── Dimensions : layer flottant au-dessus de la planche, centré sur la
-           gouttière. Sans zone surlignable : elles désignent la planche entière,
-           qu'on voit déjà — le survol la barbouillerait pour rien. ───────────── -->
-      <div class="fc-float" :style="{ left: `${geo.centerX}px`, top: `${geo.top}px` }">
+      <!-- ── Dimensions : layer flottant SOUS la planche, centré sur la gouttière.
+           Deux lignes : le format choisi, puis la cote X × Y et son unité. Sans zone
+           surlignable : elles désignent la planche entière, qu'on voit déjà — le
+           survol la barbouillerait pour rien. ──────────────────────────────────── -->
+      <div class="fc-float" :style="{ left: `${geo.centerX}px`, top: `${geo.bottom}px` }">
         <BareSelect v-model="selectedKey" :options="DIM_OPTIONS" />
         <span class="fc-dims__wh">
           <NumInput :value="toUnit(effective && effective.widthCm, unit)" :step="step" unit=""
@@ -282,7 +283,9 @@ const anchors = computed(() =>
 
 const manchetteLines = computed(() => anchors.value['manchette-lines'] ?? [])
 
-const GAP = 22 // écart rail ↔ bord droit du verso
+// Repli quand la gouttière n'est pas mesurable (planche incomplète) : sinon le rail
+// vaut la GOUTTIÈRE elle-même, cf. `geo`.
+const GAP = 22
 
 // Repères de la planche en coordonnées LOCALES de l'overlay.
 const geo = computed(() => {
@@ -295,8 +298,14 @@ const geo = computed(() => {
   const top = recto.top
   const bottom = Math.max(recto.bottom, verso.bottom)
   const midY = (top + bottom) / 2
+  // Écart rail ↔ page = la GOUTTIÈRE mesurée, pas une constante : la trame de fond
+  // (`folio-pad-bg`) pose un filet à CHAQUE bord de gouttière, donc à `recto.left`
+  // / `verso.right` et à une gouttière de là. Les piles de callouts se ferrent sur
+  // ce second filet — un écart arbitraire les faisait chevaucher le trait.
+  const gutter = verso.left - recto.right
+  const gap = gutter > 0 ? gutter : GAP
   return {
-    railX: verso.right + GAP, leftRailX: recto.left - GAP, top, bottom, midY,
+    railX: verso.right + gap, leftRailX: recto.left - gap, top, bottom, midY,
     versoCenterX: (verso.left + verso.right) / 2,
     // Centre de la gouttière (bords intérieurs des deux pages) : ancre du layer
     // flottant des dimensions.
@@ -542,11 +551,13 @@ watch(() => props.styleDefaults, measure, { deep: true })
    `FcGroup`/`FcCote`/`FcBand` → déplacés dans `callouts/callouts.css` (global,
    pour traverser la frontière de composant). */
 
-/* Dimensions : layer flottant au-dessus de la planche, centré sur la gouttière. */
+/* Dimensions : layer flottant SOUS la planche, centré sur la gouttière, empilé en
+   deux lignes (format, puis la cote). */
 .fc-float {
   position: absolute;
-  transform: translate(-50%, calc(-100% - var(--sp-3)));
+  transform: translate(-50%, var(--sp-3));
   display: inline-flex;
+  flex-direction: column;
   align-items: center;
   gap: var(--sp-2);
   white-space: nowrap;

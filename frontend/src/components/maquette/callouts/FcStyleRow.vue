@@ -63,6 +63,13 @@ const PRECEDES_OPTIONS = PRECEDES_KINDS.map((k) => ({ value: k, label: PRECEDES_
 </script>
 
 <style scoped>
+/* Voile clair posé sur la trame de fond : la ligne se détache du papier sans
+   devenir une carte (pas de bordure ni de radius — elle est calée sur les filets
+   de la trame, cf. `geo` de MaquetteStyleCallouts). */
+.fc-row.fc-srow {
+  background: color-mix(in srgb, var(--c-accent-alt-ink) 24%, transparent);
+}
+
 /* La ligne empile nom puis contrôles (héritage `.fc-row` de callouts.css). */
 .fc-srow__name {
   display: inline-flex;

@@ -1,13 +1,16 @@
 <template>
-  <!-- Drawer d'édition d'un style : verre dépoli translucide, coulisse depuis la
-       droite, DÉMARRE pile sous le doc-bar (top mesuré à l'ouverture — la barre
-       est alors rendue, contrairement au montage de DocumentLayout). On n'écrit
-       qu'une surcharge Scribe par-dessus le .odt immuable. -->
-  <Transition name="drawer">
+  <!-- Panneau d'édition d'un style : verre dépoli translucide, POSÉ SUR LA PLANCHE,
+       sur la page OPPOSÉE à celle où le style est ancré (il recouvre donc cette
+       page — la page commentée, elle, reste visible). Sans géométrie de planche,
+       repli sur l'ancien drawer ferré à droite, sous le doc-bar (top mesuré à
+       l'ouverture — la barre est alors rendue, contrairement au montage de
+       DocumentLayout). On n'écrit qu'une surcharge Scribe par-dessus le .odt
+       immuable. -->
+  <Transition name="sp">
     <aside
         v-if="styleName"
         class="style-panel"
-        :style="{ top: topPx }"
+        :style="boxStyle"
         role="dialog"
         aria-label="Édition du style"
     >
@@ -241,6 +244,11 @@ const props = defineProps({
   styleName: { type: String, default: null },
   base: { type: Object, default: null },
   overrides: { type: Object, required: true },
+  // { pages: [{left,top,width,height}] } (coords écran) émis par FolioView.
+  geometry: { type: Object, default: null },
+  // Rect écran de la 1re occurrence du style édité (styleGeometry[styleName]) :
+  // décide de quel côté de la gouttière le panneau se pose.
+  anchorRect: { type: Object, default: null },
 })
 const emit = defineEmits(['close'])
 
@@ -295,13 +303,41 @@ function short(family) {
   return String(family).split(',')[0].replace(/["']/g, '').trim()
 }
 
-// ── Positionnement : bas du doc-bar, mesuré À L'OUVERTURE (la barre est rendue) ──
+// ── Positionnement ───────────────────────────────────────────────────────────
+// Repli (pas de planche) : bas du doc-bar, mesuré À L'OUVERTURE (la barre est
+// alors rendue).
 const topPx = ref(null)
 function measureTop() {
   const bar = document.querySelector('.document-layout__bar')
   topPx.value = bar ? `${Math.round(bar.getBoundingClientRect().bottom)}px` : null
 }
 watch(() => props.styleName, (name) => { if (name) nextTick(measureTop) })
+
+// Page d'accueil = celle qui NE porte PAS le style édité (arbitrage par la
+// gouttière, même règle que MaquetteStyleCallouts). Le panneau épouse son rect :
+// sa hauteur est donc bornée par la page, son contenu défile dedans. Style hors
+// planche visible (pas de rect) → page de droite, comme l'ancien drawer.
+const boxStyle = computed(() => {
+  const pages = props.geometry?.pages
+  if (!pages || pages.length < 2) {
+    return {
+      top: topPx.value ?? 'calc(var(--bar-size) * 2)',
+      right: '0px',
+      bottom: '0px',
+      width: 'min(320px, 90vw)',
+    }
+  }
+  const [recto, verso] = pages
+  const midX = (recto.left + recto.width + verso.left) / 2
+  const r = props.anchorRect
+  const target = r ? (r.left + r.width / 2 < midX ? verso : recto) : verso
+  return {
+    left: `${target.left}px`,
+    top: `${target.top}px`,
+    width: `${target.width}px`,
+    height: `${target.height}px`,
+  }
+})
 
 // ── Booléens (gras/italique/césure) ─────────────────────────────────────────
 function isDefault(key) {
@@ -380,14 +416,16 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+/* Boîte posée sur la page opposée : `left/top/width/height` viennent de l'inline
+   (rect de la page), rien n'est ferré au viewport. Largeur PLANCHER : sur un
+   format étroit, la page ne suffit pas aux lignes label + contrôle — le panneau
+   déborde alors un peu sur la gouttière, c'est assumé. Le `padding` vertical
+   généreux est porté par la boîte : le contenu défile DANS ce qu'il reste de la
+   hauteur de page. */
 .style-panel {
   position: fixed;
-  /* Repli si la mesure n'a pas encore eu lieu ; l'inline `top` (bas réel du
-     doc-bar) prend le dessus dès l'ouverture. */
-  top: calc(var(--bar-size) * 2);
-  right: 0;
-  bottom: 0;
-  width: min(320px, 90vw);
+  min-width: 18rem;
+  padding-block: var(--sp-6);
   z-index: 40;
   display: flex;
   flex-direction: column;
@@ -395,8 +433,9 @@ onUnmounted(() => {
   background: color-mix(in srgb, var(--c-paper) 66%, transparent);
   backdrop-filter: blur(18px) saturate(1.15);
   -webkit-backdrop-filter: blur(18px) saturate(1.15);
-  border-left: 1px solid color-mix(in srgb, var(--c-border) 60%, transparent);
-  box-shadow: -8px 0 28px rgba(0, 0, 0, 0.10);
+  border: 1px solid color-mix(in srgb, var(--c-border) 60%, transparent);
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.12);
 }
 
 .sp-head {
@@ -404,7 +443,7 @@ onUnmounted(() => {
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--sp-2);
-  padding: var(--sp-4) var(--sp-4) var(--sp-2);
+  padding: 0 var(--sp-4) var(--sp-2);
 }
 
 .sp-title {
@@ -448,6 +487,7 @@ onUnmounted(() => {
 
 .sp-scroll {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: var(--sp-2) var(--sp-4) var(--sp-4);
   display: flex;
@@ -585,18 +625,19 @@ onUnmounted(() => {
 
 .sp-foot {
   flex: 0 0 auto;
-  padding: var(--sp-3) var(--sp-4);
+  padding: var(--sp-3) var(--sp-4) 0;
   border-top: 1px solid color-mix(in srgb, var(--c-border) 60%, transparent);
 }
 
-/* Entrée/sortie latérale, compositor-only. */
-.drawer-enter-active,
-.drawer-leave-active {
-  transition: transform 0.24s ease, opacity 0.24s ease;
+/* Le panneau se pose SUR la page : fondu + léger relevé, pas de glissement
+   latéral (il ne vient plus d'un bord). Compositor-only. */
+.sp-enter-active,
+.sp-leave-active {
+  transition: transform 0.18s ease, opacity 0.18s ease;
 }
-.drawer-enter-from,
-.drawer-leave-to {
-  transform: translateX(100%);
+.sp-enter-from,
+.sp-leave-to {
+  transform: translateY(0.5em);
   opacity: 0;
 }
 </style>

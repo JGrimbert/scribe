@@ -346,10 +346,14 @@
         @hover-style="hoveredStyle = $event"
     />
 
+    <!-- Édition d'un style : le panneau se pose SUR la page opposée à celle où le
+         style est ancré (d'où la géométrie de planche + le rect du style). -->
     <StyleEditorPanel
         :style-name="editingStyle"
         :base="editingStyle ? styleBase[editingStyle] : null"
         :overrides="styleOverrides"
+        :geometry="spreadGeometry"
+        :anchor-rect="editingStyle ? styleGeometry[editingStyle] ?? null : null"
         @close="editingStyle = null"
     />
   </div>
@@ -965,7 +969,12 @@ watch([showGroupes, deviationGroups], () => {
 onUnmounted(() => clearTimeout(hoverTimer))
 
 // ── Sommaire flottant : parties + navigation ────────────────────────────────
-const parts = computed(() => series.value.map((s) => ({ key: s.key, label: s.label })))
+// La série `vocabulaire` (au nom du livre) reste dans la pellicule — c'est son
+// calque de tête — mais PAS dans le sommaire : elle n'y ferait qu'un doublon du
+// champ de recherche de MaquetteBar, qui vise déjà ce cran.
+const parts = computed(() =>
+  series.value.filter((s) => s.key !== 'vocabulaire').map((s) => ({ key: s.key, label: s.label })),
+)
 
 function focusSeries(seriesKey) {
   const i = crans.value.findIndex((c) => c.seriesKey === seriesKey)
@@ -1260,9 +1269,9 @@ onUnmounted(() => { if (section) section.value = null })
   position: absolute;
   z-index: 2;
 
-  right: 0px;
+  right: 1em;
   top: 0px;
-  width: 30%;
+  width: 20%;
 
 }
 
@@ -1339,6 +1348,22 @@ onUnmounted(() => { if (section) section.value = null })
   border-radius: var(--radius-md);
   background: var(--c-card-float);
   backdrop-filter: var(--c-backdrop-filter-blur);
+  /* RÉVÉLÉE AU SURVOL de la vue d'analyse (même parti pris que les contrôles
+     liminaire) : au repos elle s'efface, la planche de résultats se lit sans
+     commentaire posé dessus. `pointer-events` suit l'opacité — effacée, elle
+     laisserait sinon passer les clics destinés au nuage qu'elle recouvre. */
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease;
+}
+
+/* La colonne recouvrant la vue, le pointeur qui y entre la retire du survol de
+   `.maq-analyse` : elle se retient elle-même (`:hover` propre), sinon elle
+   s'effacerait sous la souris au moment de la lire. */
+.maq-analyse:hover ~ .maq-analyse-aside,
+.maq-analyse-aside:hover {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 /* Boîte d'accueil du Teleport. Respiration et séparateurs viennent de
