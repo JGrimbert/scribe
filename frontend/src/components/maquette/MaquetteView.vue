@@ -262,22 +262,27 @@
                  Vocabulaire elle empile les mini-nuages des types QUE LE GRAND
                  NUAGE NE MONTRE PAS (cliquer l'un d'eux le promeut, celui qu'il
                  remplace revient dans la liste) PUIS le détail du mot retenu. -->
-            <div v-if="searchLayout" class="maq-analyse-aside" :style="{ width: analyseColumn }">
+            <div
+                v-if="searchLayout"
+                class="maq-analyse-aside"
+                :class="{ 'maq-analyse-aside--minis': isCloudView }"
+                :style="{ width: analyseColumn }"
+            >
               <CustomScrollbar>
                 <div ref="analyseAsideEl" class="maq-analyse-aside__inner split-aside">
-                  <template v-if="isCloudView">
-                    <div class="maq-minis">
-                      <MiniCloud
-                          v-for="mini in miniClouds"
-                          :key="mini.key"
-                          :category="mini.key"
-                          :label="mini.label"
-                          @activate="mainCategory = mini.key"
-                      />
-                    </div>
-                    <OccurrencesCard />
-                    <SemantiqueCard />
-                  </template>
+                  <!-- Vue Vocabulaire : SEULS les mini-nuages, répartis sur toute la
+                       hauteur de la colonne (pas de scroll, aucune card en dessous). Le
+                       détail du mot retenu (occurrences + proximité) part dans le
+                       calque suivant. -->
+                  <div v-if="isCloudView" class="maq-minis">
+                    <MiniCloud
+                        v-for="mini in miniClouds"
+                        :key="mini.key"
+                        :category="mini.key"
+                        :label="mini.label"
+                        @activate="mainCategory = mini.key"
+                    />
+                  </div>
                 </div>
               </CustomScrollbar>
             </div>
@@ -380,8 +385,6 @@ import MaquetteStructureNav from './MaquetteStructureNav.vue'
 import MaquetteBar from './MaquetteBar.vue'
 import VocabulaireCloud from '../analyse/lexical/VocabulaireCloud.vue'
 import MiniCloud from '../analyse/lexical/MiniCloud.vue'
-import OccurrencesCard from '../analyse/lexical/OccurrencesCard.vue'
-import SemantiqueCard from '../analyse/semantic/SemantiqueCard.vue'
 import FolioView from '../editor/FolioView.vue'
 import CustomScrollbar from '../ui/atoms/CustomScrollbar.vue'
 import PageDiagram from '../config/PageDiagram.vue'
@@ -724,7 +727,7 @@ const analyseCards = computed(() =>
 
 // Gabarit du nuage inline : deux pages de large pour une de haut (≈ le ratio d'une
 // double page A5), là où le dock lui donnait un bandeau plat.
-const CLOUD_DIMS = { width: 1040, height: 740, verticalRatio: 0.25 }
+const CLOUD_DIMS = { width: 1040, height: 740, verticalRatio: 0.25, animateEntry: false }
 
 // Les types de mots du nuage, dans l'ordre de la colonne : les personnages et les
 // lieux d'abord (c'est ce qu'on cherche dans un roman), la grammaire ensuite. Pas
@@ -1086,10 +1089,16 @@ const spreadGeometry = ref(null)
 // Sinon la planche glissait à sa nouvelle place, et la vue d'analyse la coupait,
 // pendant les ~150 ms où elle portait encore l'ancien contenu. Les PROPS du folio,
 // elles, changent tout de suite : c'est ce qui déclenche la repagination.
+// Elle attend en plus la FIN du glissement horizontal de la planche
+// (`geometry.animating`, cf. useFolioScale) : le rAF d'`animateScale` émet une
+// géométrie à chaque frame, poser la scène sur la première ferait apparaître le
+// nuage à côté d'une planche encore en mouvement. La SORTIE, elle, est immédiate —
+// laisser le nuage glisser par-dessus la planche qui revient n'aurait pas de sens.
 const searchLayout = ref(false)
 function onSpreadGeometry(geometry) {
   spreadGeometry.value = geometry
-  searchLayout.value = searching.value
+  if (!searching.value) { searchLayout.value = false; return }
+  if (!geometry?.animating) searchLayout.value = true
 }
 
 // Bord gauche de la vue d'analyse : le bord droit de la page de résultats, plus la
@@ -1413,6 +1422,26 @@ onUnmounted(() => { if (section) section.value = null })
   flex-direction: column;
   gap: var(--sp-3);
   padding: var(--split-pad-aside);
+}
+
+/* Vue Vocabulaire : les mini-nuages SEULS remplissent la colonne jusqu'au bas de la
+   fenêtre, répartis sur toute la hauteur — pas de scroll, aucune card en dessous
+   (le détail du mot part dans le calque suivant). */
+.maq-analyse-aside--minis {
+  bottom: var(--sp-4);
+}
+
+.maq-analyse-aside--minis :deep(.custom-scrollbar__content) {
+  overflow: hidden;
+}
+
+.maq-analyse-aside--minis .maq-analyse-aside__inner {
+  height: 100%;
+}
+
+.maq-analyse-aside--minis .maq-minis {
+  height: 100%;
+  justify-content: space-evenly;
 }
 
 /* Boîte d'accueil du Teleport. Respiration et séparateurs viennent de

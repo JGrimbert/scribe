@@ -26,6 +26,11 @@ const SCALE_ANIM_MS = 320
 export function useFolioScale(props, { rootRef, frameRef, frameDoc, onScaled, onResized }) {
   const scaleRef = ref(1)
   const scalePercent = computed(() => scaleRef.value * 100)
+  // Vrai pendant un glissement demandé (`animateScale` : dézoom, décalage de
+  // colonne). L'appelant s'en sert pour ne composer sa scène qu'une fois la
+  // planche arrivée — la géométrie émise pendant le glissement est VRAIE mais
+  // transitoire, poser quoi que ce soit dessus le ferait apparaître en mouvement.
+  const animating = ref(false)
 
   // Instant (ms) jusqu'auquel les écritures d'échelle sont glissées, cf. `animate`.
   let animUntil = 0
@@ -86,17 +91,25 @@ export function useFolioScale(props, { rootRef, frameRef, frameDoc, onScaled, on
   // finale — d'où le rappel d'`onResized` à chaque frame de la transition.
   function animateScale() {
     animUntil = performance.now() + SCALE_ANIM_MS
+    animating.value = true
     fitScale()
     if (animFrame) return
+    // `animating` retombe AVANT le dernier `onResized` : la passe finale doit
+    // émettre une géométrie marquée « arrivée », sinon l'appelant qui attend la
+    // fin du glissement ne verrait jamais passer de frame stable.
     const tick = () => {
+      const done = performance.now() >= animUntil
+      if (done) {
+        animFrame = null
+        animating.value = false
+        // Transition retirée : la prochaine passe (resize, repagination) doit
+        // reprendre au pixel, sans traîner.
+        const render = frameDoc()?.getElementById('render')
+        if (render) render.style.transition = ''
+        if (frameRef.value) frameRef.value.style.transition = ''
+      }
       onResized?.()
-      if (performance.now() < animUntil) { animFrame = requestAnimationFrame(tick); return }
-      animFrame = null
-      // Transition retirée : la prochaine passe (resize, repagination) doit
-      // reprendre au pixel, sans traîner.
-      const render = frameDoc()?.getElementById('render')
-      if (render) render.style.transition = ''
-      if (frameRef.value) frameRef.value.style.transition = ''
+      if (!done) animFrame = requestAnimationFrame(tick)
     }
     animFrame = requestAnimationFrame(tick)
   }
@@ -198,7 +211,8 @@ export function useFolioScale(props, { rootRef, frameRef, frameDoc, onScaled, on
   onBeforeUnmount(() => {
     resizeObserver?.disconnect()
     if (animFrame) cancelAnimationFrame(animFrame)
+    animating.value = false
   })
 
-  return { scaleRef, scalePercent, fitScale, animateScale }
+  return { scaleRef, scalePercent, animating, fitScale, animateScale }
 }

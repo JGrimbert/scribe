@@ -6,10 +6,7 @@
        type promu quitte la liste, cf. l'hôte). Les mots n'y sont donc pas
        cliquables : la sélection d'un mot appartient au grand nuage. -->
   <button type="button" class="mini-cloud" :title="`Voir le nuage — ${label}`" @click="$emit('activate')">
-    <span class="mini-cloud__title">
-      {{ label }}
-      <span class="mini-cloud__count">{{ words.length }}</span>
-    </span>
+    <span class="mini-cloud__title">{{ label }}</span>
 
     <span v-if="!placed.length" class="mini-cloud__empty">Aucun mot de ce type.</span>
     <svg
@@ -91,23 +88,16 @@ watch(selectedLemma, (l) => { selected.value = l?.lemma ?? null }, { immediate: 
   cursor: pointer;
 }
 
-/* Titre + compteur ancrés EN BAS du nuage (hors flux) : ils se lisent comme une
-   légende posée sur le pied de la vignette, sans réserver de bande au-dessus. */
+/* Titre ancré (hors flux) sous le nuage, ferré à DROITE : une légende posée un
+   demi-cran plus bas que le pied de la vignette, sans réserver de bande au-dessus. */
 .mini-cloud__title {
   position: absolute;
-  bottom: 0.2em;
-  left: 0.3em;
+  bottom: -0.95em;
+  right: 0.3em;
   margin: 0;
   font-size: var(--fs-sm);
   font-weight: 600;
   color: var(--c-ink2);
-}
-
-.mini-cloud__count {
-  margin-left: 0.4em;
-  font-weight: 400;
-  font-variant-numeric: tabular-nums;
-  opacity: var(--op-muted);
 }
 
 .mini-cloud__svg {

@@ -186,6 +186,7 @@ const props = defineProps({
 // `step` : cran de pagination applicative demandé à la molette (±1), cf. wheelPaging.
 // `spread-geometry` : rects ÉCRAN des pages de la planche (mode spread), pour les
 // callouts dockés de l'aperçu de format (cf. maquette/MaquetteFormatCallouts).
+// Porte `animating` : vrai tant que la planche GLISSE (cf. useFolioScale).
 // `style-geometry` : rect ÉCRAN de la PREMIÈRE occurrence VISIBLE de chaque style
 // (`data-style`), pour ancrer les callouts de styles (liminaire/chapitrage) au texte.
 const emit = defineEmits(['step', 'spread-geometry', 'block-geometry', 'style-geometry'])
@@ -242,9 +243,13 @@ function updateSpreadBg() {
   // laquelle l'appelant range ce qu'il pose à côté de la planche (cf. la scène de
   // recherche de la maquette, qui s'y réserve une colonne).
   // Émis à chaque mesure — repagination, échelle (onScaled), molette (onFrameWheel).
+  // `animating` : la planche est en train de GLISSER (dézoom, décalage de colonne).
+  // Les rects sont justes mais transitoires — l'appelant qui compose une scène
+  // par-dessus (cf. la recherche de la maquette) attend qu'il retombe.
   const fr = frame.getBoundingClientRect()
   emit('spread-geometry', {
     period,
+    animating: animating.value,
     pages: Array.from(pages).map((p) => {
       const r = p.getBoundingClientRect()
       return { left: r.left + fr.left, top: r.top + fr.top, width: r.width, height: r.height }
@@ -335,7 +340,7 @@ const blocks = computed(() => {
   return section.value ? buildBlocks([section.value]) : []
 })
 
-const { scaleRef, scalePercent, fitScale, animateScale } = useFolioScale(props, {
+const { scaleRef, scalePercent, animating, fitScale, animateScale } = useFolioScale(props, {
   rootRef,
   frameRef,
   frameDoc,

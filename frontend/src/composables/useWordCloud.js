@@ -46,6 +46,11 @@ export function useWordCloud(words, onSettle, dims = {}) {
   // Trois mini-nuages à côté du grand en feraient autant de boucles rAF
   // permanentes pour un repoussement qu'on ne va pas y chercher.
   const isStatic = dims.static ?? false
+  // `animateEntry` : jouer le repoussement d'ENTRÉE (le nuage se déploie depuis le
+  // mot le plus fréquent). Coupé quand le nuage doit APPARAÎTRE posé (scène de
+  // recherche) plutôt que s'étaler progressivement à l'écran. Le repoussement au
+  // CLIC reste actif.
+  const animateEntry = dims.animateEntry ?? true
 
   const placed = ref([])
   const selected = ref(null)
@@ -122,10 +127,11 @@ export function useWordCloud(words, onSettle, dims = {}) {
       placed.value = simNodes.slice()
     })
 
-    // Sélection du mot le plus fréquent → anime l'entrée du nuage.
+    // Sélection du mot le plus fréquent (highlight + pont selectedLemma). Le
+    // repoussement d'entrée n'est joué que si l'hôte le veut (cf. animateEntry).
     const top = out.reduce((m, w) => (w.count > m.count ? w : m), out[0])
     selected.value = top?.text ?? null
-    reheat()
+    if (animateEntry) reheat()
 
     // Entrée jouée → la card suivante peut apparaître.
     onSettle?.()
@@ -160,11 +166,12 @@ export function useWordCloud(words, onSettle, dims = {}) {
   }
 
   watch(words, rebuild, { immediate: true })
-  // Seul le CLIC (changement de sélection) relance le repoussement.
-  watch(selected, reheat)
 
+  // Seul le CLIC relance le repoussement (une sélection POSÉE par le code — mot le
+  // plus fréquent à l'entrée, cf. buildFromLayout — ne doit pas déclencher d'étalement).
   function toggle(text) {
     selected.value = selected.value === text ? null : text
+    reheat()
   }
 
   function wordStyle(word) {
