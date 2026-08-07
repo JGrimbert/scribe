@@ -126,8 +126,6 @@ Consommés par `../components/analyse/` (voir son `CLAUDE.md`) :
 - **`chartBase.js`** — le DÉCOR commun d'une option echarts (police, encres,
   grille recessive, infobulle, filigrane en motif canvas). Les décisions de
   couleur de SÉRIE restent dans les cards, c'est du domaine.
-- **`lengthDispersion.js`** — longueur de chaque nœud groupée par niveau de titre
-  (+ médiane/bornes) pour le nuage de dispersion. Testé.
 - **`topicFlow.js`** — thèmes replacés dans l'ORDRE DE LECTURE : croise la
   projection BERTopic (un point par segment, porteur d'un `nodeId`) avec le
   parcours préfixe de la trame. Testé.

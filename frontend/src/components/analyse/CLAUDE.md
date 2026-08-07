@@ -76,9 +76,9 @@ construisent l'option, pas le graphe) :
   le permuter demande de repasser le validateur. Deux réserves qui décident du
   dessin d'une card : on ne cycle jamais au-delà de 8 identités (« Autres » en
   gris), et sur une forme où TOUTES les paires se côtoient (nuage de points),
-  seuls les 3 premiers slots passent les seuils — d'où le parti pris des deux
-  nuages : `LengthsCard` peint tout d'une seule teinte (c'est la colonne qui dit
-  le niveau) et `ThemesFlowCard` facette (un axe + un nom par thème).
+  seuls les 3 premiers slots passent les seuils — d'où le parti pris de
+  `ThemesFlowCard` : il facette (un axe + un nom par thème) plutôt que de compter
+  sur la couleur pour séparer des points qui se côtoient tous.
 - **`--c-ramp-1..4` (rampe ordinale) vs `--c-cat-1..8` (catégorielle)** : une
   échelle dont l'ordre porte le sens (complétude : vide → ébauche → partiel →
   rédigé) prend la rampe d'une seule teinte, clair → foncé. `--c-cat-*` encode une
