@@ -228,24 +228,30 @@
                  dashboard, montées telles quelles (elles portent leurs propres états
                  vide/révélation) et empilées au scroll vertical — sauf le
                  Vocabulaire, dont on garde le nuage nu, déjà réglé pour cette boîte. -->
-            <div
-                v-if="searchLayout"
-                ref="cloudEl"
-                class="maq-analyse"
-                :style="{ left: analyseLeft, right: analyseColumn }"
-            >
-              <VocabulaireCloud
-                  v-if="isCloudView"
-                  compact
-                  :category="mainCategory"
-                  :width="cloudW"
-                  :dims="CLOUD_DIMS"
-              />
-              <CustomScrollbar v-else-if="analyseCards.length" class="maq-analyse__scroll">
-                <component v-for="c in analyseCards" :key="c.key" :is="c.comp" />
-              </CustomScrollbar>
-              <p v-else class="maq-analyse__empty">{{ focusedLayer?.label }}</p>
-            </div>
+            <!-- Fondu simple à l'entrée (pas de glissement horizontal) : la vue
+                 n'existe qu'une fois la scène repaginée (searchLayout), elle
+                 apparaissait donc d'un coup — on adoucit juste ce pop. -->
+            <Transition name="maq-scene-fade">
+              <div
+                  v-if="searchLayout"
+                  ref="cloudEl"
+                  class="maq-analyse"
+                  :style="{ left: analyseLeft, right: analyseColumn }"
+              >
+                <VocabulaireCloud
+                    v-if="isCloudView"
+                    compact
+                    :category="mainCategory"
+                    :width="cloudW"
+                    :height="cloudH"
+                    :dims="CLOUD_DIMS"
+                />
+                <CustomScrollbar v-else-if="analyseCards.length" class="maq-analyse__scroll">
+                  <component v-for="c in analyseCards" :key="c.key" :is="c.comp" />
+                </CustomScrollbar>
+                <p v-else class="maq-analyse__empty">{{ focusedLayer?.label }}</p>
+              </div>
+            </Transition>
 
             <!-- Colonne 1/3 des blocs d'analyse, sortie du bloc : la COLONNE que
                  la planche libère en glissant d'un cran (cf. column-shift), ferrée
@@ -738,11 +744,12 @@ const mainCategory = ref('nom')
 const miniClouds = computed(() => CLOUD_CATEGORIES.filter((c) => c.key !== mainCategory.value))
 const cloudEl = ref(null)
 const cloudW = ref(0)
+const cloudH = ref(0)
 let cloudRo = null
 watch(cloudEl, (el) => {
   cloudRo?.disconnect()
   if (!el) { cloudRo = null; return }
-  const measure = () => { cloudW.value = el.clientWidth }
+  const measure = () => { cloudW.value = el.clientWidth; cloudH.value = el.clientHeight }
   measure()
   cloudRo = new ResizeObserver(measure)
   cloudRo.observe(el)
@@ -1369,6 +1376,17 @@ onUnmounted(() => { if (section) section.value = null })
 
 .maq-analyse__scroll {
   height: 100%;
+}
+
+/* Fondu d'entrée de la vue d'analyse (nuage / cards). Enter seulement : à la SORTIE
+   de la recherche la scène change de source, le fondre laisserait traîner l'ancien
+   contenu par-dessus le nouveau. */
+.maq-scene-fade-enter-active {
+  transition: opacity 0.22s ease;
+}
+
+.maq-scene-fade-enter-from {
+  opacity: 0;
 }
 
 /* Colonne des asides d'analyse : LA colonne que la planche libère en glissant

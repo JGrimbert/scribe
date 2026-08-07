@@ -22,7 +22,7 @@ const CHAR_WIDTH_RATIO = 0.5
 // Efficacité de remplissage empirique de la spirale archimédienne. Réglage
 // principal du nuage : plus bas = police plus petite, plus d'air, ajustement
 // fiable dès le premier essai ; plus haut = plus dense, risque de réessai.
-const FILL = 0.55
+const FILL = 0.7
 
 function fontSize(count, maxSqrt) {
   return FONT_MIN + (Math.sqrt(count) / maxSqrt) * FONT_RANGE

@@ -112,8 +112,9 @@ import { useWordCloud } from '../../../composables/useWordCloud'
 
 // `compact` : rendu resserré du volet de recherche (hauteur bornée, zone du
 // nuage défilante, filtres épinglés en bas). Défaut = rendu dashboard.
-// `width` : largeur disponible (px) — pilote le nombre de mots par défaut
-// (plus l'input de recherche est large, plus on en montre). 0 = non fourni.
+// `width`/`height` : place disponible (px) — pilotent ENSEMBLE le nombre de mots
+// par défaut (l'AIRE de la boîte, pas la seule largeur : le nuage compact vit dans
+// une boîte haute, la largeur seule sous-estimait la place). 0 = non fourni.
 // `dims` : gabarit du nuage (`{ width, height, verticalRatio }`) quand la boîte
 // hôte n'a pas les proportions du volet — la maquette le pose désormais à côté des
 // résultats, sur une boîte HAUTE (deux pages de large) et non plus dans le bandeau
@@ -125,6 +126,7 @@ import { useWordCloud } from '../../../composables/useWordCloud'
 const props = defineProps({
   compact: Boolean,
   width: { type: Number, default: 0 },
+  height: { type: Number, default: 0 },
   dims: { type: Object, default: null },
   category: { type: String, default: null },
 })
@@ -136,12 +138,23 @@ const lemmas = computed(() => lexical.value?.lemmas ?? null)
 
 // Nombre de mots affichés, réglable depuis l'en-tête (le backend en fournit
 // jusqu'à 300). Le nuage se recompose quand la valeur change (via `words`).
-const MAX_WORDS_OPTIONS = [40, 80, 120, 160, 200]
+const MAX_WORDS_OPTIONS = [40, 80, 120, 160, 200, 260]
 
-// Défaut du nombre de mots selon la largeur dispo : ~120 dès 1000 px (largeur de
-// l'input de recherche), moins en dessous. Tant que l'utilisateur n'a pas choisi
-// à la main, le défaut suit la largeur.
-function defaultMaxForWidth(w) {
+// Défaut du nombre de mots selon la place dispo. Quand l'hôte fournit une hauteur,
+// on se règle sur l'AIRE de la boîte (largeur × hauteur) : le nuage compact vit
+// dans une boîte haute, la largeur seule sous-estimait la place. Repli sur la
+// largeur seule (dashboard, sans hauteur). Tant que l'utilisateur n'a pas choisi à
+// la main, le défaut suit la boîte.
+function defaultMaxForBox(w, h) {
+  if (h > 0) {
+    const area = w * h
+    if (area >= 340_000) return 260
+    if (area >= 250_000) return 200
+    if (area >= 175_000) return 160
+    if (area >= 110_000) return 120
+    if (area >= 60_000) return 80
+    return 40
+  }
   if (w >= 1400) return 200
   if (w >= 1200) return 160
   if (w >= 1000) return 120
@@ -150,10 +163,10 @@ function defaultMaxForWidth(w) {
 }
 
 const userPickedMax = ref(false)
-const maxWords = ref(defaultMaxForWidth(props.width))
+const maxWords = ref(defaultMaxForBox(props.width, props.height))
 watch(
-  () => props.width,
-  (w) => { if (!userPickedMax.value) maxWords.value = defaultMaxForWidth(w) },
+  () => [props.width, props.height],
+  ([w, h]) => { if (!userPickedMax.value) maxWords.value = defaultMaxForBox(w, h) },
 )
 
 function onPickMax(value) {
