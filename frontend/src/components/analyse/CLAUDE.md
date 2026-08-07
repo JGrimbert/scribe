@@ -26,8 +26,10 @@ completeness/conformity/lexical/semantic/topics). Vocabulaires/helpers purs :
   fond/bordure pour un usage en card autonome (cf. `../config/CLAUDE.md`).
 - **`../../script/analyseSections.js`** — l'ORDRE et les libellés des sections de
   la page. `AnalyseView` en rend ses `<section class="analyse-section">` (le
-  libellé est le `data-label` que lit son scroll-spy) et l'accordéon de recherche
-  de la Maquette en fait ses crans. Ajouter une card = une entrée ici + une entrée
+  libellé est le `data-label` que lit son scroll-spy) et la pellicule de la
+  Maquette en fait les crans de sa zone de TÊTE (celle au nom du livre ;
+  l'accordéon d'analyse séparé, ferré à droite, a été supprimé — une pellicule de
+  trop pour un seul écran). Ajouter une card = une entrée ici + une entrée
   dans `CARD_BY_KEY` ; deux listes divergeraient au premier ajout.
 - **Piège — un `AnalyseBlock` hors dashboard ne rend RIEN par défaut.** La
   révélation est la chorégraphie d'entrée du dashboard : `fetchAnalysis` lance

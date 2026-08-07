@@ -30,6 +30,9 @@ export function useFolioScale(props, { rootRef, frameRef, frameDoc, onScaled, on
   // Instant (ms) jusqu'auquel les écritures d'échelle sont glissées, cf. `animate`.
   let animUntil = 0
   let animFrame = null
+  // Dernier décalage latéral appliqué (px) : il entre dans la garde d'idempotence
+  // d'`applyScale`, sinon changer de colonne SANS changer d'échelle serait ignoré.
+  let lastShiftX = 0
 
   // Applique l'échelle + les dimensions du frame, mais SEULEMENT si elles changent
   // vraiment (tolérance sub-pixel). `fitScale` peut être rappelé par le ResizeObserver
@@ -43,7 +46,13 @@ export function useFolioScale(props, { rootRef, frameRef, frameDoc, onScaled, on
   // se faisait clipper à ses bords, surtout en bas (offset +1px) — la « couture »
   // coupée du vis-à-vis. On agrandit donc la frame de 2×pad et on décale `#render`
   // d'autant : les pages ne touchent plus les bords, l'ombre a la place de s'afficher.
-  function applyScale(scale, contentW, contentH, pad = 0) {
+  // `shiftX` (px) : décalage LATÉRAL de la planche (cf. columnShift), posé en
+  // `transform` sur la frame — et surtout PAS sur `.folio-pad` ni un ancêtre : la
+  // trame de fond y est en `position: fixed` pour couvrir la fenêtre, et le
+  // moindre transform au-dessus d'elle en ferait son référentiel. Un transform ne
+  // change aucune largeur de boîte : l'échelle, elle, ne bouge pas d'un cran à
+  // l'autre (c'est tout l'intérêt par rapport à un rétrécissement du conteneur).
+  function applyScale(scale, contentW, contentH, pad = 0, shiftX = 0) {
     const frame = frameRef.value
     const render = frameDoc()?.getElementById('render')
     if (!frame || !render) return
@@ -51,15 +60,21 @@ export function useFolioScale(props, { rootRef, frameRef, frameDoc, onScaled, on
     const frameH = contentH + 2 * pad
     const curW = parseFloat(frame.style.width) || 0
     const curH = parseFloat(frame.style.height) || 0
-    const skip = Math.abs(curW - frameW) < 0.5 && Math.abs(curH - frameH) < 0.5 && Math.abs(scaleRef.value - scale) < 0.0005
+    const skip = Math.abs(curW - frameW) < 0.5 && Math.abs(curH - frameH) < 0.5
+      && Math.abs(scaleRef.value - scale) < 0.0005 && Math.abs(lastShiftX - shiftX) < 0.5
     if (skip) return
     scaleRef.value = scale
+    lastShiftX = shiftX
     // Transition posée à la volée plutôt qu'en CSS : elle ne doit valoir que pour
-    // les passes demandées par `animateScale` (le dézoom), pas pour un resize.
+    // les passes demandées par `animateScale` (le dézoom, le décalage de colonne),
+    // pas pour un resize.
     const anim = performance.now() < animUntil
     render.style.transition = anim ? `transform ${SCALE_ANIM_MS}ms ease` : ''
-    frame.style.transition = anim ? `width ${SCALE_ANIM_MS}ms ease, height ${SCALE_ANIM_MS}ms ease` : ''
+    frame.style.transition = anim
+      ? `width ${SCALE_ANIM_MS}ms ease, height ${SCALE_ANIM_MS}ms ease, transform ${SCALE_ANIM_MS}ms ease`
+      : ''
     render.style.transform = pad ? `translate(${pad}px, ${pad}px) scale(${scale})` : `scale(${scale})`
+    frame.style.transform = shiftX ? `translateX(${shiftX}px)` : ''
     frame.style.width = `${frameW}px`
     frame.style.height = `${frameH}px`
     onScaled?.()
@@ -159,7 +174,10 @@ export function useFolioScale(props, { rootRef, frameRef, frameDoc, onScaled, on
       const availW = root.clientWidth - 2 * SPREAD_PAD
       const availH = root.clientHeight - 2 * SPREAD_PAD
       const scale = Math.min(availW / spanW, availH / pageEl.offsetHeight, 1)
-      applyScale(scale, rowW * scale, pageEl.offsetHeight * scale, SPREAD_PAD)
+      // Décalage latéral en COLONNES de trame (période) : la planche glisse d'un
+      // cran sans changer de taille (cf. applyScale). Exprimé comme les rails en
+      // unités naturelles, mis à l'échelle ensuite.
+      applyScale(scale, rowW * scale, pageEl.offsetHeight * scale, SPREAD_PAD, period * props.columnShift * scale)
       // La réserve est peinte par `.folio-pad` : posée ici (à l'échelle) plutôt
       // qu'en CSS, elle reste la MÊME grandeur que celle qu'on vient de réserver.
       // Sans rail demandé, on rend la main au défaut CSS.

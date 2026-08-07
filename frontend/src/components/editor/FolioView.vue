@@ -116,6 +116,12 @@ const props = defineProps({
   // entre dans le calcul d'échelle (cf. useFolioScale) : la vue minimale va d'un
   // filet de trame à l'autre. 0 = réserve décorative du CSS seul.
   sideRails: { type: Number, default: 0 },
+  // Double-page : décalage LATÉRAL de la planche, en périodes de trame (page +
+  // gouttière) — SIGNÉ (négatif = vers la gauche). Purement visuel :
+  // ni la place réservée ni l'échelle n'en dépendent (c'est un `transform`), la
+  // planche ne change donc pas de taille d'un cran à l'autre. La trame de fond et
+  // la géométrie émise suivent, y compris PENDANT le glissement (cf. animateScale).
+  columnShift: { type: Number, default: 0 },
   // Apparence des styles ODT (map nom→StyleVisual, cf. GET /documents/:id) :
   // la feuille injectée dans l'iframe rend chaque bloc fidèle au .odt. Null =
   // look générique de paged.css (document sans styles.xml lu).
@@ -215,13 +221,30 @@ function updateSpreadBg() {
   if (!pages.length) { bg.style.opacity = '0'; emit('spread-geometry', null); emit('block-geometry', []); emit('style-geometry', {}); return }
   const first = pages[0]
   const r0 = first.getBoundingClientRect()
+  // Période = page + gouttière. Mesurée entre deux pages quand elles existent ;
+  // sinon déduite des marges de la page — l'écart entre deux pages vaut la marge
+  // DROITE de l'une PLUS la GAUCHE de la suivante (Paged.js en pose des deux
+  // côtés). N'en compter qu'une donnait une gouttière deux fois trop courte, donc
+  // une trame différente — et surtout des BANDES HORIZONTALES différentes, qui en
+  // dérivent (gutterY) — dès qu'une planche ne portait qu'UNE page (résultats de
+  // recherche, chapitre court). `getComputedStyle` rend une valeur de MISE EN PAGE
+  // (avant transform), d'où le produit par l'échelle, alors qu'un
+  // getBoundingClientRect est déjà scalé.
+  const margins = pages.length > 1 ? null : doc.defaultView.getComputedStyle(first)
+  const period = pages.length > 1
+    ? pages[1].getBoundingClientRect().left - r0.left
+    : r0.width + ((parseFloat(margins.marginRight) || 0) + (parseFloat(margins.marginLeft) || 0)) * scaleRef.value
   // Rects ÉCRAN des pages : les callouts de format s'y ancrent (cf. formatAnchors
   // + MaquetteFormatCallouts). Les pages vivent DANS l'iframe → leur rect est
   // relatif au viewport de l'iframe ; on ajoute l'offset écran de la frame pour
   // le ramener en coordonnées fenêtre (même correction que la trame ci-dessous).
+  // `period` accompagne les rects : c'est la COLONNE de la trame, l'unité dans
+  // laquelle l'appelant range ce qu'il pose à côté de la planche (cf. la scène de
+  // recherche de la maquette, qui s'y réserve une colonne).
   // Émis à chaque mesure — repagination, échelle (onScaled), molette (onFrameWheel).
   const fr = frame.getBoundingClientRect()
   emit('spread-geometry', {
+    period,
     pages: Array.from(pages).map((p) => {
       const r = p.getBoundingClientRect()
       return { left: r.left + fr.left, top: r.top + fr.top, width: r.width, height: r.height }
@@ -257,19 +280,6 @@ function updateSpreadBg() {
     styleRects[name] = { left: r.left + fr.left, top: r.top + fr.top, width: r.width, height: r.height }
   })
   emit('style-geometry', styleRects)
-  // Période = page + gouttière. Mesurée entre deux pages quand elles existent ;
-  // sinon déduite des marges de la page — l'écart entre deux pages vaut la marge
-  // DROITE de l'une PLUS la GAUCHE de la suivante (Paged.js en pose des deux
-  // côtés). N'en compter qu'une donnait une gouttière deux fois trop courte, donc
-  // une trame différente — et surtout des BANDES HORIZONTALES différentes, qui en
-  // dérivent (gutterY) — dès qu'une planche ne portait qu'UNE page (résultats de
-  // recherche, chapitre court). `getComputedStyle` rend une valeur de MISE EN PAGE
-  // (avant transform), d'où le produit par l'échelle, alors qu'un
-  // getBoundingClientRect est déjà scalé.
-  const margins = pages.length > 1 ? null : doc.defaultView.getComputedStyle(first)
-  const period = pages.length > 1
-    ? pages[1].getBoundingClientRect().left - r0.left
-    : r0.width + ((parseFloat(margins.marginRight) || 0) + (parseFloat(margins.marginLeft) || 0)) * scaleRef.value
   // Le rect des pages est intra-iframe : seule la phase traverse la frontière
   // iframe↔écran, d'où frameRect (qui porte aussi le SPREAD_PAD réservé dedans).
   const frameRect = frame.getBoundingClientRect()
@@ -505,6 +515,12 @@ watch(() => props.visiblePages, animateScale)
 // rappel explicite, mais sec — elle change quand la vue change de nature
 // (recherche), pas sur un geste de zoom à faire voir.
 watch(() => props.sideRails, fitScale)
+
+// Décalage de colonne : GLISSÉ comme le dézoom — c'est le mouvement qu'on vient
+// regarder (l'entrée dans la recherche). La boucle rAF d'`animateScale` rappelle
+// `onResized` à chaque frame : trame de fond et géométrie émise (donc le nuage,
+// qui se cale dessus) accompagnent la planche au lieu de sauter à l'arrivée.
+watch(() => props.columnShift, animateScale)
 
 // Surlignage : SURTOUT PAS dans le watch ci-dessus. Il change à chaque ligne
 // survolée dans l'aside — on réécrit une feuille en place, rien à repaginer.

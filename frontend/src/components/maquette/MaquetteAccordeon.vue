@@ -57,8 +57,8 @@ import { useWheelStepper } from '../../composables/useWheelStepper'
 
 const props = defineProps({
   // Liste PLATE des vis-à-vis dans l'ordre de lecture. Chaque cran porte sa source
-  // (`sourceKey`) ET sa zone (`sectionKey`/`sectionLabel`/`isSectionStart`). La
-  // ventilation en zones vit chez le parent.
+  // (`sourceKey`), sa zone (`sectionKey`/`sectionLabel`/`isSectionStart`) et, s'il
+  // y a lieu, `wheelSkip` (cf. nextStop). La ventilation en zones vit chez le parent.
   crans: { type: Array, required: true },
   focused: { type: Number, required: true },
   // Niveau de pli par zone (v-model:folds) : `{ [sectionKey]: 'open'|'stack'|'tab' }`,
@@ -154,10 +154,23 @@ function cycleSection(key) {
   emit('update:folds', { ...props.folds, [key]: LEVELS[(cur + 1) % LEVELS.length] })
 }
 
+// Crans que la MOLETTE saute (`cran.wheelSkip`) : ils restent atteignables au
+// clic, mais la pellicule ne s'y arrête pas en défilant. C'est ce qui fait de la
+// zone de tête (l'analyse) un seul palier — on y entre sur son premier calque, un
+// cran de plus en ressort, sans dérouler les autres. Le cran suivant est donc le
+// premier NON sauté dans le sens du geste ; s'il n'y en a pas, on reste où on est
+// (rien à sauter vers le bord).
+function nextStop(next) {
+  const dir = Math.sign(next - props.focused) || 1
+  let i = next
+  while (props.crans[i]?.wheelSkip) i += dir
+  return props.crans[i] ? i : props.focused
+}
+
 const { onWheel } = useWheelStepper({
   slideCount: computed(() => props.crans.length),
   focused: computed(() => props.focused),
-  onStep: (next) => emit('update:focused', next),
+  onStep: (next) => emit('update:focused', nextStop(next)),
 })
 </script>
 

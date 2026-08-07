@@ -79,11 +79,13 @@
             @update:focused="focused = $event"
         >
           <template #spread="{ cran }">
-            <!-- Le calque de tête : l'entrée du panneau de recherche (nuage +
-                 passages). Un seul feuillet, dans la zone au nom du livre. -->
+            <!-- Les calques de tête : les sections d'analyse, dans la zone au nom
+                 du livre. Le premier (Vocabulaire) est l'entrée du panneau de
+                 recherche ; les suivants changent la vue montée à côté des
+                 passages. -->
             <MaquetteAnalyseCell
                 v-if="cran.sourceKey === 'analyse'"
-                label="Vocabulaire"
+                :label="cran.analyseLabel"
                 :ratio="previewRatio"
             />
             <PageDiagram
@@ -111,26 +113,6 @@
       </template>
     </MaquetteStructureNav>
 
-    <!-- Accordéon d'ANALYSE : indépendant de la pellicule du livre (qui tient la
-         gauche) et ferré au bord droit, dans la même bande. Un cran par section du
-         dashboard, Vocabulaire excepté — c'est le calque de tête de la pellicule,
-         et donc la vue par défaut à l'entrée. Le cran focusé ici décide de la vue
-         montée dans la scène (cf. .maq-analyse). -->
-    <div v-if="searching" class="maq-search-dock">
-      <MaquetteAccordeon
-          v-model:folds="searchFolds"
-          align="right"
-          :crans="searchCrans"
-          :focused="searchFocused"
-          :ratio="previewRatio"
-          @update:focused="searchFocused = $event"
-      >
-        <template #spread="{ cran }">
-          <MaquetteAnalyseCell :label="cran.label" :ratio="previewRatio" />
-        </template>
-      </MaquetteAccordeon>
-    </div>
-
     <!-- Colonne gauche (2/3) : aperçu témoin + dock accordéon, sous la doc-bar. -->
     <div class="maquette__left">
       <div class="maquette__panels">
@@ -154,6 +136,7 @@
                   mode="spread"
                   :visible-pages="folioVisiblePages"
                   :side-rails="1"
+                  :column-shift="searching ? -1 : 0"
                   :body-cross="isFormat && !searching"
                   :bare-pages="searching"
                   :clamp-entries="isLiminaire"
@@ -240,38 +223,52 @@
               </div>
             </div>
 
-            <!-- Vue de la section d'analyse focusée dans l'accordéon de recherche,
-                 en regard des résultats sur deux pages de largeur. C'est la CARD du
-                 dashboard, montée telle quelle (elle porte ses propres états
-                 vide/révélation) — sauf le Vocabulaire, dont on garde le nuage nu,
-                 déjà réglé pour cette boîte. -->
+            <!-- Vue du CALQUE d'analyse focusé dans l'accordéon de recherche, en
+                 regard des résultats sur deux pages de largeur. Ce sont les CARDS du
+                 dashboard, montées telles quelles (elles portent leurs propres états
+                 vide/révélation) et empilées au scroll vertical — sauf le
+                 Vocabulaire, dont on garde le nuage nu, déjà réglé pour cette boîte. -->
             <div
                 v-if="searchLayout"
                 ref="cloudEl"
                 class="maq-analyse"
-                :style="{ left: analyseLeft }"
+                :style="{ left: analyseLeft, right: analyseColumn }"
             >
               <VocabulaireCloud
                   v-if="isCloudView"
                   compact
+                  :category="mainCategory"
                   :width="cloudW"
                   :dims="CLOUD_DIMS"
               />
-              <CustomScrollbar v-else-if="analyseCard" class="maq-analyse__scroll">
-                <component :is="analyseCard" />
+              <CustomScrollbar v-else-if="analyseCards.length" class="maq-analyse__scroll">
+                <component v-for="c in analyseCards" :key="c.key" :is="c.comp" />
               </CustomScrollbar>
-              <p v-else class="maq-analyse__empty">{{ focusedAnalyse?.label }}</p>
+              <p v-else class="maq-analyse__empty">{{ focusedLayer?.label }}</p>
             </div>
 
-            <!-- Colonne 1/3 des blocs d'analyse, sortie du bloc : posée EN
-                 ABSOLU par-dessus la planche, ferrée à droite. Chaque card y
+            <!-- Colonne 1/3 des blocs d'analyse, sortie du bloc : la COLONNE que
+                 la planche libère en glissant d'un cran (cf. column-shift), ferrée
+                 au bord droit et large d'une période de trame. Chaque card y
                  téléporte son `#aside` (cf. AnalyseBlock, `analyseAsideTo`) ;
-                 seul le Vocabulaire pose la sienne à la main — la scène monte
-                 son nuage NU, sa card n'est donc jamais montée pour le faire. -->
-            <div v-if="searchLayout" class="maq-analyse-aside">
+                 seul le Vocabulaire pose le sien à la main — la scène monte son
+                 nuage NU, sa card n'est donc jamais montée pour le faire. Sur le
+                 Vocabulaire elle empile les mini-nuages des types QUE LE GRAND
+                 NUAGE NE MONTRE PAS (cliquer l'un d'eux le promeut, celui qu'il
+                 remplace revient dans la liste) PUIS le détail du mot retenu. -->
+            <div v-if="searchLayout" class="maq-analyse-aside" :style="{ width: analyseColumn }">
               <CustomScrollbar>
                 <div ref="analyseAsideEl" class="maq-analyse-aside__inner split-aside">
                   <template v-if="isCloudView">
+                    <div class="maq-minis">
+                      <MiniCloud
+                          v-for="mini in miniClouds"
+                          :key="mini.key"
+                          :category="mini.key"
+                          :label="mini.label"
+                          @activate="mainCategory = mini.key"
+                      />
+                    </div>
                     <OccurrencesCard />
                     <SemantiqueCard />
                   </template>
@@ -376,6 +373,7 @@ import MaquetteFragmentPreview from './MaquetteFragmentPreview.vue'
 import MaquetteStructureNav from './MaquetteStructureNav.vue'
 import MaquetteBar from './MaquetteBar.vue'
 import VocabulaireCloud from '../analyse/lexical/VocabulaireCloud.vue'
+import MiniCloud from '../analyse/lexical/MiniCloud.vue'
 import OccurrencesCard from '../analyse/lexical/OccurrencesCard.vue'
 import SemantiqueCard from '../analyse/semantic/SemantiqueCard.vue'
 import FolioView from '../editor/FolioView.vue'
@@ -395,7 +393,7 @@ import { useLiminaireComposition } from '../../composables/useLiminaireCompositi
 import { useAnalyse } from '../../composables/useAnalyse'
 import { useDocSearch } from '../../composables/useDocSearch'
 import { useDocStats } from '../../composables/useDocStats'
-import { visibleSections, sectionByKey } from '../../script/analyseSections'
+import { analyseLayers } from '../../script/analyseSections'
 import { ANALYSE_CARDS } from '../analyse/analyseCards'
 import { fragmentPages } from '../../script/searchFragment'
 import { spreadStyles } from '../../script/liminaire-styles'
@@ -478,9 +476,23 @@ async function onRecalCommitted(summary) {
   await load(route.params.id)
 }
 
-// Cran 1 = Format : le cran 0 est le calque « Vocabulaire », qui OUVRE la
-// recherche — l'écran s'ouvrirait dessus.
-const focused = ref(1)
+// ── Analyse : les sections du dashboard sont les crans de TÊTE de la pellicule
+// (zone au nom du livre). La chaîne de révélation est l'entrée du DASHBOARD (une
+// card après l'autre, sur signal) ; ici personne ne la lance, et sans elle chaque
+// `AnalyseBlock` monté dans la scène resterait invisible, données présentes ou
+// non. On révèle donc tout d'emblée — et DANS LE SETUP, pas au montage : la liste
+// des sections en dépend (deux d'entre elles attendent `lexical`), et elle doit
+// être arrêtée avant qu'on ne pose le cran focusé, sinon la pellicule gagne deux
+// crans après coup et tout ce qui suit se décale sous le focus.
+const { isRevealed, revealAll } = useAnalyse()
+revealAll()
+// Les sections d'analyse groupées en CALQUES : un calque = un cran de tête, qui
+// empile ses cards au scroll (cf. analyseLayers, la scène de recherche).
+const layers = computed(() => analyseLayers(isRevealed))
+
+// L'écran s'ouvre sur le Format, soit le premier cran APRÈS ceux de l'analyse (qui
+// ouvrent la pellicule et ouvriraient la recherche avec eux).
+const focused = ref(layers.value.length)
 
 const {
   spreads: limSpreads, types: limTypes, suggestions: limSuggestions,
@@ -507,10 +519,22 @@ const chapSections = computed(() =>
 // chapitrage une par niveau.
 const series = computed(() => {
   const out = []
-  // En TÊTE, une zone au nom du livre avec un seul calque : le Vocabulaire, qui
-  // ouvre le panneau de recherche. On y entre et on en sort en scrollant la
+  // En TÊTE, une zone au nom du livre : TOUTES les sections d'analyse, Vocabulaire
+  // en premier (c'est l'entrée du panneau de recherche, donc la vue par défaut).
+  // Elles ont eu leur propre pellicule ferrée à droite ; deux accordéons pour un
+  // seul écran, c'était une pellicule de trop — l'analyse est une zone du livre
+  // comme le Format ou le Liminaire. On y entre et on en sort en scrollant la
   // pellicule — la recherche est un cran comme un autre, pas un mode à part.
-  out.push({ key: 'vocabulaire', label: bookTitle.value || 'Le livre', spreads: [{ sourceKey: 'analyse' }] })
+  // `wheelSkip` sur tous sauf le premier : la zone entière ne vaut qu'UN palier de
+  // molette. On y entre sur le Vocabulaire, un cran de plus en ressort — les autres
+  // sections ne s'atteignent qu'au clic sur leur calque (cf. MaquetteAccordeon).
+  out.push({
+    key: 'vocabulaire',
+    label: bookTitle.value || 'Le livre',
+    spreads: layers.value.map((l, i) => ({
+      sourceKey: 'analyse', analyseKey: l.key, analyseLabel: l.label, wheelSkip: i > 0,
+    })),
+  })
 
   out.push({ key: 'format', label: 'Format', spreads: [{ sourceKey: 'maquette' }] })
 
@@ -607,13 +631,20 @@ watch(
 )
 
 // Entrée/sortie du panneau de recherche : c'est un déplacement dans la pellicule,
-// la molette suffit. Le champ (au focus) et Échap ne font que viser le cran.
+// la molette suffit. Le champ (au focus) et Échap ne font que viser le cran. On
+// entre par le Vocabulaire (premier cran d'analyse) et on sort par le premier cran
+// qui n'en est pas — les sections d'analyse sont plusieurs, sortir n'est pas
+// « avancer d'un cran ».
 const vocabIndex = computed(() => crans.value.findIndex((c) => c.sourceKey === 'analyse'))
+const afterAnalyseIndex = computed(() => {
+  const i = crans.value.findIndex((c) => c.sourceKey !== 'analyse')
+  return i === -1 ? crans.value.length - 1 : i
+})
 function enterSearch() {
   if (vocabIndex.value !== -1) focused.value = vocabIndex.value
 }
 function exitSearch() {
-  if (searching.value) focused.value = Math.min(vocabIndex.value + 1, crans.value.length - 1)
+  if (searching.value) focused.value = afterAnalyseIndex.value
 }
 
 const searchQuery = ref('')
@@ -663,15 +694,6 @@ const searchTitle = computed(() => {
   return resultPageCount.value > 1 ? `${base} · page ${resultPage.value + 1}/${resultPageCount.value}` : base
 })
 
-// ── Accordéon de la recherche : un cran par section du dashboard d'analyse ───
-// Même composant que la pellicule du livre (mêmes onglets, même molette), monté
-// dans l'espace que celle-ci libère en se repliant. Une seule zone : sept zones
-// d'un cran feraient une pellicule bien plus large que la place disponible.
-const { isRevealed, revealAll } = useAnalyse()
-// La chaîne de révélation est l'entrée du DASHBOARD (une card après l'autre, sur
-// signal). Ici personne ne la lance : sans ça, chaque `AnalyseBlock` monté dans la
-// scène reste invisible, données présentes ou non. On révèle donc tout d'emblée.
-onMounted(revealAll)
 // La colonne 1/3 des blocs ne tient pas dans la scène : les blocs la TÉLÉPORTENT
 // dans le panneau flottant ferré à droite (cf. AnalyseBlock, `analyseAsideTo`).
 // L'élément n'existe qu'en recherche — d'où un ref, que le Teleport attend.
@@ -682,40 +704,38 @@ provide('analyseAsideTo', analyseAsideEl)
 // contenu et de déborder (cf. `.split--fit`).
 provide('analyseFit', true)
 
-const analyseSections = computed(() => visibleSections(isRevealed))
-// Le Vocabulaire n'est plus de cet accordéon : c'est le calque de tête de la
-// pellicule du livre, et donc la vue par défaut du panneau.
-const searchSections = computed(() => analyseSections.value.filter((s) => s.key !== 'vocabulaire'))
-const searchCrans = computed(() =>
-  searchSections.value.map((s, i) => ({
-    sourceKey: 'analyse',
-    key: s.key,
-    label: s.label,
-    sectionKey: 'analyse',
-    sectionLabel: 'Analyse',
-    isSectionStart: i === 0,
-  })),
-)
-// -1 = aucun cran de l'accordéon de droite retenu, donc le Vocabulaire (on vient
-// d'entrer par son calque). Le premier clic/molette sur cet accordéon prend la main.
-const searchFocused = ref(-1)
-const searchFolds = ref({})
-watch(searching, (on) => { if (on) searchFocused.value = -1 })
-
 // La section dont la VUE est montée dans la scène (à droite des résultats), et la
 // card correspondante. Le Vocabulaire fait exception : on y monte le nuage NU (la
 // card entière lui adjoindrait occurrences + proximité, deux colonnes de trop ici).
-const focusedAnalyse = computed(() =>
-  searchFocused.value < 0
-    ? sectionByKey('vocabulaire')
-    : searchSections.value[searchFocused.value] ?? null,
+const focusedLayer = computed(() => layers.value.find((l) => l.key === focusedCran.value?.analyseKey) ?? null)
+const isCloudView = computed(() => focusedLayer.value?.key === 'vocabulaire')
+// Un calque non-Vocabulaire empile les cards de ses sections (scroll vertical).
+const analyseCards = computed(() =>
+  (focusedLayer.value?.sections ?? [])
+    .map((s) => ({ key: s.key, comp: ANALYSE_CARDS[s.key] }))
+    .filter((c) => c.comp),
 )
-const isCloudView = computed(() => focusedAnalyse.value?.key === 'vocabulaire')
-const analyseCard = computed(() => ANALYSE_CARDS[focusedAnalyse.value?.key] ?? null)
 
 // Gabarit du nuage inline : deux pages de large pour une de haut (≈ le ratio d'une
 // double page A5), là où le dock lui donnait un bandeau plat.
 const CLOUD_DIMS = { width: 1040, height: 740, verticalRatio: 0.25 }
+
+// Les types de mots du nuage, dans l'ordre de la colonne : les personnages et les
+// lieux d'abord (c'est ce qu'on cherche dans un roman), la grammaire ensuite. Pas
+// d'adverbes — trop peu porteurs pour mériter une case.
+const CLOUD_CATEGORIES = [
+  { key: 'nom', label: 'Noms' },
+  { key: 'personne', label: 'Personnages' },
+  { key: 'lieu', label: 'Lieux' },
+  { key: 'verbe', label: 'Verbes' },
+  { key: 'adj', label: 'Adjectifs' },
+]
+// Le type porté par le GRAND nuage. Les autres restent en minis dans la colonne :
+// promouvoir un mini le retire de la liste, celui qu'il remplace y revient à sa
+// place (l'ordre ci-dessus ne bouge jamais — sinon les vignettes danseraient d'un
+// clic à l'autre).
+const mainCategory = ref('nom')
+const miniClouds = computed(() => CLOUD_CATEGORIES.filter((c) => c.key !== mainCategory.value))
 const cloudEl = ref(null)
 const cloudW = ref(0)
 let cloudRo = null
@@ -1073,6 +1093,15 @@ const analyseLeft = computed(() => {
   const p = spreadGeometry.value?.pages?.[0]
   return p ? `${Math.round(p.left + p.width)}px` : '40%'
 })
+// LA colonne : une période de trame (page + gouttière), telle que la planche la
+// mesure. C'est celle que le glissement de la planche vers la gauche
+// (`column-shift`) libère au bord droit — elle borne le nuage et donne sa largeur
+// à la colonne des minis, les deux restant ainsi calés sur le pavage du fond.
+// Repli sur une valeur en `em` tant que la géométrie n'est pas arrivée.
+const analyseColumn = computed(() => {
+  const period = spreadGeometry.value?.period
+  return period ? `${Math.round(period)}px` : '22em'
+})
 // Rects écran des paragraphes rendus (clés par entry.key) : l'overlay liminaire y
 // ancre ses contrôles de découpage en marge.
 const blockGeometry = ref([])
@@ -1305,16 +1334,18 @@ onUnmounted(() => { if (section) section.value = null })
   min-height: 0;
 }
 
-/* Recherche : la planche NE BOUGE PAS. Elle garde sa place et sa largeur (le
-   FolioView réserve la rangée de la planche visée même s'il n'a qu'une page, cf.
-   useFolioScale) — la page de résultats occupe donc exactement la case de la page
-   de gauche. C'est la vue d'analyse qui se cale sur elle (cf. analyseLeft), et non
-   plus la planche qui se ferre à gauche pour lui laisser la place. */
+/* Recherche : la planche garde sa TAILLE (le FolioView réserve la rangée de la
+   planche visée même s'il n'a qu'une page, cf. useFolioScale) mais GLISSE d'une
+   colonne vers la GAUCHE (`column-shift`, un simple transform : rien à remettre à
+   l'échelle) — les lambeaux passent dans la case du rail gauche. C'est ce
+   glissement qui libère une colonne au bord droit (les minis) sans rien retirer au
+   nuage, qui garde ses deux colonnes et se cale sur la nouvelle position de la
+   page (cf. analyseLeft). */
 
 /* Vue de la section d'analyse focusée (nuage compris) : EN REGARD de la page de
-   résultats, son bord gauche calé sur le bord droit de cette page (`left` posé en
-   inline depuis la géométrie émise — la planche ne bouge plus, c'est la vue qui se
-   range à côté d'elle). `overflow` parce que le SVG du nuage déborde volontiers de
+   résultats, son bord gauche calé sur le bord droit de cette page et son bord
+   droit sur la colonne libérée (`left`/`right` posés en inline depuis la
+   géométrie émise). `overflow` parce que le SVG du nuage déborde volontiers de
    sa boîte.
    Bornée EN HAUT ET EN BAS plutôt qu'à une hauteur choisie : la boîte se calcule
    sur la fenêtre et s'arrête au-dessus du dock, sans valeur à réajuster à la main.
@@ -1326,8 +1357,6 @@ onUnmounted(() => { if (section) section.value = null })
   min-height: 0;
   overflow: hidden;
   position: fixed;
-
-  right: 0px;
   /* `fixed` = calé sur le viewport : le décalage compte la pile de barres, dont
      la troisième (MaquetteBar) fait partie. */
   top: calc(4em + var(--bar-size));
@@ -1342,38 +1371,30 @@ onUnmounted(() => { if (section) section.value = null })
   height: 100%;
 }
 
-/* Colonne des asides d'analyse : posée PAR-DESSUS la planche (z 3, au-dessus de
-   `.maq-analyse` à 2), ferrée au bord droit, sur la même bande verticale que la
-   vue qu'elle commente. Carte flottante, comme les contrôles liminaire et le
-   sommaire — elle se lit comme posée, pas comme une troisième colonne. */
+/* Colonne des asides d'analyse : LA colonne que la planche libère en glissant
+   d'un cran (cf. column-shift), ferrée au bord droit, large d'une période de
+   trame (`width` posée en inline depuis la géométrie émise). Elle ne recouvre
+   plus rien — le nuage s'arrête à son bord — d'où l'abandon de la révélation au
+   survol : c'est une colonne, pas une carte posée. Sans cadre ni fond : elle se
+   pose nue sur la trame, comme les mini-nuages qu'elle porte. */
 .maq-analyse-aside {
   position: fixed;
   right: 0;
   top: calc(4em + var(--bar-size));
   bottom: calc(var(--maq-dock-h) + var(--sp-4));
-  width: 22em;
   max-width: 40%;
   z-index: 3;
-  border: 1px solid var(--c-border);
-  border-radius: var(--radius-md);
-  background: var(--c-card-float);
-  backdrop-filter: var(--c-backdrop-filter-blur);
-  /* RÉVÉLÉE AU SURVOL de la vue d'analyse (même parti pris que les contrôles
-     liminaire) : au repos elle s'efface, la planche de résultats se lit sans
-     commentaire posé dessus. `pointer-events` suit l'opacité — effacée, elle
-     laisserait sinon passer les clics destinés au nuage qu'elle recouvre. */
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.18s ease;
 }
 
-/* La colonne recouvrant la vue, le pointeur qui y entre la retire du survol de
-   `.maq-analyse` : elle se retient elle-même (`:hover` propre), sinon elle
-   s'effacerait sous la souris au moment de la lire. */
-.maq-analyse:hover ~ .maq-analyse-aside,
-.maq-analyse-aside:hover {
-  opacity: 1;
-  pointer-events: auto;
+/* Les trois mini-nuages en tête de colonne : ils se lisent comme un bloc, d'où un
+   seul écart entre eux et le séparateur de `.split-aside` en dessous. La
+   respiration est celle des cards de la colonne (`--split-pad-aside`) — un bloc
+   brut n'en hérite pas, seuls les corps d'UiCard sont servis par analyse.css. */
+.maq-minis {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--split-pad-aside);
 }
 
 /* Boîte d'accueil du Teleport. Respiration et séparateurs viennent de
@@ -1492,22 +1513,6 @@ onUnmounted(() => { if (section) section.value = null })
 
 .maq-recal-report__close:hover {
   color: var(--c-danger);
-}
-
-/* Accordéon d'analyse : même bande que le dock du livre (hauteur `--maq-dock-h`,
-   même talon en bas) mais ferré au bord DROIT de la fenêtre, et indépendant — la
-   pellicule du livre tient la gauche, réduite à ses onglets tant que la recherche
-   est ouverte. Même plan que le sommaire flottant (z 160), sous les modales. */
-.maq-search-dock {
-  position: fixed;
-  right: 0;
-  bottom: var(--sp-4);
-  width: 60vw;
-  /* Ne jamais recouvrir la pellicule du livre (zone dépliée + onglets) : sa scène
-     capterait la molette, et on ne pourrait plus SORTIR de la recherche. */
-  max-width: calc(100vw - 28em);
-  height: var(--maq-dock-h);
-  z-index: 160;
 }
 
 /* Aperçu de page dans la cellule d'accordéon : ajusté sur la HAUTEUR du cran (le

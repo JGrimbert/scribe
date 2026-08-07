@@ -16,6 +16,13 @@ dans `../../composables/CLAUDE.md`.
 - **Quill est invisible par défaut** (prop `quillVisible`, debug only) : le
   WYSIWYG est le miroir Folio + faux curseur ; Quill ne fait que capter la frappe.
   `syncQuill` aligne ses MÉTRIQUES (wrapping), pas sa position.
+- **`columnShift`** (spread) — décale la planche de N **périodes de trame** (page +
+  gouttière), signé. C'est un `transform` sur l'iframe : ni la place réservée ni
+  l'échelle n'en dépendent (la planche ne change pas de taille d'un cran à l'autre,
+  contrainte de la maquette), et surtout PAS sur `.folio-pad` ni un ancêtre — la
+  trame de fond y est en `position: fixed`, un transform au-dessus d'elle en
+  ferait son référentiel. Glissé via `animateScale`, dont la boucle rAF recale
+  trame et géométrie émise à chaque frame.
 - **`fitScale`** ajuste l'échelle sur la largeur (viser `visiblePages`) ET la
   hauteur ; le `clientHeight` vient du flex parent (**indépendant du contenu →
   pas de boucle de rétroaction d'échelle**). `.folio-view--edit` doit garder une

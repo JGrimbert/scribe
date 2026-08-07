@@ -9,7 +9,6 @@ import ThemesCard from './themes/ThemesCard.vue'
 import ThemesFlowCard from './themes/ThemesFlowCard.vue'
 import EntitiesLeftoverCard from './themes/EntitiesLeftoverCard.vue'
 import AnomaliesCard from './structure/AnomaliesCard.vue'
-import LengthsCard from './structure/LengthsCard.vue'
 import SemanticCard from './semantic/SemanticCard.vue'
 
 export const ANALYSE_CARDS = {
@@ -18,7 +17,6 @@ export const ANALYSE_CARDS = {
   themes: ThemesCard,
   flux: ThemesFlowCard,
   anomalies: AnomaliesCard,
-  longueurs: LengthsCard,
   semantique: SemanticCard,
   unites: LexicalUnitsCard,
   entites: EntitiesLeftoverCard,

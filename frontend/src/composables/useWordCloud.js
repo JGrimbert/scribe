@@ -39,6 +39,13 @@ export function useWordCloud(words, onSettle, dims = {}) {
   const height = dims.height ?? CLOUD_H
   // Part des mots pivotés à 90° (cf. placeWords) — 0 = tout horizontal.
   const verticalRatio = dims.verticalRatio ?? 0
+  // Respiration autour du repère (le viewBox l'ajoute). Un mini-nuage la veut
+  // plus courte : la marge du grand nuage y mangerait la moitié de la boîte.
+  const margin = dims.margin ?? CLOUD_MARGIN
+  // `static` : placement SEUL, sans simulation de force ni sélection d'entrée.
+  // Trois mini-nuages à côté du grand en feraient autant de boucles rAF
+  // permanentes pour un repoussement qu'on ne va pas y chercher.
+  const isStatic = dims.static ?? false
 
   const placed = ref([])
   const selected = ref(null)
@@ -90,6 +97,12 @@ export function useWordCloud(words, onSettle, dims = {}) {
       x: w.x,
       y: w.y,
     }))
+
+    if (isStatic) {
+      placed.value = simNodes.slice()
+      onSettle?.()
+      return
+    }
 
     // Animation relative au nombre de mots : plus il y en a, plus le
     // repoussement est discret (÷ charge) et court (décroissance ∝ charge).
@@ -164,5 +177,5 @@ export function useWordCloud(words, onSettle, dims = {}) {
     }
   }
 
-  return { placed, selected, hovered, toggle, wordStyle, CLOUD_W: width, CLOUD_H: height, CLOUD_MARGIN }
+  return { placed, selected, hovered, toggle, wordStyle, CLOUD_W: width, CLOUD_H: height, CLOUD_MARGIN: margin }
 }

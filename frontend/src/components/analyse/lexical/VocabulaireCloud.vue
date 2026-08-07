@@ -30,6 +30,10 @@
            filtres passent en absolu par-dessus son bas (leur fond translucide les
            détache), et le nuage n'a plus à leur céder de place. Le wrapper
            non-compact est en `display:contents` pour ne pas casser le centrage. -->
+      <!-- Catégorie imposée : son nom, ferré en tête. Les chips retirés, c'est la
+           seule chose qui dise ce qu'on regarde. -->
+      <p v-if="category" class="cloud-tag">{{ categoryLabel }}</p>
+
       <div class="cloud-body">
         <component :is="compact ? CustomScrollbar : 'div'" :class="compact ? 'cloud-scroll' : 'cloud-scroll--flat'">
           <UiNote v-if="!words.length" variant="hint">
@@ -64,8 +68,10 @@
 
       <!-- Filtres ferrés en bas du bloc, sur deux lignes : natures grammaticales
            puis entités (Personnes/Lieux, distinguées en teal). Chaque chip :
-           items distincts de la catégorie · part des occurrences. -->
-      <div class="cloud-foot">
+           items distincts de la catégorie · part des occurrences. ABSENTS quand
+           l'hôte impose une catégorie (`category`) : c'est alors lui qui navigue —
+           la scène de recherche le fait par ses mini-nuages. -->
+      <div v-if="!category" class="cloud-foot">
         <ChipGroup>
           <BaseChip
               v-for="filter in POS_FILTERS"
@@ -112,10 +118,15 @@ import { useWordCloud } from '../../../composables/useWordCloud'
 // hôte n'a pas les proportions du volet — la maquette le pose désormais à côté des
 // résultats, sur une boîte HAUTE (deux pages de large) et non plus dans le bandeau
 // large et plat du dock. Lu au montage (comme le gabarit par défaut).
+// `category` : catégorie IMPOSÉE par l'hôte (nom|personne|lieu|verbe|adj…). Le
+// nuage n'en montre qu'elle et perd ses chips — la navigation d'une catégorie à
+// l'autre appartient alors à l'hôte (la scène de recherche la confie à ses
+// mini-nuages, cf. MiniCloud). Null = filtres cumulables du dashboard.
 const props = defineProps({
   compact: Boolean,
   width: { type: Number, default: 0 },
   dims: { type: Object, default: null },
+  category: { type: String, default: null },
 })
 
 const { analysis, running, stepErrors, selectedLemma, settle } = useAnalyse()
@@ -153,7 +164,18 @@ function onPickMax(value) {
 const { active, POS_FILTERS, ENTITY_FILTERS, filterStats, statLabel, words: allWords, filteredWords } =
   useCloudFilters(lexical)
 
-const words = computed(() => filteredWords.value.slice(0, maxWords.value))
+// Catégorie imposée : elle court-circuite les chips (qui ne sont pas rendus).
+const shownWords = computed(() => (
+  props.category ? allWords.value.filter((w) => w.category === props.category) : filteredWords.value
+))
+const words = computed(() => shownWords.value.slice(0, maxWords.value))
+
+// Libellé de la catégorie imposée, seule indication de ce que montre le nuage une
+// fois les chips retirés. Puisé dans les mêmes listes qu'eux : un libellé recopié
+// ici divergerait au premier renommage.
+const categoryLabel = computed(() => (
+  [...POS_FILTERS, ...ENTITY_FILTERS].find((f) => f.key === props.category)?.label ?? ''
+))
 
 // Volet de recherche : nuage large et plat (adapté au panneau court et large),
 // au lieu du repère ~1,7:1 du dashboard. `verticalRatio` : un tiers des mots
@@ -270,6 +292,21 @@ watch(
   padding: 0.35em 0.5em;
   background: color-mix(in srgb, var(--c-bg) 60%, transparent);
   backdrop-filter: var(--c-backdrop-filter-blur);
+}
+
+/* Nom de la catégorie affichée : posé SUR le nuage (absolu) plutôt que dans le
+   flux — en compact la boîte est étroite, une ligne de plus rognerait d'autant la
+   hauteur du nuage. */
+.cloud-tag {
+  position: absolute;
+  top: 0;
+  left: 0.5em;
+  margin: 0;
+  z-index: 1;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--c-ink2);
+  pointer-events: none;
 }
 
 .vocab-cloud {

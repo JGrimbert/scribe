@@ -101,9 +101,10 @@ coupure de page interne.
   `../../../backend/CLAUDE.md`). Le rôle `corps` ne porte jamais son `×N` (bruit
   attendu). Testé (`shapes.test.js`).
 - **`analyseSections.js`** — sections du dashboard d'analyse (clé + libellé +
-  `needs`), vocabulaire FERMÉ partagé par `AnalyseView` (qui en rend ses
-  `<section class="analyse-section">`) et par l'accordéon de recherche de la
-  Maquette (un cran par section). Testé.
+  `needs` + `layer`), vocabulaire FERMÉ partagé par `AnalyseView` (qui en rend ses
+  `<section class="analyse-section">`, une par section) et par l'accordéon de
+  recherche de la Maquette (un cran par CALQUE, `analyseLayers` groupant les
+  sections par `layer` et les empilant au scroll). Testé.
 - **`trame.js`** — parcours de l'arbre `trame.axes[]` (profondeur arbitraire) :
   `pathToInAxes` (fil d'Ariane), partagé par `DocumentBar` et `StructureView`.
 - **`liminaire-vocab.js`** / **`liminaire-pages.js`** /

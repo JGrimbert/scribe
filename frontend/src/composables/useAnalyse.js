@@ -38,7 +38,6 @@ export const DASHBOARD_STEPS = [
   { key: 'themes', label: 'Thématiques', needs: 'topics' },
   { key: 'flux', label: 'Fil des thèmes', needs: 'topics' },
   { key: 'completude', label: 'Complétude', needs: null },
-  { key: 'longueurs', label: 'Longueurs', needs: null },
   { key: 'pairs', label: 'Similarités', needs: 'semantic' },
 ]
 
