@@ -1,7 +1,8 @@
 <template>
   <!-- Pellicule générique : une suite de vis-à-vis (l'unité de focus) qui se
-       chevauchent en profondeur, seul le focusé à pleine taille (les autres à
-       0.75, OPAQUES). Les vis-à-vis sont regroupés en ZONES (Format · Liminaire ·
+       chevauchent en profondeur, TOUS à la même taille (OPAQUES) — le focusé se
+       distingue par sa place en tête d'escalier (drop 0) et son z-index, plus par
+       son onglet-jalon appuyé. Les vis-à-vis sont regroupés en ZONES (Format · Liminaire ·
        Chapitrage) : une zone = UNE balise (`MaquetteAccordeonSection`) portant son
        onglet-jalon ET ses vis-à-vis. Une zone DÉPLIÉE étale ses feuillets (pas
        OVERLAP) ; PLIÉE, elle les empile (recouvrement 95 %) et rend la place aux
@@ -94,7 +95,7 @@ const resting = computed(() => props.collapseOnLeave && atRest.value)
 // pages au ratio effectif) → on ménage de VRAIS intervalles vides entre groupes.
 // (L'ancrage normalisé qui remplissait la largeur faisait chevaucher les feuillets
 // par-dessus les coutures et posait les jalons sur les pages.)
-const CARD_H = 10.5    // hauteur d'un feuillet focusé, cf. .maq-cran
+const CARD_H = 8       // hauteur d'un feuillet (uniforme, plus de zoom du focusé), cf. .maq-cran
 const GROUP_GAP = 2.6  // vide entre deux zones ET marge de tête (accueille l'onglet)
 const OVERLAP = 0.34   // pas intra-zone dépliée, en fraction de la largeur d'un feuillet
 const OVERLAP_FOLDED = 0.05 // zone pliée : les feuillets se recouvrent à 95 %
@@ -187,13 +188,14 @@ const { onWheel } = useWheelStepper({
   pointer-events: none;
 }
 
-/* Hauteur CONSTANTE : talon serré sous le feuillet focusé (top 2.4em + 10.5em =
-   12.9em). Elle ne dépend plus du pli. L'aperçu ne la réserve plus (il descend
-   dessous, cf. .maquette__left) ; `--maq-dock-h` ne sert qu'aux panneaux qui se
-   ferrent AU-DESSUS du dock (vue d'analyse, volet des familles). */
+/* Hauteur CONSTANTE : talon serré sous le feuillet le plus bas (top 2.4em + drop
+   plafond ~1.25em + 8em ≈ 11.65em). Elle ne dépend plus du pli. L'aperçu ne la
+   réserve plus (il descend dessous, cf. .maquette__left) ; `--maq-dock-h` ne sert
+   qu'aux panneaux qui se ferrent AU-DESSUS du dock (vue d'analyse, volet des
+   familles) — à garder en phase avec cette valeur. */
 .maq-stage {
   position: relative;
-  height: 13.2em;
+  height: 11.8em;
 }
 
 /* Pellicule : contexte de positionnement des zones. Jamais mise à l'échelle ; ce

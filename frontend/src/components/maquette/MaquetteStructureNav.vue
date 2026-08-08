@@ -70,8 +70,9 @@ defineEmits(['focus-series', 'select-node'])
   left: 0;
   width: 15em;
   /* Hauteur PLEINE (et non `max-height`) : le pied doit pouvoir se caler en bas
-     de la colonne, le sommaire restant en tête. */
-  height: calc(100% - 2 * var(--bar-size) - var(--sp-4));
+     de la colonne, le sommaire restant en tête. La distance au pied de la fenêtre
+     est réduite de moitié (`--sp-4` / 2) — le dock accordéon descend d'autant. */
+  height: calc(100% - 2 * var(--bar-size) - var(--sp-4) / 2);
   display: flex;
 
   flex-direction: column;

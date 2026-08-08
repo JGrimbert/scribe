@@ -1167,7 +1167,7 @@ provide('maq', {
      hissées ici pour être vues À LA FOIS par la colonne gauche et par le volet
      groupes ferré au viewport (cf. .maq-groupes-zone). */
   --maq-gutter: 15em;
-  --maq-dock-h: 13.2em;
+  --maq-dock-h: 11.8em;
   /* Hauteur du volet de validation : en `vh` pour remonter dans la fenêtre et
      recouvrir le bas de la planche du folio (au-delà du dock). */
   --maq-groupes-h: 48vh;
