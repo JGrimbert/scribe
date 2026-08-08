@@ -3,6 +3,10 @@
 Le tableau de bord de `/documents/:id` : `AnalyseView.vue` (la **page**) monte une
 grille de cards, rangées par famille (chacune son doc, chargé à la demande) :
 - **`structure/`** — cards sans NLP (complétude, conformité, anomalies, nœuds).
+  **La section `anomalies` a quitté le dashboard** (retirée de `ANALYSE_SECTIONS`) :
+  l'`AnomaliesCard`/`Table` + `CompletenessChart` vivent désormais dans le jalon
+  « Annotations » de la Maquette (`../maquette/MaquetteAnnotations.vue`) ; les
+  composants restent ici, seule leur entrée de grille a disparu.
 - **`lexical/`** — champ lexical (réseau, nuage, unités, occurrences).
 - **`semantic/`** — proximité sémantique (paires, inspecteur de nœud).
 - **`themes/`** — thèmes BERTopic (liste, détail, carte UMAP).

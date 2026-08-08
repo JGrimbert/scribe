@@ -8,7 +8,6 @@ import LexicalUnitsCard from './lexical/LexicalUnitsCard.vue'
 import ThemesCard from './themes/ThemesCard.vue'
 import ThemesFlowCard from './themes/ThemesFlowCard.vue'
 import EntitiesLeftoverCard from './themes/EntitiesLeftoverCard.vue'
-import AnomaliesCard from './structure/AnomaliesCard.vue'
 import SemanticCard from './semantic/SemanticCard.vue'
 
 export const ANALYSE_CARDS = {
@@ -16,7 +15,6 @@ export const ANALYSE_CARDS = {
   lexical: LexicalCard,
   themes: ThemesCard,
   flux: ThemesFlowCard,
-  anomalies: AnomaliesCard,
   semantique: SemanticCard,
   unites: LexicalUnitsCard,
   entites: EntitiesLeftoverCard,

@@ -18,8 +18,38 @@ vues. Routes (`index.js`, `vue-router`) :
   routes enfants, monte `DocumentBar` + l'aside (registre XOR `StructureView`
   selon `asideMode`). Détient l'état de validation et le scope d'analyse (cf.
   `../components/CLAUDE.md`, « Menus »). Enfants :
-  - **`''` (`maquette`) — `MaquetteView.vue`** : la vue par défaut du document.
-    Voir `../components/maquette/CLAUDE.md`.
+  - **`''` — `MaquetteView.vue` (COQUILLE) + jalons routés en enfants** : la vue
+    par défaut du document. `MaquetteView` garde barres, sommaire, dock et l'**unique
+    `FolioView` persistant** (jamais démonté d'un jalon à l'autre), et route ses
+    **jalons** dans un `<router-view>` (couche par-dessus le folio, dans `.folio-col`).
+    Enfants (`components/maquette/panes/`) :
+    - **`''` (`maquette`) — `MaquetteVocabulairePane`** : jalon de tête
+      « titredulivre » (vocabulaire/recherche). **Route par défaut, hors URL et hors
+      fil d'Ariane.** Garde le name `maquette` → tous les `{name:'maquette'}` /
+      `/documents/:id` existants y atterrissent.
+    - **`Format` (`maquette-format`) — `MaquetteFormatPane`** : callouts de format.
+    - **`Liminaire/:n?` (`maquette-liminaire`) — `MaquetteLiminairePane`** : `n` =
+      index de planche (1-based). Contrôles + callouts de styles liminaire.
+    - **`Chapitrage/:n?` (`maquette-chapitrage`) — `MaquetteChapitragePane`** : `n` =
+      niveau de chapitrage (1-based). Callouts « exigé » + volet des familles (validation).
+    - **`Annotations` (`maquette-annotations`) — `MaquetteAnnotationsPane`** : le folio
+      coule les **fragments annotés** en lambeaux (passages surlignés typés
+      `annotation`, réutilise la scène de recherche : `pouring` = `searching` ∪
+      `validation`). Le pane pose EN REGARD le panneau de validation
+      (`MaquetteAnnotations` : avancement · seuil · chapitres en attente, ex-jalon
+      Anomalies fondu ici) et, en tête des lambeaux, le menu de filtres
+      (`MaquetteAnnotationFilters`, ex-« Surlignages »). Plus de `<router-view
+      name="aside">` (l'ancienne aside `MaquetteAnnotationsAside`/`MaquetteAside` est
+      supprimée).
+    - **Synchro `focused` ⇄ route** : `focused` (index de cran) reste la SoT interne
+      du dock/sommaire/calques d'analyse ; la route ne pin que le JALON (+ planche/
+      niveau). Deux watches gardés (flag anti-boucle) dans `MaquetteView` ;
+      `router.replace` (la molette ne pollue pas l'historique). Naviguer entre les
+      calques de titredulivre ne touche pas l'URL (défaut). Le modèle partagé est
+      fourni aux panes via `provide('maq', {...})` — le folio reste dans la coquille.
+    - **Famille de routes** : `DocumentLayout`/`DocumentBar`/`App.vue` testent
+      `route.name?.startsWith('maquette')` (aside gauche masquée, libellé « Maquette »,
+      champ de recherche cédé au sommaire flottant).
   - **`analyse` (`document`) — `AnalyseView.vue`** : dashboard d'analyse (grille
     de cards). Voir `../components/analyse/CLAUDE.md`. Le name reste `document`
     (scope d'analyse, labels…). **Plus aucune icône du menu n'y mène** — la route

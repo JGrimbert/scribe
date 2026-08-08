@@ -3,7 +3,7 @@
 **⚠️ Plus d'écran routé (2026-08-05).** `ConfigView.vue` a été SUPPRIMÉ et la
 route `config` retirée (`/config` et `/styles` **redirigent vers `maquette`**) :
 styles, règles, surlignages et recalibrage vivent désormais dans la **maquette**
-(`../maquette/MaquetteView.vue` + `MaquetteAside` + `MaquetteBar`). Ce dossier
+(`../maquette/MaquetteView.vue` + panes routés + `MaquetteBar`). Ce dossier
 reste un **fournisseur de composants partagés** que la maquette monte. Les
 sections d'orchestration propres à l'ancien écran — `TypologySection.vue`,
 `LayoutSection.vue`, `PageFormatSection.vue`, `RunningBandControl.vue`,
@@ -14,21 +14,25 @@ Le vocabulaire reste le **niveau de chapitrage** (`../../script/zones.js`,
 
 ## Découpage
 
-- **L'orchestration vit maintenant dans `../maquette/MaquetteView.vue`** (aside =
-  `MaquetteAside`, socle règles + surlignages sur le cran « Validation », flux de
-  recalibration, action « Enregistrer » dans la doc-bar). L'ancien `ConfigView`
-  qui bouclait sur `TypologySection` n'existe plus.
+- **L'orchestration vit maintenant dans `../maquette/MaquetteView.vue`** + ses panes
+  routés (`../maquette/panes/`). Le socle **règles** + la **complétude/anomalies**
+  sont sur le jalon « Annotations » (`MaquetteAnnotations`, en regard des lambeaux),
+  les **surlignages** y sont passés en menu de filtres (`MaquetteAnnotationFilters`).
+  Flux de recalibration + action « Enregistrer » dans la doc-bar. L'ancien
+  `ConfigView`/`MaquetteAside` (aside pleine hauteur) n'existent plus.
 - **`../../composables/useTypologyConfig.js`** porte les données : inventaire,
   `styles`, `highlights`, `rules` (`{ default, byDepth }`), `settled`, les
   modèles (`useStructureShapes`), et le calcul des `sections` (une par zone,
   `groupByZone` + `shapeGroups` + profondeur des règles). `load(id)`/`save(id)`.
 - **`HighlightsList.vue`** — les surlignages relevés (couleur · comptes ·
-  ventilation · échantillon · rôle) : l'aside « Validation » de la maquette
-  (`../maquette/MaquetteAside.vue`) le monte avec `RuleSetForm`. `highlights` est
-  muté en place.
+  ventilation · échantillon · rôle). **N'est plus monté** (l'aside « Validation » a
+  disparu) : le jalon Annotations utilise `../maquette/MaquetteAnnotationFilters.vue`
+  (menu de filtres, ex-« Surlignages »), plus léger. Composant conservé, `highlights`
+  y était muté en place.
 - **`StyleRolesTable.vue`** — table style · (succession) · rôle · (exigé) ·
-  (ce qui précède), scopée à une zone, montée par `MaquetteAside` (liminaire +
-  chapitrage). `styleRoles` est muté **en place**. Colonne **`show-precedes`**
+  (ce qui précède), scopée à une zone, montée par les **callouts de styles** de la
+  maquette (`MaquetteStyleCallouts`, liminaire + chapitrage). `styleRoles` est muté
+  **en place**. Colonne **`show-precedes`**
   (opt-in) : `precedesOf`/`setPrecedes` sur la map **`stylePrecedence`** INJECTÉE
   (rien/saut/blanche par style, cf. `../liminaire/CLAUDE.md` et backend
   `typology.ts`) ; un **filet teal coiffe** les lignes qui ouvrent une page

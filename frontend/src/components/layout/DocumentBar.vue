@@ -272,11 +272,16 @@ const SCREEN_LABELS = {
 }
 
 const route = useRoute()
-const screenLabel = computed(() => SCREEN_LABELS[route.name] ?? null)
+// La maquette est une FAMILLE de routes (coquille + jalons `maquette-*`) : tous
+// portent le libellé d'écran « Maquette ».
+const isMaquetteRoute = computed(() => route.name?.startsWith('maquette') ?? false)
+const screenLabel = computed(() =>
+  isMaquetteRoute.value ? SCREEN_LABELS.maquette : (SCREEN_LABELS[route.name] ?? null),
+)
 
 // La maquette héberge elle-même le champ de recherche (dans la carte du
 // sommaire flottant) : la barre lui laisse la place.
-const inMaquette = computed(() => route.name === 'maquette')
+const inMaquette = computed(() => isMaquetteRoute.value)
 
 const crumbs = computed(() => {
   if (!props.currentNodeId || !props.trame || !props.data) return []

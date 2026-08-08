@@ -21,3 +21,20 @@ export function pathToInAxes(axes, id) {
   }
   return []
 }
+
+// Tous les nœuds du livre dans l'ordre de LECTURE (parcours préfixe des axes), sous
+// la forme `{ id, titre, path }` — `path` = fil d'Ariane des titres ancêtres joints
+// par ' › ' (vide à la racine). Même forme que l'index de `useDocSearch`, pour que
+// les passages annotés se coulent dans le même `fragmentPages` que les résultats de
+// recherche (cf. script/annotations). `data` porte les titres (`data[id].titre`).
+export function bookNodes(axes, data) {
+  if (!axes || !data) return []
+  const out = []
+  const walk = (node, ancestors) => {
+    const titre = data[node.id]?.titre || '(sans titre)'
+    out.push({ id: node.id, titre, path: ancestors.join(' › ') })
+    for (const child of node.children ?? []) walk(child, [...ancestors, titre])
+  }
+  for (const axe of axes) walk(axe, [])
+  return out
+}

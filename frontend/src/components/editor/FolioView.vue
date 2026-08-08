@@ -189,7 +189,10 @@ const props = defineProps({
 // Porte `animating` : vrai tant que la planche GLISSE (cf. useFolioScale).
 // `style-geometry` : rect ÉCRAN de la PREMIÈRE occurrence VISIBLE de chaque style
 // (`data-style`), pour ancrer les callouts de styles (liminaire/chapitrage) au texte.
-const emit = defineEmits(['step', 'spread-geometry', 'block-geometry', 'style-geometry'])
+// `paginated` : le CONTENU du cran courant vient d'être posé (repagination terminée,
+// swap fait) — indépendant du glissement de la planche. L'hôte s'en sert pour ne
+// composer ses overlays qu'une fois le nouveau contenu réellement rendu (cf. maquette).
+const emit = defineEmits(['step', 'spread-geometry', 'block-geometry', 'style-geometry', 'paginated'])
 
 const rootRef = ref(null)
 const frameRef = ref(null)
@@ -382,6 +385,7 @@ const { registry, fragments, buildFrame, refresh, teardown, applyHighlight } = u
   // ultérieure la recale (c'était le rôle involontaire de la passe de style
   // débouncée). `applyScale` est idempotent : sans changement, c'est un no-op.
   onPaginated: () => {
+    emit('paginated')
     fitScale()
     updateSpreadBg()
     requestAnimationFrame(() => { fitScale(); updateSpreadBg() })

@@ -11,7 +11,7 @@
 :root {
     /* Couleurs */
     --c-bg: #faf8f4;
-    --c-folio-bg: aliceblue;
+    --c-folio-bg: var(--c-cool-blue); /* page liminaire — bleu clair du nuancier */
     --c-surface0: rgb(255, 255, 255);
     --c-surface: rgba(255, 255, 255, 0.8);
     --c-surface2: #f2ede6;
@@ -36,8 +36,12 @@
     --c-card-float: color-mix(in srgb, var(--c-surface) 94%, transparent);
 
     --c-paper: #fffdf8; /* fond de lecture opaque (tables) — blanc à peine crème */
-    --c-aside-bck: #f1f2e4; /* colonne latérale (registre) — vert sourd */
-    --c-structure-panel: #f1f2e4; /* fond de panneau/pack (aside structure, packs Maquette) */
+    /* Neutres froids clairs du nuancier d'ambiance — remplacent le vert-jaune
+       #f1f2e4 (absent de la palette de référence) sur les surfaces froides. */
+    --c-cool-sage: #d3ddd5; /* sauge clair */
+    --c-cool-blue: #c5dce2; /* bleu clair */
+    --c-aside-bck: var(--c-cool-sage); /* colonne latérale (registre) */
+    --c-structure-panel: var(--c-cool-sage); /* fond de panneau/pack (aside structure, packs Maquette) */
     --c-paper-cream: #f7f1e3; /* crème franc — ce qui n'est PAS une page du livre */
 
     /* Tables (UiTable) — cadre « encadré » et en-tête cyan repris de la doc-bar
@@ -63,6 +67,9 @@
     /* Complémentaire du brun dominant (teal/pétrole) — pour réveiller l'UI
        trop monochrome : accents ponctuels (boutons, pastilles). */
     --c-accent-alt: #138297;
+    /* Pétrole — palier intermédiaire entre alt et alt-darker (tiré du nuancier
+       d'ambiance). Sert d'accent de premier plan au thème teal des barres. */
+    --c-accent-alt-mid: #144e5b;
     --c-accent-alt-darker: #034652;
     --c-accent-alt-ink: #ffffff;
     --c-border: #e0d8cc;
@@ -205,7 +212,7 @@ body {
 .app[data-bar-theme="teal"] .structure-panel,
 .app[data-bar-theme="teal"] .recal-head,
 .app[data-bar-theme="teal"] .doc-bar {
-    --c-bar-accent: var(--c-accent-alt-darker);
+    --c-bar-accent: var(--c-accent-alt-mid);
     --c-bar-accent-color: #fff;
 
     --c-doc-bar-bck: rgba(142, 212, 225,0.3);

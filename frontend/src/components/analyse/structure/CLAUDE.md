@@ -6,6 +6,12 @@ au GET (jamais « indisponible » ni en attente du NLP). `CompletenessChart`,
 `AnalyseBlock` + store `useAnalyse` : cf. `../CLAUDE.md`. Graphes echarts via
 `../../ui/organisms/BaseChart` (sémantique couleur dans `../CLAUDE.md`).
 
+**Hors dashboard désormais** : `CompletenessChart` + `AnomaliesTable` ne sont plus
+montés par la grille `/analyse` (section `anomalies` retirée de `ANALYSE_SECTIONS`).
+Ils sont consommés par le jalon « Annotations » de la Maquette
+(`../../maquette/MaquetteAnnotations.vue`), en regard des fragments annotés. Les
+composants restent ici (famille structure), rien n'a bougé de leur logique.
+
 - **`AnomaliesCard`/`AnomaliesTable`** — cas MIXTE : le graphe de complétude est
   gratuit (backend, sans NLP) et s'affiche tout de suite, pendant que la table des
   doublons attend le NLP dans la même colonne. `AnomaliesCard` orchestre le bloc

@@ -155,8 +155,10 @@ provide('analyseScopeNodeId', scopeNodeId)
 const isEditor = computed(() => route.name === 'editor')
 
 // La maquette porte son propre sommaire flottant : DocumentLayout ne monte pas
-// d'aside gauche pour elle (elle reste pleine largeur).
-const isMaquette = computed(() => route.name === 'maquette')
+// d'aside gauche pour elle (elle reste pleine largeur). FAMILLE de routes : la
+// maquette est une coquille à enfants routés (maquette / maquette-format /
+// -liminaire / -chapitrage / -annotations), tous préfixés `maquette`.
+const isMaquette = computed(() => route.name?.startsWith('maquette') ?? false)
 
 // L'aside gauche porte toujours la structure du document : l'ancien écran de
 // config (qui y montrait le registre) a fondu dans la maquette, laquelle reste

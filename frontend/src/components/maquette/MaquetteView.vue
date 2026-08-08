@@ -136,171 +136,36 @@
                   mode="spread"
                   :visible-pages="folioVisiblePages"
                   :side-rails="1"
-                  :column-shift="searching ? -1 : 0"
-                  :body-cross="isFormat && !searching"
-                  :bare-pages="searching"
+                  :column-shift="pouring ? -1 : 0"
+                  :body-cross="isFormat"
+                  :bare-pages="pouring"
                   :clamp-entries="isLiminaire"
-                  :cap-pages="isChapitrage && !searching ? 2 : 0"
-                  :wheel-paging="searching"
+                  :cap-pages="isChapitrage ? 2 : 0"
+                  :wheel-paging="pouring"
                   :spread-pages="mainSpreadPages"
                   :node-id="mainNodeId"
                   :depth="mainDepth"
                   :data="documentData"
                   :visuals="effectiveVisuals"
                   :page="previewPage"
-                  :margins="searching ? SEARCH_MARGINS : previewMargins"
+                  :margins="pouring ? SEARCH_MARGINS : previewMargins"
                   :hyphenation="styleDefaults.hyphenation"
-                  :running-titles="searching ? null : previewRunningTitles"
-                  :book-title="searching ? '' : bookTitle"
+                  :running-titles="pouring ? null : previewRunningTitles"
+                  :book-title="pouring ? '' : bookTitle"
                   :highlight-style="hoveredStyle"
                   @step="stepResultPage"
+                  @paginated="onPaginated"
                   @spread-geometry="onSpreadGeometry"
                   @block-geometry="blockGeometry = $event"
                   @style-geometry="styleGeometry = $event"
               />
 
-              <!-- Validation : aperçu LÉGER (hors Paged.js) du nœud survolé dans la
-                   liste des familles, posé par-dessus le témoin du modèle. -->
-              <MaquetteFragmentPreview
-                  v-if="showGroupes && hoveredNode"
-                  :node="hoveredNode"
-                  :node-id="hoveredGroup?.nodes[0]?.nodeId ?? null"
-                  :depth="mainDepth"
-                  :visuals="effectiveVisuals"
-                  :ratio="previewRatio"
-              />
-
-              <!-- Contrôles de format DOCKÉS sur l'aperçu (l'aside est masquée
-                   pour cette source) : cartes ferrées aux bords + traits vers
-                   les zones réglées, alimentées par la géométrie émise. -->
-              <MaquetteFormatCallouts
-                  v-if="isFormat && !searching"
-                  :page="fmtPage"
-                  :style-defaults="styleDefaults"
-                  :geometry="spreadGeometry"
-              />
-              <!-- Styles du vis-à-vis posés SUR la planche (callouts ferrés au rail
-                   droit, fuyante vers le texte via `data-style`). Liminaire : « ce qui
-                   précède ». Chapitrage : + « exigé ». L'aside garde sa table en
-                   parallèle (à retirer une fois validé en navigateur). -->
-              <MaquetteStyleCallouts
-                  v-if="isLiminaire && !searching"
-                  :geometry="spreadGeometry"
-                  :style-geometry="styleGeometry"
-                  :styles="limSpreadStyles"
-                  :style-roles="styles"
-                  zone-key="liminaire"
-                  @hover-style="hoveredStyle = $event"
-              />
-              <MaquetteStyleCallouts
-                  v-if="isChapitrage && !searching"
-                  :geometry="spreadGeometry"
-                  :style-geometry="styleGeometry"
-                  :styles="chapSpreadStyles"
-                  :style-roles="styles"
-                  show-require
-                  :depth-key="focusedSection?.depthKey ?? null"
-                  :zone-key="focusedSection?.zone.key ?? null"
-                  :rule-set="focusedSection?.ruleSet ?? rules.default"
-                  @hover-style="hoveredStyle = $event"
-              />
-              <!-- Pager : la molette au-dessus du folio fait la même chose, mais elle
-                   ne s'annonce pas. -->
-              <div v-if="searchLayout && resultPageCount > 1" class="maq-pager">
-                <button
-                    type="button" class="maq-pager__btn" aria-label="Résultats précédents"
-                    :disabled="resultPage === 0" @click="stepResultPage(-1)"
-                >
-                  <i class="pi pi-chevron-left"></i>
-                </button>
-                <span class="maq-pager__count">{{ resultPage + 1 }} / {{ resultPageCount }}</span>
-                <button
-                    type="button" class="maq-pager__btn" aria-label="Résultats suivants"
-                    :disabled="resultPage >= resultPageCount - 1" @click="stepResultPage(1)"
-                >
-                  <i class="pi pi-chevron-right"></i>
-                </button>
-              </div>
-            </div>
-
-            <!-- Vue du CALQUE d'analyse focusé dans l'accordéon de recherche, en
-                 regard des résultats sur deux pages de largeur. Ce sont les CARDS du
-                 dashboard, montées telles quelles (elles portent leurs propres états
-                 vide/révélation) et empilées au scroll vertical — sauf le
-                 Vocabulaire, dont on garde le nuage nu, déjà réglé pour cette boîte. -->
-            <!-- Fondu simple à l'entrée (pas de glissement horizontal) : la vue
-                 n'existe qu'une fois la scène repaginée (searchLayout), elle
-                 apparaissait donc d'un coup — on adoucit juste ce pop. -->
-            <Transition name="maq-scene-fade">
-              <div
-                  v-if="searchLayout"
-                  ref="cloudEl"
-                  class="maq-analyse"
-                  :style="{ left: analyseLeft, right: analyseColumn }"
-              >
-                <VocabulaireCloud
-                    v-if="isCloudView"
-                    compact
-                    :category="mainCategory"
-                    :width="cloudW"
-                    :height="cloudH"
-                    :dims="CLOUD_DIMS"
-                />
-                <CustomScrollbar v-else-if="analyseCards.length" class="maq-analyse__scroll">
-                  <component v-for="c in analyseCards" :key="c.key" :is="c.comp" />
-                </CustomScrollbar>
-                <p v-else class="maq-analyse__empty">{{ focusedLayer?.label }}</p>
-              </div>
-            </Transition>
-
-            <!-- Colonne 1/3 des blocs d'analyse, sortie du bloc : la COLONNE que
-                 la planche libère en glissant d'un cran (cf. column-shift), ferrée
-                 au bord droit et large d'une période de trame. Chaque card y
-                 téléporte son `#aside` (cf. AnalyseBlock, `analyseAsideTo`) ;
-                 seul le Vocabulaire pose le sien à la main — la scène monte son
-                 nuage NU, sa card n'est donc jamais montée pour le faire. Sur le
-                 Vocabulaire elle empile les mini-nuages des types QUE LE GRAND
-                 NUAGE NE MONTRE PAS (cliquer l'un d'eux le promeut, celui qu'il
-                 remplace revient dans la liste) PUIS le détail du mot retenu. -->
-            <div
-                v-if="searchLayout"
-                class="maq-analyse-aside"
-                :class="{ 'maq-analyse-aside--minis': isCloudView }"
-                :style="{ width: analyseColumn }"
-            >
-              <CustomScrollbar>
-                <div ref="analyseAsideEl" class="maq-analyse-aside__inner split-aside">
-                  <!-- Vue Vocabulaire : SEULS les mini-nuages, répartis sur toute la
-                       hauteur de la colonne (pas de scroll, aucune card en dessous). Le
-                       détail du mot retenu (occurrences + proximité) part dans le
-                       calque suivant. -->
-                  <div v-if="isCloudView" class="maq-minis">
-                    <MiniCloud
-                        v-for="mini in miniClouds"
-                        :key="mini.key"
-                        :category="mini.key"
-                        :label="mini.label"
-                        @activate="mainCategory = mini.key"
-                    />
-                  </div>
-                </div>
-              </CustomScrollbar>
-            </div>
-            <!-- Contrôles liminaire posés SUR la planche (select de type + chevrons),
-                 révélés au survol. Ancrés sur la géométrie émise par le FolioView. -->
-            <div v-if="isLiminaire" class="lim-hover__controls">
-              <LiminaireControls
-                  :geometry="spreadGeometry"
-                  :block-geometry="blockGeometry"
-                  :spread="limFocusedSpread"
-                  :types="limTypes"
-                  :suggestions="limSuggestions"
-                  :config="liminaireConfig"
-                  :focused="limFocused"
-                  :spread-count="limSpreads.length"
-                  @set-type="limSetType"
-                  @update:focused="setLimFocused"
-              />
+              <!-- Les composants LIÉS AU JALON (overlays de format/liminaire/
+                   chapitrage, scène de recherche, pager…) sont routés : chaque jalon a
+                   son pane, monté ICI en couche par-dessus le FolioView persistant.
+                   Le pane se re-base sur la géométrie émise (coords écran) → il s'aligne
+                   sur le folio quel que soit son point de montage. -->
+              <router-view />
             </div>
           </div>
         </section>
@@ -308,52 +173,11 @@
 
     </div>
 
-    <!-- Aside (1/3) PLEINE HAUTEUR : sans cadre propre, elle défile SOUS la
-         doc-bar (top-offset de la track). Extraite dans MaquetteAside ; le cran
-         focusé fait remonter sa section (scroll-spy interne via `active-block`).
-         Recherche ouverte : elle s'efface — la planche de résultats prend toute la
-         largeur, et la section du cran focusé n'a plus rien à commenter. `v-show`
-         et non `v-if` : rien à remonter (tables de styles, scrollbar) au retour. -->
-    <!-- Aside réservée à la VALIDATION (règles + surlignages). Format, liminaire et
-         chapitrage se pilotent désormais par les callouts posés SUR la planche
-         (MaquetteFormatCallouts / MaquetteStyleCallouts) — leurs tables d'aside ont
-         été retirées. -->
-    <div v-show="!searching && isValidation" class="maquette__aside-col" @wheel.prevent="onAsideWheel">
-      <!-- 84 = les DEUX barres (doc-bar + barre de la maquette) : la track démarre
-           sous elles, la colonne défile derrière. -->
-      <CustomScrollbar :top-offset="84">
-        <MaquetteAside
-            :rules="rules"
-            :highlight-items="inventory.highlights"
-            :highlights="highlights"
-            :zoned="zoned"
-            :active-block="focusedCran?.seriesKey ?? null"
-        />
-      </CustomScrollbar>
-    </div>
-
-    <!-- Validation : les familles de cas du niveau, ferrées EN BAS de la fenêtre.
-         Elles portent leur PROPRE aside : la table des styles hors modèle, sortie
-         de l'aside principale. En SUR-IMPRESSION du bas de la scène (pas de
-         réserve de place) — cliquer « Valider » ne doit pas redimensionner le
-         folio (donc ne pas dézoomer les pages). -->
-    <MaquetteGroupes
-        v-if="showGroupes"
-        class="maq-groupes-zone"
-        :groups="deviationGroups"
-        :hovered="hoveredGroup?.key ?? null"
-        :suggestion="mergeSuggestion"
-        :corps-suggestion="corpsSuggestion"
-        :merging="merging"
-        :style-rows="styleRows"
-        :style-roles="styles"
-        :depth-key="focusedSection?.depthKey ?? 0"
-        :zone-key="focusedSection?.zone.key ?? null"
-        :rule-set="focusedSection?.ruleSet ?? rules.default"
-        @hover-group="onHoverGroup"
-        @merge="applyMerge"
-        @hover-style="hoveredStyle = $event"
-    />
+    <!-- Plus d'aside routée : le jalon Annotations pose son panneau de validation EN
+         REGARD des lambeaux (dans le pane over-folio, comme la scène de recherche), et
+         Format / Liminaire / Chapitrage se pilotent par les callouts posés SUR la
+         planche. Le volet des familles de cas (validation du chapitrage) est monté par
+         le pane Chapitrage (fixed → ancré au viewport). -->
 
     <!-- Édition d'un style : le panneau se pose SUR la page opposée à celle où le
          style est ancré (d'où la géométrie de planche + le rect du style). -->
@@ -369,29 +193,20 @@
 </template>
 
 <script setup>
-import { ref, computed, inject, provide, onMounted, onUnmounted, watch, watchEffect } from 'vue'
-import { useRoute } from 'vue-router'
+import { ref, computed, inject, provide, onMounted, onUnmounted, watch, watchEffect, nextTick } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import MaquetteAccordeon from './MaquetteAccordeon.vue'
 import MaquetteSpreadCell from './MaquetteSpreadCell.vue'
 import MaquetteLiminaireCell from './MaquetteLiminaireCell.vue'
 import MaquetteChapitreCell from './MaquetteChapitreCell.vue'
 import MaquetteAnalyseCell from './MaquetteAnalyseCell.vue'
-import MaquetteAside from './MaquetteAside.vue'
-import MaquetteFormatCallouts from './MaquetteFormatCallouts.vue'
-import MaquetteStyleCallouts from './MaquetteStyleCallouts.vue'
-import MaquetteGroupes from './MaquetteGroupes.vue'
-import MaquetteFragmentPreview from './MaquetteFragmentPreview.vue'
 import MaquetteStructureNav from './MaquetteStructureNav.vue'
 import MaquetteBar from './MaquetteBar.vue'
-import VocabulaireCloud from '../analyse/lexical/VocabulaireCloud.vue'
-import MiniCloud from '../analyse/lexical/MiniCloud.vue'
 import FolioView from '../editor/FolioView.vue'
-import CustomScrollbar from '../ui/atoms/CustomScrollbar.vue'
 import PageDiagram from '../config/PageDiagram.vue'
 import StyleEditorPanel from '../config/StyleEditorPanel.vue'
 import RecalibrationModal from '../config/RecalibrationModal.vue'
 import UiCallout from '../ui/atoms/UiCallout.vue'
-import LiminaireControls from '../liminaire/LiminaireControls.vue'
 import { effectivePage, effectiveMargins } from '../../script/pageFormats'
 import { pathToInAxes } from '../../script/trame'
 import { useTypologyConfig } from '../../composables/useTypologyConfig'
@@ -402,6 +217,7 @@ import { useLiminaireComposition } from '../../composables/useLiminaireCompositi
 import { useAnalyse } from '../../composables/useAnalyse'
 import { useDocSearch } from '../../composables/useDocSearch'
 import { useDocStats } from '../../composables/useDocStats'
+import { useAnnotations } from '../../composables/useAnnotations'
 import { analyseLayers } from '../../script/analyseSections'
 import { ANALYSE_CARDS } from '../analyse/analyseCards'
 import { fragmentPages } from '../../script/searchFragment'
@@ -412,6 +228,7 @@ import { groupByDeviation } from '../../script/chapitrageGroupes'
 import { mergeCandidates, corpsMergeCandidates, deviationStyleRows } from '../../script/chapitrageFusion'
 
 const route = useRoute()
+const router = useRouter()
 
 // ── État de configuration (partagé avec l'écran config) ─────────────────────
 // Même composable que la config : `load` peuple tout (styles, rules, sections,
@@ -499,9 +316,12 @@ revealAll()
 // empile ses cards au scroll (cf. analyseLayers, la scène de recherche).
 const layers = computed(() => analyseLayers(isRevealed))
 
-// L'écran s'ouvre sur le Format, soit le premier cran APRÈS ceux de l'analyse (qui
-// ouvrent la pellicule et ouvriraient la recherche avec eux).
-const focused = ref(layers.value.length)
+// `focused` (index dans la liste plate `crans`) reste la SOURCE DE VÉRITÉ INTERNE du
+// dock/sommaire/analyse (il encode aussi quel calque d'analyse est actif DANS
+// titredulivre — non exposé en URL). La route ne reflète que le JALON (+ planche
+// liminaire / niveau chapitrage) ; la synchro bidirectionnelle (plus bas) le place.
+// Défaut = 0 (premier cran = titredulivre) : l'écran s'ouvre sur le jalon de tête.
+const focused = ref(0)
 
 const {
   spreads: limSpreads, types: limTypes, suggestions: limSuggestions,
@@ -674,6 +494,27 @@ onUnmounted(() => clearTimeout(queryTimer))
 // la saisie) — mêmes hits que le volet de la doc-bar.
 const { fragments: searchFragments, fragmentTotal: searchTotal } = useDocSearch(() => searchQuery.value)
 
+// ── Jalon Annotations : les passages surlignés (typés « annotation ») coulés dans le
+// MÊME folio que la recherche (lambeaux). Le menu de filtres éteint des couleurs
+// (affichage seul, non persisté) → on les retire avant versage. `charCounts` alimente
+// le décompte du seuil de rédaction, côté panneau (MaquetteAnnotations).
+const { passages: annotationPassages, charCounts: annotationCharCounts } = useAnnotations(() => highlights)
+const mutedColors = ref([])
+function toggleMutedColor(color) {
+  const i = mutedColors.value.indexOf(color)
+  if (i === -1) mutedColors.value.push(color)
+  else mutedColors.value.splice(i, 1)
+}
+const shownPassages = computed(() => annotationPassages.value.filter((p) => !mutedColors.value.includes(p.color)))
+
+// Le folio « coule des lambeaux » pour DEUX sources : la recherche (jalon de tête) et
+// les annotations (dernier jalon). Même page nue, source distincte — seul le RENDU
+// folio est mutualisé, la logique de zone/accordéon reste propre à chaque jalon.
+const pouring = computed(() => searching.value || focusedSourceKey.value === 'validation')
+const activeFragments = computed(() => (searching.value ? searchFragments.value : shownPassages.value))
+const activeTotal = computed(() => (searching.value ? searchTotal.value : shownPassages.value.length))
+const activeNeedle = computed(() => (searching.value ? searchQuery.value : ''))
+
 // Résultats paginés EN AMONT, une page de folio à la fois : un mot courant sort des
 // milliers de passages, et les couler tous dans Paged.js (deux blocs par lambeau)
 // fige l'écran pour n'en montrer que le premier écran. Le compte annoncé, lui, reste
@@ -681,11 +522,15 @@ const { fragments: searchFragments, fragmentTotal: searchTotal } = useDocSearch(
 // la page peut prendre et Paged.js ouvre une seconde page, hors cadre.
 const RESULTS_PER_PAGE = 6
 const resultPage = ref(0)
-const resultPageCount = computed(() => Math.max(1, Math.ceil(searchTotal.value / RESULTS_PER_PAGE)))
+const resultPageCount = computed(() => Math.max(1, Math.ceil(activeTotal.value / RESULTS_PER_PAGE)))
 const resultOffset = computed(() => resultPage.value * RESULTS_PER_PAGE)
 const pageFragments = computed(() =>
-  searchFragments.value.slice(resultOffset.value, resultOffset.value + RESULTS_PER_PAGE),
+  activeFragments.value.slice(resultOffset.value, resultOffset.value + RESULTS_PER_PAGE),
 )
+
+// Recale la tranche à 0 quand la SOURCE (recherche⇄annotations) ou le filtre change :
+// sans ça on resterait sur une page vide après avoir éteint des couleurs.
+watch([searching, () => mutedColors.value.length], () => { resultPage.value = 0 })
 
 // Un cran de pagination (molette au-dessus du folio, ou pager). Borné aux deux bouts.
 function stepResultPage(dir) {
@@ -696,22 +541,16 @@ function stepResultPage(dir) {
 // après coup) : sans ce recalage, la tranche courante serait vide.
 watch(resultPageCount, (n) => { if (resultPage.value > n - 1) resultPage.value = n - 1 })
 
-// Texte de la carte de statut, en tête des résultats : le compte RÉEL (et non celui
-// de la page), plus le rang de la page. Alimente `statusEntry` via fragmentPages.
-const searchTitle = computed(() => {
-  const base = `Résultats : ${searchTotal.value}`
+// Texte de la carte de statut, en tête des lambeaux : le compte RÉEL (et non celui de
+// la page), plus le rang de la page. Alimente `statusEntry` via fragmentPages. Le
+// libellé suit la source (« Résultats » en recherche, « Annotations » au dernier jalon).
+const pourTitle = computed(() => {
+  const base = `${searching.value ? 'Résultats' : 'Annotations'} : ${activeTotal.value}`
   return resultPageCount.value > 1 ? `${base} · page ${resultPage.value + 1}/${resultPageCount.value}` : base
 })
 
-// La colonne 1/3 des blocs ne tient pas dans la scène : les blocs la TÉLÉPORTENT
-// dans le panneau flottant ferré à droite (cf. AnalyseBlock, `analyseAsideTo`).
-// L'élément n'existe qu'en recherche — d'où un ref, que le Teleport attend.
-const analyseAsideEl = ref(null)
-provide('analyseAsideTo', analyseAsideEl)
-// La scène a une hauteur BORNÉE (cf. .maq-analyse) : les blocs l'épousent et
-// leurs viz se réduisent pour y tenir, au lieu de se dimensionner sur leur
-// contenu et de déborder (cf. `.split--fit`).
-provide('analyseFit', true)
+// NB : la cible du Teleport (`analyseAsideTo`) et `analyseFit` sont désormais fournis
+// par le pane Vocabulaire (l'élément d'aside et ses cards consommatrices y vivent).
 
 // La section dont la VUE est montée dans la scène (à droite des résultats), et la
 // card correspondante. Le Vocabulaire fait exception : on y monte le nuage NU (la
@@ -725,39 +564,9 @@ const analyseCards = computed(() =>
     .filter((c) => c.comp),
 )
 
-// Gabarit du nuage inline : deux pages de large pour une de haut (≈ le ratio d'une
-// double page A5), là où le dock lui donnait un bandeau plat.
-const CLOUD_DIMS = { width: 1040, height: 740, verticalRatio: 0.25, animateEntry: false }
-
-// Les types de mots du nuage, dans l'ordre de la colonne : les personnages et les
-// lieux d'abord (c'est ce qu'on cherche dans un roman), la grammaire ensuite. Pas
-// d'adverbes — trop peu porteurs pour mériter une case.
-const CLOUD_CATEGORIES = [
-  { key: 'nom', label: 'Noms' },
-  { key: 'personne', label: 'Personnages' },
-  { key: 'lieu', label: 'Lieux' },
-  { key: 'verbe', label: 'Verbes' },
-  { key: 'adj', label: 'Adjectifs' },
-]
-// Le type porté par le GRAND nuage. Les autres restent en minis dans la colonne :
-// promouvoir un mini le retire de la liste, celui qu'il remplace y revient à sa
-// place (l'ordre ci-dessus ne bouge jamais — sinon les vignettes danseraient d'un
-// clic à l'autre).
-const mainCategory = ref('nom')
-const miniClouds = computed(() => CLOUD_CATEGORIES.filter((c) => c.key !== mainCategory.value))
-const cloudEl = ref(null)
-const cloudW = ref(0)
-const cloudH = ref(0)
-let cloudRo = null
-watch(cloudEl, (el) => {
-  cloudRo?.disconnect()
-  if (!el) { cloudRo = null; return }
-  const measure = () => { cloudW.value = el.clientWidth; cloudH.value = el.clientHeight }
-  measure()
-  cloudRo = new ResizeObserver(measure)
-  cloudRo.observe(el)
-})
-onUnmounted(() => cloudRo?.disconnect())
+// NB : le gabarit du nuage (`CLOUD_DIMS`), la liste des types (`CLOUD_CATEGORIES`),
+// le type porté par le grand nuage (`mainCategory`) et la mesure de la scène
+// (`cloudEl`/ResizeObserver) vivent désormais dans le pane Vocabulaire.
 
 // Chiffres du document : ils sont la rangée de TÊTE du lambeau de statut (ils
 // vivaient dans le panneau du dock, disparu avec lui).
@@ -769,9 +578,6 @@ const focusedSection = computed(() => {
   if (cran?.sourceKey !== 'chapitrage') return null
   return chapSections.value[cran.sectionIndex] ?? null
 })
-
-// Le scroll-spy de l'aside (remontée de la section focusée) vit dans MaquetteAside,
-// piloté par la prop `active-block` (= série du cran focusé).
 
 // Profondeur d'un nœud dans l'arbre → clé de niveau des règles (0/1/2+, plafonnée).
 function depthKeyOf(nodeId) {
@@ -1073,6 +879,9 @@ const chapSpreadStyles = computed(() => Object.keys(styleGeometry.value).map((na
 // disparaît sans que la souris la quitte, son `mouseleave` ne partirait jamais.
 const hoveredStyle = ref(null)
 watch(focused, () => { hoveredStyle.value = null })
+// Setter fourni aux panes (les callouts émettent `hover-style`) — plutôt que la ref
+// nue, pour éviter l'ambiguïté d'assignation d'un ref destructuré côté pane.
+const setHoveredStyle = (name) => { hoveredStyle.value = name }
 
 // ── Source 1 : format de page ──────────────────────────────────────────────
 // Relevé .odt brut (fourni par DocumentLayout), point de départ de l'aperçu.
@@ -1094,11 +903,30 @@ const spreadGeometry = ref(null)
 // géométrie à chaque frame, poser la scène sur la première ferait apparaître le
 // nuage à côté d'une planche encore en mouvement. La SORTIE, elle, est immédiate —
 // laisser le nuage glisser par-dessus la planche qui revient n'aurait pas de sens.
-const searchLayout = ref(false)
+// Fraîcheur du rendu du FolioView PERSISTANT. Il repagine en asynchrone (`refresh`)
+// ET fait glisser la planche (`animateScale`, ~320 ms) : les deux sont indépendants
+// et finissent dans un ordre quelconque. La scène de recherche et les fuyantes des
+// callouts ne doivent se poser qu'une fois les DEUX terminés — sinon un scroll rapide
+// les colle sur l'ancien contenu (nuage disloqué) ou sur d'anciennes ancres (flèches
+// fugaces). D'où deux signaux, et non le seul `!animating` (qui retombe à la fin du
+// glissé alors que la repagination du contenu peut être encore en vol) :
+//  - `contentFresh` : le contenu du cran courant est paginé (FolioView `@paginated`) ;
+//    remis à faux par toute navigation qui change ce que rend la planche (plus bas).
+//  - `lastAnimating` : la dernière géométrie émise portait un glissement en cours.
+const contentFresh = ref(false)
+const lastAnimating = ref(false)
+const geometryStale = computed(() => !contentFresh.value || lastAnimating.value)
+const searchLayout = computed(() => searching.value && !geometryStale.value)
+// Même garde de fraîcheur pour le jalon Annotations : son panneau « en regard » et son
+// menu de filtres ne se posent qu'une fois la planche glissée et le contenu paginé.
+const annotationsLayout = computed(() => focusedSourceKey.value === 'validation' && !geometryStale.value)
+
 function onSpreadGeometry(geometry) {
   spreadGeometry.value = geometry
-  if (!searching.value) { searchLayout.value = false; return }
-  if (!geometry?.animating) searchLayout.value = true
+  lastAnimating.value = !!geometry?.animating
+}
+function onPaginated() {
+  contentFresh.value = true
 }
 
 // Bord gauche de la vue d'analyse : le bord droit de la page de résultats, plus la
@@ -1144,9 +972,6 @@ const formatSpreadPages = [{ kind: 'empty' }, { kind: 'empty' }]
 // ── Alimentation de l'UNIQUE FolioView selon la source focusée ───────────────
 const isFormat = computed(() => focusedSourceKey.value === 'maquette')
 const isLiminaire = computed(() => focusedSourceKey.value === 'liminaire')
-// Validation : même double page vide que le format, mais SANS la croix
-// d'empagement — elle parle du gabarit, hors sujet pour des règles.
-const isValidation = computed(() => focusedSourceKey.value === 'validation')
 const isChapitrage = computed(() => focusedSourceKey.value === 'chapitrage')
 
 // Une cellule d'imposition → un slot de planche. Cellule nulle = face intérieure de
@@ -1166,17 +991,19 @@ const limSpreadPages = computed(() => {
 // Props pilotées par la source : format/liminaire passent une planche (spreadPages),
 // le chapitrage un nœud témoin (nodeId + depth). Mutuellement exclusifs.
 const mainSpreadPages = computed(() => {
-  // Recherche : les lambeaux coulent dans le MÊME FolioView, pages nues et PLEIN
-  // FOLIO (cf. SEARCH_MARGINS / titres courants coupés) — mais UNE PAGE à la fois
-  // (cf. RESULTS_PER_PAGE). Le lambeau de statut porte le compte total en tête.
-  if (searching.value) {
-    return fragmentPages(pageFragments.value, searchQuery.value, {
-      status: searchTitle.value,
-      stats: statItems.value,
+  // Versage en lambeaux (recherche OU annotations) : ils coulent dans le MÊME
+  // FolioView, pages nues et PLEIN FOLIO (cf. SEARCH_MARGINS / titres courants
+  // coupés) — mais UNE PAGE à la fois (cf. RESULTS_PER_PAGE). Le lambeau de statut
+  // porte le compte total en tête ; les chiffres du document ne l'accompagnent qu'en
+  // recherche (ils n'ont rien à dire de la liste des annotations).
+  if (pouring.value) {
+    return fragmentPages(pageFragments.value, activeNeedle.value, {
+      status: pourTitle.value,
+      stats: searching.value ? statItems.value : undefined,
       offset: resultOffset.value,
     })
   }
-  if (isFormat.value || isValidation.value) return formatSpreadPages
+  if (isFormat.value) return formatSpreadPages
   if (isLiminaire.value) return limSpreadPages.value
   return null
 })
@@ -1186,6 +1013,17 @@ const mainSpreadPages = computed(() => {
 const mainNodeId = computed(() => modelNodeId.value)
 const mainDepth = computed(() =>
   focusedSourceKey.value === 'chapitrage' ? (focusedSection.value?.depthKey ?? 0) : 0,
+)
+
+// Toute navigation qui change ce que rend la planche (source du cran, planche
+// liminaire, nœud/niveau chapitrage) déclenche une repagination : le rendu courant
+// devient périmé jusqu'au prochain `@paginated`. Volontairement PAS le zoom (il fait
+// glisser sans changer le contenu → seul `lastAnimating` compte, `contentFresh` reste
+// vrai) ni la pagination des résultats (le nuage n'en dépend pas), ni les réglages de
+// format (leur édition garde ses callouts vivants pendant le glissé).
+watch(
+  () => [focusedSourceKey.value, limFocused.value, mainNodeId.value, mainDepth.value],
+  () => { contentFresh.value = false },
 )
 
 // Ratio largeur/hauteur de la page effective : les cellules de l'accordéon
@@ -1209,11 +1047,115 @@ watchEffect(() => {
 })
 onUnmounted(() => { if (barAction) barAction.value = null })
 
-// Dernier maillon du fil d'Ariane : la série du cran focusé (« Format » /
-// « Liminaire » / « Chapitrage n°1 »), déjà portée par le cran.
+// Dernier maillon du fil d'Ariane : le JALON, tiré de la ROUTE (pas du cran).
+// titredulivre (route par défaut) n'a PAS de maillon — il reste hors du fil d'Ariane.
 const section = inject('documentSection', null)
-watchEffect(() => { if (section) section.value = focusedCran.value?.seriesLabel ?? null })
+watchEffect(() => {
+  if (!section) return
+  const n = route.name
+  if (n === 'maquette-format') section.value = 'Format'
+  else if (n === 'maquette-liminaire') section.value = `Liminaire n°${Math.max(1, parseInt(route.params.n) || 1)}`
+  else if (n === 'maquette-chapitrage') section.value = `Chapitrage n°${Math.max(1, parseInt(route.params.n) || 1)}`
+  else if (n === 'maquette-annotations') section.value = 'Annotations'
+  else section.value = null // titredulivre : hors fil d'Ariane
+})
 onUnmounted(() => { if (section) section.value = null })
+
+// ── Synchro `focused` ⇄ route ────────────────────────────────────────────────
+// La route ne pin que le JALON (+ planche liminaire / niveau chapitrage) ; `focused`
+// reste la SoT interne (dock/sommaire/calques d'analyse). Deux watches gardés par un
+// flag anti-boucle. Le jalon de tête (vocabulaire) mappe sur la route par défaut
+// (name `maquette`) : naviguer entre ses calques ne touche donc PAS l'URL.
+let syncing = false
+
+// Jalon (seriesKey) visé par la route courante (+ index local liminaire/chapitrage).
+function routeTarget() {
+  const n = route.name
+  const idx = Math.max(0, (parseInt(route.params.n) || 1) - 1)
+  if (n === 'maquette-format') return { key: 'format' }
+  if (n === 'maquette-liminaire') return { key: 'liminaire', local: idx }
+  if (n === 'maquette-chapitrage') return { key: `chap-${idx}` }
+  if (n === 'maquette-annotations') return { key: 'validation' }
+  return { key: 'vocabulaire' } // défaut (titredulivre)
+}
+
+// Location d'un cran (inverse), pour pousser l'URL depuis le dock/molette/sommaire.
+function locationForCran(cran) {
+  const id = route.params.id
+  const k = cran?.seriesKey
+  if (k === 'format') return { name: 'maquette-format', params: { id } }
+  if (k === 'liminaire') return { name: 'maquette-liminaire', params: { id, n: String(Math.max(0, focused.value - limStart.value) + 1) } }
+  if (k?.startsWith('chap-')) return { name: 'maquette-chapitrage', params: { id, n: String(Number(k.slice(5)) + 1) } }
+  if (k === 'validation') return { name: 'maquette-annotations', params: { id } }
+  return { name: 'maquette', params: { id } } // vocabulaire / défaut
+}
+
+// Deux locations désignent-elles le même jalon (nom + n) ?
+function sameJalon(loc) {
+  if (loc.name !== route.name) return false
+  return String(loc.params?.n ?? '') === String(route.params.n ?? '')
+}
+
+// route → focused : pose le cran représentatif du jalon (sauf si on y est déjà —
+// préserve le calque d'analyse courant dans titredulivre). Tolère `crans` vide (fetch
+// async) : re-tourne dès que la liste se peuple (dépendance sur sa longueur).
+watch(
+  () => [route.name, route.params.n, crans.value.length],
+  () => {
+    if (syncing) return
+    const t = routeTarget()
+    const cur = focusedCran.value
+    if (cur?.seriesKey === t.key) {
+      if (t.key !== 'liminaire') return
+      if (focused.value - limStart.value === t.local) return
+    }
+    let idx = -1
+    if (t.key === 'vocabulaire') idx = vocabIndex.value
+    else if (t.key === 'liminaire') {
+      const base = limStart.value
+      idx = base < 0 ? -1 : base + Math.min(t.local, Math.max(0, limSpreads.value.length - 1))
+    } else idx = crans.value.findIndex((c) => c.seriesKey === t.key)
+    if (idx >= 0) {
+      syncing = true
+      focused.value = idx
+      nextTick(() => { syncing = false })
+    }
+  },
+  { immediate: true },
+)
+
+// focused → route : reflète le jalon dans l'URL (replace : la molette ne pollue pas
+// l'historique). No-op tant qu'on reste dans le même jalon (dont l'intra-vocabulaire).
+watch(focused, () => {
+  if (syncing) return
+  const loc = locationForCran(focusedCran.value)
+  if (sameJalon(loc)) return
+  syncing = true
+  Promise.resolve(router.replace(loc)).catch(() => {}).finally(() => { syncing = false })
+})
+
+// ── Modèle partagé fourni aux panes routés (le FolioView reste dans la coquille) ──
+provide('maq', {
+  // Format
+  fmtPage, styleDefaults, spreadGeometry,
+  // Liminaire
+  styleGeometry, blockGeometry, styles, limSpreadStyles, limFocusedSpread,
+  limTypes, limSuggestions, liminaireConfig, limFocused, limSpreads,
+  limSetType, setLimFocused, setHoveredStyle,
+  // Chapitrage
+  rules, focusedSection, chapSpreadStyles, mainDepth, effectiveVisuals, previewRatio,
+  showGroupes, hoveredNode, hoveredGroup, deviationGroups, mergeSuggestion,
+  corpsSuggestion, merging, styleRows, onHoverGroup, applyMerge,
+  // Annotations (jalon validation) : lambeaux + menu de filtres + panneau « en regard »
+  inventory, highlights, zoned, focusedCran, onAsideWheel,
+  annotationsLayout, annotationCharCounts, mutedColors, toggleMutedColor,
+  // Vocabulaire (titredulivre)
+  searchLayout, resultPage, resultPageCount, stepResultPage,
+  analyseLeft, analyseColumn, isCloudView, analyseCards, focusedLayer,
+  // Fraîcheur de la géométrie émise : les panes en gardent leurs fuyantes tant
+  // qu'elle est périmée (scroll rapide), cf. geometryStale.
+  geometryStale,
+})
 </script>
 
 <style scoped>
@@ -1292,46 +1234,12 @@ onUnmounted(() => { if (section) section.value = null })
   min-height: 0;
 }
 
-/* Volet des familles de cas : ferré EN BAS de la fenêtre, remontant assez haut
-   pour RECOUVRIR le bas de la planche du folio (`--maq-groupes-h` en `vh`). Il
-   passe DEVANT l'accordéon (dock, z 160) — la validation prend le pas sur la
-   pellicule — tout en restant sous les modales (z 200). Depuis la gouttière du
-   sommaire (`left`) jusqu'au bord droit. En `rem` et non en `em` : le volet pose
-   sa propre `font-size` (--fs-sm), des marges en `em` s'y rapporteraient. */
-.maq-groupes-zone {
-  position: fixed;
-  left: 17rem;
-  right: 0em;
-  bottom: 0em;
-  height: var(--maq-groupes-h);
-  z-index: 165;
-  /* Fond/flou portés par la seule bande fusion+liste (cf. .maq-groupes__families),
-     pas par le volet entier — l'aside hors modèle reste transparente. */
-  padding-top: var(--sp-4);
-}
-
-/* Colonne aside : pleine hauteur, sans cadre propre. Sa CustomScrollbar défile
-   SOUS la doc-bar (top-offset = hauteur de barre). Hors flux (la colonne gauche
-   prend donc toute la largeur), elle FLOTTE au-dessus des folios : le `z-index`
-   la pose devant l'iframe du FolioView, qui porte elle-même `z-index: 1` en
-   double-page (cf. `.folio-view--spread .folio-frame`) et passerait sinon devant
-   — une planche large (résultats de recherche) allant jusqu'au bord droit. Reste
-   SOUS le sommaire flottant (z 160) et les modales (z 200). */
-.maquette__aside-col {
-  flex: 1 1 0;
-  min-width: 0;
-  height: 100%;
-  position: absolute;
-  z-index: 2;
-
-  right: 1em;
-  top: 0px;
-  width: 20%;
-
-}
+/* Le volet des familles de cas (`.maq-groupes-zone`) et l'aside de validation
+   (`.maquette__aside-col`) ont migré dans leurs panes (Chapitrage / Annotations). */
 
 /* Scène du FolioView unique : remplit le main, sert de repère au overlay absolu
-   des contrôles liminaire. Même hauteur bornée pour les 3 sources → échelle iso. */
+   des contrôles liminaire (montés par le pane routé). Même hauteur bornée pour
+   toutes les sources → échelle iso. */
 .folio-stage {
   position: relative;
   display: flex;
@@ -1350,180 +1258,8 @@ onUnmounted(() => { if (section) section.value = null })
   min-height: 0;
 }
 
-/* Recherche : la planche garde sa TAILLE (le FolioView réserve la rangée de la
-   planche visée même s'il n'a qu'une page, cf. useFolioScale) mais GLISSE d'une
-   colonne vers la GAUCHE (`column-shift`, un simple transform : rien à remettre à
-   l'échelle) — les lambeaux passent dans la case du rail gauche. C'est ce
-   glissement qui libère une colonne au bord droit (les minis) sans rien retirer au
-   nuage, qui garde ses deux colonnes et se cale sur la nouvelle position de la
-   page (cf. analyseLeft). */
-
-/* Vue de la section d'analyse focusée (nuage compris) : EN REGARD de la page de
-   résultats, son bord gauche calé sur le bord droit de cette page et son bord
-   droit sur la colonne libérée (`left`/`right` posés en inline depuis la
-   géométrie émise). `overflow` parce que le SVG du nuage déborde volontiers de
-   sa boîte.
-   Bornée EN HAUT ET EN BAS plutôt qu'à une hauteur choisie : la boîte se calcule
-   sur la fenêtre et s'arrête au-dessus du dock, sans valeur à réajuster à la main.
-   Sans `bottom`, une card haute filait sous le bas de l'écran sans jamais défiler
-   (`.maquette` est en `overflow: hidden`). `--maq-dock-h` est hérité de
-   `.maquette__left`. */
-.maq-analyse {
-  min-width: 0;
-  min-height: 0;
-  overflow: hidden;
-  position: fixed;
-  /* `fixed` = calé sur le viewport : le décalage compte la pile de barres, dont
-     la troisième (MaquetteBar) fait partie. */
-  top: calc(4em + var(--bar-size));
-  bottom: calc(var(--maq-dock-h) + var(--sp-4));
-  /* Au-dessus de l'iframe du folio, qui porte `z-index: 1` en double-page (cf.
-     .folio-view--spread .folio-frame) et passerait sinon devant — la vue est
-     positionnée, mais sans z-index elle perdrait l'empilement. */
-  z-index: 2;
-}
-
-.maq-analyse__scroll {
-  height: 100%;
-}
-
-/* Fondu d'entrée de la vue d'analyse (nuage / cards). Enter seulement : à la SORTIE
-   de la recherche la scène change de source, le fondre laisserait traîner l'ancien
-   contenu par-dessus le nouveau. */
-.maq-scene-fade-enter-active {
-  transition: opacity 0.22s ease;
-}
-
-.maq-scene-fade-enter-from {
-  opacity: 0;
-}
-
-/* Colonne des asides d'analyse : LA colonne que la planche libère en glissant
-   d'un cran (cf. column-shift), ferrée au bord droit, large d'une période de
-   trame (`width` posée en inline depuis la géométrie émise). Elle ne recouvre
-   plus rien — le nuage s'arrête à son bord — d'où l'abandon de la révélation au
-   survol : c'est une colonne, pas une carte posée. Sans cadre ni fond : elle se
-   pose nue sur la trame, comme les mini-nuages qu'elle porte. */
-.maq-analyse-aside {
-  position: fixed;
-  right: 0;
-  top: calc(4em + var(--bar-size));
-  bottom: calc(var(--maq-dock-h) + var(--sp-4));
-  max-width: 40%;
-  z-index: 3;
-}
-
-/* Les trois mini-nuages en tête de colonne : ils se lisent comme un bloc, d'où un
-   seul écart entre eux et le séparateur de `.split-aside` en dessous. La
-   respiration est celle des cards de la colonne (`--split-pad-aside`) — un bloc
-   brut n'en hérite pas, seuls les corps d'UiCard sont servis par analyse.css. */
-.maq-minis {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-3);
-  padding: var(--split-pad-aside);
-}
-
-/* Vue Vocabulaire : les mini-nuages SEULS remplissent la colonne jusqu'au bas de la
-   fenêtre, répartis sur toute la hauteur — pas de scroll, aucune card en dessous
-   (le détail du mot part dans le calque suivant). */
-.maq-analyse-aside--minis {
-  bottom: var(--sp-4);
-}
-
-.maq-analyse-aside--minis :deep(.custom-scrollbar__content) {
-  overflow: hidden;
-}
-
-.maq-analyse-aside--minis .maq-analyse-aside__inner {
-  height: 100%;
-}
-
-.maq-analyse-aside--minis .maq-minis {
-  height: 100%;
-  justify-content: space-evenly;
-}
-
-/* Boîte d'accueil du Teleport. Respiration et séparateurs viennent de
-   `.split-aside` (analyse.css) : la colonne se lit comme celle du dashboard,
-   d'où qu'elle soit rendue. */
-.maq-analyse-aside__inner {
-  padding-block: var(--sp-2);
-}
-
-/* Vue pas encore montée : le nom de la section, discrètement — la place lui est
-   réservée, elle est vide, ça doit se lire comme tel. */
-.maq-analyse__empty {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  min-height: 8em;
-  margin: 0;
-  color: var(--c-muted);
-  font-size: var(--fs-sm);
-}
-
-/* Pager des résultats : discret, au pied de la planche (la molette fait la même
-   chose sans se montrer). POSÉ SUR elle, comme tous les contrôles de cet écran,
-   et surtout PAS dans le flux de la colonne : une rangée y prendrait sa hauteur
-   au folio, qui se remettrait à l'échelle — la planche changerait de taille entre
-   le cran de recherche et les autres (gouttières haut/bas qui sautent). Racine
-   inerte, seuls les boutons reprennent le pointeur. */
-.maq-pager {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 3;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--sp-2);
-  padding-top: var(--sp-2);
-  font-size: var(--fs-sm);
-  color: var(--c-muted);
-  pointer-events: none;
-}
-
-.maq-pager__btn {
-  pointer-events: auto;
-  display: flex;
-  align-items: center;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-  padding: 0.2em 0.4em;
-  border-radius: var(--radius-sm);
-}
-
-.maq-pager__btn:hover:not(:disabled) {
-  color: var(--c-accent-alt);
-}
-
-.maq-pager__btn:disabled {
-  opacity: var(--op-faint);
-  cursor: default;
-}
-
-.maq-pager__count {
-  font-variant-numeric: tabular-nums;
-}
-
-/* Overlay des contrôles liminaire, posé SUR la planche (select de type, chevrons,
-   outlines des éléments + flèches de découpage). Visible EN PERMANENCE — les
-   outlines des éléments doivent l'être (cf. LiminaireControls, qui gate lui-même
-   les flèches au survol de leur outline). Racine inerte : chaque contrôle
-   rétablit le pointeur lui-même. */
-.lim-hover__controls {
-  position: absolute;
-  inset: 0;
-  /* Au-dessus de l'iframe du FolioView (z-index 1 en double-page) : sans ça, les
-     contrôles posés sur les pages passeraient DERRIÈRE le folio. */
-  z-index: 3;
-  pointer-events: none;
-}
+/* La scène de recherche (nuage, cards, minis, pager) et l'overlay des contrôles
+   liminaire ont migré dans leurs panes (Vocabulaire / Liminaire), avec leur CSS. */
 
 /* Rapport de recalibrage : carte flottante centrée en tête de l'écran, sous les
    deux barres. Au-dessus de l'aperçu et du sommaire, sous les modales (z 200). */

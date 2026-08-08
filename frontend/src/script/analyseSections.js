@@ -15,7 +15,9 @@ export const ANALYSE_SECTIONS = [
   { key: 'lexical', label: 'Champ lexical', layer: 'lexical' },
   { key: 'themes', label: 'Thèmes', layer: 'lexical' },
   { key: 'flux', label: 'Thèmes au fil du livre', layer: 'lexical' },
-  { key: 'anomalies', label: 'Anomalies', layer: 'anomalies' },
+  // La complétude/anomalies a quitté le dashboard : elle vit désormais dans le
+  // jalon « Annotations » de la Maquette (avancement + chapitres en attente,
+  // en regard des fragments annotés). Cf. maquette/MaquetteAnnotations.vue.
   { key: 'semantique', label: 'Proximité sémantique', layer: 'semantique' },
   // Bas de page du dashboard : cards en lecture seule, « à trier plus tard ».
   { key: 'unites', label: 'Statistiques par article', needs: 'lexical', leftover: true, layer: 'semantique' },

@@ -22,6 +22,12 @@ chargé à la demande (ne toucher qu'une famille n'en charge que le doc). Carte 
 - **`analyse/`** — dashboard de `/documents/:id` (`AnalyseView` + `AnalyseBlock`,
   echarts) ; cards rangées par famille `structure/`·`lexical/`·`semantic/`·`themes/`.
   Voir `analyse/CLAUDE.md`.
+- **`maquette/`** — écran Maquette : `MaquetteView` est une **coquille** (barres,
+  sommaire, dock, **unique `FolioView` persistant**) qui route ses **jalons** dans
+  `maquette/panes/` (`MaquetteVocabulairePane` = titredulivre par défaut, `…Format`,
+  `…Liminaire`, `…Chapitrage`, `…AnnotationsPane` = fragments annotés en lambeaux +
+  panneau validation/anomalies). Le modèle partagé est fourni aux
+  panes via `provide('maq', …)`. Routing + synchro `focused`⇄route : `../router/CLAUDE.md`.
 - **`liminaire/`** — typage/composition des pages liminaires (`LiminaireControls`
   — overlay type/chevrons/découpage posé sur la planche — + `LiminaireFolio`,
   montés par la maquette ; l'ancien `LiminaireComposer`/accordéon dédié a été

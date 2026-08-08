@@ -34,7 +34,7 @@
         <BaseButton
             variant="ghost"
             icon="pi-clone"
-            :active="route.name === 'maquette'"
+            :active="route.name?.startsWith('maquette') ?? false"
             :disabled="!targetDocId"
             title="Maquette"
             @click="router.push(`/documents/${targetDocId}`)"
