@@ -3,28 +3,47 @@
       class="tree-row"
       :class="[
         `tree-row--${variant}`,
-        { 'tree-row--current': current, 'tree-row--accented': accentColor },
+        { 'tree-row--current': current, 'tree-row--accented': accentColor, 'tree-row--columns': columns },
       ]"
       :style="accentColor ? { borderLeftColor: accentColor } : null"
       :title="tooltip"
       @click="$emit('open')"
   >
-    <!-- Icône de tête, AVANT le chevron : une feuille porte son fichier (ou son
-         `leadingIcon`) ; une ligne dépliable dotée d'un `leadingIcon` le pose devant
-         son chevron. -->
-    <span v-if="!expandable" class="tree-row__leaf"><i class="pi" :class="leadingIcon || 'pi-file'"></i></span>
-    <span v-else-if="leadingIcon" class="tree-row__leaf tree-row__leaf--icon"><i class="pi" :class="leadingIcon"></i></span>
+    <!-- Mode colonnes (opt-in) : chevron EN TÊTE, puis colonne icône, puis texte.
+         Une feuille (zéro chevron) NE réserve PAS la colonne chevron — son icône
+         prend le slot de tête et s'aligne donc sous l'icône du dossier parent (le
+         décrochement d'un cran vaut une colonne). -->
+    <template v-if="columns">
+      <button
+          v-if="expandable"
+          type="button"
+          class="tree-row__caret"
+          :class="{ 'tree-row__caret--open': expanded }"
+          :title="expanded ? 'Replier' : 'Déplier'"
+          @click.stop="$emit('toggle')"
+      >
+        <i class="pi pi-angle-right"></i>
+      </button>
+      <span class="tree-row__leaf"><i class="pi" :class="leadingIcon || 'pi-file'"></i></span>
+    </template>
 
-    <button
-        v-if="expandable"
-        type="button"
-        class="tree-row__caret"
-        :class="{ 'tree-row__caret--open': expanded }"
-        :title="expanded ? 'Replier' : 'Déplier'"
-        @click.stop="$emit('toggle')"
-    >
-      <i class="pi pi-angle-right"></i>
-    </button>
+    <!-- Ordre historique : icône de tête AVANT le chevron. Une feuille porte son
+         fichier (ou son `leadingIcon`) ; une ligne dépliable dotée d'un `leadingIcon`
+         le pose devant son chevron. -->
+    <template v-else>
+      <span v-if="!expandable" class="tree-row__leaf"><i class="pi" :class="leadingIcon || 'pi-file'"></i></span>
+      <span v-else-if="leadingIcon" class="tree-row__leaf tree-row__leaf--icon"><i class="pi" :class="leadingIcon"></i></span>
+      <button
+          v-if="expandable"
+          type="button"
+          class="tree-row__caret"
+          :class="{ 'tree-row__caret--open': expanded }"
+          :title="expanded ? 'Replier' : 'Déplier'"
+          @click.stop="$emit('toggle')"
+      >
+        <i class="pi pi-angle-right"></i>
+      </button>
+    </template>
 
     <span class="tree-row__label" :class="{ 'tree-row__label--normalized': normalizeCase }">
       <slot />
@@ -44,6 +63,9 @@ defineProps({
   },
   expandable: { type: Boolean, default: false },
   expanded: { type: Boolean, default: false },
+  // Layout en colonnes fixes chevron | icône | texte (chevron en tête, colonne
+  // toujours réservée). Opt-in — l'ordre par défaut reste icône puis chevron.
+  columns: { type: Boolean, default: false },
   current: { type: Boolean, default: false },
   // liseret sémantique optionnel (ex : niveau de titre en calibration) —
   // jamais décoratif.
@@ -105,6 +127,7 @@ defineEmits(['open', 'toggle'])
   width: 1.1em;
   opacity: 0.55;
   line-height: 1;
+  text-align: left;
 }
 
 .tree-row__caret i {
@@ -121,6 +144,13 @@ defineEmits(['open', 'toggle'])
   opacity: 1;
 }
 
+/* Mode colonnes : le `<button>` du chevron n'hérite pas de `font-size` (défaut UA),
+   contrairement au spacer `<span>` — sans ça la largeur 1.1em diffère et les
+   colonnes icône (feuille vs dossier) ne s'alignent pas au pixel. */
+.tree-row--columns .tree-row__caret {
+  font-size: inherit;
+}
+
 .tree-row__leaf {
   flex: 0 0 auto;
   width: 1.1em;
@@ -129,7 +159,7 @@ defineEmits(['open', 'toggle'])
 }
 
 .tree-row__leaf i {
-  font-size: 0.7em;
+  font-size: 0.8em;
 }
 
 .tree-row__label {

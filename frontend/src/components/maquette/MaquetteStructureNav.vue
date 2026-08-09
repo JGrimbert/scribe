@@ -9,95 +9,118 @@
   <div class="maq-nav">
     <div class="maq-nav__card">
       <div class="maq-nav__scroll">
-        <!-- Parties (jalons de l'accordéon), avec profondeur dépliable. -->
+        <!-- Deux têtes de premier niveau, mutuellement exclusives (cf. `topOpen`) :
+             « Maquette » englobe toutes les parties de l'accordéon ; « Table des
+             matières » porte l'arbre des axes. Ouvrir l'une ferme l'autre. -->
         <div class="maq-nav__parts">
-          <template v-for="g in groups" :key="g.key">
-            <!-- Feuilles simples : Format · Annotations. -->
-            <TreeRow
-                v-if="g.kind === 'leaf' || g.kind === 'annotations'"
-                variant="list"
-                normalize-case
-                :current="g.key === activeSeriesKey"
-                @open="$emit('focus-series', g.key)"
-            >
-              {{ g.label }}
-            </TreeRow>
-
-            <!-- Liminaire : dossier dépliable → une ligne par page avec select de type. -->
-            <template v-else-if="g.kind === 'liminaire'">
+          <TreeRow
+              columns
+              variant="list"
+              normalize-case
+              expandable
+              leading-icon="pi-book"
+              :expanded="topOpen === 'maquette'"
+              @open="toggleTop('maquette')"
+              @toggle="toggleTop('maquette')"
+          >
+            Maquette
+          </TreeRow>
+          <div v-if="topOpen === 'maquette'" class="maq-nav__sub">
+            <template v-for="g in groups" :key="g.key">
+              <!-- Feuilles simples : Format · Annotations. -->
               <TreeRow
+                  v-if="g.kind === 'leaf' || g.kind === 'annotations'"
+                  columns
                   variant="list"
                   normalize-case
-                  expandable
-                  leading-icon="pi-folder"
-                  :expanded="isOpen(g.key)"
                   :current="g.key === activeSeriesKey"
                   @open="$emit('focus-series', g.key)"
-                  @toggle="toggle(g.key)"
               >
                 {{ g.label }}
               </TreeRow>
-              <div v-if="isOpen(g.key)" class="maq-nav__sub">
-                <div v-for="pg in limPageRows" :key="pg.key" class="maq-nav__lim-page">
-                  <span class="maq-nav__lim-num" :title="pg.preview">{{ pg.label }}</span>
-                  <BaseSelect
-                      class="maq-nav__lim-select"
-                      :class="{ 'has-suggestion': !limTypes[pg.key] && limSuggestions[pg.key] }"
-                      :title="limSuggestions[pg.key] ? limSuggestions[pg.key].why : ''"
-                      :model-value="limTypes[pg.key] || ''"
-                      @update:model-value="$emit('set-lim-type', pg.page, $event)"
-                  >
-                    <option value="">
-                      {{ limSuggestions[pg.key] ? `⚡ ${labelOf(limSuggestions[pg.key].key)} ?` : '— type —' }}
-                    </option>
-                    <option v-for="t in LIMINAIRE_PAGES" :key="t.key" :value="t.key">{{ t.label }}</option>
-                  </BaseSelect>
-                </div>
-                <p v-if="!limPageRows.length" class="maq-nav__empty">Aucune page liminaire.</p>
-              </div>
-            </template>
 
-            <!-- Chapitrage : dossier dépliable → une page par niveau (« Chapitrage n°x »). -->
-            <template v-else-if="g.kind === 'chapitrage'">
-              <TreeRow
-                  variant="list"
-                  normalize-case
-                  expandable
-                  leading-icon="pi-folder"
-                  :expanded="isOpen(g.key)"
-                  @open="toggle(g.key)"
-                  @toggle="toggle(g.key)"
-              >
-                {{ g.label }}
-              </TreeRow>
-              <div v-if="isOpen(g.key)" class="maq-nav__sub">
+              <!-- Liminaire : dossier dépliable → une ligne par page avec select de type. -->
+              <template v-else-if="g.kind === 'liminaire'">
                 <TreeRow
-                    v-for="lv in g.levels"
-                    :key="lv.key"
+                    columns
                     variant="list"
                     normalize-case
-                    :current="lv.key === activeSeriesKey"
-                    @open="$emit('focus-series', lv.key)"
+                    expandable
+                    leading-icon="pi-folder"
+                    :expanded="isOpen(g.key)"
+                    :current="g.key === activeSeriesKey"
+                    @open="$emit('focus-series', g.key)"
+                    @toggle="toggle(g.key)"
                 >
-                  {{ lv.label }}
+                  {{ g.label }}
                 </TreeRow>
-              </div>
+                <div v-if="isOpen(g.key)" class="maq-nav__sub">
+                  <div v-for="pg in limPageRows" :key="pg.key" class="maq-nav__lim-page">
+                    <span class="maq-nav__lim-num" :title="pg.preview">{{ pg.label }}</span>
+                    <BaseSelect
+                        class="maq-nav__lim-select"
+                        :class="{ 'has-suggestion': !limTypes[pg.key] && limSuggestions[pg.key] }"
+                        :title="limSuggestions[pg.key] ? limSuggestions[pg.key].why : ''"
+                        :model-value="limTypes[pg.key] || ''"
+                        @update:model-value="$emit('set-lim-type', pg.page, $event)"
+                    >
+                      <option value="">
+                        {{ limSuggestions[pg.key] ? `⚡ ${labelOf(limSuggestions[pg.key].key)} ?` : '— type —' }}
+                      </option>
+                      <option v-for="t in LIMINAIRE_PAGES" :key="t.key" :value="t.key">{{ t.label }}</option>
+                    </BaseSelect>
+                  </div>
+                  <p v-if="!limPageRows.length" class="maq-nav__empty">Aucune page liminaire.</p>
+                </div>
+              </template>
+
+              <!-- Chapitrage : dossier dépliable → une page par niveau (« Chapitrage n°x »). -->
+              <template v-else-if="g.kind === 'chapitrage'">
+                <TreeRow
+                    columns
+                    variant="list"
+                    normalize-case
+                    expandable
+                    leading-icon="pi-folder"
+                    :expanded="isOpen(g.key)"
+                    @open="toggle(g.key)"
+                    @toggle="toggle(g.key)"
+                >
+                  {{ g.label }}
+                </TreeRow>
+                <div v-if="isOpen(g.key)" class="maq-nav__sub">
+                  <TreeRow
+                      v-for="lv in g.levels"
+                      :key="lv.key"
+                      columns
+                      variant="list"
+                      normalize-case
+                      :current="lv.key === activeSeriesKey"
+                      @open="$emit('focus-series', lv.key)"
+                  >
+                    {{ lv.label }}
+                  </TreeRow>
+                </div>
+              </template>
             </template>
-          </template>
-          <!-- Table des matières : dépliable → l'arbre des axes (le menu actuel).
-               Fermée au démarrage, indépendante de la progression au centre. -->
+          </div>
+
+          <!-- Table des matières : dépliable → l'arbre des axes (StructureView, laissé
+               tel quel). Fermée quand « Maquette » est ouverte, indépendante de la
+               progression au centre. -->
           <TreeRow
+              columns
               variant="list"
               normalize-case
               expandable
               leading-icon="pi-list"
-              :expanded="tocOpen"
-              @open="tocOpen = !tocOpen"
-              @toggle="tocOpen = !tocOpen"
+              :expanded="topOpen === 'toc'"
+              @open="toggleTop('toc')"
+              @toggle="toggleTop('toc')"
           >
             Table des matières
           </TreeRow>
-          <div v-if="tocOpen" class="maq-nav__toc">
+          <div v-if="topOpen === 'toc'" class="maq-nav__toc">
             <StructureView
                 v-if="trame && data"
                 :trame="trame"
@@ -157,6 +180,13 @@ function toggle(key) {
   else open.add(key)
 }
 
+// Tête de premier niveau ouverte : 'maquette' | 'toc' | null. Mutuellement
+// exclusives — ouvrir l'une ferme l'autre. « Maquette » ouverte au démarrage.
+const topOpen = ref('maquette')
+function toggleTop(key) {
+  topOpen.value = topOpen.value === key ? null : key
+}
+
 watch(
   () => props.activeSeriesKey,
   (key) => {
@@ -164,6 +194,9 @@ watch(
     // Un niveau focusé (chap-N) ouvre son dossier parent « Chapitrage ».
     if (key?.startsWith('chap-')) open.add('chapitrage')
     else if (key) open.add(key)
+    // Focuser un cran, c'est travailler dans la maquette : on l'ouvre (et donc on
+    // ferme la table des matières, exclusion mutuelle).
+    if (key) topOpen.value = 'maquette'
   },
   { immediate: true },
 )
@@ -175,9 +208,6 @@ const limPageRows = computed(() =>
     .map((p) => ({ key: p.key, page: p, label: `Page ${p.ordinal + 1}`, preview: p.preview })),
 )
 
-// Table des matières : pli propre, hors progression (fermé au démarrage).
-const tocOpen = ref(false)
-
 const labelOf = (key) => LIMINAIRE_BY_KEY.get(key)?.label ?? key
 </script>
 
@@ -188,7 +218,7 @@ const labelOf = (key) => LIMINAIRE_BY_KEY.get(key)?.label ?? key
    none` dessus, `auto` sur ses zones utiles, pour laisser passer les clics autour. */
 .maq-nav {
   position: absolute;
-  top: calc(2 * var(--bar-size));
+  top: calc(1.3 * var(--bar-size));
   left: 0;
   width: 15em;
   height: calc(100% - 2 * var(--bar-size) - var(--sp-4) / 2);
@@ -196,7 +226,6 @@ const labelOf = (key) => LIMINAIRE_BY_KEY.get(key)?.label ?? key
   flex-direction: column;
   z-index: 160;
   pointer-events: none;
-  margin: 0 1em;
 }
 
 /* Carte flottante (mêmes traits que les contrôles liminaire et les blocs de
@@ -232,9 +261,12 @@ const labelOf = (key) => LIMINAIRE_BY_KEY.get(key)?.label ?? key
   padding: 0 0.6em;
 }
 
-/* Décrochement d'un cran par niveau d'imbrication (pages, niveaux, titres). */
+/* Décrochement d'un cran par niveau d'imbrication : une largeur de colonne
+   (chevron 1.1em + gap 0.35em) → le chevron d'un enfant s'aligne sous l'icône du
+   parent. */
 .maq-nav__sub {
-  padding-left: 1.1em;
+  font-size: var(--fs-md);
+  padding-left: 1.45em;
 }
 
 /* Une page liminaire : son rang + son select de type. */

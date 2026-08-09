@@ -23,6 +23,27 @@ export const SidebarListe = {
   }),
 }
 
+// Mode colonnes : chevron en tête (colonne fixe réservée même pour une feuille),
+// puis icône, puis texte. Le sous-arbre décale d'une colonne (le chevron de
+// l'enfant s'aligne sous l'icône du parent).
+export const Colonnes = {
+  render: () => ({
+    components: { TreeRow },
+    setup: () => ({ open: ref(true) }),
+    template: `
+      <div style="max-width: 260px;">
+        <TreeRow columns variant="list" expandable leading-icon="pi-book" :expanded="open" normalize-case @toggle="open = !open">Maquette</TreeRow>
+        <div v-if="open" style="font-size: var(--fs-md); padding-left: 1.45em;">
+          <TreeRow columns variant="list" normalize-case>Format</TreeRow>
+          <TreeRow columns variant="list" expandable leading-icon="pi-folder" normalize-case>Liminaire</TreeRow>
+          <TreeRow columns variant="list" normalize-case>Annotations</TreeRow>
+        </div>
+        <TreeRow columns variant="list" expandable leading-icon="pi-list" normalize-case>Table des matières</TreeRow>
+      </div>
+    `,
+  }),
+}
+
 export const AvecTrailing = {
   render: () => ({
     components: { TreeRow },
