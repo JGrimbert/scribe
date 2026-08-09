@@ -103,7 +103,7 @@
 
     <!-- CTA global à droite : un slot, un CTA contextuel. Une action posée par
          l'écran (`barAction` — ex : « Redéfinir les bornes » en config) prend la
-         place du CTA d'analyse propre au dashboard. -->
+         place du CTA d'analyse propre au dashboard. --
     <div class="analyse-cta">
       <BaseButton
           v-if="barAction"
@@ -131,12 +131,17 @@
             class="run-all"
             :icon="running ? null : 'pi-play'"
             :busy="!!running"
-            @click="runAll"
+            @click="runAll"F
         >
           {{ running ? `Analyse : ${STEP_LABELS[running]}…` : hasAny ? 'Relancer l’analyse' : 'Lancer l’analyse' }}
         </BaseButton>
       </template>
     </div>
+    -->
+
+
+
+
   </div>
 </template>
 
@@ -344,7 +349,7 @@ const checklistVisible = computed(() => props.scoped && !!running && running.val
 .doc-bar {
   position: relative;
   flex: 0 0 auto;
-  height: var(--bar-size);
+  height: var(--bar-size-2);
   display: flex;
   align-items: center;
   background: var(--c-doc-bar-bck);

@@ -134,7 +134,7 @@ onUnmounted(() => document.removeEventListener('keydown', onDocKeydown))
    Au-dessus du sommaire flottant (z 160), sous les modales (z 200). */
 .maq-bar {
   position: absolute;
-  top: var(--bar-size);
+  top: var(--bar-size-2);
   left: 0;
   right: 0;
   height: var(--bar-size);
@@ -143,7 +143,7 @@ onUnmounted(() => document.removeEventListener('keydown', onDocKeydown))
   align-items: center;
   gap: var(--sp-3);
   /* Alignée sur la colonne du sommaire (marge de .maq-nav + padding de sa carte). */
-  padding-left: calc(1em + var(--sp-3));
+  padding-left: calc(2em + var(--sp-3));
   padding-right: 1em;
   color: var(--c-ink2);
   font-size: var(--fs-sm);
@@ -165,7 +165,7 @@ onUnmounted(() => document.removeEventListener('keydown', onDocKeydown))
    `font-weight` n'y fait rien — l'épaisseur vient du contour. */
 .maq-search__icon {
   flex: 0 0 auto;
-  font-size: 1.15em;
+  font-size: .8em;
   color: var(--c-accent-alt-darker);
   -webkit-text-stroke: 0.6px currentColor;
 }
