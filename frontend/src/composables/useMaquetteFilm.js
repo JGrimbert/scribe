@@ -30,7 +30,7 @@ export function useMaquetteFilm({ layers, limSpreads, chapSections, bookTitle, t
         spreads: [{ sourceKey: 'chapitrage', sectionIndex: i, depthKey: sec.depthKey }],
       })
     })
-    out.push({ key: 'validation', label: 'Validation', spreads: [{ sourceKey: 'validation' }] })
+    out.push({ key: 'validation', label: 'Annotations', spreads: [{ sourceKey: 'validation' }] })
     return out
   })
 

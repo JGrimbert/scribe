@@ -1,40 +1,120 @@
 <template>
   <!-- Sommaire flottant de l'écran Maquette : toujours ouvert, hors flux (il ne
        pousse pas la maquette). Il porte les PARTIES (Format · Liminaire ·
-       Chapitrage n°x, = les `series` de l'accordéon) et l'arbre des axes
-       (StructureView réutilisé). Le champ de recherche, lui, a quitté cette carte
-       pour la troisième barre de l'écran (MaquetteBar). -->
-  <div class="maq-nav" >
-    <!-- La carte : le sommaire. -->
+       Chapitrage · Annotations, = les `series` de l'accordéon, groupées) — chacune
+       dépliable pour montrer son contenu — puis la partie « Contenu » (l'arbre des
+       axes, StructureView réutilisé). Tout défile dans UNE seule zone : la surface
+       se prolonge SOUS le dock accordéon, qui la masque en pied. Le champ de
+       recherche vit dans la troisième barre (MaquetteBar), pas ici. -->
+  <div class="maq-nav">
     <div class="maq-nav__card">
-      <!-- Liste d'exploration (Format · Liminaire · Chapitrage n°x). -->
-      <div class="maq-nav__parts">
-        <TreeRow
-            v-for="part in parts"
-            :key="part.key"
-            variant="list"
-            normalize-case
-            :current="part.key === activeSeriesKey"
-            @open="$emit('focus-series', part.key)"
-        >
-          {{ part.label }}
-        </TreeRow>
-      </div>
       <div class="maq-nav__scroll">
-        <StructureView
-            v-if="trame && data"
-            :trame="trame"
-            :data="data"
-            :node-id="nodeId"
-            :expanded="true"
-            @select="$emit('select-node', $event)"
-        />
+        <!-- Parties (jalons de l'accordéon), avec profondeur dépliable. -->
+        <div class="maq-nav__parts">
+          <template v-for="g in groups" :key="g.key">
+            <!-- Feuilles simples : Format · Annotations. -->
+            <TreeRow
+                v-if="g.kind === 'leaf' || g.kind === 'annotations'"
+                variant="list"
+                normalize-case
+                :current="g.key === activeSeriesKey"
+                @open="$emit('focus-series', g.key)"
+            >
+              {{ g.label }}
+            </TreeRow>
+
+            <!-- Liminaire : dossier dépliable → une ligne par page avec select de type. -->
+            <template v-else-if="g.kind === 'liminaire'">
+              <TreeRow
+                  variant="list"
+                  normalize-case
+                  expandable
+                  leading-icon="pi-folder"
+                  :expanded="isOpen(g.key)"
+                  :current="g.key === activeSeriesKey"
+                  @open="$emit('focus-series', g.key)"
+                  @toggle="toggle(g.key)"
+              >
+                {{ g.label }}
+              </TreeRow>
+              <div v-if="isOpen(g.key)" class="maq-nav__sub">
+                <div v-for="pg in limPageRows" :key="pg.key" class="maq-nav__lim-page">
+                  <span class="maq-nav__lim-num" :title="pg.preview">{{ pg.label }}</span>
+                  <BaseSelect
+                      class="maq-nav__lim-select"
+                      :class="{ 'has-suggestion': !limTypes[pg.key] && limSuggestions[pg.key] }"
+                      :title="limSuggestions[pg.key] ? limSuggestions[pg.key].why : ''"
+                      :model-value="limTypes[pg.key] || ''"
+                      @update:model-value="$emit('set-lim-type', pg.page, $event)"
+                  >
+                    <option value="">
+                      {{ limSuggestions[pg.key] ? `⚡ ${labelOf(limSuggestions[pg.key].key)} ?` : '— type —' }}
+                    </option>
+                    <option v-for="t in LIMINAIRE_PAGES" :key="t.key" :value="t.key">{{ t.label }}</option>
+                  </BaseSelect>
+                </div>
+                <p v-if="!limPageRows.length" class="maq-nav__empty">Aucune page liminaire.</p>
+              </div>
+            </template>
+
+            <!-- Chapitrage : dossier dépliable → une page par niveau (« Chapitrage n°x »). -->
+            <template v-else-if="g.kind === 'chapitrage'">
+              <TreeRow
+                  variant="list"
+                  normalize-case
+                  expandable
+                  leading-icon="pi-folder"
+                  :expanded="isOpen(g.key)"
+                  @open="toggle(g.key)"
+                  @toggle="toggle(g.key)"
+              >
+                {{ g.label }}
+              </TreeRow>
+              <div v-if="isOpen(g.key)" class="maq-nav__sub">
+                <TreeRow
+                    v-for="lv in g.levels"
+                    :key="lv.key"
+                    variant="list"
+                    normalize-case
+                    :current="lv.key === activeSeriesKey"
+                    @open="$emit('focus-series', lv.key)"
+                >
+                  {{ lv.label }}
+                </TreeRow>
+              </div>
+            </template>
+          </template>
+          <!-- Table des matières : dépliable → l'arbre des axes (le menu actuel).
+               Fermée au démarrage, indépendante de la progression au centre. -->
+          <TreeRow
+              variant="list"
+              normalize-case
+              expandable
+              leading-icon="pi-list"
+              :expanded="tocOpen"
+              @open="tocOpen = !tocOpen"
+              @toggle="tocOpen = !tocOpen"
+          >
+            Table des matières
+          </TreeRow>
+          <div v-if="tocOpen" class="maq-nav__toc">
+            <StructureView
+                v-if="trame && data"
+                :trame="trame"
+                :data="data"
+                :node-id="nodeId"
+                :expanded="true"
+                @select="$emit('select-node', $event)"
+            />
+          </div>
+        </div>
       </div>
     </div>
 
-    <!-- Pied de la colonne : le dock accordéon de la maquette. Il vit ICI pour
-         être ferré au bord gauche de la fenêtre (le sommaire l'est déjà) et
-         déborde volontairement la largeur du sommaire — d'où sa largeur propre. -->
+    <!-- Pied de la colonne : le dock accordéon de la maquette. Hors flux (overlay
+         ferré au bord gauche/bas) — il ne réserve plus de hauteur, la surface de
+         contenu passe DESSOUS et il la masque. Il déborde volontairement la largeur
+         du sommaire, d'où sa largeur propre. -->
     <div class="maq-nav__footer">
       <slot name="footer" />
     </div>
@@ -42,84 +122,106 @@
 </template>
 
 <script setup>
+import { computed, reactive, ref, watch } from 'vue'
 import StructureView from '../structure/StructureView.vue'
 import TreeRow from '../ui/molecules/TreeRow.vue'
+import BaseSelect from '../ui/atoms/BaseSelect.vue'
+import { LIMINAIRE_PAGES, LIMINAIRE_BY_KEY } from '../../script/liminaire-vocab'
 
-defineProps({
-  // Parties de l'écran (Format · Liminaire · Chapitrage n°x) : { key, label }.
-  parts: { type: Array, default: () => [] },
+const props = defineProps({
+  // Parties de l'écran, groupées : { key, label, kind } où kind ∈
+  // 'leaf' | 'liminaire' | 'chapitrage' | 'annotations'. Le chapitrage porte
+  // `levels: [{ key, label }]` (une page par niveau).
+  groups: { type: Array, default: () => [] },
   // Série du cran focusé — surligne la partie correspondante.
   activeSeriesKey: { type: String, default: null },
   trame: { type: Object, default: null },
   data: { type: Object, default: null },
-  // Nœud témoin courant de l'aperçu (surligne son axe dans l'arbre).
+  // Nœud témoin courant de l'aperçu (surligne son axe dans l'arbre et son titre).
   nodeId: { type: String, default: null },
+  // Pages liminaires (mêmes objets que ceux typés dans LiminaireControls).
+  liminairePages: { type: Array, default: () => [] },
+  limTypes: { type: Object, default: () => ({}) },
+  limSuggestions: { type: Object, default: () => ({}) },
 })
 
-defineEmits(['focus-series', 'select-node'])
+defineEmits(['focus-series', 'select-node', 'set-lim-type'])
+
+// Dépli piloté par la PROGRESSION au centre (accordéon) : seul le jalon focusé est
+// ouvert, les autres restent fermés (ne sont pas déclenchés). Le chevron permet un
+// pli manuel ponctuel, réinitialisé au changement de jalon.
+const open = reactive(new Set())
+const isOpen = (key) => open.has(key)
+function toggle(key) {
+  if (open.has(key)) open.delete(key)
+  else open.add(key)
+}
+
+watch(
+  () => props.activeSeriesKey,
+  (key) => {
+    open.clear()
+    // Un niveau focusé (chap-N) ouvre son dossier parent « Chapitrage ».
+    if (key?.startsWith('chap-')) open.add('chapitrage')
+    else if (key) open.add(key)
+  },
+  { immediate: true },
+)
+
+// Pages taguables : on écarte les blanches (rien à typer), comme LiminaireControls.
+const limPageRows = computed(() =>
+  props.liminairePages
+    .filter((p) => !p.isBlank)
+    .map((p) => ({ key: p.key, page: p, label: `Page ${p.ordinal + 1}`, preview: p.preview })),
+)
+
+// Table des matières : pli propre, hors progression (fermé au démarrage).
+const tocOpen = ref(false)
+
+const labelOf = (key) => LIMINAIRE_BY_KEY.get(key)?.label ?? key
 </script>
 
 <style scoped>
 /* Colonne flottante hors flux, calée sous les DEUX barres (doc-bar + barre de la
-   maquette, cf. MaquetteBar) : la carte du sommaire en tête, le dock en pied. Le
-   conteneur n'a aucun décor propre — `pointer-events:none` dessus, `auto` sur ses
-   zones utiles, pour laisser passer les clics autour. */
+   maquette, cf. MaquetteBar) : la carte du sommaire occupe TOUTE la hauteur, le dock
+   se pose en pied par-dessus. Le conteneur n'a aucun décor propre — `pointer-events:
+   none` dessus, `auto` sur ses zones utiles, pour laisser passer les clics autour. */
 .maq-nav {
   position: absolute;
   top: calc(2 * var(--bar-size));
   left: 0;
   width: 15em;
-  /* Hauteur PLEINE (et non `max-height`) : le pied doit pouvoir se caler en bas
-     de la colonne, le sommaire restant en tête. La distance au pied de la fenêtre
-     est réduite de moitié (`--sp-4` / 2) — le dock accordéon descend d'autant. */
   height: calc(100% - 2 * var(--bar-size) - var(--sp-4) / 2);
   display: flex;
-
   flex-direction: column;
-  gap: 0;
-  /* Au-dessus du reste de la maquette, sous les modales (z 200). */
   z-index: 160;
   pointer-events: none;
-
   margin: 0 1em;
 }
 
 /* Carte flottante (mêmes traits que les contrôles liminaire et les blocs de
-   l'aside). Au repos, sa taille s'ajuste au contenu : l'espace vide ne couvre
-   pas le folio. */
+   l'aside). Pleine hauteur : sa zone de défilement se prolonge sous le dock. */
 .maq-nav__card {
   margin-top: 1.1em;
   min-height: 0;
+  flex: 1 1 auto;
   display: flex;
-  /* Colonne : parties en tête, puis l'arbre. */
   flex-direction: column;
-  gap: var(--sp-2);
   padding: var(--sp-3);
- /* border: 1px solid var(--c-border);
-  border-radius: var(--radius-md);
-  background: var(--c-card-float);*/
   backdrop-filter: var(--c-backdrop-filter-blur);
 }
 
-/* Pied de colonne (dock accordéon) : poussé en bas (`margin-top: auto`), FERRÉ AU
-   BORD GAUCHE de la fenêtre — la marge latérale de la colonne est annulée — et
-   plus large qu'elle : la pellicule a besoin de la largeur de la zone principale,
-   pas des 15em du sommaire. */
-.maq-nav__footer {
-  margin-top: auto;
-  margin-left: -1em;
-  width: 66vw;
-  pointer-events: auto;
-}
-
-/* Arbre des axes : défile sans barre visible (scrollbar masquée) — pas de chrome. */
+/* UNE seule zone de défilement (parties + contenu) — pas de scrollbars imbriquées.
+   Le padding de pied réserve la hauteur du dock : le bas de la liste reste
+   atteignable en défilant au-dessus de l'accordéon qui, sinon, le recouvre. */
 .maq-nav__scroll {
   pointer-events: auto;
-  flex: 0 1 auto;
+  flex: 1 1 auto;
   width: 100%;
   min-height: 0;
   overflow-y: auto;
   scrollbar-width: none;
+  padding-bottom: var(--maq-dock-h);
 }
 
 .maq-nav__scroll::-webkit-scrollbar {
@@ -127,16 +229,68 @@ defineEmits(['focus-series', 'select-node'])
 }
 
 .maq-nav__parts {
-  flex: 0 0 auto;
-  pointer-events: auto;
   padding: 0 0.6em;
+}
+
+/* Décrochement d'un cran par niveau d'imbrication (pages, niveaux, titres). */
+.maq-nav__sub {
+  padding-left: 1.1em;
+}
+
+/* Une page liminaire : son rang + son select de type. */
+.maq-nav__lim-page {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  padding: 0.15em 0.5em 0.15em 0.35em;
+}
+
+.maq-nav__lim-num {
+  flex: 0 0 auto;
+  font-size: var(--fs-md);
+  color: var(--c-muted);
+  white-space: nowrap;
+}
+
+.maq-nav__lim-select {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--fs-sm);
+}
+
+/* Un type encore SUGGÉRÉ (non décidé) reprend la signature de l'indice (trait
+   discontinu, teinte d'accent), comme dans LiminaireControls. */
+.maq-nav__lim-select.has-suggestion {
+  border: 1px dashed var(--c-accent);
+  color: var(--c-accent);
+}
+
+.maq-nav__empty {
+  padding: 0.25em 0.6em;
+  font-size: var(--fs-sm);
+  color: var(--c-muted);
+  opacity: 0.7;
+}
+
+/* Dock accordéon : overlay ferré au bord gauche/bas (il ne réserve plus de hauteur).
+   Plus large que le sommaire — la pellicule a besoin de la zone principale. */
+.maq-nav__footer {
+  position: absolute;
+  left: -1em;
+  bottom: 0;
+  width: 66vw;
+  pointer-events: auto;
 }
 
 /* StructureView est pensé pour la colonne d'aside (fond + décrochement sous la
    barre) ; ici il flotte, sans fond ni décrochement. La classe de scope de
    StructureView est posée SUR `.structure-panel`, d'où le ciblage direct. */
-.maq-nav__scroll :deep(.structure-panel) {
+.maq-nav__toc :deep(.structure-panel) {
   margin-top: 0;
   background: transparent;
+}
+
+.maq-nav__toc :deep(.panel-content) {
+  padding: 0.3em 0.6em 1em;
 }
 </style>

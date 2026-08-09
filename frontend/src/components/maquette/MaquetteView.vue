@@ -31,12 +31,17 @@
     <MaquetteRecalReport :report="recalReport" @close="recalReport = null" />
 
     <MaquetteStructureNav
-        :parts="parts"
+        :groups="navGroups"
         :active-series-key="focusedCran?.seriesKey ?? null"
         :trame="trame"
         :data="documentData"
+        :node-id="mainNodeId"
+        :liminaire-pages="liminairePages"
+        :lim-types="limTypes"
+        :lim-suggestions="limSuggestions"
         @focus-series="focusSeries"
         @select-node="selectNode"
+        @set-lim-type="limSetType"
     >
       <!-- Le dock accordéon est le pied du sommaire : ferré au bord gauche, hors du
            flux de la colonne d'aperçu (qui ne bouge donc jamais, quel que soit le pli). -->
@@ -265,6 +270,22 @@ const {
   parts, focusSeries, onAsideWheel, selectNode,
   limStart, limFocused, setLimFocused, limFocusedSpread,
 } = useMaquetteFilm({ layers, limSpreads, chapSections, bookTitle, trame })
+
+// Jalons du sommaire pour la nav : Format · Liminaire (dépliable → pages) · dossier
+// Chapitrage (dépliable → une page par niveau, « Chapitrage n°x ») · Annotations.
+const navGroups = computed(() => {
+  const out = []
+  parts.value.forEach((p) => {
+    if (p.key === 'liminaire') out.push({ key: p.key, label: p.label, kind: 'liminaire' })
+    else if (p.key === 'validation') out.push({ key: p.key, label: p.label, kind: 'annotations' })
+    else if (p.key.startsWith('chap-')) {
+      let g = out.find((x) => x.kind === 'chapitrage')
+      if (!g) { g = { key: 'chapitrage', label: 'Chapitrage', kind: 'chapitrage', levels: [] }; out.push(g) }
+      g.levels.push({ key: p.key, label: p.label })
+    } else out.push({ key: p.key, label: p.label, kind: 'leaf' })
+  })
+  return out
+})
 
 const liminaireInventory = computed(
   () => sections.value.find((s) => s.zone.key === 'liminaire')?.styles ?? [],

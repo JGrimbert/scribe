@@ -9,6 +9,12 @@
       :title="tooltip"
       @click="$emit('open')"
   >
+    <!-- Icône de tête, AVANT le chevron : une feuille porte son fichier (ou son
+         `leadingIcon`) ; une ligne dépliable dotée d'un `leadingIcon` le pose devant
+         son chevron. -->
+    <span v-if="!expandable" class="tree-row__leaf"><i class="pi" :class="leadingIcon || 'pi-file'"></i></span>
+    <span v-else-if="leadingIcon" class="tree-row__leaf tree-row__leaf--icon"><i class="pi" :class="leadingIcon"></i></span>
+
     <button
         v-if="expandable"
         type="button"
@@ -19,7 +25,6 @@
     >
       <i class="pi pi-angle-right"></i>
     </button>
-    <span v-else class="tree-row__leaf"><i class="pi pi-file"></i></span>
 
     <span class="tree-row__label" :class="{ 'tree-row__label--normalized': normalizeCase }">
       <slot />
@@ -46,6 +51,9 @@ defineProps({
   // bas de casse + initiale capitale (rendu unifié de la sidebar)
   normalizeCase: { type: Boolean, default: false },
   tooltip: { type: String, default: null },
+  // Icône de tête optionnelle (classe PrimeIcons, ex : 'pi-folder'). Sur une feuille
+  // elle remplace le fichier ; sur une ligne dépliable elle s'ajoute après le chevron.
+  leadingIcon: { type: String, default: null },
 })
 
 defineEmits(['open', 'toggle'])
