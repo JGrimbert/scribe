@@ -23,13 +23,8 @@ export function createRegistry(owners, blocks, flow) {
     return map
 }
 
-// Deux entrées peuvent-elles fusionner ? Paragraphe+paragraphe : toujours.
-// Liste+liste : seulement si même ordered (numéroté/à puces) — sinon
-// concaténer produirait un <ul>/<ol> incohérent avec ses propres items.
-// Paragraphe+liste : jamais — pas de représentation HTML valide pour un
-// mélange des deux dans une seule entrée. No-op sûr dans tous les cas
-// incompatibles (même famille que le no-op déjà existant sur une coupure
-// de page interne, cf. frontend/CLAUDE.md "Pièges connus").
+// Deux entrées fusionnent-elles ? p+p : toujours. liste+liste : même `ordered` seulement.
+// p+liste : jamais (pas de HTML valide). No-op sûr sinon.
 function canMerge(a, b) {
     if (a.type !== b.type) return false
     return a.type !== 'list' || a.ordered === b.ordered
@@ -83,11 +78,9 @@ function mergePrev(owner, block) {
     return { index: i - 1, cursor }
 }
 
-// Découpe une entrée en son début (avant `offset`) — pour une liste, offset
-// s'applique au texte concaténé de ses items (cf. fragment.js:entryText) ;
-// la coupure se fait à la granularité d'un item entier (pas de découpe en
-// plein milieu d'un <li>), suffisant pour les cas réels (Entrée/Backspace
-// tombent déjà sur des bords d'item côté Quill).
+// Découpe une entrée avant/après `offset`. Pour une liste, offset s'applique au texte
+// concaténé et la coupure se fait à l'item entier (Entrée/Backspace tombent déjà sur
+// des bords d'item côté Quill).
 function sliceEntryBefore(entry, offset) {
     if (entry.type === 'list') {
         let acc = 0
@@ -123,15 +116,10 @@ function concatEntries(before, insertText, after) {
     return { type: 'paragraph', text: before.text + insertText + after.text }
 }
 
-// Supprime une sélection allant du paragraphe `block.path.index` (à partir de
-// `startOffset`) jusqu'au paragraphe `endIndex` (jusqu'à `endOffset`) — les
-// paragraphes strictement entre les deux disparaissent intégralement.
-// `keepSplit: true` (touche Entrée) garde les deux restes comme deux
-// paragraphes distincts au lieu de les recoller en un seul ; `insertText`
-// (frappe normale) est inséré au point de jonction en même temps que la
-// suppression, pour un remplacement atomique de la sélection.
-// Même limitation que mergeNext/mergePrev : les offsets sont des longueurs
-// de chaîne HTML brute, pas des comptes de caractères visibles.
+// Supprime la sélection de `block.path.index`/`startOffset` à `endIndex`/`endOffset`
+// (les paragraphes entre les deux disparaissent). `keepSplit` (Entrée) garde deux restes
+// distincts ; `insertText` (frappe) est inséré au point de jonction (remplacement
+// atomique). Offsets = longueurs de chaîne HTML brute, pas de caractères visibles.
 function deleteRange(owner, block, startOffset, endIndex, endOffset, { keepSplit = false, insertText = '' } = {}) {
 
     if (block.path.kind !== 'texte') return null
@@ -149,10 +137,8 @@ function deleteRange(owner, block, startOffset, endIndex, endOffset, { keepSplit
         return { index: startIndex + 1, cursor: 0 }
     }
 
+    // Sélection à cheval paragraphe/liste : pas de fusion valide, on garde les deux.
     if (!canMerge(before, after)) {
-        // Sélection à cheval entre un paragraphe et une liste : pas de HTML
-        // valide pour une entrée fusionnée, on garde les deux morceaux
-        // distincts plutôt que de corrompre le contenu (limite assumée).
         owner.texte.splice(startIndex, endIndex - startIndex + 1, before, after)
         return { index: startIndex + 1, cursor: 0 }
     }
@@ -184,9 +170,7 @@ function applyEdit(owner, block, html) {
         }
 
         case 'pistes':
-            // Les pistes restent un tableau de strings (pas de support liste
-            // ici) — extractParagraphs renvoie désormais des entrées
-            // typées, entryText en réextrait le texte brut.
+            // Les pistes restent un tableau de strings ; entryText réextrait le brut.
             owner.connexe.pistes = extractParagraphs(html).map(entryText)
             break
     }

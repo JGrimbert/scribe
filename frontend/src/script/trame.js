@@ -1,9 +1,7 @@
-// Helpers purs sur l'arbre `trame` (`{ id, children: [...] }` à profondeur
-// arbitraire). Partagés entre la sidebar (StructureView) et le fil d'Ariane
-// (DocumentBar) pour ne pas dupliquer le parcours.
+// Helpers purs sur l'arbre `trame` (`{ id, children }`), partagés entre la sidebar et
+// le fil d'Ariane.
 
-// Chemin (ids des ancêtres + le nœud lui-même) de la racine `node` vers `id`,
-// ou null si `id` n'est pas dans ce sous-arbre.
+// Chemin (ids des ancêtres + le nœud) de `node` vers `id`, ou null si absent du sous-arbre.
 export function pathTo(node, id) {
   if (node.id === id) return [node.id]
   for (const child of node.children) {
@@ -13,7 +11,7 @@ export function pathTo(node, id) {
   return null
 }
 
-// Chemin d'ids vers `id` en balayant tous les axes de tête, ou [] si absent.
+// Chemin d'ids vers `id` en balayant tous les axes, ou [] si absent.
 export function pathToInAxes(axes, id) {
   for (const axe of axes) {
     const path = pathTo(axe, id)
@@ -22,11 +20,9 @@ export function pathToInAxes(axes, id) {
   return []
 }
 
-// Tous les nœuds du livre dans l'ordre de LECTURE (parcours préfixe des axes), sous
-// la forme `{ id, titre, path }` — `path` = fil d'Ariane des titres ancêtres joints
-// par ' › ' (vide à la racine). Même forme que l'index de `useDocSearch`, pour que
-// les passages annotés se coulent dans le même `fragmentPages` que les résultats de
-// recherche (cf. script/annotations). `data` porte les titres (`data[id].titre`).
+// Tous les nœuds dans l'ordre de LECTURE, sous forme `{ id, titre, path }` (path = fil
+// d'Ariane des titres ancêtres). Même forme que l'index de useDocSearch (pour que les
+// passages annotés se coulent dans le même fragmentPages).
 export function bookNodes(axes, data) {
   if (!axes || !data) return []
   const out = []

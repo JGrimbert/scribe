@@ -1,13 +1,9 @@
 import { LIMINAIRE_PAGES, LIMINAIRE_BY_KEY } from './liminaire-vocab'
 
-// L'éligibilité du liminaire, dérivée du tagging (pas une saisie à part) —
-//  - `obligatoires` : les trois pages minimales, avec leur présence.
-//  - `presentTypes` : tous les types assignés (pour cocher les optionnels).
-//  - `conflicts` : une page dont le côté CHOISI contredit le côté conventionnel
-//    de son type (mentions légales en recto, p. ex.). 'auto' ne contredit rien.
-//  - `duplicates` : un type conventionnel assigné à plusieurs pages (une page de
-//    titre en double n'est pas une page de titre plus sûre).
-// Les pages blanches sont hors jeu (elles ne portent pas de type).
+// Éligibilité du liminaire, dérivée du tagging : `obligatoires` (pages minimales +
+// présence), `presentTypes`, `conflicts` (côté choisi contredisant le côté conventionnel ;
+// 'auto' ne contredit rien), `duplicates` (un type conventionnel sur plusieurs pages).
+// Les pages blanches sont hors jeu.
 export function deriveEligibility(pages, config) {
   const assigned = (pages ?? []).filter((p) => !p.isBlank).map((page) => ({
     page,

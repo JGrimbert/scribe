@@ -3,7 +3,6 @@ import { buildFragmentRegistry, createFragmentApi, renderTexteEntry } from "./fr
 import { createRegistry } from "./registry.js";
 
 
-/* ------------------ PAGINATION ------------------ */
 export async function paginate(data) {
 
     if (data.sections?.value.length) {
@@ -20,8 +19,7 @@ export async function paginate(data) {
         const owners = new Map(sections.map((section) => [section.id, section]))
         const blockRegistry = createRegistry(owners, blocks, flow)
 
-        // Doit s'exécuter AVANT la lecture de page.area.innerHTML ci-dessous :
-        // c'est lui qui stamp data-frag-id sur les nœuds réels.
+        // AVANT la lecture de page.area.innerHTML : c'est lui qui stamp data-frag-id.
         const { fragmentMap, blockFragments, blockIndex } = buildFragmentRegistry(flow)
         const fragments = createFragmentApi(blockRegistry, fragmentMap, blockFragments)
 
@@ -66,21 +64,16 @@ function measure({ measureEl, blocks }) {
 
 }
 
-let _uid = 0
-const uid = () => `blk_${Date.now()}_${_uid++}`
-
 export const TITLE_TAG_BY_DEPTH = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']
 
-// Exporté : l'aperçu de config (FolioView) construit le même HTML de blocs que
-// l'éditeur pour le donner à paginer à un Previewer tournant DANS son iframe.
+// Exporté : FolioView construit le même HTML de blocs pour le paginer dans son iframe.
 export function buildBlocks(sections) {
     const blocks = []
 
     for (const section of sections) {
         const titleTag = TITLE_TAG_BY_DEPTH[section.depth] ?? 'h6'
-        // Numéro de chapitre auto (« I. ») préfixé au titre, dans le même style
-        // (visuals du styleName). Porté par le nœud, pas un compteur CSS : un
-        // article ouvert seul garde son vrai numéro.
+        // Numéro auto préfixé au titre (porté par le nœud, pas un compteur CSS : un
+        // article ouvert seul garde son vrai numéro).
         const num = section.outlineNumber ? `${section.outlineNumber} ` : ''
 
         blocks.push({
@@ -88,23 +81,19 @@ export function buildBlocks(sections) {
             type: 'title',
             path: { kind: 'titre' },
             ownerId: section.id,
-            // Style effectif du titre (« Heading 3 ») : stampé en data-style par
-            // useFolioFrame → rendu fidèle (centrage, corps) via la feuille visuals.
+            // styleName stampé en data-style par useFolioFrame → rendu fidèle via visuals.
             styleName: section.styleName,
             html: `<${titleTag}>${num}${section.titre}</${titleTag}>`
         })
 
         ;(section.texte || []).forEach((entry, index) => {
-            // Rétrocompatibilité chemin statique Marvarid/ historique
-            // (texte[] en simples strings) — cf. ../../CLAUDE.md.
+            // Rétrocompat chemin statique Marvarid/ (texte[] en strings).
             const e = typeof entry === 'string' ? { type: 'paragraph', text: entry } : entry
             blocks.push({
                 id: `${section.id}__texte__${index}`,
                 type: e.type === 'list' ? 'list' : 'paragraph',
                 path: { kind: 'texte', index },
                 ownerId: section.id,
-                // Nom du style effectif : stampé en `data-style` (cf. useFolioFrame),
-                // clé de la feuille `visuals` pour un rendu fidèle au .odt.
                 styleName: e.styleName,
                 html: renderTexteEntry(e)
             })
@@ -137,18 +126,15 @@ export function buildBlocks(sections) {
     return blocks
 }
 
-// Blocs d'une PLANCHE d'imposition (aperçu maquette) : une liste ordonnée de pages
-// à rendre côte à côte dans UN seul flow Paged.js, à l'échelle du mode `spread`.
-// Chaque page est un « slot » : `content` (ses entrées, styleName → visuals, sans
-// titre), ou `blank`/`cover`/`empty` (page réelle vide, éventuellement libellée).
-// Le premier bloc de chaque slot (sauf le 1er) porte `breakBefore` → useFolioFrame
-// force un `break-before:page`, donc N slots = N pages exactement (chaque page de
-// contenu tient sur une page physique du .odt, on ne recompose pas).
+// Blocs d'une PLANCHE d'imposition (aperçu maquette), rendus côte à côte dans un seul
+// flow. Le 1er bloc de chaque slot (sauf le 1er) porte `breakBefore` → N slots = N pages
+// exactement (on ne recompose pas). Un slot est `content` (ses entrées, sans titre) ou
+// `blank`/`cover`/`empty`.
 export function buildImpositionBlocks(pages) {
     const blocks = []
 
     ;(pages || []).forEach((page, pi) => {
-        const first = pi > 0 // marque de saut sur la 1re boîte du slot
+        const first = pi > 0
 
         if (page.kind === 'content' && (page.entries?.length)) {
             page.entries.forEach((entry, index) => {
@@ -156,19 +142,14 @@ export function buildImpositionBlocks(pages) {
                 blocks.push({
                     id: `imp_${pi}_${index}`,
                     styleName: e.styleName,
-                    // CSS inline libre de l'entrée, au-delà de l'apparence .odt
-                    // (`visual`) : ce par quoi un appelant impose une découpe au
-                    // bloc — les lambeaux de recherche y passent leur clip-path.
+                    // CSS inline libre : ce par quoi un appelant impose une découpe (les
+                    // lambeaux de recherche y passent leur clip-path).
                     style: e.style,
-                    // Apparence COMPLÈTE de l'entrée (mise en forme directe .odt
-                    // incluse), appliquée en inline par useFolioFrame → fidélité
+                    // Apparence complète .odt (mise en forme directe incluse) → fidélité
                     // du liminaire là où le seul styleName perdait les retouches.
                     visual: e.visual,
-                    // Data-attributes libres de l'entrée (ex : lambeaux de recherche →
-                    // `data-toppath`, variante haut-plat posée après pagination).
-                    // La CLÉ de l'entrée est stampée en `data-entry-key` quand elle
-                    // existe (imposition liminaire) : l'overlay liminaire s'en sert
-                    // pour ancrer ses contrôles de découpage sur le paragraphe rendu.
+                    // Data-attributes libres ; la clé de l'entrée en `data-entry-key`
+                    // (l'overlay liminaire y ancre ses contrôles de découpage).
                     data: e.key ? { ...(e.data ?? {}), 'entry-key': e.key } : e.data,
                     breakBefore: first && index === 0,
                     html: renderTexteEntry(e),
@@ -177,7 +158,7 @@ export function buildImpositionBlocks(pages) {
             return
         }
 
-        // blank | cover | empty (ou content sans entrée) : une page réelle vide.
+        // blank | cover | empty : une page réelle vide.
         const kind = page.kind === 'content' ? 'empty' : page.kind
         const label = page.label ? `<span class="imp-slot-label">${page.label}</span>` : ''
         blocks.push({

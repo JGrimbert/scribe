@@ -1,43 +1,26 @@
-// « Validable » : un nœud de chapitrage satisfait-il les contraintes de STYLES de
-// son niveau ? Logique pure, évaluée côté client sur les formes des nœuds
-// (`GET /documents/:id/structure-shapes`) — le décompte suit donc les cases
-// cochées dans la table sans aller-retour réseau.
-//
-// Portée volontairement bornée aux styles : les autres critères de conformité
-// (annotations, tableau, seuil de caractères) ne se lisent pas dans une forme,
-// c'est le dashboard/backend qui les juge (cf. analyse/conformity.ts).
-//
-// « Validé », lui, n'est pas calculé : c'est la validation MANUELLE d'un chapitre
-// (nodeId → 'validé' | 'périmé', détenue par DocumentLayout).
+// « Validable » : un nœud satisfait-il les contraintes de STYLES de son niveau ?
+// Logique pure sur les formes des nœuds. Portée bornée aux styles (les autres
+// critères de conformité relèvent du backend). « Validé » = validation manuelle,
+// détenue par DocumentLayout.
 
-// Profondeur d'un nœud → clé de niveau (2 = « 2 et au-delà »), même regroupement
-// que les règles et `zoneOfDepth`.
+// Profondeur → clé de niveau (2 = « 2 et au-delà »), comme les règles et zoneOfDepth.
 export function depthKeyOf(depth) {
   return Math.min(Math.max(depth ?? 0, 0), 2)
 }
 
-/**
- * Les contraintes effectives d'un niveau.
- *
- * Par défaut, « iso contraintes actuelles » = les styles du MODÈLE (ceux du nœud
- * témoin). Dès que le niveau exige des styles nommés (cases « exigé » de la
- * table), ce sont eux qui font foi — l'utilisateur a tranché, le modèle n'est
- * plus qu'une suggestion. Les successions, elles, ne sont jamais déduites du
- * modèle : exiger un ordre que personne n'a demandé condamnerait la moitié du
- * livre en silence.
- */
+// Contraintes effectives d'un niveau : les styles du modèle par défaut, remplacés
+// par les styles exigés dès qu'il y en a. Les successions ne sont jamais déduites du
+// modèle (exiger un ordre non demandé condamnerait la moitié du livre).
 export function levelConstraints(ruleSet, modelNames) {
   const required = ruleSet?.requiresStyles?.length ? [...ruleSet.requiresStyles] : [...(modelNames ?? [])]
   return {
     requiredStyles: required,
     adjacency: (ruleSet?.requiresAdjacency ?? []).map((pair) => [...pair]),
-    // Le décompte doit pouvoir dire d'où sortent ses critères.
     fromModel: !ruleSet?.requiresStyles?.length,
   }
 }
 
-// Les styles portés par un nœud : ceux de ses paragraphes (runs) plus celui de
-// son titre, qui n'est pas une entrée de `texte`.
+// Styles portés par un nœud : ceux de ses runs + celui de son titre.
 export function nodeStyleSet(shape, titleStyle = null) {
   const set = new Set()
   if (titleStyle) set.add(titleStyle)
@@ -45,14 +28,9 @@ export function nodeStyleSet(shape, titleStyle = null) {
   return set
 }
 
-/**
- * « a toujours suivi de b », lu sur les runs (RLE) plutôt que sur les
- * paragraphes : même verdict que le backend (`adjacencyHolds`, conformity.ts).
- * Vacuément vrai si `a` est absent — on n'exige pas sa présence, seulement que,
- * présent, il soit suivi de `b`. Un run de `a` répété (n > 1) signifie « a suivi
- * de a » : il échoue, sauf si b === a — mais alors le DERNIER a n'a toujours pas
- * de `a` après lui (deux runs voisins de même style sont fusionnés).
- */
+// « a toujours suivi de b », lu sur les runs (RLE). Vacuément vrai si `a` est absent.
+// Un run de `a` répété (n > 1) échoue sauf si b === a — mais alors le dernier `a` n'a
+// toujours pas de `a` après lui (runs voisins de même style fusionnés).
 export function adjacencyHolds(runs, a, b) {
   const seq = runs ?? []
   for (let i = 0; i < seq.length; i++) {
@@ -64,10 +42,7 @@ export function adjacencyHolds(runs, a, b) {
   return true
 }
 
-/**
- * Verdict d'un nœud : ce qui lui manque pour être en règle.
- * @returns { validable, missing: string[], broken: [a, b][] }
- */
+// Verdict d'un nœud. `{ validable, missing: string[], broken: [a, b][] }`
 export function evaluateNode(shape, constraints, titleStyle = null) {
   const present = nodeStyleSet(shape, titleStyle)
   const missing = (constraints?.requiredStyles ?? []).filter((name) => !present.has(name))
@@ -75,17 +50,8 @@ export function evaluateNode(shape, constraints, titleStyle = null) {
   return { validable: !missing.length && !broken.length, missing, broken }
 }
 
-/**
- * Décompte par niveau : combien de nœuds, combien de validables (contraintes de
- * styles satisfaites), combien de validés à la main (et de périmés, qui ne
- * comptent pas comme validés — le texte a changé depuis la relecture).
- *
- * @param shapes             formes de TOUS les nœuds du livre
- * @param constraintsByDepth `{ [depthKey]: contraintes }` (cf. levelConstraints)
- * @param titleStyleOf       `(nodeId) => styleName | null`
- * @param validations        `{ [nodeId]: 'validé' | 'périmé' }`
- * @returns `{ [depthKey]: { total, validables, valides, perimes } }`
- */
+// Décompte par niveau (les périmés ne comptent pas comme validés).
+// `{ [depthKey]: { total, validables, valides, perimes } }`
 export function tallyByDepth(shapes, { constraintsByDepth = {}, titleStyleOf = () => null, validations = {} } = {}) {
   const out = {}
   for (const shape of shapes ?? []) {

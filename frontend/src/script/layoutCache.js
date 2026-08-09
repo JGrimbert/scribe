@@ -1,12 +1,9 @@
-// Cache localStorage des layouts calculés côté client (nuage d3-cloud, réseau
-// lexical) : ce sont des fonctions pures des données, coûteuses, recalculées à
-// chaque montage. On les persiste par (kind, docId) et on invalide via une
-// signature du contenu d'entrée. Une seule entrée par (kind, docId) : bornée,
-// écrasée dès que la signature change.
+// Cache localStorage des layouts coûteux (nuage, réseau) par (kind, docId), invalidé par
+// une signature du contenu d'entrée. Une seule entrée par clé, écrasée à chaque changement.
 
 const PREFIX = 'scribe:layout:'
 
-// Hash djb2 → base36, suffisant pour départager un contenu d'entrée.
+// Hash djb2 → base36.
 export function signature(input) {
   const s = String(input)
   let h = 5381

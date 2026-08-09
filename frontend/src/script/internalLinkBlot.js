@@ -1,8 +1,6 @@
-// Format Quill custom pour un lien interne (vers un autre nœud du document),
-// distinct du blot 'link' natif de Quill qui sanitize/rejette les schémas
-// non-http (cf. plan "liens internes"). Même marque HTML que celle produite
-// à l'import ODT (odt-parser.ts, resolveInternalLinks) : <a href="internal:{id}"
-// class="lien-interne">, pour partager rendu/style/clic-navigation.
+// Format Quill custom pour un lien interne, distinct du blot 'link' natif (qui rejette
+// les schémas non-http). Même marque HTML que l'import ODT (resolveInternalLinks) :
+// <a href="internal:{id}" class="lien-interne">.
 export function registerInternalLinkBlot(Quill) {
   const Inline = Quill.import('blots/inline')
 

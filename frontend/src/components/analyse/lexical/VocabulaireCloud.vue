@@ -32,7 +32,7 @@
            non-compact est en `display:contents` pour ne pas casser le centrage. -->
       <!-- Catégorie imposée : son nom, ferré en tête. Les chips retirés, c'est la
            seule chose qui dise ce qu'on regarde. -->
-      <p v-if="category" class="cloud-tag">{{ categoryLabel }}</p>
+<!--      <p v-if="category" class="cloud-tag">{{ categoryLabel }}</p>-->
 
       <div class="cloud-body">
         <component :is="compact ? CustomScrollbar : 'div'" :class="compact ? 'cloud-scroll' : 'cloud-scroll--flat'">

@@ -1,16 +1,11 @@
-// Socle commun des options echarts : le DÉCOR (police, encres, grille, infobulle,
-// filigrane), que chaque card recopiait à l'identique. Les décisions de couleur de
-// SÉRIE restent dans les cards — c'est du domaine (rampe ordinale vs catégorielle,
-// cf. components/analyse/CLAUDE.md) ; ici on ne sert que le cadre.
-//
-// Tout passe par `cssVar` : echarts peint dans un <canvas>, où `var(--…)` n'est
-// jamais résolu.
+// Décor commun des options echarts (police, encres, grille, infobulle, filigrane). Les
+// couleurs de SÉRIE restent dans les cards (domaine). Tout passe par cssVar : echarts
+// peint dans un <canvas> où var() n'est pas résolu.
 import { cssVar } from './theme'
 
 const CAT_COUNT = 8
 
-// Les tokens du décor, résolus une fois par construction d'option (une lecture de
-// getComputedStyle par appel, pas une par série).
+// Résolus une fois par construction d'option (pas une par série).
 export function chartTokens() {
   return {
     ink: cssVar('--c-ink', '#1a1612'),
@@ -22,16 +17,14 @@ export function chartTokens() {
   }
 }
 
-// Palette catégorielle du DS, résolue. Ordre FIXE et jamais cyclé : au-delà de 8
-// identités, l'appelant regroupe en « Autres » (cf. base.css).
+// Palette catégorielle du DS. Ordre fixe, jamais cyclé : au-delà de 8, l'appelant
+// regroupe en « Autres ».
 export function catColors() {
   return Array.from({ length: CAT_COUNT }, (_, i) => cssVar(`--c-cat-${i + 1}`))
 }
 
-// Filigrane : une tuile de texte pivoté, répétée en fond de grille. Rendu comme
-// `backgroundColor` (motif canvas) et non comme `graphic` — le motif reste
-// DERRIÈRE les marques sans avoir à arbitrer un `z`, et ne capte aucun événement.
-// Rend `null` hors navigateur (jsdom, SSR) : l'option est alors simplement absente.
+// Filigrane : tuile de texte pivoté répétée en fond. En `backgroundColor` (motif canvas)
+// et non `graphic` : reste derrière les marques sans arbitrer un `z`. Null hors navigateur.
 export function watermarkPattern(text, { size = 220, opacity = 0.045 } = {}) {
   if (typeof document === 'undefined' || !text) return null
   const canvas = document.createElement('canvas')

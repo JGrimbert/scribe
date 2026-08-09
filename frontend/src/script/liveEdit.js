@@ -49,12 +49,9 @@ export function getCaretRect(root, charIndex) {
     return null
 }
 
-// Rects (un par ligne visuelle) pour la portion de texte [startCharIdx,
-// endCharIdx) à l'intérieur d'un seul élément. Contrairement à une Range
-// native construite sur la sélection du navigateur (qui peut enjamber
-// plusieurs éléments de fragments différents et produire un rendu peu
-// fiable), cette Range est toujours scopée à UN SEUL élément — à appliquer
-// fragment par fragment pour composer l'overlay d'une sélection cross-fragment.
+// Rects (un par ligne visuelle) de [startCharIdx, endCharIdx) dans UN SEUL élément
+// (Range scopée, à appliquer fragment par fragment pour une sélection cross-fragment —
+// une Range native enjambant plusieurs fragments rend mal).
 export function getRangeRects(el, startCharIdx, endCharIdx) {
     const walker = el.ownerDocument.createTreeWalker(el, NodeFilter.SHOW_TEXT)
     let count = 0
@@ -80,8 +77,7 @@ export function getRangeRects(el, startCharIdx, endCharIdx) {
 
     if (!startNode) return []
     if (!endNode) {
-        // endCharIdx dépasse le texte disponible (ex: Infinity pour "jusqu'à
-        // la fin du fragment") : on borne à la fin du dernier nœud texte.
+        // endCharIdx dépasse le texte (ex: Infinity) : borne à la fin du dernier nœud.
         endNode = lastNode
         endOffset = lastNode ? lastNode.textContent.length : 0
     }
@@ -129,8 +125,7 @@ export function getCharIndexAtPoint(root, x, y) {
     return Math.max(0, total - 1) // clic après le dernier bloc
 }
 
-// Le `document` est celui du nœud visé (celui de l'iframe en mode édition,
-// le document principal sinon) — sans quoi le point cliqué serait interprété
+// `doc` = celui du nœud visé (iframe en édition) — sinon le point serait interprété
 // dans le mauvais réalm.
 function caretRangeFromPoint(doc, x, y) {
     if (doc.caretRangeFromPoint) return doc.caretRangeFromPoint(x, y)

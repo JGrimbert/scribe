@@ -1,10 +1,8 @@
-// Paires d'articles dédupliquées à partir des voisinages top-K des unités
-// sémantiques (la matrice complète n'est pas persistée côté backend). Partagé
-// par les cards « Textes identiques » et « Paires les plus proches ».
+// Paires d'articles dédupliquées depuis les voisinages top-K. Partagé par les cards
+// « Textes identiques » et « Paires les plus proches ».
 
-// Au-delà, deux articles partagent un texte identique ou quasi identique
-// (doublons réels du manuscrit : intros de blocs copiées) — information utile
-// mais séparée, sinon elle sature le classement.
+// Au-delà : texte identique ou quasi (doublons réels), séparé pour ne pas saturer le
+// classement.
 export const DUPLICATE_THRESHOLD = 0.995
 
 export function buildPairs(units) {

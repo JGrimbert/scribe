@@ -1,9 +1,7 @@
-// Navigation clavier verticale (ArrowUp/ArrowDown) entre fragments Quill : un
-// seul Quill est monté à la fois (voir CLAUDE.md racine), donc QuillBlock doit
-// détecter ici qu'on est sur la dernière/première ligne VISUELLE du fragment
-// (pas juste le dernier/premier caractère) avant de laisser la flèche sortir
-// vers le voisin — la résolution de la position d'arrivée se fait ensuite
-// côté useFragmentEditor, sur le DOM Folio déjà rendu (cf. navigateFragment).
+// Navigation verticale entre fragments Quill (un seul Quill monté à la fois) : détecter
+// qu'on est sur la dernière/première ligne VISUELLE (pas juste le dernier caractère)
+// avant de laisser la flèche sortir. La position d'arrivée est résolue ensuite côté
+// useFragmentEditor sur le DOM Folio rendu.
 
 const LINE_TOP_EPS = 2 // tolérance (px) pour "même ligne visuelle"
 

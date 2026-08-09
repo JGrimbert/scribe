@@ -1,7 +1,5 @@
-// Lecture des tokens de base.css depuis JS. Nécessaire pour les graphes
-// echarts : ils peignent dans un <canvas>, où un `var(--c-ramp-1)` n'est jamais
-// résolu — il faut passer la valeur calculée. Réservé à ce cas : tout ce qui
-// est rendu en DOM doit continuer à utiliser var() directement en CSS.
+// Résout un token base.css en valeur calculée pour echarts (qui peint dans un <canvas>
+// où var() n'est jamais résolu). Réservé à ce cas : le DOM utilise var() en CSS.
 export function cssVar(name, fallback = '') {
   if (typeof window === 'undefined') return fallback // jsdom/SSR : pas de style calculé
   const value = getComputedStyle(document.documentElement).getPropertyValue(name)

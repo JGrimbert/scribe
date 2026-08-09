@@ -1,7 +1,5 @@
 import { typeOfStyleName, sideOfPageStart } from './liminaire-vocab'
 
-// Retire les marqueurs (<mark>, <a data-bookmark>…) pour un aperçu / une clé
-// lisibles : le texte d'une entrée porte des balises, pas seulement des mots.
 function stripTags(html) {
   return (html ?? '').replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim()
 }
@@ -13,20 +11,16 @@ export function entryPlainText(entry) {
   return stripTags(entry.text)
 }
 
-// Hash djb2 stable (sans dépendance crypto) — assez pour distinguer une poignée
-// d'entrées liminaires.
+// Hash djb2 stable (sans crypto).
 function hashText(s) {
   let h = 5381
   for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0
   return (h >>> 0).toString(36)
 }
 
-// Clé STABLE d'une entrée : hash de son texte + son rang d'occurrence. Deux
-// « JŌHĀNĀN & MARVĀRĪD » (faux-titre puis page de titre) ne doivent pas partager
-// la même clé ; les pages blanches, toutes vides, non plus. Stable sous
-// fusion/scission (les entrées ne bougent pas, seul leur regroupement change) —
-// c'est ce qui laisse la config, keyée par entrée, survivre à un changement de
-// frontières comme à un reparse.
+// Clé stable d'une entrée : hash du texte + rang d'occurrence (deux textes identiques,
+// ou toutes les pages blanches, ne partagent pas la même clé). Stable sous fusion/
+// scission : c'est ce qui laisse la config, keyée par entrée, survivre à un reparse.
 export function withEntryKeys(entries) {
   const seen = new Map()
   return (entries ?? []).map((entry) => {
@@ -37,28 +31,15 @@ export function withEntryKeys(entries) {
   })
 }
 
-// Regroupe les entrées en PAGES. Une entrée ouvre une page si :
-//  - c'est la première ; ou
-//  - la config force `break: 'start'` (scission manuelle) ; ou
-//  - elle porte un `pageStart` du .odt ET la config ne force pas `'joined'`
-//    (fusion manuelle avec la page précédente) ; ou
-//  - son NOM DE STYLE désigne un type liminaire DIFFÉRENT de celui qui ancre la
-//    page en cours (mentions légales → Dédicace) : le .odt ne met pas toujours
-//    un saut entre deux pages liminaires, mais deux types ne partagent jamais
-//    une page. On exige les DEUX types non nuls — un style anonyme (ornement,
-//    ligne vide) ne scinde rien, sans quoi la page de titre exploserait ; ou
-//  - son STYLE est réglé pour OUVRIR une page (`precedesOf` = 'break' ou 'blank',
-//    cf. typologie) : le premier style d'une page dit ce qui la précède.
-// Une fusion manuelle (`joined`) désarme aussi ce dernier déclencheur.
-// Le côté RÉEL (`sideFromOdt`) est ancré sur la PREMIÈRE entrée de la page
-// (`key`), tout comme `precedes` (ce que le style de tête impose avant la page).
-// Une page dont toutes les entrées sont vides est une page blanche (`isBlank`),
-// non taggable.
+// Regroupe les entrées en PAGES. Une entrée ouvre une page si : c'est la première ; ou
+// la config force `break: 'start'` ; ou elle porte un `pageStart` du .odt (sauf
+// `'joined'`) ; ou son NOM DE STYLE désigne un type liminaire différent de celui qui
+// ancre la page en cours (les deux types non nuls — un style anonyme ne scinde rien) ;
+// ou son STYLE est réglé pour ouvrir une page (precedesOf ≠ 'none'). Une fusion manuelle
+// (`joined`) désarme les deux derniers déclencheurs.
 export function groupLiminairePages(entries, config = {}, precedesOf = () => 'none') {
   const keyed = withEntryKeys(entries)
   const pages = []
-  // Type de style qui ANCRE la page en cours (le premier rencontré) : c'est lui
-  // qu'un style de type différent vient contredire.
   let anchorType = null
   keyed.forEach((entry, i) => {
     const brk = config?.[entry.key]?.break

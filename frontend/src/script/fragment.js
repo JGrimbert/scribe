@@ -15,8 +15,8 @@ export function buildFragmentRegistry(flow) {
             const ordinal = order.length
             const fragId = `${blockId}::${ordinal}`
 
-            // Stamp avant capture du HTML : l'attribut doit être présent
-            // dans la chaîne qui finira sérialisée puis injectée via v-html.
+            // Stamp avant capture du HTML : l'attribut doit être dans la chaîne
+            // sérialisée puis injectée via v-html.
             node.setAttribute('data-frag-id', fragId)
 
             fragmentMap.set(fragId, {
@@ -56,17 +56,10 @@ export function createFragmentApi(blockRegistry, fragmentMap, blockFragments) {
             ? extractParagraphs(html)
             : extractParagraphs(fragmentMap.get(id).html)
 
-        // La frontière entre deux fragments d'un même bloc est une
-        // coupure de PAGINATION, pas une coupure de PARAGRAPHE : on
-        // recolle donc le dernier morceau accumulé avec le premier
-        // morceau du fragment suivant. Seules les coupures introduites
-        // par l'édition elle-même (Quill produit plusieurs <p>) créent
-        // de nouveaux paragraphes.
-        // Paged.js peut couper en plein milieu d'un espace inter-mots sans le
-        // reporter d'un côté ni de l'autre du saut de page : recoller tel quel
-        // fusionnerait alors les deux mots (cf. bug justification qui saute).
-        // On ne réinjecte un espace que si aucun des deux morceaux n'en a déjà
-        // un à la jointure, pour ne jamais en doubler.
+        // La frontière entre deux fragments d'un même bloc est une coupure de
+        // PAGINATION, pas de paragraphe : on recolle. Paged.js peut couper en plein
+        // espace inter-mots sans le reporter (cf. bug justification qui saute) : on
+        // ne réinjecte un espace que si aucun des deux morceaux n'en a déjà un.
         const glued = []
         order.forEach((id, i) => {
             const pieces = piecesOf(id)
@@ -75,12 +68,8 @@ export function createFragmentApi(blockRegistry, fragmentMap, blockFragments) {
                 return
             }
             const [first, ...rest] = pieces
-            // Les fragments d'un même bloc partagent toujours le même type
-            // (Paged.js les a produits en coupant physiquement UN bloc
-            // d'origine, jamais en recomposant deux blocs différents) :
-            // pas besoin de garde de compatibilité de type ici. Pour une
-            // liste, on concatène les items (pas de perte des bords de
-            // <li>) ; pour un paragraphe, on recolle le texte comme avant.
+            // Fragments d'un même bloc = même type (Paged.js coupe UN bloc, ne
+            // recompose pas) : pas de garde de compatibilité.
             const last = glued[glued.length - 1]
             if (last.type === 'list' && first.type === 'list') {
                 glued[glued.length - 1] = { type: 'list', ordered: last.ordered, items: [...last.items, ...first.items] }
@@ -96,11 +85,9 @@ export function createFragmentApi(blockRegistry, fragmentMap, blockFragments) {
         blockRegistry.get(blockId)?.setHtml(assembled)
     }
 
-    // Retrouve, pour un bloc donné, quel fragment de PAGINATION contient
-    // l'index de caractère `charIndex` (mesuré depuis le début du paragraphe
-    // complet, coupures de page recollées). Nécessaire pour rouvrir l'éditeur
-    // au bon endroit après un split/merge : le résultat ne tombe pas toujours
-    // dans le premier fragment dès que le paragraphe s'étale sur plusieurs pages.
+    // Quel fragment de pagination contient `charIndex` (mesuré dans le paragraphe
+    // complet, coupures recollées). Pour rouvrir l'éditeur au bon endroit après un
+    // split/merge quand le paragraphe s'étale sur plusieurs pages.
     function locateIndex(blockId, charIndex) {
         const order = blockFragments.get(blockId) ?? []
         if (!order.length) return { fragId: `${blockId}::0`, index: charIndex }
@@ -118,10 +105,9 @@ export function createFragmentApi(blockRegistry, fragmentMap, blockFragments) {
         }
     }
 
-    // Position d'un fragment au sein de son bloc (ordinal + nombre total de
-    // fragments de pagination). Sert à distinguer une frontière de PAGE
-    // (interne au paragraphe, sans conséquence) d'une véritable frontière de
-    // PARAGRAPHE (début/fin réel, seule situation où une fusion doit agir).
+    // Ordinal + total de fragments d'un bloc : distingue une frontière de PAGE
+    // (interne, sans conséquence) d'une vraie frontière de PARAGRAPHE (où une fusion
+    // doit agir).
     function getFragmentPosition(fragId) {
         const entry = fragmentMap.get(fragId)
         if (!entry) return null
@@ -130,12 +116,8 @@ export function createFragmentApi(blockRegistry, fragmentMap, blockFragments) {
         return { ordinal: entry.ordinal, total: order.length }
     }
 
-    // Inverse de locateIndex : convertit une position locale à l'intérieur
-    // d'un fragment de pagination (fragId + index de caractère local) en
-    // position globale dans le paragraphe complet (blockId + index, coupures
-    // de page recollées). Nécessaire pour résoudre une sélection dont les
-    // deux bords tombent dans des fragments différents (même page-cassure
-    // interne à un paragraphe, ou véritable frontière entre deux paragraphes).
+    // Inverse de locateIndex : position locale (fragId + index) → position globale
+    // dans le paragraphe complet. Pour une sélection à cheval sur deux fragments.
     function globalIndex(fragId, localIndex) {
         const entry = fragmentMap.get(fragId)
         if (!entry) return null
@@ -163,21 +145,16 @@ function textLengthOf(html) {
     return textOf(html).length
 }
 
-// Faut-il un espace à la jointure de deux morceaux de pagination ? Seulement
-// si aucun des deux ne se termine/commence déjà par un blanc — sinon on
-// doublerait un espace que Paged.js a en fait bien conservé d'un côté.
+// Espace à la jointure seulement si aucun des deux morceaux n'en a déjà un (sinon on
+// doublerait un espace que Paged.js a conservé d'un côté).
 function joinNeedsSpace(prevHtml, nextHtml) {
     const prevText = textOf(prevHtml)
     const nextText = textOf(nextHtml)
     return prevText !== '' && nextText !== '' && !/\s$/.test(prevText) && !/^\s/.test(nextText)
 }
 
-// Une entrée de `owner.texte[]` : { type: 'paragraph', text } ou
-// { type: 'list', ordered, items: [{ text, depth }] } — cf.
-// backend/src/import/odt-parser.ts (TexteEntry) dont ce format est le
-// pendant frontend. `depth` suit la convention Quill (classes ql-indent-N
-// sur des <li> à plat, pas de <ul>/<ol> imbriqués).
-
+// Une entrée de `owner.texte[]`, pendant frontend de TexteEntry (odt-parser). `depth`
+// suit la convention Quill (classes ql-indent-N sur des <li> à plat).
 function parseListItems(listEl) {
     return [...listEl.children].map((li) => {
         const match = /ql-indent-(\d+)/.exec(li.className || '')
@@ -185,10 +162,8 @@ function parseListItems(listEl) {
     })
 }
 
-// Découpe le HTML produit par Quill en entrées `texte[]` : un <ul>/<ol> de
-// haut niveau devient UNE entrée liste (tous ses <li>), tout le reste
-// (typiquement des <p>) devient une entrée paragraphe par élément —
-// symétrique de renderTexteEntry.
+// HTML Quill → entrées `texte[]` : un <ul>/<ol> de haut niveau devient UNE entrée
+// liste, le reste une entrée paragraphe par élément. Symétrique de renderTexteEntry.
 export function extractParagraphs(html) {
 
     const tmp = document.createElement('div')
@@ -208,8 +183,7 @@ export function extractParagraphs(html) {
     return [{ type: 'paragraph', text: tmp.innerHTML }]
 }
 
-// Inverse d'extractParagraphs : reconstruit le HTML d'une entrée texte[]
-// pour l'affichage/l'édition (buildBlocks, setFragment).
+// Inverse d'extractParagraphs (buildBlocks, setFragment).
 export function renderTexteEntry(entry) {
     if (entry.type === 'list') {
         const tag = entry.ordered ? 'ol' : 'ul'
@@ -221,11 +195,8 @@ export function renderTexteEntry(entry) {
     return `<p>${entry.text}</p>`
 }
 
-// Texte "adressable" par offset de caractère d'une entrée — pour un
-// paragraphe, son HTML brut ; pour une liste, la concaténation du HTML de
-// ses items (sans séparateur, cf. renderTexteEntry). Même limitation déjà
-// documentée pour les paragraphes : une longueur de chaîne HTML brute, pas
-// un compte de caractères visibles.
+// Texte adressable par offset d'une entrée. Limitation connue : longueur de chaîne
+// HTML brute, pas un compte de caractères visibles.
 export function entryText(entry) {
     return entry.type === 'list' ? entry.items.map((item) => item.text).join('') : entry.text
 }

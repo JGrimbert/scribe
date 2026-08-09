@@ -1,10 +1,8 @@
 import { LIMINAIRE_BY_KEY } from './liminaire-vocab'
 
-// ─── Accès à la config de tagging ────────────────────────────────────────────
-// La config est keyée par ENTRÉE et MUTÉE EN PLACE par les composants (même
-// convention que RuleSetForm). Ces helpers vivent ici, et non dans un
-// composant, parce que le composer, l'accordéon et le découpage lisent tous les
-// trois le même objet : trois copies des mêmes accès divergeraient.
+// Accès à la config de tagging, keyée par ENTRÉE et mutée en place par les composants.
+// Ici et non dans un composant : le composer, l'accordéon et le découpage lisent tous le
+// même objet.
 
 export function typeOfPage(config, page) {
   return config?.[page?.key]?.type ?? ''
@@ -30,8 +28,8 @@ export function setPageSide(config, page, value) {
   entryFor(config, page.key).side = value === 'auto' ? undefined : value
 }
 
-// Toggle : re-cliquer une frontière posée la retire (retour au signal du .odt).
-// On nettoie l'entrée devenue vide pour ne pas laisser d'objet mort.
+// Toggle : re-cliquer une frontière la retire (retour au signal du .odt), en nettoyant
+// l'entrée devenue vide.
 export function toggleBreak(config, key, value) {
   const entry = entryFor(config, key)
   if (entry.break === value) {
@@ -42,7 +40,6 @@ export function toggleBreak(config, key, value) {
   }
 }
 
-// Le côté qu'IMPOSE le type tagué, s'il en impose un.
 export function expectedSideOf(config, page) {
   const type = typeOfPage(config, page)
   return type ? (LIMINAIRE_BY_KEY.get(type)?.side ?? null) : null

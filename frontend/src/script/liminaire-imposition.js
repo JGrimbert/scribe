@@ -1,9 +1,8 @@
-// Numérotation PHYSIQUE des pages, façon imposition : chaque page occupe un
-// folio, numéroté séquentiellement. Plus de parité recto/verso automatique — le
-// modèle est EXPLICITE : une page blanche n'apparaît que si le .odt en porte une
-// (page `isBlank`) ou si le STYLE de tête de la page suivante la demande
-// (`precedes === 'blank'`, une belle page). Le côté recto/verso reste calculé
-// (impair/pair) pour composer les planches, mais ne CONTRAINT plus rien.
+// Numérotation PHYSIQUE des pages : chaque page occupe un folio numéroté
+// séquentiellement. Modèle EXPLICITE (plus de parité automatique) : une blanche
+// n'apparaît que si le .odt en porte une (`isBlank`) ou si le style de tête de la page
+// suivante la demande (`precedes === 'blank'`, belle page). Le côté recto/verso reste
+// calculé pour composer les planches mais ne contraint plus rien.
 export function computeImposition(pages) {
   const slots = []
   let n = 1
@@ -11,8 +10,7 @@ export function computeImposition(pages) {
   const parity = (num) => (num % 2 === 1 ? 'recto' : 'verso')
   for (const page of pages ?? []) {
     if (page.isBlank) {
-      // Blanche AVANT le premier contenu = intérieur de couverture (non
-      // numérotée) : sans quoi elle prendrait la page 1.
+      // Blanche avant le premier contenu = intérieur de couverture (non numérotée).
       if (!started) {
         slots.push({ number: 0, parity: 'verso', blank: true, cover: true, page })
         continue
@@ -21,9 +19,7 @@ export function computeImposition(pages) {
       n++
       continue
     }
-    // Belle page : le style de tête demande une blanche AVANT sa page. Insérée
-    // telle quelle (une seule, explicite), une fois le contenu commencé — avant
-    // lui, c'est la couverture qui joue ce rôle.
+    // Belle page : blanche insérée avant la page (une fois le contenu commencé).
     if (started && page.precedes === 'blank') {
       slots.push({ number: n, parity: parity(n), blank: true, implicit: true })
       n++
@@ -35,10 +31,8 @@ export function computeImposition(pages) {
   return slots
 }
 
-// Regroupe les folios en PLANCHES telles qu'on les voit dans un livre ouvert :
-// la page 1 (recto) est seule à droite, face à l'intérieur de couverture (la
-// dernière blanche de tête, si présente) ; ensuite des paires (verso pair à
-// gauche | recto impair à droite).
+// Regroupe les folios en PLANCHES (livre ouvert) : la page 1 seule à droite face à
+// l'intérieur de couverture, puis des paires (verso pair | recto impair).
 export function toSpreads(slots) {
   const byNum = new Map(slots.filter((s) => !s.cover).map((s) => [s.number, s]))
   const covers = slots.filter((s) => s.cover)
@@ -50,9 +44,8 @@ export function toSpreads(slots) {
   return spreads
 }
 
-// Les pages RÉELLES d'un vis-à-vis, dans l'ordre verso puis recto. Une blanche
-// implicite (insérée pour la parité) n'en est pas une : elle ne porte pas de
-// `page`, elle ne vient d'aucune entrée du .odt et ne se découpe donc pas.
+// Pages RÉELLES d'un vis-à-vis (verso puis recto). Une blanche implicite (parité) n'en
+// est pas une : pas de `page`, rien à découper.
 export function pagesOfSpread(spread) {
   if (!spread) return []
   return [spread.left, spread.right]

@@ -1,16 +1,9 @@
-// Métriques de graphe pures pour le réseau lexical (co-occurrences de noms).
-// Déterministes à ordre de nœuds fixé — le layout est caché par signature, on
-// ne peut pas se permettre un résultat qui change d'un montage à l'autre.
-// Taille visée : ≤ 50 nœuds / ≤ 120 arêtes (bornes du backend), donc les coûts
-// quadratiques (BFS depuis chaque nœud, file en O(n)) sont sans conséquence.
+// Métriques de graphe pures pour le réseau lexical. Déterministes à ordre de nœuds fixé
+// (le layout est caché par signature). Taille bornée (≤ 50 nœuds) → coûts quadratiques OK.
 
-// Louvain mono-niveau (déplacement local jusqu'à convergence) : partitionne en
-// communautés densément liées. On pondère par NPMI (force d'association) plutôt
-// que par le compte brut — deux mots très fréquents mais peu spécifiquement
-// associés ne doivent pas fusionner. Mono-niveau (sans agrégation) suffit à
-// cette taille ; on l'ajoutera si les grappes ressortent trop fragmentées.
-// Rend { [lemma]: communityId } avec des ids compactés 0..k-1, ordonnés par
-// taille décroissante (0 = plus grande grappe) pour une couleur stable.
+// Louvain mono-niveau pondéré par NPMI (deux mots fréquents mais peu spécifiquement
+// associés ne doivent pas fusionner). Rend { [lemma]: communityId }, ids 0..k-1 triés
+// par taille décroissante (couleur stable).
 export function detectCommunities(nodes, edges) {
   const N = nodes.length
   const index = new Map(nodes.map((n, i) => [n.lemma, i]))
@@ -44,7 +37,7 @@ export function detectCommunities(nodes, edges) {
           const cj = comm[j]
           wTo.set(cj, (wTo.get(cj) || 0) + w)
         }
-        sigmaTot[ci] -= deg[i] // retirer i de sa communauté avant d'évaluer
+        sigmaTot[ci] -= deg[i]
         let best = ci
         let bestGain = (wTo.get(ci) || 0) - (sigmaTot[ci] * deg[i]) / twoM
         for (const [c, wic] of wTo) {
@@ -82,10 +75,8 @@ export function detectCommunities(nodes, edges) {
   return out
 }
 
-// Betweenness (algorithme de Brandes), non pondérée (plus courts chemins en
-// nombre d'arêtes) : révèle les mots-ponts, ceux par qui transitent les
-// chemins entre champs lexicaux. Normalisée par le max → 0..1 (la division
-// undirected par 2 est absorbée par la normalisation).
+// Betweenness (Brandes), non pondérée : révèle les mots-ponts entre champs lexicaux.
+// Normalisée par le max → 0..1.
 export function betweenness(nodes, edges) {
   const N = nodes.length
   const index = new Map(nodes.map((n, i) => [n.lemma, i]))

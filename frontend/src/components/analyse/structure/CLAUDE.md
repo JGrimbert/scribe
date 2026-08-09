@@ -2,7 +2,7 @@
 
 Famille **sans NLP** : dérivée du seul contenu du document, calculée côté backend
 au GET (jamais « indisponible » ni en attente du NLP). `CompletenessChart`,
-`ConformityChart`, `AnomaliesCard`/`AnomaliesTable`, `NodesTable`. Cadre commun
+`ConformityChart`, `AnomaliesCard`/`AnomaliesTable`. Cadre commun
 `AnalyseBlock` + store `useAnalyse` : cf. `../CLAUDE.md`. Graphes echarts via
 `../../ui/organisms/BaseChart` (sémantique couleur dans `../CLAUDE.md`).
 

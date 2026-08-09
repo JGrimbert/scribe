@@ -1,23 +1,14 @@
-// Les pages liminaires conventionnelles, dans l'ordre de lecture. Vocabulaire
-// FERMÉ (comme STYLE_ROLES) : les règles de composition les visent, une
-// étiquette libre serait une faute de frappe qui casse une vérification en
-// silence. Glossaire / index viendront côté partie finale, pas ici.
-//
-// - `obligatoire` : indécochable dans la checklist (faux-titre, page de titre,
-//   mentions légales — le minimum d'un livre).
-// - `side` : le côté ATTENDU par la convention (recto = page impaire, verso =
-//   paire), ou null quand la convention n'impose rien. Distinct du côté RÉEL
-//   lu du .odt (pageStart) et du côté CHOISI par l'utilisateur (config).
-// - `position` : avant ou après le récit.
+// Pages liminaires conventionnelles, dans l'ordre de lecture. Vocabulaire FERMÉ (les
+// règles de composition les visent). Champs : `obligatoire` (indécochable), `side` (le
+// côté attendu par la convention, ou null), `position` (avant/après le récit).
+// Dédicace/épigraphe portent un `side` recto : ce sont des ANCRES de parité, sans côté
+// imposé elles décaleraient toute la suite.
 export const LIMINAIRE_PAGES = [
   { key: 'faux-titre', label: 'Faux-titre', obligatoire: true, side: 'recto', position: 'avant' },
   { key: 'du-meme-auteur', label: 'Du même auteur', obligatoire: false, side: 'recto', position: 'avant' },
   { key: 'page-de-titre', label: 'Page de titre', obligatoire: true, side: 'recto', position: 'avant' },
   { key: 'mentions-legales', label: 'Mentions légales', obligatoire: true, side: 'verso', position: 'avant' },
   { key: 'a-propos-auteur', label: "À propos de l'auteur", obligatoire: false, side: null, position: 'avant' },
-  // Dédicace et épigraphe vont sur une belle page (recto), verso blanc avant :
-  // ce sont des ANCRES de parité, pas des pages libres — sans côté imposé elles
-  // dérivent et décalent toute la suite du liminaire.
   { key: 'epigraphe', label: 'Épigraphe', obligatoire: false, side: 'recto', position: 'avant' },
   { key: 'dedicace', label: 'Dédicace', obligatoire: false, side: 'recto', position: 'avant' },
   { key: 'table-des-matieres', label: 'Table des matières', obligatoire: false, side: null, position: 'avant' },
@@ -33,14 +24,10 @@ export const LIMINAIRE_PAGES = [
 
 export const LIMINAIRE_BY_KEY = new Map(LIMINAIRE_PAGES.map((p) => [p.key, p]))
 
-// Nom de style → type liminaire, quand l'auteur a NOMMÉ son style (« mentions
-// légales », « Dédicace », « Citation liminaire »…). C'est le signal le plus
-// fiable du document, et il sert deux fois : à suggérer un type
-// (liminaire-suggest) ET à poser une frontière de page (groupLiminairePages) —
-// deux styles de types différents ne peuvent pas cohabiter sur une page.
-// Vit ici, avec le vocabulaire, pour que les deux usages ne divergent pas.
-// « mentions LÉGALES » exige « légal » : un style « mention sous titre » (le
-// sous-titre de la page de titre) est un sous-titre, pas un copyright.
+// Nom de style → type liminaire, quand l'auteur a nommé son style. Signal le plus fiable
+// du document : sert à suggérer un type ET à poser une frontière de page (deux styles de
+// types différents ne cohabitent pas sur une page). « légal » exigé : « mention sous
+// titre » est un sous-titre, pas un copyright.
 const STYLE_TYPE_PATTERNS = [
   [/mentions?\s+l[eé]gal/, 'mentions-legales'],
   [/d[eé]dicace/, 'dedicace'],
@@ -63,19 +50,12 @@ export function typeOfStyleName(styleName) {
   return null
 }
 
-// Côtés qu'une page peut imposer. 'auto' = pas de contrainte (le composer
-// laisse la parité couler). Séparé du pageStart brut du .odt, qui peut valoir
-// 'page' (simple saut, sans côté) → côté 'auto'.
+// 'auto' = pas de contrainte de côté. Distinct du pageStart brut du .odt.
 export const PAGE_SIDES = ['auto', 'recto', 'verso']
 
-// Ce qui PRÉCÈDE une page, décidé PAR STYLE (le premier style de la page).
-// Remplace le côté recto/verso par entrée (peu fiable). Miroir du backend
-// (typology.ts, PRECEDES_KINDS) :
-//  - 'break' : le style OUVRE une page (saut de page avant lui) ;
-//  - 'blank' : idem, plus UNE page blanche insérée avant (belle page) — explicite,
-//    sans parité recto/verso ;
-//  - 'none'  : rien d'imposé (le style coule ; regroupement piloté par le .odt et
-//    les changements de type).
+// Ce qui précède une page, décidé PAR STYLE (miroir du backend, PRECEDES_KINDS) :
+// 'break' = ouvre une page ; 'blank' = idem + une page blanche avant (belle page, sans
+// parité) ; 'none' = rien d'imposé.
 export const PRECEDES_KINDS = ['none', 'break', 'blank']
 
 export const PRECEDES_LABELS = {
@@ -84,8 +64,8 @@ export const PRECEDES_LABELS = {
   blank: 'page blanche',
 }
 
-// Le côté imposé par un pageStart lu du .odt : recto/verso le portent, un simple
-// saut ('page') ou rien n'imposent aucun côté.
+// Côté imposé par un pageStart du .odt (recto/verso le portent, un simple saut n'impose
+// rien).
 export function sideOfPageStart(pageStart) {
   return pageStart === 'recto' || pageStart === 'verso' ? pageStart : 'auto'
 }

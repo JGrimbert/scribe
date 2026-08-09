@@ -1,14 +1,8 @@
-// « Au fil du livre » : où chaque thème se pose dans l'ordre de lecture. Logique
-// PURE — croise la projection des thèmes (un point par segment, cf. backend
-// analyse.service) avec l'ordre des nœuds de la trame.
-//
-// La carte UMAP (ThemesMap) dit quels thèmes se ressemblent ; elle ne dit pas
-// lequel ouvre le livre et lequel n'arrive qu'au dernier tiers. C'est cette
-// seconde question — la seule qui intéresse la maquette — que ce flux répond.
+// « Au fil du livre » : où chaque thème se pose dans l'ordre de lecture. Logique pure —
+// croise la projection des thèmes (un point par segment) avec l'ordre des nœuds. Répond
+// à ce que la carte UMAP ne dit pas : quel thème ouvre le livre, lequel arrive tard.
 
-// Les nœuds dans l'ORDRE DE LECTURE (parcours préfixe de la trame, comme le
-// document se lit) — le rang dans cette liste EST la position sur l'axe, et le
-// titre sert d'étiquette à l'infobulle.
+// Nœuds dans l'ORDRE DE LECTURE : le rang EST la position sur l'axe.
 export function readingNodes(axes) {
   const nodes = []
   const seen = new Set()
@@ -23,15 +17,12 @@ export function readingNodes(axes) {
   return nodes
 }
 
-// nodeId → rang de lecture.
 export function readingIndex(axes) {
   return new Map(readingNodes(axes).map((node, i) => [node.id, i]))
 }
 
-// Un rang porte au plus UN point par thème : les segments d'un même thème dans un
-// même chapitre s'additionnent (`count`), ce que la taille du symbole traduira.
-// Les segments hors thème (topicId -1) et ceux dont le nœud a disparu de la trame
-// sont écartés — un point sans place dans l'ordre de lecture n'est pas plaçable.
+// Un rang porte au plus un point par thème (les segments d'un même thème dans un même
+// chapitre s'additionnent → `count`). Segments hors thème (-1) ou de nœud disparu écartés.
 export function topicFlow(topics, axes, { maxTopics = 8 } = {}) {
   const nodes = readingNodes(axes)
   const index = new Map(nodes.map((node, i) => [node.id, i]))
@@ -58,13 +49,11 @@ export function topicFlow(topics, axes, { maxTopics = 8 } = {}) {
     }
   })
 
-  // Un thème dont aucun segment n'est plaçable n'aurait qu'un axe vide à montrer.
   return { rows: rows.filter((r) => r.points.length), nodes }
 }
 
-// Le plus gros paquet de segments d'un même thème dans un même chapitre : c'est
-// lui qui borne l'échelle des tailles de symbole (sinon chaque graphe aurait sa
-// propre unité et deux documents ne se compareraient plus).
+// Plus gros paquet de segments d'un thème dans un chapitre : borne l'échelle des tailles
+// de symbole (sinon deux documents ne se compareraient plus).
 export function maxCount(rows) {
   return rows.reduce((max, row) => Math.max(max, ...row.points.map((p) => p.count)), 0)
 }
