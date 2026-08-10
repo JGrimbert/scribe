@@ -163,13 +163,25 @@ export function useFolioFrame(props, { frameRef, frameDoc, blocks, section, onRe
     // gardent la rangée horizontale de paged.css (pages côte à côte). L'ombre est
     // portée PAR PAGE (cf. `.pagedjs_page` du boot), identique sur les pleines comme
     // sur les blanches/garde (cf. plus haut) → bas continu quel que soit le vis-à-vis.
-    // Spread : gouttière AMPLE entre les deux pages — marge horizontale par page
-    // (le fond pointillé de la planche la mesure et suit, cf. updateSpreadBg dans
-    // FolioView). `edit` garde la rangée serrée de paged.css.
+    // Spread ACCOLÉ (défaut, cf. props.contiguousSpread) : reliure à 0 — les deux
+    // pages qui se font face se touchent. La gouttière est reportée aux bords
+    // EXTÉRIEURS de chaque paire par parité : page de gauche (impaire) marge à
+    // gauche, page de droite (paire) marge à droite. Entre deux planches, les deux
+    // marges extérieures s'additionnent (gouttière pleine) ; au centre du vis-à-vis,
+    // rien. Le fond pointillé mesure cette géométrie et suit (updateSpreadBg).
+    // Spread HISTORIQUE : gouttière AMPLE et uniforme entre toutes les pages.
     const layout = props.mode === 'read'
       ? '.pagedjs_pages{display:block;} .pagedjs_page{margin:0;}'
       : props.mode === 'spread'
-        ? '.pagedjs_page{margin-inline:0.6cm;}'
+        // Base `margin-inline:0.6cm` (règle qui l'emporte sur le `margin-right:20px`
+        // de paged.css) ; l'accolage ne NEUTRALISE que le côté INTÉRIEur de chaque
+        // page par parité — `:nth-child` (spécificité 0,2,0 > 0,1,0) gagne à coup
+        // sûr, quel que soit l'ordre d'injection des feuilles. Page de gauche
+        // (impaire) : marge droite à 0. Page de droite (paire) : marge gauche à 0.
+        // Reliure = 0+0, gouttière inter-planche = 0.6+0.6, bords extérieurs = 0.6.
+        ? props.contiguousSpread
+          ? '.pagedjs_page{margin-inline:0.6cm;}.pagedjs_page:nth-child(odd){margin-right:0;}.pagedjs_page:nth-child(even){margin-left:0;}'
+          : '.pagedjs_page{margin-inline:0.6cm;}'
         : ''
     boot.textContent = common + layout
     doc.head.appendChild(boot)

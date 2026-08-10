@@ -181,6 +181,13 @@ const props = defineProps({
   // chacun peindrait sa grille sur la fenêtre entière). Aucun appelant
   // aujourd'hui : la maquette ne monte qu'UNE planche à la fois.
   bgScope: { type: String, default: 'window' },
+  // Vis-à-vis ACCOLÉ (défaut) : les deux pages qui se font face n'ont pas de
+  // gouttière de reliure — elles se touchent, « comme une seule page ». La
+  // gouttière ne subsiste qu'aux bords EXTÉRIEURS (et entre planches
+  // successives) ; la trame de fond encadre la planche entière au lieu de cerner
+  // chaque page. `false` restaure la gouttière centrale historique. Pris en
+  // compte au MONTAGE de l'iframe (le layout des pages est posé dans le boot).
+  contiguousSpread: { type: Boolean, default: true },
 })
 
 // `step` : cran de pagination applicative demandé à la molette (±1), cf. wheelPaging.
@@ -225,19 +232,18 @@ function updateSpreadBg() {
   if (!pages.length) { bg.style.opacity = '0'; emit('spread-geometry', null); emit('block-geometry', []); emit('style-geometry', {}); return }
   const first = pages[0]
   const r0 = first.getBoundingClientRect()
-  // Période = page + gouttière. Mesurée entre deux pages quand elles existent ;
-  // sinon déduite des marges de la page — l'écart entre deux pages vaut la marge
-  // DROITE de l'une PLUS la GAUCHE de la suivante (Paged.js en pose des deux
-  // côtés). N'en compter qu'une donnait une gouttière deux fois trop courte, donc
-  // une trame différente — et surtout des BANDES HORIZONTALES différentes, qui en
-  // dérivent (gutterY) — dès qu'une planche ne portait qu'UNE page (résultats de
-  // recherche, chapitre court). `getComputedStyle` rend une valeur de MISE EN PAGE
-  // (avant transform), d'où le produit par l'échelle, alors qu'un
-  // getBoundingClientRect est déjà scalé.
-  const margins = pages.length > 1 ? null : doc.defaultView.getComputedStyle(first)
-  const period = pages.length > 1
-    ? pages[1].getBoundingClientRect().left - r0.left
-    : r0.width + ((parseFloat(margins.marginRight) || 0) + (parseFloat(margins.marginLeft) || 0)) * scaleRef.value
+  // Empreinte d'UNE page (colonne de trame) : page + ses marges, mise à l'échelle.
+  // C'est ce qu'on ÉMET aux callers (réserve de colonne de la recherche, pas de
+  // `columnShift`) — la colonne, indépendante de l'accolage. Le pavage VISUEL de
+  // la trame, lui, se cale sur la PLANCHE quand les pages sont accolées (cf. plus
+  // bas). Calculée depuis les marges de la page plutôt que d'un écart page-à-page :
+  // accolées, deux pages qui se font face se touchent (l'écart mesuré vaudrait la
+  // seule largeur de page). `getComputedStyle` rend une valeur de MISE EN PAGE
+  // (avant transform), d'où le produit par l'échelle ; un getBoundingClientRect
+  // est déjà scalé.
+  const cs0 = doc.defaultView.getComputedStyle(first)
+  const pagePeriod = r0.width
+    + ((parseFloat(cs0.marginLeft) || 0) + (parseFloat(cs0.marginRight) || 0)) * scaleRef.value
   // Rects ÉCRAN des pages : les callouts de format s'y ancrent (cf. formatAnchors
   // + MaquetteFormatCallouts). Les pages vivent DANS l'iframe → leur rect est
   // relatif au viewport de l'iframe ; on ajoute l'offset écran de la frame pour
@@ -251,7 +257,7 @@ function updateSpreadBg() {
   // par-dessus (cf. la recherche de la maquette) attend qu'il retombe.
   const fr = frame.getBoundingClientRect()
   emit('spread-geometry', {
-    period,
+    period: pagePeriod,
     animating: animating.value,
     pages: Array.from(pages).map((p) => {
       const r = p.getBoundingClientRect()
@@ -296,19 +302,36 @@ function updateSpreadBg() {
   const padRect = props.bgScope === 'local' ? padRef.value?.getBoundingClientRect() : null
   const originX = padRect?.left ?? 0
   const originY = padRect?.top ?? 0
-  // Gouttière de reliure (X), mesurée ; l'entre-rang (Y) en dérive mais s'en
-  // DÉCOUPLE (cf. ROW_GUTTER_RATIO) : deux rangées de folios doivent se séparer
-  // plus franchement que deux pages d'une même planche.
-  const gutter = period - r0.width
+  // Pavage horizontal de la trame. Deux régimes, même gradient (deux filets par
+  // période encadrant une gouttière — cf. CSS) :
+  //  · ACCOLÉ (défaut) : l'unité pavée est la PLANCHE (2 pages qui se touchent).
+  //    La gouttière dessinée est celle ENTRE planches ; les filets tombent sur les
+  //    bords EXTÉRIEURS de chaque planche, et la reliure centrale n'en porte plus
+  //    — les deux pages se lisent comme une seule. Période = planche + gouttière,
+  //    phase = bord extérieur DROIT de la planche.
+  //  · HISTORIQUE : l'unité est la PAGE, la gouttière celle entre deux pages, la
+  //    phase le bord droit de la page — chaque page cernée, reliure comprise.
+  // L'entre-rang (Y) dérive de la gouttière (ROW_GUTTER_RATIO) mais s'en DÉCOUPLE :
+  // deux rangées de folios se séparent plus franchement que deux planches.
+  let gutter, period, phaseRight
+  if (props.contiguousSpread) {
+    const second = pages[1] ?? null
+    const r1 = second ? second.getBoundingClientRect() : r0
+    const cs1 = second ? doc.defaultView.getComputedStyle(second) : cs0
+    // Gouttière inter-planche = marge extérieure droite de la planche + marge
+    // extérieure gauche de la suivante (la reliure vaut 0 : pages accolées).
+    gutter = ((parseFloat(cs1.marginRight) || 0) + (parseFloat(cs0.marginLeft) || 0)) * scaleRef.value
+    period = (r1.right - r0.left) + gutter
+    phaseRight = r1.right
+  } else {
+    gutter = pagePeriod - r0.width
+    period = pagePeriod
+    phaseRight = r0.left + r0.width
+  }
   const gutterY = gutter * ROW_GUTTER_RATIO
-  // Les PHASES visent le bord SORTANT de la 1re page (début de la gouttière) et
-  // non son milieu : chaque période porte deux filets, un par bord de gouttière
-  // (cf. CSS). Le pavage cerne donc les pages au lieu de les séparer d'un trait,
-  // et l'entre-rang se lit comme une bande — c'est ce qui sépare deux rangées de
-  // folios empilées.
   bg.style.setProperty('--pad-gutter', `${gutter}px`)
   bg.style.setProperty('--pad-period', `${period}px`)
-  bg.style.setProperty('--pad-phase', `${r0.left + frameRect.left - originX + r0.width}px`)
+  bg.style.setProperty('--pad-phase', `${phaseRight + frameRect.left - originX}px`)
   bg.style.setProperty('--pad-gutter-y', `${gutterY}px`)
   bg.style.setProperty('--pad-period-y', `${r0.height + gutterY}px`)
   bg.style.setProperty('--pad-phase-y', `${r0.top + frameRect.top - originY + r0.height}px`)
@@ -641,12 +664,15 @@ function runningTitlesSignature(rt) {
   z-index: 1;
 }
 
-/* Trame de fond (double-page) : fines pointillées figurant reliures ET frontières
-   de planches, en GRILLE. Chaque période porte DEUX filets, un par bord de
-   gouttière (verticales = bords sortants des pages, horizontales = tête et pied) :
-   le pavage cerne les pages au lieu de les séparer d'un trait, et l'espace entre
-   deux rangées de folios se lit comme une bande — c'est ce qui rend nette la
-   séparation quand plusieurs planches sont empilées.
+/* Trame de fond (double-page) : fines pointillées figurant les frontières de
+   planches, en GRILLE. Chaque période porte DEUX filets, un par bord de gouttière
+   (verticales = bords extérieurs de la planche accolée, horizontales = tête et
+   pied) : le pavage cerne la PLANCHE au lieu de séparer ses deux pages d'un trait
+   (vis-à-vis accolé, cf. props.contiguousSpread) — la reliure centrale n'a plus de
+   filet. L'espace entre deux rangées de folios se lit comme une bande — c'est ce
+   qui rend nette la séparation quand plusieurs planches sont empilées. (En régime
+   historique non accolé, la période vaut la page et chaque page est cernée,
+   reliure comprise.)
    `position: fixed` : elle couvre TOUTE la fenêtre — elle passe donc
    derrière la doc-bar et descend jusqu'en bas, au-delà de la planche, et échappe à
    l'`overflow: hidden` de la vue (aucun ancêtre ne porte de transform/filter, qui

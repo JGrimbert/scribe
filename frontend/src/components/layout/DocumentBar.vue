@@ -396,7 +396,7 @@ const checklistVisible = computed(() => props.scoped && !!running && running.val
   min-width: 0;
   border: 0;
   background: transparent;
-  color: inherit;
+  color: var(--c-accent-alt-mid);
   font: inherit;
   font-size: var(--fs-sm);
   padding: 0.15em 0.35em;
@@ -430,7 +430,7 @@ const checklistVisible = computed(() => props.scoped && !!running && running.val
 
 .crumb:hover {
   opacity: 1;
-  background: var(--c-hover);
+  //background: var(--c-hover);
 }
 
 /* Les maillons inertes ne réagissent pas au survol (le fond `--c-hover` les

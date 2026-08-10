@@ -203,7 +203,7 @@ const { onWheel } = useWheelStepper({
 .maq-strip {
   position: absolute;
   top: 0;
-  left: 0;
+  left: 1.6em;
   height: 100%;
   pointer-events: auto;
 }

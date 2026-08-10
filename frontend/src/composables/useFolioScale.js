@@ -167,9 +167,13 @@ export function useFolioScale(props, { rootRef, frameRef, frameDoc, onScaled, on
       const pages = doc.querySelectorAll('.pagedjs_page:not(.folio-hidden)')
       const cs = doc.defaultView.getComputedStyle(pageEl)
       const marginRight = parseFloat(cs.marginRight) || 0
-      const period = pages.length > 1
-        ? pages[1].offsetLeft - pages[0].offsetLeft
-        : pageEl.offsetWidth + marginRight + (parseFloat(cs.marginLeft) || 0)
+      // Colonne de trame = empreinte d'UNE page (page + ses marges). Calculée
+      // depuis la boîte plutôt que mesurée d'une page à la suivante : avec
+      // l'accolage du vis-à-vis, deux pages qui se font face se touchent
+      // (offsetLeft à une largeur de page près) — l'écart mesuré vaudrait la seule
+      // page, pas la colonne. Les marges ne se chevauchent pas dans un flex :
+      // computed = mesuré hors accolage, donc aucune régression sur l'historique.
+      const period = pageEl.offsetWidth + marginRight + (parseFloat(cs.marginLeft) || 0)
       const rowW = Math.max(pages.length, props.visiblePages) * period - marginRight
       // Réserve LATÉRALE (`sideRails` périodes de chaque côté) : la bande où se
       // posent les callouts, large d'une page + sa gouttière — c'est le filet de

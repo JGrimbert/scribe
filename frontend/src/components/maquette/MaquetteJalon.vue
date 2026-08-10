@@ -32,15 +32,14 @@ defineEmits(['click'])
    de lui et le REJOIGNENT exactement quand la zone se replie en onglet. */
 .maq-jalon {
   position: absolute;
-  top: 2.4em;
+  bottom: 0.2em;
   left: 0;
   z-index: 2000;
   display: flex;
   align-items: center;
   justify-content: center;
   width: 1.5em;
-  height: 8em;
-  padding: 0;
+  height: 10em;
   border: 0;
   border-radius: var(--radius-sm);
   /* Fonds PLEINS (mix sur blanc, pas sur transparent) : pas de jeu d'opacité qui
@@ -49,6 +48,8 @@ defineEmits(['click'])
   cursor: pointer;
   transition: transform 0.35s cubic-bezier(0.22, 0.61, 0.36, 1),
               background-color 0.2s ease;
+
+  padding-bottom: 2em;
 }
 
 .maq-jalon:hover {
