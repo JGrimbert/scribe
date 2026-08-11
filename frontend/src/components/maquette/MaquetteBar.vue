@@ -1,12 +1,5 @@
 <template>
-  <!-- Troisième rangée de l'écran Maquette, empilée sous le menu principal et la
-       doc-bar : la RECHERCHE à gauche (elle a quitté la doc-bar, puis la carte du
-       sommaire flottant), le DÉZOOM à droite. Deux réglages permanents de l'écran
-       — pas des actions, d'où une bande sans fond propre, juste un filet. Au
-       milieu, le seul élément CONTEXTUEL : l'avancement du niveau de chapitrage
-       focusé (l'aside n'a plus ni titre de section ni tableau de décompte). -->
   <div class="maq-bar">
-    <!-- Loupe teal, champ sans bord ni fond : la barre porte le cadre, pas lui. -->
     <label class="maq-search">
       <i class="pi pi-search maq-search__icon"></i>
       <input
@@ -19,8 +12,6 @@
       />
     </label>
 
-    <!-- Une seule ligne, celle du niveau focusé : « n°2 · 63 % ». Le détail
-         chiffré vit dans l'infobulle — la barre n'est pas un tableau de bord. -->
     <div v-if="tallyRow" class="maq-tally">
       <span class="maq-tally__level">n°{{ tallyRow.index + 1 }}</span>
       <span
@@ -28,8 +19,6 @@
           :title="`${tallyRow.validables} validables · ${tallyRow.valides} validés / ${tallyRow.total}`"
       >{{ pct }} %</span>
 
-      <!-- Validation du niveau : ouvre le volet des familles de cas ferré en bas
-           de fenêtre. Re-clic : le referme. -->
       <button
           type="button"
           class="maq-tally__action"
@@ -42,10 +31,6 @@
       </button>
     </div>
 
-    <!-- Recalibrage : relit le .odt d'origine et rouvre la calibration des bornes
-         (le liminaire et la partie finale). Réglage permanent de l'écran — d'où sa
-         place ici et non dans le CTA de la doc-bar (pris par « Enregistrer »).
-         Barré si le .odt d'origine n'est pas conservé. -->
     <button
         type="button"
         class="maq-recal"
@@ -59,8 +44,7 @@
 
     <label class="maq-bar__zoom">
       <span>Dézoom</span>
-      <!-- `.number` ne traverse pas un v-model de composant (BaseSelect ne lit pas
-           modelModifiers) : la conversion se fait ici. -->
+
       <BaseSelect :model-value="zoom" @update:model-value="$emit('update:zoom', Number($event))">
         <option v-for="z in zooms" :key="z" :value="z">×{{ z }}</option>
       </BaseSelect>
@@ -147,9 +131,18 @@ onUnmounted(() => document.removeEventListener('keydown', onDocKeydown))
   padding-right: 1em;
   color: var(--c-ink2);
   font-size: var(--fs-sm);
-  border-bottom: 1px solid var(--c-border);
+  /*border-bottom: 1px solid var(--c-border);*/
   backdrop-filter: var(--c-backdrop-filter-blur);
-  background: color-mix(in srgb, var(--c-accent-alt-ink) 24%, transparent);
+  background: floralwhite;
+
+  /* La barre ne projette plus la grosse ombre uniforme (elle tombait identique sur
+     nav et sur le fond → aucune différence lisible). Elle garde juste un fin
+     détachement ; l'ombre PORTÉE est rendue côté récepteur : bande profonde sur le
+     fond (.maquette::before) vs liseré clair sur le sommaire (.maq-nav::before). */
+  box-shadow:
+      0 1px 2px var(--c-shadow-1),
+      0 2px 6px var(--c-shadow-2);
+
 }
 
 /* Le champ ne prend pas toute la barre : il reste au-dessus de la colonne du

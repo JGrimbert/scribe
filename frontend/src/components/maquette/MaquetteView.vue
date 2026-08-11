@@ -1,7 +1,4 @@
 <template>
-  <!-- Coquille : barres, sommaire, dock, UN FolioView persistant. L'état vit dans les
-       composables (useMaquette*/useChapitrageModel) ; les overlays liés au jalon sont
-       routés dans panes/ via provide('maq'). -->
   <div class="maquette">
     <MaquetteBar
         :zoom="zoom"
@@ -43,8 +40,7 @@
         @select-node="selectNode"
         @set-lim-type="limSetType"
     >
-      <!-- Le dock accordéon est le pied du sommaire : ferré au bord gauche, hors du
-           flux de la colonne d'aperçu (qui ne bouge donc jamais, quel que soit le pli). -->
+
       <template #footer>
         <MaquetteAccordeon
             v-model:folds="folds"
@@ -87,8 +83,7 @@
 
     <div class="maquette__left">
       <div class="maquette__panels">
-        <!-- UN SEUL FolioView persistant pour les 3 sources : ses props changent mais
-             l'iframe n'est jamais démontée → double-buffer, aucun clignotement. -->
+
         <section class="maquette__main">
           <div
               class="folio-stage"
@@ -126,9 +121,6 @@
                   @block-geometry="blockGeometry = $event"
                   @style-geometry="styleGeometry = $event"
               />
-
-              <!-- Chaque jalon monte son pane ICI, en couche par-dessus le FolioView
-                   persistant, re-basé sur la géométrie émise (coords écran). -->
               <router-view />
             </div>
           </div>
@@ -382,6 +374,26 @@ provide('maq', {
   gap: var(--sp-4);
   height: 100%;
   overflow: hidden;
+}
+
+/* Ombre PORTÉE sur le fond par la barre — récepteur « loin » : bande profonde,
+   sombre, sous la barre et À DROITE du sommaire (left: gouttière). Le sommaire
+   (z 160) la recouvre à gauche avec son propre liseré clair (.maq-nav::before) →
+   gauche = proche/clair, droite = loin/sombre. Sous la barre (z 170) et sous nav. */
+.maquette::before {
+  content: '';
+  position: absolute;
+  top: calc(var(--bar-size-2) + var(--bar-size));
+  left: var(--maq-gutter);
+  right: 0;
+  height: 3em;
+  z-index: 0;
+  pointer-events: none;
+  background: linear-gradient(to bottom,
+      var(--c-shadow-fond-fond) 0%,
+      var(--c-shadow-fond) 20%,
+      transparent
+  );
 }
 
 /* Le dock flotte au bord gauche (pied du sommaire), pas ici : l'aperçu ne lui réserve

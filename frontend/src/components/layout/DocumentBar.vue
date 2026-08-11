@@ -352,7 +352,7 @@ const checklistVisible = computed(() => props.scoped && !!running && running.val
   height: var(--bar-size-2);
   display: flex;
   align-items: center;
-  background: var(--c-doc-bar-bck);
+  background: var(--c-ui-light);
   border-bottom: var(--c-doc-bar-border);
   z-index: 99;
   overflow: hidden;

@@ -29,7 +29,7 @@ defineProps({
   aspect-ratio: var(--maq-ratio, 0.7);
   border: 1px solid var(--c-border);
   border-radius: var(--radius-sm);
-  background: var(--c-surface);
+  background: var(--c-surface0);
 }
 
 /* La reliure : le bord intérieur (droite du verso, gauche du recto) plus marqué. */

@@ -218,7 +218,7 @@ const labelOf = (key) => LIMINAIRE_BY_KEY.get(key)?.label ?? key
    none` dessus, `auto` sur ses zones utiles, pour laisser passer les clics autour. */
 .maq-nav {
   position: absolute;
-  top: calc(1.3 * var(--bar-size));
+  top: calc(var(--bar-size-2)*2.3);
   left: 0;
   width: 15em;
   height: calc(100% - 2 * var(--bar-size) - var(--sp-4) / 2);
@@ -226,18 +226,40 @@ const labelOf = (key) => LIMINAIRE_BY_KEY.get(key)?.label ?? key
   flex-direction: column;
   z-index: 160;
   pointer-events: none;
+
+  /*border: 1px solid var(--c-border);*/
+  background: var(--c-floral-5);
+  /* Panneau vertical : son ombre propre part à DROITE (offset-x dominant) — bord
+     droit franc, bord gauche nul. Modérée : la profondeur du fond est portée par
+     .maquette::before, pas ici. */
+  box-shadow:
+      3px 1px 4px var(--c-shadow-4),
+      7px 3px 12px var(--c-shadow-5);
+}
+
+/* Ombre REÇUE de la barre sur le sommaire (récepteur dédié) : simple liseré de
+   contact clippé en haut de .maq-nav — deux feuilles quasi collées, l'ombre entre
+   elles n'est qu'un trait. Découplée de l'ombre que la barre porte sur le fond. */
+.maq-nav::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 0.9em;
+  pointer-events: none;
+  background: linear-gradient(to bottom, var(--c-shadow-contact), transparent);
 }
 
 /* Carte flottante (mêmes traits que les contrôles liminaire et les blocs de
    l'aside). Pleine hauteur : sa zone de défilement se prolonge sous le dock. */
 .maq-nav__card {
-  margin-top: 1.1em;
   min-height: 0;
   flex: 1 1 auto;
   display: flex;
   flex-direction: column;
   padding: var(--sp-3);
-  backdrop-filter: var(--c-backdrop-filter-blur);
+  /*backdrop-filter: var(--c-backdrop-filter-blur);*/
 }
 
 /* UNE seule zone de défilement (parties + contenu) — pas de scrollbars imbriquées.
