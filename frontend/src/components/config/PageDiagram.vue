@@ -149,10 +149,10 @@ const ariaLabel = 'Aperçu de la mise en page recto/verso : marges, en-tête, pi
 /* Page : blanc + fine bordure + ombre portée — mêmes valeurs que les pages du
    carrousel (cf. useFolioFrame : box-shadow 0 1px 6px rgba(0,0,0,.15)). */
 .page {
-  fill: var(--c-surface);
+  fill: var(--c-surface0);
   stroke: var(--c-border);
   stroke-width: 1;
-  filter: drop-shadow(0 1px 6px rgba(0, 0, 0, 0.15));
+  filter:  drop-shadow(0.5px 1px 0 var(--c-shadow-warm));
 }
 
 /* Empagement + en-tête/pied : MÊME bordure gris clair que le rectangle de page. */

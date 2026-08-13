@@ -127,7 +127,7 @@ const jalonStyle = computed(() => ({
   cursor: pointer;
   transform-origin: top center;
   transition: transform 0.35s cubic-bezier(0.22, 0.61, 0.36, 1);
-  filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.13));
+  filter: drop-shadow(0 2px 5px var(--c-shadow-1));
 
   &.is-focused {
     cursor: default;
