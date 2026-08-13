@@ -4,12 +4,13 @@
    GLOBAL à dessein : le scope d'un SFC ne traverse pas la frontière de composant,
    or `.fc-grp--left .fc-row` doit joindre un enfant à son conteneur parent. */
 
-/* Groupe de champs nus, ferré à un rail (haut = en-tête, bas = pied, etc.). */
+/* Groupe de champs nus, ferré à un rail (haut = en-tête, bas = pied, etc.). Rows
+   resserrées (gap 1px) pour se lire comme une LISTE continue. */
 .fc-grp {
   position: absolute;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
   pointer-events: auto;
 }
 
@@ -51,14 +52,18 @@
   flex-direction: column;
   align-items: flex-start;
   gap: var(--sp-1);
-  padding: var(--sp-2) var(--sp-6);
+  padding: var(--sp-1) var(--sp-3);
   font-size: var(--fs-sm);
   background: color-mix(in srgb, var(--c-accent-alt-ink) 24%, transparent);
+  /* Filet POINTILLÉ repris de la trame de fond (`--pad-color` de folio-pad-bg) :
+     les blocs se cernent comme les gouttières, sans devenir des cartes. */
+  border: 1px dashed color-mix(in srgb, var(--c-accent-alt-darker) 22%, transparent);
   /* La row prend la largeur du groupe, borné au rail (cf. FcGroup.maxWidth) :
-     `border-box` pour que le padding tienne DEDANS, `min-width: 0` pour que le
-     contenu accepte de se comprimer au lieu de déborder. */
+     `border-box` pour que padding+bordure tiennent DEDANS. `min-width` commun aux
+     rows d'un même rail → largeur uniforme (air de liste), au lieu que chacune
+     épouse la largeur de son label. */
   box-sizing: border-box;
-  min-width: 0;
+  min-width: 9rem;
   max-width: 100%;
 }
 

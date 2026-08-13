@@ -76,38 +76,47 @@ export function buildFormatAnchors({ pages, pageSize, margins, runningTitles, ma
   const blockAnchor = (blk) => (blk ? anchorOf(vSpan(blk.x + blk.w, blk.y, blk.y + blk.h)) : null)
   const bandAnchor = (box) => (box ? anchorOf(vSpan(box.x + box.w, box.y, box.y + box.h)) : null)
 
-  // Colonne de manchette : dans le grand fond, hauteur = celle du corps (une note en
-  // marge se lit en regard du texte, pas des titres courants).
+  // Note de manchette : un petit BLOC de quelques lignes dans le grand fond, CENTRÉ
+  // verticalement dans le corps (pas ferré en tête) — une note en marge se lit en
+  // regard du texte, pas des titres courants. Toujours calculée (rendue en permanence
+  // côté hôte), largeur bornée par la manchette réglée ou la marge disponible.
   const gap = MANCHETTE_GAP_CM * k
-  const manchetteColumn = (p) => {
+  const manchetteNote = (p) => {
     const strip = p.parity === 'recto' ? p.empLeft - p.left : p.right - p.empRight
     const w = manchette?.widthCm ? Math.min(manchette.widthCm * k, strip - gap) : strip - 2 * gap
     if (!(w > 0)) return null
     const x = p.parity === 'recto' ? p.empLeft - gap - w : p.empRight + gap
-    const top = p.header ? p.header.y + p.header.h + gap : p.empTop
-    const bottom = p.footer ? p.footer.y - gap : p.empBottom
-    return bottom > top ? { x, y: top, w, h: bottom - top } : null
+    const bodyTop = p.header ? p.header.y + p.header.h + gap : p.empTop
+    const bodyBottom = p.footer ? p.footer.y - gap : p.empBottom
+    const ink = MANCHETTE_INK_CM * k
+    const lead = MANCHETTE_LEAD_CM * k
+    const h = (MANCHETTE_LINES - 1) * lead + ink
+    if (!(bodyBottom - bodyTop >= h)) return null
+    return { x, y: bodyTop + (bodyBottom - bodyTop - h) / 2, w, h }
   }
 
-  const manchetteLines = (col) => {
-    if (!col) return []
+  const manchetteLines = (note) => {
+    if (!note) return []
     const ink = MANCHETTE_INK_CM * k
     const lead = MANCHETTE_LEAD_CM * k
     const out = []
     for (let i = 0; i < MANCHETTE_LINES; i += 1) {
-      const y = col.y + i * lead
-      if (y + ink > col.y + col.h) break
+      const y = note.y + i * lead
+      if (y + ink > note.y + note.h + 0.5) break
       const last = i === MANCHETTE_LINES - 1
-      out.push({ x: col.x, y, w: last ? col.w * MANCHETTE_LAST_RATIO : col.w, h: ink })
+      out.push({ x: note.x, y, w: last ? note.w * MANCHETTE_LAST_RATIO : note.w, h: ink })
     }
     return out
   }
 
-  const manchetteCols = [recto, verso].map(manchetteColumn).filter(Boolean)
+  const manchetteCols = [recto, verso].map(manchetteNote).filter(Boolean)
 
+  // Cote des blancs de tête/pied posée au MILIEU de la marge extérieure (grand fond),
+  // pas sur le bord de page : la pointe de la fuyante entre dans le blanc disponible.
+  const blancX = (recto.left + recto.empLeft) / 2
   return {
-    'blanc-tete': anchorOf(vSpan(recto.left, recto.top, recto.empTop)),
-    'blanc-pied': anchorOf(vSpan(recto.left, recto.empBottom, recto.bottom)),
+    'blanc-tete': anchorOf(vSpan(blancX, recto.top, recto.empTop)),
+    'blanc-pied': anchorOf(vSpan(blancX, recto.empBottom, recto.bottom)),
     'header-recto': blockAnchor(blockOf(rt.header, recto.header, 'recto')),
     'header-verso': blockAnchor(blockOf(rt.header, verso.header, 'verso')),
     'footer-content': blockAnchor(blockOf(rt.footer, verso.footer, 'verso')),

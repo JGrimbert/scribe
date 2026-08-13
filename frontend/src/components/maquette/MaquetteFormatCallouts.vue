@@ -16,12 +16,12 @@
         @mouseenter="hovered = z.key" @mouseleave="hovered = null"
     />
 
-    <!-- Manchette active : ses filets gris, posés dans sa colonne. Simulation de
-         texte, donc décor pur — par-dessus les zones (transparentes au repos),
-         mais sans jamais leur prendre le survol. -->
-    <template v-if="manchette.enabled">
-      <div v-for="(r, i) in manchetteLines" :key="i" class="fc-manch" :style="lineStyle(r)" />
-    </template>
+    <!-- Note de manchette : ses filets, TOUJOURS posés (gris clair) dans le grand fond.
+         Simulation de texte, décor pur — par-dessus les zones (transparentes au repos),
+         mais sans leur prendre le survol : c'est la `zone-manchette` (réduite à la note)
+         qui le capte et bleute les filets. -->
+    <div v-for="(r, i) in manchetteLines" :key="i" class="fc-manch"
+         :class="{ 'fc-manch--on': hovered === 'manchette' }" :style="rectStyle(r)" />
 
     <FcLeaders :leaders="leaders" :box="box" :hovered="hovered" />
 
@@ -65,10 +65,13 @@
                 hover-key="blanc-tete" :measure-ref="(el) => setRow('blanc-tete', el)"
                 @hover="hovered = $event" @input="setMargin('topCm', $event)" />
       </FcGroup>
-      <FcGroup :x="geo.leftRailX" :y="geo.fondY" side="left" anchor="mid" :max-width="geo.leftRailW">
+      <FcGroup :x="geo.leftRailX" :y="geo.midY" side="left" anchor="mid" :max-width="geo.leftRailW">
         <FcCote label="Grand fond" :value="toUnit(marginsView.outerCm, unit)" :step="step" :unit="unit"
                 hover-key="grand-fond" :measure-ref="(el) => setRow('grand-fond', el)"
                 @hover="hovered = $event" @input="setMargin('outerCm', $event)" />
+        <FcCote label="Petit fond" :value="toUnit(marginsView.innerCm, unit)" :step="step" :unit="unit"
+                hover-key="petit-fond" :measure-ref="(el) => setRow('petit-fond', el)"
+                @hover="hovered = $event" @input="setMargin('innerCm', $event)" />
       </FcGroup>
       <FcGroup :x="geo.leftRailX" :y="geo.bottom" side="left" anchor="bottom" :max-width="geo.leftRailW">
         <FcCote label="Blanc de pied" :value="toUnit(marginsView.bottomCm, unit)" :step="step" :unit="unit"
@@ -104,16 +107,6 @@
         </FcBand>
       </FcGroup>
 
-      <!-- Petit fond : côté gouttière, label posé sur la page de droite (verso). -->
-      <div class="fc-row fc-row--inline fc-onpage"
-           :style="{ left: `${geo.versoCenterX}px`, top: `${geo.fondY}px` }"
-           :ref="(el) => setRow('petit-fond', el)"
-           @mouseenter="hovered = 'petit-fond'" @mouseleave="hovered = null">
-        <span class="fc-row__label">Petit fond</span>
-        <NumInput :value="toUnit(marginsView.innerCm, unit)" :step="step" :unit="unit"
-                  @input="setMargin('innerCm', $event)" />
-      </div>
-
       <!-- ── Dimensions : layer flottant SOUS la planche, centré sur la gouttière.
            Deux lignes : le format choisi, puis la cote X × Y et son unité. Sans zone
            surlignable : elles désignent la planche entière, qu'on voit déjà — le
@@ -143,7 +136,6 @@ import FcBand from './callouts/FcBand.vue'
 import FcLeaders from './callouts/FcLeaders.vue'
 import './callouts/callouts.css' // rows posées ici même (petit fond, dimensions)
 import { buildFormatAnchors } from '../../script/formatAnchors'
-import { GUIDE_FILL } from '../../script/folioStyles'
 import {
   PAGE_FORMATS, UNITS, effectiveMargins, effectivePage, matchFormat,
   toUnit, fromUnit, unitStep,
@@ -295,25 +287,25 @@ const geo = computed(() => {
   const top = recto.top
   const bottom = Math.max(recto.bottom, verso.bottom)
   const midY = (top + bottom) / 2
-  // Écart rail ↔ page = la GOUTTIÈRE mesurée, pas une constante : la trame de fond
-  // (`folio-pad-bg`) pose un filet à CHAQUE bord de gouttière, donc à `recto.left`
-  // / `verso.right` et à une gouttière de là. Les piles de callouts se ferrent sur
-  // ce second filet — un écart arbitraire les faisait chevaucher le trait.
+  // Écart pile ↔ page = DEUX gouttières : les piles se posent au-delà du filet extérieur
+  // de la trame (à un gutter du bord) avec une gouttière d'air en plus — assez pour ne
+  // pas mordre la page, sans partir au loin dans la marge. Le COUDE des fuyantes, lui,
+  // reste au MILIEU de la première gouttière (bord de page + ½ gutter).
   const gutter = verso.left - recto.right
-  const gap = gutter > 0 ? gutter : GAP
+  const gut = gutter > 0 ? gutter : GAP
+  const railGap = gut * 2
+  const leftRailX = recto.left - railGap
+  const railX = verso.right + railGap
   return {
-    railX: verso.right + gap, leftRailX: recto.left - gap, top, bottom, midY,
+    railX, leftRailX, top, bottom, midY,
+    gutterMidRight: verso.right + gut / 2, gutterMidLeft: recto.left - gut / 2,
     // Largeur du rail : du point de ferrage au bord de l'aperçu. Les piles y sont
     // bornées (cf. FcGroup.maxWidth) — au-delà elles sortiraient du champ.
-    leftRailW: recto.left - gap,
-    railW: box.value.w - (verso.right + gap),
-    versoCenterX: (verso.left + verso.right) / 2,
+    leftRailW: leftRailX,
+    railW: box.value.w - railX,
     // Centre de la gouttière (bords intérieurs des deux pages) : ancre du layer
     // flottant des dimensions.
     centerX: (recto.right + verso.left) / 2,
-    // Label du grand fond : à mi-chemin entre le blanc de tête (haut) et la
-    // manchette (milieu).
-    fondY: (top + midY) / 2,
   }
 })
 
@@ -357,12 +349,6 @@ function rectStyle(r) {
   return { left: `${r.x}px`, top: `${r.y}px`, width: `${r.w}px`, height: `${r.h}px` }
 }
 
-// Filet de manchette : peint du gris typographique du GABARIT (celui des pavés
-// en-tête/pied rendus dans l'iframe), pas d'une encre de l'UI — c'est du papier.
-function lineStyle(r) {
-  return { ...rectStyle(r), background: GUIDE_FILL }
-}
-
 // Le rect d'une zone le plus proche d'une abscisse : les fonds en ont un par page,
 // le trait doit viser celui de la page où son label est posé.
 function nearestRect(rects, x) {
@@ -374,11 +360,9 @@ function nearestRect(rects, x) {
 // de bande — le trait vise l'ancre cotée) et « horizontale vers zone » (fonds,
 // manchette — le trait file vers le centre du liséré désigné).
 const LEFT_POINT = ['blanc-tete', 'blanc-pied']
-const LEFT_ZONE = ['grand-fond']
+const LEFT_ZONE = ['grand-fond', 'petit-fond']
 const RIGHT_POINT = ['header-height', 'footer-height']
 const RIGHT_ZONE = ['manchette']
-// Petit fond : label posé sur la page, trait HORIZONTAL vers le centre de son liséré.
-const ONPAGE_KEYS = ['petit-fond']
 
 const rowEls = new Map()
 function setRow(key, el) {
@@ -410,37 +394,34 @@ async function measure() {
   const o = origin.value
   const railX = geo.value?.railX ?? 0
   const leftRailX = geo.value?.leftRailX ?? 0
+  // Coude au MILIEU de la gouttière de fond (bord de page + ½ gutter), FIXE quel que
+  // soit le recul des piles : le trait file horizontalement du label jusque-là, puis
+  // vise la balise en biais (segment qui franchit le bord et entre dans la page).
+  const xmRight = geo.value?.gutterMidRight ?? railX
+  const xmLeft = geo.value?.gutterMidLeft ?? leftRailX
   const next = []
 
-  // Fuyante « vers un point » : du bord de la carte (ferrée au rail) vers l'ancre cotée.
-  const pointLead = (key, rx) => {
+  // Fuyante « vers un point » : du bord de la carte (ferrée au rail) vers l'ancre cotée,
+  // coudée à la gouttière — segment 2 en biais vers la balise (y ≠ celui du label).
+  const pointLead = (key, rx, xm) => {
     const cy = rowCenterY(key, o.top)
-    if (cy != null && anc[key]) next.push({ key, x1: rx, y1: cy, x2: anc[key].x, y2: anc[key].y })
+    if (cy != null && anc[key]) next.push({ key, x1: rx, y1: cy, xm, x2: anc[key].x, y2: anc[key].y })
   }
-  // Fuyante horizontale « vers zone » : du bord de la carte au centre du liséré le
-  // PLUS PROCHE (une zone en couvre deux, une par page).
-  const zoneLead = (key, rx) => {
+  // Fuyante « vers zone » : du bord de la carte au centre du liséré le PLUS PROCHE
+  // (une zone en couvre deux, une par page). Coude à la gouttière ; segment 2 reste
+  // horizontal (la zone est un bandeau, pas un point) → le coude y est plat.
+  const zoneLead = (key, rx, xm) => {
     const cy = rowCenterY(key, o.top)
     if (cy == null) return
     const z = nearestRect(anc[`zone-${key}`], rx)
-    if (z) next.push({ key, x1: rx, y1: cy, x2: z.x + z.w / 2, y2: cy })
+    if (z) next.push({ key, x1: rx, y1: cy, xm, x2: z.x + z.w / 2, y2: cy })
   }
 
-  for (const key of LEFT_POINT) pointLead(key, leftRailX)
-  for (const key of LEFT_ZONE) zoneLead(key, leftRailX)
-  for (const key of RIGHT_POINT) pointLead(key, railX)
-  for (const key of RIGHT_ZONE) zoneLead(key, railX)
+  for (const key of LEFT_POINT) pointLead(key, leftRailX, xmLeft)
+  for (const key of LEFT_ZONE) zoneLead(key, leftRailX, xmLeft)
+  for (const key of RIGHT_POINT) pointLead(key, railX, xmRight)
+  for (const key of RIGHT_ZONE) zoneLead(key, railX, xmRight)
 
-  // Label posé sur une page : le trait part de son bord gauche, même règle de zone.
-  for (const key of ONPAGE_KEYS) {
-    const el = rowEls.get(key)
-    if (!el) continue
-    const rr = el.getBoundingClientRect()
-    const z = nearestRect(anc[`zone-${key}`], rr.left - o.left + rr.width / 2)
-    if (!z) continue
-    const cy = rr.top - o.top + rr.height / 2
-    next.push({ key, x1: rr.left - o.left, y1: cy, x2: z.x + z.w / 2, y2: cy })
-  }
   leaders.value = next
 }
 
@@ -483,11 +464,18 @@ watch(() => props.styleDefaults, measure, { deep: true })
   outline-offset: -1px;
 }
 
-/* Filet de manchette : simulation de texte, jamais un contrôle — il ne prend ni
-   le survol (la zone dessous le garde) ni le clic. */
+/* Filet de note-manchette : simulation de texte, jamais un contrôle — il ne prend ni
+   le survol (la `zone-manchette` dessous le garde) ni le clic. Gris CLAIR au repos,
+   bleuté (teal) quand la zone est survolée. */
 .fc-manch {
   position: absolute;
   pointer-events: none;
+  background: color-mix(in srgb, var(--c-ink2) 28%, transparent);
+  transition: background-color 0.12s ease;
+}
+
+.fc-manch--on {
+  background: color-mix(in srgb, var(--c-accent-alt) 65%, transparent);
 }
 
 /* Selects de contenu (titre courant / folio) posés sur la bande. Chacun porte SON
@@ -541,13 +529,6 @@ watch(() => props.styleDefaults, measure, { deep: true })
   display: inline-flex;
   align-items: center;
   gap: var(--sp-2);
-}
-
-/* Fond : row posée sur une page, centrée sur ce point. */
-.fc-onpage {
-  position: absolute;
-  transform: translate(-50%, -50%);
-  pointer-events: auto;
 }
 
 .fc-times {

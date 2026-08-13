@@ -59,12 +59,20 @@
        --c-surface2, qui virait « ligne sélectionnée »). */
     --c-table-row-hover: color-mix(in srgb, var(--c-ink) 5%, var(--c-paper));
 
+
+    /*
+
+        Pour les ombres ..
+
+    */
+    --c-shadow-cold: #aac1c5;
     /* Base des ombres : TAUPE CHAUD, pas l'ink neutre (qui virait au gris mort sur
        le sable) ni l'accent orange (qui « colorait trop »). Brun désaturé R>G>B
        modéré → l'ombre reste dans la famille du crème/sable. Source lumineuse en
        haut-gauche → offsets bas-DROITE dans les composants.
        shadow-1/2/3 = barre, shadow-4/5/6 = sommaire — PROCHES en intensité. */
     --c-shadow-warm: #d2b99e;
+
     --c-shadow-1: color-mix(in srgb, var(--c-shadow-warm) 5%, transparent);
     --c-shadow-2: color-mix(in srgb, var(--c-shadow-warm) 7%, transparent);
     --c-shadow-3: color-mix(in srgb, var(--c-shadow-warm) 7%, transparent);
@@ -78,8 +86,8 @@
        court et clair ; le FOND est loin → bande profonde et sombre. C'est l'écart
        entre les deux qui crée la différence gauche (nav)/droite (fond). */
     --c-shadow-contact: color-mix(in srgb, var(--c-shadow-warm) 6%, transparent);
-    --c-shadow-fond: color-mix(in srgb, var(--c-shadow-warm) 11%, transparent);
-    --c-shadow-fond-fond: color-mix(in srgb, var(--c-shadow-warm) 21%, transparent);
+    --c-shadow-fond: color-mix(in srgb, var(--c-shadow-cold) 6%, transparent);
+    --c-shadow-fond-fond: color-mix(in srgb, var(--c-shadow-cold) 21%, transparent);
 
     --c-floral-1: #fffefd;
     --c-floral-2: #fffdfb;
@@ -219,7 +227,8 @@
 /* ── Body ────────────────────────────────────────────── */
 body {
     font-family: var(--font-ui);
-    background: linear-gradient(floralwhite 20%, #fef5e414 100%);
+    /*background: linear-gradient(var(--c-floral-4) 20%, #fef5e414 100%);*/
+    background: linear-gradient(var(--c-floral-4) 20%, #fef5e414 100%);
     overflow: hidden;
     /*background-image: url("/sand-1783861576005.png");*/
     background-repeat: repeat;

@@ -20,15 +20,16 @@ describe('buildFormatAnchors', () => {
     expect(build({ pageSize: null })).toEqual({})
   })
 
-  it('cote le blanc de tête du bord de feuille au bord de l\'empagement', () => {
-    // Bord extérieur de la page de GAUCHE (recto affiché à gauche) : x = recto.left.
+  it('cote le blanc de tête au MILIEU de la marge extérieure (grand fond)', () => {
+    // Recto affiché à gauche, marge extérieure = [0, 25] → cote posée à mi-marge (12,5)
+    // pour que la pointe de la fuyante entre dans le blanc, pas sur le bord de feuille.
     const a = build()['blanc-tete']
-    expect(a.span).toEqual({ x1: 0, y1: 0, x2: 0, y2: 20 })
-    expect(a).toMatchObject({ x: 0, y: 10 })
+    expect(a.span).toEqual({ x1: 12.5, y1: 0, x2: 12.5, y2: 20 })
+    expect(a).toMatchObject({ x: 12.5, y: 10 })
   })
 
-  it('cote le blanc de pied sous l\'empagement', () => {
-    expect(build()['blanc-pied'].span).toEqual({ x1: 0, y1: 180, x2: 0, y2: 210 })
+  it('cote le blanc de pied à mi-marge, sous l\'empagement', () => {
+    expect(build()['blanc-pied'].span).toEqual({ x1: 12.5, y1: 180, x2: 12.5, y2: 210 })
   })
 
   it('place les fonds sous la page de droite, petit fond côté gouttière', () => {
@@ -96,28 +97,35 @@ describe('buildFormatAnchors', () => {
     ])
   })
 
-  it('pose la manchette dans le grand fond, largeur auto = fond moins ses blancs', () => {
+  it('pose la note-manchette dans le grand fond, largeur auto = fond moins ses blancs', () => {
     const a = build()
     // Grand fond de 25 px moins 2 blancs de 4 px → 17 px, collée à l'empagement
-    // (recto : bord gauche de l'empagement à 25, donc x = 25 − 4 − 17 = 4).
-    expect(a['zone-manchette']).toEqual([
-      { x: 4, y: 20, w: 17, h: 160 },
-      { x: 295, y: 20, w: 17, h: 160 },
-    ])
+    // (recto : bord gauche de l'empagement à 25, donc x = 25 − 4 − 17 = 4). La note
+    // est un BLOC de 4 filets (h = 3×3,8 + 1,5 ≈ 12,9), CENTRÉ dans le corps [20, 180].
+    const zm = a['zone-manchette']
+    expect(zm).toHaveLength(2)
+    expect(zm[0]).toMatchObject({ x: 4, w: 17 })
+    expect(zm[0].y).toBeCloseTo(93.55, 5)
+    expect(zm[0].h).toBeCloseTo(12.9, 5)
+    expect(zm[1]).toMatchObject({ x: 295, w: 17 })
     // Largeur imposée : collée au même bord, le reste tombe côté bord de feuille.
-    expect(build({ manchette: { enabled: true, widthCm: 1 } })['zone-manchette'][0])
-      .toEqual({ x: 11, y: 20, w: 10, h: 160 })
+    const imposed = build({ manchette: { enabled: true, widthCm: 1 } })['zone-manchette'][0]
+    expect(imposed).toMatchObject({ x: 11, w: 10 })
+    expect(imposed.y).toBeCloseTo(93.55, 5)
   })
 
-  it('descend la manchette sous l\'en-tête et rend ses filets, le dernier court', () => {
+  it('centre la note sous l\'en-tête et rend ses filets, le dernier court', () => {
     const rt = { header: { enabled: true, recto: 'titre', verso: 'titre', heightCm: 1, justification: 'centre' } }
     const a = build({ runningTitles: rt })
-    // Corps = sous la bande (20 → 30) plus son blanc de 4 px.
-    expect(a['zone-manchette'][0]).toMatchObject({ y: 34, h: 146 })
+    // Corps = sous la bande (20 → 30) plus son blanc de 4 px → [34, 180], note centrée.
+    expect(a['zone-manchette'][0]).toMatchObject({ x: 4, w: 17 })
+    expect(a['zone-manchette'][0].y).toBeCloseTo(100.55, 5)
+    expect(a['zone-manchette'][0].h).toBeCloseTo(12.9, 5)
     const lines = a['manchette-lines']
     expect(lines).toHaveLength(8) // 4 filets par page
-    expect(lines[0]).toEqual({ x: 4, y: 34, w: 17, h: 1.5 })
-    expect(lines[3]).toMatchObject({ y: 45.4 })
+    expect(lines[0]).toMatchObject({ x: 4, w: 17, h: 1.5 })
+    expect(lines[0].y).toBeCloseTo(100.55, 5)
+    expect(lines[3].y).toBeCloseTo(111.95, 5)
     expect(lines[3].w).toBeCloseTo(9.35, 5)
   })
 
@@ -131,6 +139,7 @@ describe('buildFormatAnchors', () => {
 
   it('décale toutes les ancres de l\'origine de la boîte', () => {
     const a = build({ origin: { left: 40, top: 12 } })
-    expect(a['blanc-tete'].span).toEqual({ x1: -40, y1: -12, x2: -40, y2: 8 })
+    // blancX = (recto.left + recto.empLeft) / 2 = (−40 + −15) / 2 = −27,5.
+    expect(a['blanc-tete'].span).toEqual({ x1: -27.5, y1: -12, x2: -27.5, y2: 8 })
   })
 })
