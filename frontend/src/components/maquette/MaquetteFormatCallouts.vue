@@ -60,7 +60,7 @@
            blancs sont cotés sur le bord extérieur de la page de gauche (recto), le
            grand fond tombe aux bords extérieurs (marges re-miroitées, cf.
            formatAnchors). ────────────────────────────────────────────────────── -->
-      <FcGroup :x="geo.leftRailX" :y="geo.top" side="left" anchor="top" :max-width="geo.leftRailW">
+      <FcGroup :x="geo.leftRailX" :y="geo.top + geo.railPad" side="left" anchor="top" :max-width="geo.leftRailW">
         <FcCote label="Blanc de tête" :value="toUnit(marginsView.topCm, unit)" :step="step" :unit="unit"
                 hover-key="blanc-tete" :measure-ref="(el) => setRow('blanc-tete', el)"
                 @hover="hovered = $event" @input="setMargin('topCm', $event)" />
@@ -73,7 +73,7 @@
                 hover-key="petit-fond" :measure-ref="(el) => setRow('petit-fond', el)"
                 @hover="hovered = $event" @input="setMargin('innerCm', $event)" />
       </FcGroup>
-      <FcGroup :x="geo.leftRailX" :y="geo.bottom" side="left" anchor="bottom" :max-width="geo.leftRailW">
+      <FcGroup :x="geo.leftRailX" :y="geo.bottom - geo.railPad" side="left" anchor="bottom" :max-width="geo.leftRailW">
         <FcCote label="Blanc de pied" :value="toUnit(marginsView.bottomCm, unit)" :step="step" :unit="unit"
                 hover-key="blanc-pied" :measure-ref="(el) => setRow('blanc-pied', el)"
                 @hover="hovered = $event" @input="setMargin('bottomCm', $event)" />
@@ -81,7 +81,7 @@
 
       <!-- ── Colonne DROITE : hauteur d'en-tête + justif (haut), manchette (milieu),
            hauteur de pied + justif (bas), ferrées par leur GAUCHE au rail droit. ── -->
-      <FcGroup :x="geo.railX" :y="geo.top" anchor="top" :max-width="geo.railW">
+      <FcGroup :x="geo.railX" :y="geo.top + geo.railPad" anchor="top" :max-width="geo.railW">
         <FcBand :band="header" label="En-tête" :value="toUnit(header.heightCm, unit)" :step="step" :unit="unit"
                 hover-key="header" :measure-ref="(el) => setRow('header-height', el)"
                 @hover="hovered = $event" @input="setBandHeight(header, $event)">
@@ -97,7 +97,7 @@
                 @hover="hovered = $event" @input="setManchetteWidth($event)" />
       </FcGroup>
 
-      <FcGroup :x="geo.railX" :y="geo.bottom" anchor="bottom" :max-width="geo.railW">
+      <FcGroup :x="geo.railX" :y="geo.bottom - geo.railPad" anchor="bottom" :max-width="geo.railW">
         <FcBand :band="footer" label="Hauteur pied" :value="toUnit(footer.heightCm, unit)" :step="step" :unit="unit"
                 hover-key="footer" :measure-ref="(el) => setRow('footer-height', el)"
                 @hover="hovered = $event" @input="setBandHeight(footer, $event)">
@@ -127,7 +127,7 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, watchEffect } from 'vue'
+import { computed, ref, watchEffect } from 'vue'
 import BareSelect from './BareSelect.vue'
 import NumInput from './NumInput.vue'
 import FcGroup from './callouts/FcGroup.vue'
@@ -136,6 +136,7 @@ import FcBand from './callouts/FcBand.vue'
 import FcLeaders from './callouts/FcLeaders.vue'
 import './callouts/callouts.css' // rows posées ici même (petit fond, dimensions)
 import { buildFormatAnchors } from '../../script/formatAnchors'
+import { useCalloutRig } from '../../composables/useCalloutRig'
 import {
   PAGE_FORMATS, UNITS, effectiveMargins, effectivePage, matchFormat,
   toUnit, fromUnit, unitStep,
@@ -254,10 +255,14 @@ function setManchetteWidth(raw) {
   manchette.value.widthCm = optionalCm(raw)
 }
 
-// ── Géométrie : origine (rect de cet overlay), ancres, positions ─────────────
-const rootRef = ref(null)
-const origin = ref({ left: 0, top: 0 })
-const box = ref({ w: 0, h: 0 })
+// ── Socle géométrie/mesure/fuyantes, partagé avec MaquetteStyleCallouts ───────
+const { rootRef, origin, box, baseGeo, leaders, setRow } = useCalloutRig({
+  geometry: () => props.geometry,
+  buildLeaders: buildFormatLeaders,
+  // Les ancres suivent les cotes éditées EN DIRECT (styleDefaults muté en place) →
+  // relancer la mesure quand elles changent.
+  watchSources: [[() => props.styleDefaults, { deep: true }]],
+})
 
 const anchors = computed(() =>
   buildFormatAnchors({
@@ -272,32 +277,17 @@ const anchors = computed(() =>
 
 const manchetteLines = computed(() => anchors.value['manchette-lines'] ?? [])
 
-// Repli quand la gouttière n'est pas mesurable (planche incomplète) : sinon le rail
-// vaut la GOUTTIÈRE elle-même, cf. `geo`.
-const GAP = 22
-
-// Repères de la planche en coordonnées LOCALES de l'overlay.
+// Repères de la planche dérivés du socle (`baseGeo` porte recto/verso/rails/railPad).
 const geo = computed(() => {
-  const g = props.geometry?.pages
-  if (!g || g.length < 2) return null
-  const o = origin.value
-  const loc = (r) => ({ left: r.left - o.left, top: r.top - o.top, right: r.left - o.left + r.width, bottom: r.top - o.top + r.height })
-  const recto = loc(g[0])
-  const verso = loc(g[1])
-  const top = recto.top
+  const b = baseGeo.value
+  if (!b) return null
+  const { recto, verso, gut, railPad, top, leftRailX, railX } = b
   const bottom = Math.max(recto.bottom, verso.bottom)
-  const midY = (top + bottom) / 2
-  // Écart pile ↔ page = DEUX gouttières : les piles se posent au-delà du filet extérieur
-  // de la trame (à un gutter du bord) avec une gouttière d'air en plus — assez pour ne
-  // pas mordre la page, sans partir au loin dans la marge. Le COUDE des fuyantes, lui,
-  // reste au MILIEU de la première gouttière (bord de page + ½ gutter).
-  const gutter = verso.left - recto.right
-  const gut = gutter > 0 ? gutter : GAP
-  const railGap = gut * 2
-  const leftRailX = recto.left - railGap
-  const railX = verso.right + railGap
   return {
-    railX, leftRailX, top, bottom, midY,
+    railX, leftRailX, top, bottom, railPad,
+    midY: (top + bottom) / 2,
+    // Coude des fuyantes : MILIEU de la gouttière centrale (bord de page + ½ gut),
+    // FIXE quel que soit le recul des piles.
     gutterMidRight: verso.right + gut / 2, gutterMidLeft: recto.left - gut / 2,
     // Largeur du rail : du point de ferrage au bord de l'aperçu. Les piles y sont
     // bornées (cf. FcGroup.maxWidth) — au-delà elles sortiraient du champ.
@@ -364,52 +354,24 @@ const LEFT_ZONE = ['grand-fond', 'petit-fond']
 const RIGHT_POINT = ['header-height', 'footer-height']
 const RIGHT_ZONE = ['manchette']
 
-const rowEls = new Map()
-function setRow(key, el) {
-  if (el) rowEls.set(key, el)
-  else rowEls.delete(key)
-}
-
-const leaders = ref([])
-
-// Ordonnée du centre d'une ligne mesurée, ou null si elle n'est pas montée.
-function rowCenterY(key, oy) {
-  const el = rowEls.get(key)
-  if (!el) return null
-  const rr = el.getBoundingClientRect()
-  return rr.top - oy + rr.height / 2
-}
-
-// Deux temps : poser l'origine (→ ancres + positions recalculées), puis, le DOM à
-// jour, mesurer chaque ligne pour tracer les fuyantes depuis son point d'accroche.
-async function measure() {
-  const root = rootRef.value
-  if (!root) return
-  const r = root.getBoundingClientRect()
-  origin.value = { left: r.left, top: r.top }
-  box.value = { w: r.width, h: r.height }
-
-  await nextTick()
+// Fuyantes du format : chaque rail porte un mix « vers un point » (blancs, hauteurs de
+// bande — le trait vise l'ancre cotée) et « vers zone » (fonds, manchette — le trait
+// file vers le centre du liséré désigné). Appelé par le socle APRÈS le nextTick de la
+// mesure (lignes montées, cf. useCalloutRig) ; `o`/`rowCenterY` viennent de lui.
+function buildFormatLeaders({ o, rowCenterY }) {
+  const g = geo.value
+  if (!g) return []
   const anc = anchors.value
-  const o = origin.value
-  const railX = geo.value?.railX ?? 0
-  const leftRailX = geo.value?.leftRailX ?? 0
-  // Coude au MILIEU de la gouttière de fond (bord de page + ½ gutter), FIXE quel que
-  // soit le recul des piles : le trait file horizontalement du label jusque-là, puis
-  // vise la balise en biais (segment qui franchit le bord et entre dans la page).
-  const xmRight = geo.value?.gutterMidRight ?? railX
-  const xmLeft = geo.value?.gutterMidLeft ?? leftRailX
+  const { railX, leftRailX, gutterMidRight: xmRight, gutterMidLeft: xmLeft } = g
   const next = []
-
-  // Fuyante « vers un point » : du bord de la carte (ferrée au rail) vers l'ancre cotée,
-  // coudée à la gouttière — segment 2 en biais vers la balise (y ≠ celui du label).
+  // « vers un point » : du bord de la carte (ferrée au rail) vers l'ancre cotée, coudée
+  // à la gouttière — segment 2 en biais vers la balise (y ≠ celui du label).
   const pointLead = (key, rx, xm) => {
     const cy = rowCenterY(key, o.top)
     if (cy != null && anc[key]) next.push({ key, x1: rx, y1: cy, xm, x2: anc[key].x, y2: anc[key].y })
   }
-  // Fuyante « vers zone » : du bord de la carte au centre du liséré le PLUS PROCHE
-  // (une zone en couvre deux, une par page). Coude à la gouttière ; segment 2 reste
-  // horizontal (la zone est un bandeau, pas un point) → le coude y est plat.
+  // « vers zone » : du bord de la carte au centre du liséré le PLUS PROCHE (une zone en
+  // couvre deux, une par page). Coude à la gouttière ; segment 2 horizontal (bandeau).
   const zoneLead = (key, rx, xm) => {
     const cy = rowCenterY(key, o.top)
     if (cy == null) return
@@ -421,20 +383,8 @@ async function measure() {
   for (const key of LEFT_ZONE) zoneLead(key, leftRailX, xmLeft)
   for (const key of RIGHT_POINT) pointLead(key, railX, xmRight)
   for (const key of RIGHT_ZONE) zoneLead(key, railX, xmRight)
-
-  leaders.value = next
+  return next
 }
-
-let ro = null
-onMounted(() => {
-  measure()
-  ro = new ResizeObserver(measure)
-  ro.observe(rootRef.value)
-})
-onBeforeUnmount(() => ro?.disconnect())
-
-watch(() => props.geometry, measure)
-watch(() => props.styleDefaults, measure, { deep: true })
 </script>
 
 <style scoped>

@@ -63,6 +63,14 @@ consommateur) :
   `useAnalyse()` dans les cards). Voir `../components/analyse/CLAUDE.md`.
 - **`useLexicalGraph.js`** / **`useCloudFilters.js`** / **`useWordCloud.js`** —
   état des visualisations lexicales (réseau, nuage). Voir `../components/analyse/`.
+- **`useCalloutRig.js`** — socle commun aux overlays de callouts posés SUR la
+  planche du FolioView (`maquette/MaquetteFormatCallouts` = format,
+  `maquette/MaquetteStyleCallouts` = liminaire/chapitrage) : origine/boîte de
+  l'overlay, `baseGeo` (recto/verso + rails ferrés à 2·V du bord horizontalement,
+  décrochement vertical V/2, V émis par FolioView), registre des lignes mesurables
+  (`setRow`), tracé des fuyantes après
+  rendu (callback `buildLeaders` propre à l'hôte) et cycle `ResizeObserver`. Chaque
+  hôte dérive son `geo` de `baseGeo`. Voir `../components/maquette/`.
 
 ## Règles
 

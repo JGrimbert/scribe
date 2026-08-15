@@ -36,11 +36,12 @@
 </template>
 
 <script setup>
-import { computed, inject, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, inject, ref } from 'vue'
 import FcGroup from './callouts/FcGroup.vue'
 import FcStyleRow from './callouts/FcStyleRow.vue'
 import FcLeaders from './callouts/FcLeaders.vue'
 import './callouts/callouts.css'
+import { useCalloutRig } from '../../composables/useCalloutRig'
 
 const props = defineProps({
   // { pages: [{left,top,width,height}] } (coords écran) émis par FolioView.
@@ -98,30 +99,24 @@ function onHover(name) {
   emit('hover-style', name)
 }
 
-// ── Géométrie : origine (rect de cet overlay), rail droit, haut de planche ───────
-const rootRef = ref(null)
-const origin = ref({ left: 0, top: 0 })
-const box = ref({ w: 0, h: 0 })
+// ── Socle géométrie/mesure/fuyantes, partagé avec MaquetteFormatCallouts ─────────
+const { rootRef, origin, box, baseGeo, leaders, setRow } = useCalloutRig({
+  geometry: () => props.geometry,
+  buildLeaders: buildStyleLeaders,
+  watchSources: [
+    [() => props.styleGeometry],
+    [() => props.styles],
+    [() => props.styleRoles, { deep: true }],
+  ],
+})
 
-// Repli quand la gouttière n'est pas mesurable (même règle que les callouts de format).
-const GAP = 22
-
+// Repères de la planche dérivés du socle : ici on n'ajoute que la frontière `midX`.
 const geo = computed(() => {
-  const g = props.geometry?.pages
-  if (!g || g.length < 2) return null
-  const o = origin.value
-  const loc = (r) => ({ left: r.left - o.left, top: r.top - o.top, right: r.left - o.left + r.width })
-  const recto = loc(g[0]) // page affichée à GAUCHE (recto en séquentiel)
-  const verso = loc(g[1]) // page affichée à DROITE
-  // Rail ferré sur le FILET de la trame de fond : celle-ci en pose un à chaque bord
-  // de gouttière (cf. MaquetteFormatCallouts.geo), donc à une gouttière du bord de
-  // page. La pile s'aligne dessus au lieu de le chevaucher.
-  const gutter = verso.left - recto.right
-  const gap = gutter > 0 ? gutter : GAP
+  const b = baseGeo.value
+  if (!b) return null
+  const { recto, verso, railPad, top, leftRailX, railX } = b
   return {
-    leftRailX: recto.left - gap,
-    railX: verso.right + gap,
-    top: recto.top,
+    leftRailX, railX, top, railPad,
     // Frontière gouttière : arbitre le côté de chaque style (fuyante non traversante).
     midX: (recto.right + verso.left) / 2,
   }
@@ -144,71 +139,34 @@ const columns = computed(() => {
   // `max` = le rail lui-même : du point de ferrage au bord de l'aperçu. La pile ne
   // le déborde pas (elle passerait sous le sommaire ou hors du champ).
   return [
-    { side: 'left', x: g.leftRailX, top: g.top, list: left, max: g.leftRailX },
-    { side: 'right', x: g.railX, top: g.top, list: right, max: box.value.w - g.railX },
+    { side: 'left', x: g.leftRailX, top: g.top + g.railPad, list: left, max: g.leftRailX },
+    { side: 'right', x: g.railX, top: g.top + g.railPad, list: right, max: box.value.w - g.railX },
   ]
 })
 
 // ── Survol : la fuyante de la ligne survolée s'affirme ───────────────────────────
 const hovered = ref(null)
 
-const rowEls = new Map()
-function setRow(key, el) {
-  if (el) rowEls.set(key, el)
-  else rowEls.delete(key)
-}
-
-const leaders = ref([])
-
-function rowCenterY(key, oy) {
-  const el = rowEls.get(key)
-  if (!el) return null
-  const rr = el.getBoundingClientRect()
-  return rr.top - oy + rr.height / 2
-}
-
-// Deux temps : poser l'origine (→ géométrie recalculée), puis, le DOM à jour, mesurer
-// chaque ligne pour tracer sa fuyante vers le paragraphe qui porte son style. Départ
-// au rail (bord gauche de la pile, côté planche) ; arrivée au bord droit du rect du
-// paragraphe (le plus proche du rail), centré verticalement.
-async function measure() {
-  const root = rootRef.value
-  if (!root) return
-  const r = root.getBoundingClientRect()
-  origin.value = { left: r.left, top: r.top }
-  box.value = { w: r.width, h: r.height }
-
-  await nextTick()
-  const o = origin.value
+// Fuyantes des styles : chacune part du rail du CÔTÉ visé et rejoint le bord du rect du
+// paragraphe qui porte ce style, le plus proche du rail, centré verticalement. Appelé
+// par le socle APRÈS le nextTick de la mesure (lignes montées, cf. useCalloutRig).
+function buildStyleLeaders({ o, rowCenterY }) {
   const g = geo.value
+  if (!g) return []
   const next = []
   for (const style of props.styles) {
     const cy = rowCenterY(style.name, o.top)
-    if (cy == null || !g) continue
+    if (cy == null) continue
     const rect = props.styleGeometry?.[style.name]
     if (!rect) continue
-    // La fuyante part du rail du CÔTÉ visé et vise le bord du rect le plus proche.
     const onLeft = (rect.left - o.left + rect.width / 2) < g.midX
     const x1 = onLeft ? g.leftRailX : g.railX
     const x2 = onLeft ? (rect.left - o.left) : (rect.left - o.left + rect.width)
     const y2 = rect.top - o.top + rect.height / 2
     next.push({ key: style.name, x1, y1: cy, x2, y2 })
   }
-  leaders.value = next
+  return next
 }
-
-let ro = null
-onMounted(() => {
-  measure()
-  ro = new ResizeObserver(measure)
-  ro.observe(rootRef.value)
-})
-onBeforeUnmount(() => ro?.disconnect())
-
-watch(() => props.geometry, measure)
-watch(() => props.styleGeometry, measure)
-watch(() => props.styles, measure)
-watch(() => props.styleRoles, measure, { deep: true })
 </script>
 
 <style scoped>

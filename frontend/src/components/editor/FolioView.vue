@@ -211,10 +211,15 @@ const padBgRef = ref(null)
 // Le wrapper des pages : référentiel de la trame quand elle est LOCALE (bgScope).
 const padRef = ref(null)
 
-// Entre-rang (axe Y) = gouttière de reliure × ce facteur. Deux rangées de folios
-// empilées se séparent ainsi plus franchement que les deux pages d'une planche —
-// c'est le seul réglage de la hiérarchie du pavage.
-const ROW_GUTTER_RATIO = 2.5
+// Gouttières horizontales de la trame, en multiples de la gouttière verticale V
+// (une seule unité pour toute la trame) : bande de TÊTE = V, bande de PIED = 2·V —
+// l'asymétrie tête/pied d'une page imprimée. (Auparavant une bande unique symétrique
+// de 2,5·V, ROW_GUTTER_RATIO.) Entre deux rangs, un LISERET de 6·V s'insère APRÈS le
+// pied et AVANT la tête suivante : la trame respire au lieu d'enchaîner directement
+// sur le rang du dessous.
+const TOP_GUTTER_RATIO = 1
+const BOTTOM_GUTTER_RATIO = 2
+const LISERET_RATIO = 6
 
 // Cale la trame de fond (mode spread) sur la géométrie SCALÉE des pages. Le fond
 // couvre TOUTE la fenêtre (position: fixed, cf. CSS) : il n'a donc plus de boîte à
@@ -244,6 +249,29 @@ function updateSpreadBg() {
   const cs0 = doc.defaultView.getComputedStyle(first)
   const pagePeriod = r0.width
     + ((parseFloat(cs0.marginLeft) || 0) + (parseFloat(cs0.marginRight) || 0)) * scaleRef.value
+  // Gouttière verticale V et pavage X, selon le régime d'accolage (rendu détaillé
+  // plus bas). Calculés ICI pour être émis avec la géométrie : les callouts s'en
+  // servent comme UNITÉ (padding des cartouches de cote) — la gouttière qu'ils
+  // mesureraient au centre du vis-à-vis vaut ~0 en accolé, ce n'est pas V.
+  let gutter, period, phaseRight
+  if (props.contiguousSpread) {
+    const second = pages[1] ?? null
+    const r1 = second ? second.getBoundingClientRect() : r0
+    const cs1 = second ? doc.defaultView.getComputedStyle(second) : cs0
+    // Gouttière inter-planche = somme des marges EXTÉRIEURES de deux pages en regard.
+    // Chaque page a sa reliure (côté intérieur) à 0 → la marge extérieure est la PLUS
+    // GRANDE des deux marges inline. Avec une seule page rendue (cs1 = cs0) on double
+    // ainsi la marge extérieure au lieu de retomber sur une demi-gouttière : V reste
+    // identique que le flow produise 1 ou 2 pages (pas de disparité entre modes).
+    const outer = (cs) => Math.max(parseFloat(cs.marginLeft) || 0, parseFloat(cs.marginRight) || 0)
+    gutter = (outer(cs0) + outer(cs1)) * scaleRef.value
+    period = (r1.right - r0.left) + gutter
+    phaseRight = r1.right
+  } else {
+    gutter = pagePeriod - r0.width
+    period = pagePeriod
+    phaseRight = r0.left + r0.width
+  }
   // Rects ÉCRAN des pages : les callouts de format s'y ancrent (cf. formatAnchors
   // + MaquetteFormatCallouts). Les pages vivent DANS l'iframe → leur rect est
   // relatif au viewport de l'iframe ; on ajoute l'offset écran de la frame pour
@@ -258,6 +286,7 @@ function updateSpreadBg() {
   const fr = frame.getBoundingClientRect()
   emit('spread-geometry', {
     period: pagePeriod,
+    gutter,
     animating: animating.value,
     pages: Array.from(pages).map((p) => {
       const r = p.getBoundingClientRect()
@@ -302,8 +331,8 @@ function updateSpreadBg() {
   const padRect = props.bgScope === 'local' ? padRef.value?.getBoundingClientRect() : null
   const originX = padRect?.left ?? 0
   const originY = padRect?.top ?? 0
-  // Pavage horizontal de la trame. Deux régimes, même gradient (deux filets par
-  // période encadrant une gouttière — cf. CSS) :
+  // Pavage horizontal de la trame (X). gutter/period/phaseRight calculés plus haut
+  // (émis avec la géométrie). Deux régimes :
   //  · ACCOLÉ (défaut) : l'unité pavée est la PLANCHE (2 pages qui se touchent).
   //    La gouttière dessinée est celle ENTRE planches ; les filets tombent sur les
   //    bords EXTÉRIEURS de chaque planche, et la reliure centrale n'en porte plus
@@ -311,30 +340,23 @@ function updateSpreadBg() {
   //    phase = bord extérieur DROIT de la planche.
   //  · HISTORIQUE : l'unité est la PAGE, la gouttière celle entre deux pages, la
   //    phase le bord droit de la page — chaque page cernée, reliure comprise.
-  // L'entre-rang (Y) dérive de la gouttière (ROW_GUTTER_RATIO) mais s'en DÉCOUPLE :
-  // deux rangées de folios se séparent plus franchement que deux planches.
-  let gutter, period, phaseRight
-  if (props.contiguousSpread) {
-    const second = pages[1] ?? null
-    const r1 = second ? second.getBoundingClientRect() : r0
-    const cs1 = second ? doc.defaultView.getComputedStyle(second) : cs0
-    // Gouttière inter-planche = marge extérieure droite de la planche + marge
-    // extérieure gauche de la suivante (la reliure vaut 0 : pages accolées).
-    gutter = ((parseFloat(cs1.marginRight) || 0) + (parseFloat(cs0.marginLeft) || 0)) * scaleRef.value
-    period = (r1.right - r0.left) + gutter
-    phaseRight = r1.right
-  } else {
-    gutter = pagePeriod - r0.width
-    period = pagePeriod
-    phaseRight = r0.left + r0.width
-  }
-  const gutterY = gutter * ROW_GUTTER_RATIO
+  // Gouttières Y (tête/pied) : même unité V que X, mais ASYMÉTRIQUES — tête = V,
+  // pied = 2·V (cf. TOP/BOTTOM_GUTTER_RATIO), séparées entre rangs par un LISERET de
+  // 6·V. La période Y court d'un haut de page au suivant (page + pied + liseret + tête)
+  // et la phase se cale sur le HAUT de page : le gradient `::after` pose quatre filets,
+  // la planche unique montre V au-dessus et 2·V dessous.
+  const topGutterY = gutter * TOP_GUTTER_RATIO
+  const bottomGutterY = gutter * BOTTOM_GUTTER_RATIO
+  const liseretY = gutter * LISERET_RATIO
   bg.style.setProperty('--pad-gutter', `${gutter}px`)
   bg.style.setProperty('--pad-period', `${period}px`)
   bg.style.setProperty('--pad-phase', `${phaseRight + frameRect.left - originX}px`)
-  bg.style.setProperty('--pad-gutter-y', `${gutterY}px`)
-  bg.style.setProperty('--pad-period-y', `${r0.height + gutterY}px`)
-  bg.style.setProperty('--pad-phase-y', `${r0.top + frameRect.top - originY + r0.height}px`)
+  bg.style.setProperty('--pad-page-h', `${r0.height}px`)
+  bg.style.setProperty('--pad-gutter-top', `${topGutterY}px`)
+  bg.style.setProperty('--pad-gutter-bottom', `${bottomGutterY}px`)
+  bg.style.setProperty('--pad-liseret', `${liseretY}px`)
+  bg.style.setProperty('--pad-period-y', `${r0.height + topGutterY + bottomGutterY + liseretY}px`)
+  bg.style.setProperty('--pad-phase-y', `${r0.top + frameRect.top - originY}px`)
   bg.style.opacity = '1'
 }
 
@@ -665,9 +687,10 @@ function runningTitlesSignature(rt) {
 }
 
 /* Trame de fond (double-page) : fines pointillées figurant les frontières de
-   planches, en GRILLE. Chaque période porte DEUX filets, un par bord de gouttière
-   (verticales = bords extérieurs de la planche accolée, horizontales = tête et
-   pied) : le pavage cerne la PLANCHE au lieu de séparer ses deux pages d'un trait
+   planches, en GRILLE. Chaque période porte les filets qui bordent ses gouttières
+   (X : deux filets aux bords extérieurs de la planche accolée ; Y : trois filets —
+   tête V et pied 2·V, asymétriques) : le pavage cerne la PLANCHE au lieu de séparer
+   ses deux pages d'un trait
    (vis-à-vis accolé, cf. props.contiguousSpread) — la reliure centrale n'a plus de
    filet. L'espace entre deux rangées de folios se lit comme une bande — c'est ce
    qui rend nette la séparation quand plusieurs planches sont empilées. (En régime
@@ -696,12 +719,15 @@ function runningTitlesSignature(rt) {
   --pad-dash: 2px;      /* longueur d'un tiret */
   --pad-gap: 3px;       /* espace entre tirets */
   /* ── Posés par JS ── */
-  --pad-gutter: 0px;    /* reliure : écart entre les deux filets, axe X */
-  --pad-period: 0px;    /* page + gouttière, axe X */
-  --pad-phase: 0px;     /* bord sortant de la 1re page, en coordonnées écran */
-  --pad-gutter-y: 0px;  /* entre-rang : plus large que la reliure (ROW_GUTTER_RATIO) */
-  --pad-period-y: 0px;  /* page + entre-rang, axe Y */
-  --pad-phase-y: 0px;
+  --pad-gutter: 0px;        /* gouttière verticale V : écart entre les deux filets, axe X */
+  --pad-period: 0px;        /* page + gouttière, axe X */
+  --pad-phase: 0px;         /* bord sortant de la 1re page, en coordonnées écran */
+  --pad-page-h: 0px;        /* hauteur de page scalée (axe Y) */
+  --pad-gutter-top: 0px;    /* gouttière de TÊTE = V */
+  --pad-gutter-bottom: 0px; /* gouttière de PIED = 2·V */
+  --pad-liseret: 0px;       /* liseret entre rangs = 6·V */
+  --pad-period-y: 0px;      /* page + pied + liseret + tête, axe Y */
+  --pad-phase-y: 0px;       /* HAUT de la 1re page, en coordonnées écran */
 }
 
 /* Trame LOCALE (bgScope) : bornée au wrapper des pages au lieu de couvrir la
@@ -716,9 +742,11 @@ function runningTitlesSignature(rt) {
    période (et non un `repeating-linear-gradient` étalé sur toute la boîte, dont la
    copie de gauche redémarrait à une phase arbitraire → filet parasite dans la
    première page), et un mask perpendiculaire qui le découpe en pointillé.
-   Le tile porte les DEUX filets de la gouttière : le premier à son origine (bord
-   sortant de la page), le second à `--pad-gutter` (bord entrant de la suivante) ;
-   le reste de la période — la page — est transparent. */
+   Les axes diffèrent par leur découpe : X porte DEUX filets encadrant la gouttière
+   verticale V (origine = bord sortant de la page, second à `--pad-gutter`) ; Y en
+   porte QUATRE (haut de page, pied de page, fin du pied / début du liseret, fin du
+   liseret / début de la tête) — sous la page : pied 2·V, puis liseret 6·V, puis tête V
+   du rang suivant. Le reste de la période — la page — est transparent. */
 .folio-pad-bg::before,
 .folio-pad-bg::after {
   content: "";
@@ -750,15 +778,26 @@ function runningTitlesSignature(rt) {
 }
 
 .folio-pad-bg::after {
+  /* Quatre filets par période (haut de page → suivant) : haut de page, pied de page,
+     fin du pied (2·V) / début du liseret, fin du liseret (6·V) / début de la tête (V).
+     Sous la page : pied 2·V, liseret 6·V, tête V du rang suivant. */
   background-image: linear-gradient(
     to bottom,
     var(--pad-color) 0,
     var(--pad-color) var(--pad-line),
     transparent var(--pad-line),
-    transparent var(--pad-gutter-y),
-    var(--pad-color) var(--pad-gutter-y),
-    var(--pad-color) calc(var(--pad-gutter-y) + var(--pad-line)),
-    transparent calc(var(--pad-gutter-y) + var(--pad-line))
+    transparent var(--pad-page-h),
+    var(--pad-color) var(--pad-page-h),
+    var(--pad-color) calc(var(--pad-page-h) + var(--pad-line)),
+    transparent calc(var(--pad-page-h) + var(--pad-line)),
+    transparent calc(var(--pad-page-h) + var(--pad-gutter-bottom)),
+    var(--pad-color) calc(var(--pad-page-h) + var(--pad-gutter-bottom)),
+    var(--pad-color) calc(var(--pad-page-h) + var(--pad-gutter-bottom) + var(--pad-line)),
+    transparent calc(var(--pad-page-h) + var(--pad-gutter-bottom) + var(--pad-line)),
+    transparent calc(var(--pad-page-h) + var(--pad-gutter-bottom) + var(--pad-liseret)),
+    var(--pad-color) calc(var(--pad-page-h) + var(--pad-gutter-bottom) + var(--pad-liseret)),
+    var(--pad-color) calc(var(--pad-page-h) + var(--pad-gutter-bottom) + var(--pad-liseret) + var(--pad-line)),
+    transparent calc(var(--pad-page-h) + var(--pad-gutter-bottom) + var(--pad-liseret) + var(--pad-line))
   );
   background-size: 100% var(--pad-period-y);
   background-position-y: calc(var(--pad-phase-y) - var(--pad-line) / 2);

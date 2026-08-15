@@ -48,6 +48,8 @@
    une carte (ni bordure ni radius — elle est calée sur les filets de la trame).
    UNE seule row pour tous les callouts : format, liminaire, chapitrage. */
 .fc-row {
+  background: #E6C9A4;
+
   display: flex;
   flex-direction: column;
   align-items: flex-start;
