@@ -117,7 +117,7 @@ onUnmounted(() => document.removeEventListener('keydown', onDocKeydown))
    contenu de la maquette se décale par ses propres marges, cf. MaquetteView).
    Au-dessus du sommaire flottant (z 160), sous les modales (z 200). */
 .maq-bar {
-  border-bottom: 1px solid #f1e6d0;
+  border-bottom: 4px solid #e3dccd;
   position: absolute;
   top: var(--bar-size-2);
   left: 0;

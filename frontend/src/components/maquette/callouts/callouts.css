@@ -56,7 +56,7 @@
   gap: var(--sp-1);
   padding: var(--sp-1) var(--sp-3);
   font-size: var(--fs-sm);
-  background: color-mix(in srgb, var(--c-accent-alt-ink) 24%, transparent);
+  /*background: color-mix(in srgb, var(--c-accent-alt-ink) 24%, transparent);*/
   /* Filet POINTILLÉ repris de la trame de fond (`--pad-color` de folio-pad-bg) :
      les blocs se cernent comme les gouttières, sans devenir des cartes. */
   border: 1px dashed color-mix(in srgb, var(--c-accent-alt-darker) 22%, transparent);

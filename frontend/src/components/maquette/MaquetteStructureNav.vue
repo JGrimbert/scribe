@@ -218,13 +218,13 @@ const labelOf = (key) => LIMINAIRE_BY_KEY.get(key)?.label ?? key
    none` dessus, `auto` sur ses zones utiles, pour laisser passer les clics autour. */
 .maq-nav {
   position: absolute;
-  top: calc(var(--bar-size-2)*2.3);
+  top: calc((var(--bar-size-2) * 2.3) - 3px);
   left: 0;
   width: 15em;
   height: calc(100% - 2 * var(--bar-size) - var(--sp-4) / 2);
   display: flex;
   flex-direction: column;
-  z-index: 160;
+  z-index: 180;
   pointer-events: none;
 
   /*border: 1px solid var(--c-border);*/

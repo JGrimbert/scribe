@@ -72,10 +72,13 @@
        haut-gauche → offsets bas-DROITE dans les composants.
        shadow-1/2/3 = barre, shadow-4/5/6 = sommaire — PROCHES en intensité. */
     --c-shadow-warm: #d2b99e;
+    --c-shadow-A: #b9a085;
+    --c-shadow-B: #d0b190;
+    --c-shadow-C: #d39b5e;
 
-    --c-shadow-1: color-mix(in srgb, var(--c-shadow-warm) 5%, transparent);
-    --c-shadow-2: color-mix(in srgb, var(--c-shadow-warm) 7%, transparent);
-    --c-shadow-3: color-mix(in srgb, var(--c-shadow-warm) 7%, transparent);
+    --c-shadow-1: color-mix(in srgb, var(--c-shadow-A) 0%, transparent);
+    --c-shadow-2: color-mix(in srgb, var(--c-shadow-B) 0%, transparent);
+    --c-shadow-3: color-mix(in srgb, var(--c-shadow-C) 7%, transparent);
 
     --c-shadow-4: color-mix(in srgb, var(--c-shadow-warm) 4%, transparent);
     --c-shadow-5: color-mix(in srgb, var(--c-shadow-warm) 6%, transparent);
@@ -173,8 +176,10 @@
     --c-status-valide: #1e7e34;
     --c-status-perime: #b8620e;
 
+
+
     /* Typo — --font-serif est réservé au contenu du manuscrit
-       (nuage de mots, extraits) ; l'UI est en --font-ui partout. */
+    (nuage de mots, extraits) ; l'UI est en --font-ui partout. */
     --font-ui: system-ui, sans-serif;
     --font-serif: Georgia, serif;
     --fs-xs: 0.75rem;
@@ -222,16 +227,17 @@
     --acc-dim: 0;
 
     --acc-brightness: calc(1 + var(--acc-dim, 0) * 0.022);
-}
+
+ }
 
 /* ── Body ────────────────────────────────────────────── */
 body {
     font-family: var(--font-ui);
     /*background: linear-gradient(var(--c-floral-4) 20%, #fef5e414 100%);*/
-    background: linear-gradient(var(--c-floral-4) 20%, #fef5e414 100%);
+    background: linear-gradient(#fef5e414 0%, var(--c-paper-cream) 2%);
     overflow: hidden;
     /*background-image: url("/sand-1783861576005.png");*/
-    background-repeat: repeat;
+    /*background-repeat: repeat;*/
     color: var(--c-ink);
 }
 

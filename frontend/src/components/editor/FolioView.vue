@@ -714,10 +714,10 @@ function runningTitlesSignature(rt) {
   /* ── Réglages ── */
   /* Bleu profond du menu, très dilué : la trame se devine sans jamais concurrencer
      le texte des pages. (Élément hors iframe → les tokens du DS sont résolus.) */
-  --pad-color: color-mix(in srgb, var(--c-accent-alt-darker) 22%, transparent);
-  --pad-line: 1px;      /* épaisseur du filet */
-  --pad-dash: 2px;      /* longueur d'un tiret */
-  --pad-gap: 3px;       /* espace entre tirets */
+  --pad-color: color-mix(in srgb, var(--c-accent) 22%, transparent);
+  --pad-line: 2px;      /* épaisseur du filet */
+  --pad-dash: 4px;      /* longueur d'un tiret */
+  --pad-gap: 4px;       /* espace entre tirets */
   /* ── Posés par JS ── */
   --pad-gutter: 0px;        /* gouttière verticale V : écart entre les deux filets, axe X */
   --pad-period: 0px;        /* page + gouttière, axe X */

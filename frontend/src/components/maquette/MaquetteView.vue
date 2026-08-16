@@ -390,8 +390,8 @@ provide('maq', {
   z-index: 0;
   pointer-events: none;
   background: linear-gradient(to bottom,
-      var(--c-shadow-fond-fond) 0%,
-      var(--c-shadow-fond) 20%,
+      var(--c-shadow-1) 0%,
+      var(--c-shadow-2) 20%,
       transparent
   );
 }
