@@ -1,12 +1,7 @@
 import { computed, reactive, ref, watch } from 'vue'
-import { groupByZone, hasZones, UNZONED, ZONES } from '../script/zones'
+import { DEPTH_BY_ZONE, groupByZone, hasZones, UNZONED, ZONES } from '../script/zones'
 import { emptyRuleSet } from '../script/typology'
 import { useStructureShapes } from './useStructureShapes'
-
-// Zone de l'inventaire → profondeur des règles (0/1/2). Seules les zones de
-// chapitrage en ont une ; liminaire, partie finale et « non situés » n'ont ni
-// modèles ni règles (ce ne sont pas des nœuds de l'arbre).
-const DEPTH_BY_ZONE = { 'depth-0': 0, 'depth-1': 1, 'depth-2+': 2 }
 
 /**
  * L'état de configuration d'un document : typologie des styles, surlignages,

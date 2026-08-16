@@ -1,10 +1,6 @@
 import { computed, ref } from 'vue'
 import { aggregateByDepth } from '../script/shapes'
-
-// Zone de modèle → profondeur des règles (0/1/2), miroir de DEPTH_BY_ZONE côté
-// useTypologyConfig. Le seuil « au moins N caractères » d'un niveau écarte des
-// modèles ses nœuds trop courts.
-const DEPTH_BY_ZONE = { 'depth-0': 0, 'depth-1': 1, 'depth-2+': 2 }
+import { DEPTH_BY_ZONE } from '../script/zones'
 
 /**
  * Les modèles de structure d'un document : les schémas récurrents par niveau.

@@ -1,5 +1,6 @@
-import { nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { onBeforeUnmount, ref, watch } from 'vue'
 import { charIndexFromNodeOffset, getRangeRects } from '../script/liveEdit.js'
+import { settleClose } from './settleClose.js'
 
 // La sélection à cheval sur plusieurs fragments : aucun Quill ne peut la
 // représenter (un seul fragment monté à la fois), donc pas d'éditeur ouvert tant
@@ -17,15 +18,6 @@ export function useCrossSelection({
   parseBlockId, flushEditor, openTexteFragment, armSuppressClick,
 }) {
   const crossSelection = ref(null)
-
-  // Après un split/merge, rouvrir peut retomber sur exactement le même fragId
-  // qu'avant fermeture. Enchaîner fermeture puis réouverture dans le même tick ne
-  // déclenche PAS de remount Vue réel (le <QuillBlock> keyé par editingId garde son
-  // contenu périmé) : ce nextTick force le démontage avant la réouverture. Ne pas
-  // supprimer cet await en pensant que c'est un no-op.
-  function settleClose() {
-    return nextTick()
-  }
 
   // Sélection dont l'ancre et le focus tombent dans deux fragments différents —
   // soit une vraie frontière de paragraphe, soit une simple coupure de page interne

@@ -15,17 +15,10 @@
         :peek="mode === 'spread'"
     >
       <div ref="padRef" class="folio-pad">
-        <!-- Double-page : filet de reliure/planche. Fond DERRIÈRE l'iframe
-             (transparente) → visible dans les gouttières entre pages ; sa zone est
-             bornée à l'étendue des pages (updateSpreadBg) pour ne pas déborder dans
-             le padding. Période/offset scalés posés en JS. Purement décoratif. -->
-        <div
-            v-if="mode === 'spread'"
-            ref="padBgRef"
-            class="folio-pad-bg"
-            :class="{ 'folio-pad-bg--local': bgScope === 'local' }"
-            aria-hidden="true"
-        />
+        <!-- Double-page : trame de fond décorative DERRIÈRE l'iframe (transparente) →
+             visible dans les gouttières. Géométrie calculée par useFolioSpreadGeometry,
+             peinture dans le composant dédié. -->
+        <FolioSpreadBackground v-if="mode === 'spread'" :vars="bgVars" :scope="bgScope" />
         <iframe ref="frameRef" class="folio-frame" :title="mode === 'edit' ? 'Pages du chapitre' : 'Double-page'" />
       </div>
     </CustomScrollbar>
@@ -89,9 +82,10 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import QuillBlock from './QuillBlock.vue'
+import FolioSpreadBackground from './FolioSpreadBackground.vue'
 import CustomScrollbar from '../ui/atoms/CustomScrollbar.vue'
 import { buildBlocks, buildImpositionBlocks } from '../../script/paginate.js'
 import { syncQuillToFragment } from '../../script/syncQuill.js'
@@ -100,6 +94,8 @@ import { useFloatingToolbar } from '../../composables/useFloatingToolbar.js'
 import { useFragmentEditor } from '../../composables/useFragmentEditor.js'
 import { useFolioFrame } from '../../composables/useFolioFrame.js'
 import { useFolioScale } from '../../composables/useFolioScale.js'
+import { useFolioSpreadGeometry } from '../../composables/useFolioSpreadGeometry.js'
+import { useFolioReactions } from '../../composables/useFolioReactions.js'
 
 const props = defineProps({
   // 'read' : aperçu compact (une page, sans édition).
@@ -206,159 +202,8 @@ const frameRef = ref(null)
 // La CustomScrollbar de la rangée de pages (mode édition uniquement) : remesurée
 // après chaque fitScale, cf. onScaled ci-dessous.
 const scrollbarRef = ref(null)
-// Fond décoratif de la double-page (filet de reliure/planche), cf. updateSpreadBg.
-const padBgRef = ref(null)
 // Le wrapper des pages : référentiel de la trame quand elle est LOCALE (bgScope).
 const padRef = ref(null)
-
-// Gouttières horizontales de la trame, en multiples de la gouttière verticale V
-// (une seule unité pour toute la trame) : bande de TÊTE = V, bande de PIED = 2·V —
-// l'asymétrie tête/pied d'une page imprimée. (Auparavant une bande unique symétrique
-// de 2,5·V, ROW_GUTTER_RATIO.) Entre deux rangs, un LISERET de 6·V s'insère APRÈS le
-// pied et AVANT la tête suivante : la trame respire au lieu d'enchaîner directement
-// sur le rang du dessous.
-const TOP_GUTTER_RATIO = 1
-const BOTTOM_GUTTER_RATIO = 2
-const LISERET_RATIO = 6
-
-// Cale la trame de fond (mode spread) sur la géométrie SCALÉE des pages. Le fond
-// couvre TOUTE la fenêtre (position: fixed, cf. CSS) : il n'a donc plus de boîte à
-// mesurer, seulement une PÉRIODE et une PHASE par axe (le centre de la gouttière
-// qui suit la 1re page, en coordonnées écran) — la grille reste alignée sur les
-// pages tout en continuant au-delà d'elles, derrière la doc-bar et jusqu'au bas de
-// la fenêtre. Rappelé à chaque onScaled et à chaque défilement de la planche.
-function updateSpreadBg() {
-  if (props.mode !== 'spread') return
-  const bg = padBgRef.value
-  const doc = frameDoc()
-  const frame = frameRef.value
-  if (!bg || !doc || !frame) return
-  const pages = doc.querySelectorAll('.pagedjs_page')
-  if (!pages.length) { bg.style.opacity = '0'; emit('spread-geometry', null); emit('block-geometry', []); emit('style-geometry', {}); return }
-  const first = pages[0]
-  const r0 = first.getBoundingClientRect()
-  // Empreinte d'UNE page (colonne de trame) : page + ses marges, mise à l'échelle.
-  // C'est ce qu'on ÉMET aux callers (réserve de colonne de la recherche, pas de
-  // `columnShift`) — la colonne, indépendante de l'accolage. Le pavage VISUEL de
-  // la trame, lui, se cale sur la PLANCHE quand les pages sont accolées (cf. plus
-  // bas). Calculée depuis les marges de la page plutôt que d'un écart page-à-page :
-  // accolées, deux pages qui se font face se touchent (l'écart mesuré vaudrait la
-  // seule largeur de page). `getComputedStyle` rend une valeur de MISE EN PAGE
-  // (avant transform), d'où le produit par l'échelle ; un getBoundingClientRect
-  // est déjà scalé.
-  const cs0 = doc.defaultView.getComputedStyle(first)
-  const pagePeriod = r0.width
-    + ((parseFloat(cs0.marginLeft) || 0) + (parseFloat(cs0.marginRight) || 0)) * scaleRef.value
-  // Gouttière verticale V et pavage X, selon le régime d'accolage (rendu détaillé
-  // plus bas). Calculés ICI pour être émis avec la géométrie : les callouts s'en
-  // servent comme UNITÉ (padding des cartouches de cote) — la gouttière qu'ils
-  // mesureraient au centre du vis-à-vis vaut ~0 en accolé, ce n'est pas V.
-  let gutter, period, phaseRight
-  if (props.contiguousSpread) {
-    const second = pages[1] ?? null
-    const r1 = second ? second.getBoundingClientRect() : r0
-    const cs1 = second ? doc.defaultView.getComputedStyle(second) : cs0
-    // Gouttière inter-planche = somme des marges EXTÉRIEURES de deux pages en regard.
-    // Chaque page a sa reliure (côté intérieur) à 0 → la marge extérieure est la PLUS
-    // GRANDE des deux marges inline. Avec une seule page rendue (cs1 = cs0) on double
-    // ainsi la marge extérieure au lieu de retomber sur une demi-gouttière : V reste
-    // identique que le flow produise 1 ou 2 pages (pas de disparité entre modes).
-    const outer = (cs) => Math.max(parseFloat(cs.marginLeft) || 0, parseFloat(cs.marginRight) || 0)
-    gutter = (outer(cs0) + outer(cs1)) * scaleRef.value
-    period = (r1.right - r0.left) + gutter
-    phaseRight = r1.right
-  } else {
-    gutter = pagePeriod - r0.width
-    period = pagePeriod
-    phaseRight = r0.left + r0.width
-  }
-  // Rects ÉCRAN des pages : les callouts de format s'y ancrent (cf. formatAnchors
-  // + MaquetteFormatCallouts). Les pages vivent DANS l'iframe → leur rect est
-  // relatif au viewport de l'iframe ; on ajoute l'offset écran de la frame pour
-  // le ramener en coordonnées fenêtre (même correction que la trame ci-dessous).
-  // `period` accompagne les rects : c'est la COLONNE de la trame, l'unité dans
-  // laquelle l'appelant range ce qu'il pose à côté de la planche (cf. la scène de
-  // recherche de la maquette, qui s'y réserve une colonne).
-  // Émis à chaque mesure — repagination, échelle (onScaled), molette (onFrameWheel).
-  // `animating` : la planche est en train de GLISSER (dézoom, décalage de colonne).
-  // Les rects sont justes mais transitoires — l'appelant qui compose une scène
-  // par-dessus (cf. la recherche de la maquette) attend qu'il retombe.
-  const fr = frame.getBoundingClientRect()
-  emit('spread-geometry', {
-    period: pagePeriod,
-    gutter,
-    animating: animating.value,
-    pages: Array.from(pages).map((p) => {
-      const r = p.getBoundingClientRect()
-      return { left: r.left + fr.left, top: r.top + fr.top, width: r.width, height: r.height }
-    }),
-  })
-  // Rects ÉCRAN des blocs d'imposition PORTEURS d'une clé d'entrée (`data-entry-key`,
-  // stampée par buildImpositionBlocks pour le liminaire) : l'overlay liminaire y
-  // ancre ses contrôles de découpage en marge. Une entrée coupée entre deux pages
-  // rend plusieurs fragments qui gardent la clé — on ne garde que le PREMIER (le
-  // début de l'entrée). Coords fenêtre, comme les pages.
-  const seenKeys = new Set()
-  const blocks = []
-  doc.querySelectorAll('.pagedjs_page [data-entry-key]').forEach((el) => {
-    const key = el.getAttribute('data-entry-key')
-    if (seenKeys.has(key)) return
-    seenKeys.add(key)
-    const r = el.getBoundingClientRect()
-    blocks.push({ key, left: r.left + fr.left, top: r.top + fr.top, width: r.width, height: r.height })
-  })
-  emit('block-geometry', blocks)
-  // Rects ÉCRAN de la PREMIÈRE occurrence VISIBLE de chaque style (`data-style`) :
-  // les callouts de styles (liminaire/chapitrage) y ancrent leur fuyante. On saute
-  // les pages MASQUÉES (`.folio-hidden` du cap : leur contenu est hors scope) ;
-  // l'ordre du DOM = ordre de lecture, donc la 1re occurrence rencontrée fait foi.
-  const seenStyles = new Set()
-  const styleRects = {}
-  doc.querySelectorAll('.pagedjs_page:not(.folio-hidden) [data-style]').forEach((el) => {
-    const name = el.getAttribute('data-style')
-    if (seenStyles.has(name)) return
-    const r = el.getBoundingClientRect()
-    if (r.width === 0 && r.height === 0) return
-    seenStyles.add(name)
-    styleRects[name] = { left: r.left + fr.left, top: r.top + fr.top, width: r.width, height: r.height }
-  })
-  emit('style-geometry', styleRects)
-  // Le rect des pages est intra-iframe : seule la phase traverse la frontière
-  // iframe↔écran, d'où frameRect (qui porte aussi le SPREAD_PAD réservé dedans).
-  const frameRect = frame.getBoundingClientRect()
-  // Origine des phases : la fenêtre (trame `fixed`) ou le bord du wrapper des
-  // pages (trame `local`, bornée à cette planche — cf. bgScope).
-  const padRect = props.bgScope === 'local' ? padRef.value?.getBoundingClientRect() : null
-  const originX = padRect?.left ?? 0
-  const originY = padRect?.top ?? 0
-  // Pavage horizontal de la trame (X). gutter/period/phaseRight calculés plus haut
-  // (émis avec la géométrie). Deux régimes :
-  //  · ACCOLÉ (défaut) : l'unité pavée est la PLANCHE (2 pages qui se touchent).
-  //    La gouttière dessinée est celle ENTRE planches ; les filets tombent sur les
-  //    bords EXTÉRIEURS de chaque planche, et la reliure centrale n'en porte plus
-  //    — les deux pages se lisent comme une seule. Période = planche + gouttière,
-  //    phase = bord extérieur DROIT de la planche.
-  //  · HISTORIQUE : l'unité est la PAGE, la gouttière celle entre deux pages, la
-  //    phase le bord droit de la page — chaque page cernée, reliure comprise.
-  // Gouttières Y (tête/pied) : même unité V que X, mais ASYMÉTRIQUES — tête = V,
-  // pied = 2·V (cf. TOP/BOTTOM_GUTTER_RATIO), séparées entre rangs par un LISERET de
-  // 6·V. La période Y court d'un haut de page au suivant (page + pied + liseret + tête)
-  // et la phase se cale sur le HAUT de page : le gradient `::after` pose quatre filets,
-  // la planche unique montre V au-dessus et 2·V dessous.
-  const topGutterY = gutter * TOP_GUTTER_RATIO
-  const bottomGutterY = gutter * BOTTOM_GUTTER_RATIO
-  const liseretY = gutter * LISERET_RATIO
-  bg.style.setProperty('--pad-gutter', `${gutter}px`)
-  bg.style.setProperty('--pad-period', `${period}px`)
-  bg.style.setProperty('--pad-phase', `${phaseRight + frameRect.left - originX}px`)
-  bg.style.setProperty('--pad-page-h', `${r0.height}px`)
-  bg.style.setProperty('--pad-gutter-top', `${topGutterY}px`)
-  bg.style.setProperty('--pad-gutter-bottom', `${bottomGutterY}px`)
-  bg.style.setProperty('--pad-liseret', `${liseretY}px`)
-  bg.style.setProperty('--pad-period-y', `${r0.height + topGutterY + bottomGutterY + liseretY}px`)
-  bg.style.setProperty('--pad-phase-y', `${r0.top + frameRect.top - originY}px`)
-  bg.style.opacity = '1'
-}
 
 // Helpers DOM de l'iframe, propres au composant racine (cf. composables/CLAUDE.md :
 // findFragEl est injecté, pas recréé). Injectés dans les composables Folio/fragment.
@@ -401,7 +246,20 @@ const { scaleRef, scalePercent, animating, fitScale, animateScale } = useFolioSc
   // sans changer de taille (cf. useFolioScale). Rien à remesurer côté scrollbar
   // (le frame n'a pas bougé), mais tout ce qui s'ancre en coordonnées écran doit
   // suivre — la trame de fond et la géométrie émise aux callouts de format.
-  onResized: updateSpreadBg,
+  // Arrow : updateSpreadBg est un const déclaré juste après (il dépend de scaleRef).
+  onResized: () => updateSpreadBg(),
+})
+
+// Géométrie de la planche (mode spread) : émet le contrat spread-/block-/style-geometry
+// et produit `bgVars` pour FolioSpreadBackground. `updateSpreadBg` est rappelé par
+// onScaled/onResized (ci-dessus), onPaginated et onFrameWheel.
+const { bgVars, updateSpreadBg } = useFolioSpreadGeometry(props, {
+  frameRef,
+  frameDoc,
+  padRef,
+  scaleRef,
+  animating,
+  emit,
 })
 
 const caret = useFakeCaret(findFragEl, frameOffset)
@@ -542,79 +400,9 @@ const editListeners = props.mode === 'edit'
 onMounted(buildFrame)
 onBeforeUnmount(teardown)
 
-let styleTimer = null
-// Vrai le temps du tick d'une repagination STRUCTURELLE : la passe de style, qui
-// se déclenche au même tick quand on change de cran (le gabarit change avec la
-// structure), s'y efface — cf. son watch plus bas.
-let structuralTick = false
-
-// Changement de nœud/niveau : repagine. L'édition, elle, repagine via refresh()
-// (appelé par useFragmentEditor) — pas besoin d'observer le contenu ici, ce qui
-// éviterait de repaginer deux fois après une frappe.
-watch(() => [props.nodeId, props.depth, props.spreadPages, props.bodyCross, props.barePages, props.clampEntries, props.capPages], () => {
-  structuralTick = true
-  nextTick(() => { structuralTick = false })
-  clearTimeout(styleTimer)
-  refresh()
-})
-
-// Nombre de pages visées dans la largeur : c'est le ZOOM. Rien à repaginer — mais
-// `fitScale` n'est rappelé que par le ResizeObserver (la racine ne bouge pas) ou
-// une repagination, d'où ce rappel explicite (le dézoom de la maquette ne change
-// que cette prop). GLISSÉ (et non `fitScale` sec) : c'est le seul changement
-// d'échelle demandé par l'utilisateur, il doit se voir se faire.
-watch(() => props.visiblePages, animateScale)
-
-// La réserve latérale entre dans le calcul d'échelle sans rien repaginer : même
-// rappel explicite, mais sec — elle change quand la vue change de nature
-// (recherche), pas sur un geste de zoom à faire voir.
-watch(() => props.sideRails, fitScale)
-
-// Décalage de colonne : GLISSÉ comme le dézoom — c'est le mouvement qu'on vient
-// regarder (l'entrée dans la recherche). La boucle rAF d'`animateScale` rappelle
-// `onResized` à chaque frame : trame de fond et géométrie émise (donc le nuage,
-// qui se cale dessus) accompagnent la planche au lieu de sauter à l'arrivée.
-watch(() => props.columnShift, animateScale)
-
-// Surlignage : SURTOUT PAS dans le watch ci-dessus. Il change à chaque ligne
-// survolée dans l'aside — on réécrit une feuille en place, rien à repaginer.
-watch(() => props.highlightStyle, applyHighlight)
-
-// Changement d'apparence/césure (aperçu de config édité en direct) : repagine, mais
-// DÉBOUNCÉ — la frappe dans un champ (corps, interligne) sinon repaginerait à chaque
-// caractère, sur jusqu'à 3 iframes. `props.visuals` est un nouvel objet à chaque
-// retouche (cf. effectiveVisuals), une comparaison de référence suffit.
-// `hyphenation.global` explicitement : dans la config il est muté EN PLACE (même
-// référence d'objet), une comparaison de l'objet seul le raterait.
-// `props.page` : nouvel objet à chaque changement de format (cf. previewPage,
-// ConfigView) — même comparaison de référence que visuals. `runningTitles` est
-// muté EN PLACE dans la config (comme hyphenation) : on surveille ses champs.
-watch(() => [
-  props.visuals, props.hyphenation, props.hyphenation?.global, props.page, props.margins,
-  props.runningTitles, runningTitlesSignature(props.runningTitles), props.bookTitle,
-], () => {
-  if (!frameReadyForStyle()) return
-  // Changement de cran : la passe structurelle du même tick rend DÉJÀ avec ces
-  // props. Sans ce garde, elle était suivie 250 ms plus tard d'une seconde
-  // repagination — la planche se recalait en deux temps, à vue.
-  if (structuralTick) return
-  clearTimeout(styleTimer)
-  styleTimer = setTimeout(refresh, 250)
-})
-onBeforeUnmount(() => clearTimeout(styleTimer))
-// Évite une repagination avant le premier rendu (buildFrame s'en charge déjà).
-function frameReadyForStyle() {
-  return !!frameRef.value?.contentDocument
-}
-
-// Signature plate des titres courants : dans la config, `runningTitles` est muté
-// EN PLACE (nested), une comparaison de référence raterait les changements. On
-// sérialise les champs qui pilotent le rendu.
-function runningTitlesSignature(rt) {
-  if (!rt) return ''
-  const band = (b) => (b ? `${b.enabled}|${b.recto}|${b.verso}|${b.heightCm}|${b.justification}` : '')
-  return `${band(rt.header)}#${band(rt.footer)}#${rt.folioFormat}`
-}
+// Réactions aux changements de props : repagination (structurelle / style débouncée),
+// échelle (zoom glissé, réserve latérale, décalage de colonne) et surlignage en place.
+useFolioReactions(props, { frameRef, refresh, fitScale, animateScale, applyHighlight })
 </script>
 
 <style scoped>
@@ -684,131 +472,6 @@ function runningTitlesSignature(rt) {
 .folio-view--spread .folio-frame {
   position: relative;
   z-index: 1;
-}
-
-/* Trame de fond (double-page) : fines pointillées figurant les frontières de
-   planches, en GRILLE. Chaque période porte les filets qui bordent ses gouttières
-   (X : deux filets aux bords extérieurs de la planche accolée ; Y : trois filets —
-   tête V et pied 2·V, asymétriques) : le pavage cerne la PLANCHE au lieu de séparer
-   ses deux pages d'un trait
-   (vis-à-vis accolé, cf. props.contiguousSpread) — la reliure centrale n'a plus de
-   filet. L'espace entre deux rangées de folios se lit comme une bande — c'est ce
-   qui rend nette la séparation quand plusieurs planches sont empilées. (En régime
-   historique non accolé, la période vaut la page et chaque page est cernée,
-   reliure comprise.)
-   `position: fixed` : elle couvre TOUTE la fenêtre — elle passe donc
-   derrière la doc-bar et descend jusqu'en bas, au-delà de la planche, et échappe à
-   l'`overflow: hidden` de la vue (aucun ancêtre ne porte de transform/filter, qui
-   referait de la frame le référentiel du fixed). La grille reste calée sur les
-   pages par `--pad-period*` / `--pad-phase*`, posées en JS (updateSpreadBg) sur la
-   géométrie scalée.
-   Les deux axes vivent dans DEUX pseudo-éléments et non deux couches de fond : le
-   pointillé se fait au `mask`, qui s'applique à l'élément entier — le mask
-   horizontal des verticales hacherait les horizontales. */
-.folio-pad-bg {
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  opacity: 0; /* révélé par JS une fois périodes/phases calées (≥ 1 page) */
-  /* ── Réglages ── */
-  /* Bleu profond du menu, très dilué : la trame se devine sans jamais concurrencer
-     le texte des pages. (Élément hors iframe → les tokens du DS sont résolus.) */
-  --pad-color: color-mix(in srgb, var(--c-accent) 22%, transparent);
-  --pad-line: 2px;      /* épaisseur du filet */
-  --pad-dash: 4px;      /* longueur d'un tiret */
-  --pad-gap: 4px;       /* espace entre tirets */
-  /* ── Posés par JS ── */
-  --pad-gutter: 0px;        /* gouttière verticale V : écart entre les deux filets, axe X */
-  --pad-period: 0px;        /* page + gouttière, axe X */
-  --pad-phase: 0px;         /* bord sortant de la 1re page, en coordonnées écran */
-  --pad-page-h: 0px;        /* hauteur de page scalée (axe Y) */
-  --pad-gutter-top: 0px;    /* gouttière de TÊTE = V */
-  --pad-gutter-bottom: 0px; /* gouttière de PIED = 2·V */
-  --pad-liseret: 0px;       /* liseret entre rangs = 6·V */
-  --pad-period-y: 0px;      /* page + pied + liseret + tête, axe Y */
-  --pad-phase-y: 0px;       /* HAUT de la 1re page, en coordonnées écran */
-}
-
-/* Trame LOCALE (bgScope) : bornée au wrapper des pages au lieu de couvrir la
-   fenêtre. Indispensable dès que plusieurs planches coexistent à l'écran — en
-   `fixed`, chacune peindrait sa grille sur toute la fenêtre. Les phases sont
-   alors comptées depuis le bord du wrapper (cf. updateSpreadBg). */
-.folio-pad-bg--local {
-  position: absolute;
-}
-
-/* Les deux axes partagent tout sauf leur direction : un tile d'EXACTEMENT une
-   période (et non un `repeating-linear-gradient` étalé sur toute la boîte, dont la
-   copie de gauche redémarrait à une phase arbitraire → filet parasite dans la
-   première page), et un mask perpendiculaire qui le découpe en pointillé.
-   Les axes diffèrent par leur découpe : X porte DEUX filets encadrant la gouttière
-   verticale V (origine = bord sortant de la page, second à `--pad-gutter`) ; Y en
-   porte QUATRE (haut de page, pied de page, fin du pied / début du liseret, fin du
-   liseret / début de la tête) — sous la page : pied 2·V, puis liseret 6·V, puis tête V
-   du rang suivant. Le reste de la période — la page — est transparent. */
-.folio-pad-bg::before,
-.folio-pad-bg::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-}
-
-.folio-pad-bg::before {
-  background-image: linear-gradient(
-    to right,
-    var(--pad-color) 0,
-    var(--pad-color) var(--pad-line),
-    transparent var(--pad-line),
-    transparent var(--pad-gutter),
-    var(--pad-color) var(--pad-gutter),
-    var(--pad-color) calc(var(--pad-gutter) + var(--pad-line)),
-    transparent calc(var(--pad-gutter) + var(--pad-line))
-  );
-  background-size: var(--pad-period) 100%;
-  background-position-x: calc(var(--pad-phase) - var(--pad-line) / 2);
-  -webkit-mask-image: repeating-linear-gradient(
-    to bottom, #000 0, #000 var(--pad-dash),
-    transparent var(--pad-dash), transparent calc(var(--pad-dash) + var(--pad-gap))
-  );
-  mask-image: repeating-linear-gradient(
-    to bottom, #000 0, #000 var(--pad-dash),
-    transparent var(--pad-dash), transparent calc(var(--pad-dash) + var(--pad-gap))
-  );
-}
-
-.folio-pad-bg::after {
-  /* Quatre filets par période (haut de page → suivant) : haut de page, pied de page,
-     fin du pied (2·V) / début du liseret, fin du liseret (6·V) / début de la tête (V).
-     Sous la page : pied 2·V, liseret 6·V, tête V du rang suivant. */
-  background-image: linear-gradient(
-    to bottom,
-    var(--pad-color) 0,
-    var(--pad-color) var(--pad-line),
-    transparent var(--pad-line),
-    transparent var(--pad-page-h),
-    var(--pad-color) var(--pad-page-h),
-    var(--pad-color) calc(var(--pad-page-h) + var(--pad-line)),
-    transparent calc(var(--pad-page-h) + var(--pad-line)),
-    transparent calc(var(--pad-page-h) + var(--pad-gutter-bottom)),
-    var(--pad-color) calc(var(--pad-page-h) + var(--pad-gutter-bottom)),
-    var(--pad-color) calc(var(--pad-page-h) + var(--pad-gutter-bottom) + var(--pad-line)),
-    transparent calc(var(--pad-page-h) + var(--pad-gutter-bottom) + var(--pad-line)),
-    transparent calc(var(--pad-page-h) + var(--pad-gutter-bottom) + var(--pad-liseret)),
-    var(--pad-color) calc(var(--pad-page-h) + var(--pad-gutter-bottom) + var(--pad-liseret)),
-    var(--pad-color) calc(var(--pad-page-h) + var(--pad-gutter-bottom) + var(--pad-liseret) + var(--pad-line)),
-    transparent calc(var(--pad-page-h) + var(--pad-gutter-bottom) + var(--pad-liseret) + var(--pad-line))
-  );
-  background-size: 100% var(--pad-period-y);
-  background-position-y: calc(var(--pad-phase-y) - var(--pad-line) / 2);
-  -webkit-mask-image: repeating-linear-gradient(
-    to right, #000 0, #000 var(--pad-dash),
-    transparent var(--pad-dash), transparent calc(var(--pad-dash) + var(--pad-gap))
-  );
-  mask-image: repeating-linear-gradient(
-    to right, #000 0, #000 var(--pad-dash),
-    transparent var(--pad-dash), transparent calc(var(--pad-dash) + var(--pad-gap))
-  );
 }
 
 .folio-view--read .folio-frame {

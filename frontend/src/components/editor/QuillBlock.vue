@@ -79,6 +79,12 @@ async function mountQuill() {
   const { default: Quill } = await import('quill')
   await import('quill/dist/quill.snow.css')
 
+  // `import()` est async : entre l'appel et sa résolution, le parent a pu
+  // désactiver ce fragment (props.active → false), ce qui retire le `v-else`
+  // (donc `editorHost`) du DOM. Sans cette garde, `new Quill(null)` lèverait et
+  // laisserait une instance zombie derrière un hôte disparu.
+  if (!props.active || !editorHost.value) return
+
   registerInternalLinkBlot(Quill)
 
   quill = new Quill(editorHost.value, {

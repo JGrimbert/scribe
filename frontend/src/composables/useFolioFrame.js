@@ -285,6 +285,10 @@ export function useFolioFrame(props, { frameRef, frameDoc, blocks, section, onRe
       render.innerHTML = ''
       registry.value = null
       fragments.value = null
+      // Recale l'échelle et ré-émet la géométrie (vide) : sans ça, le passage
+      // contenu → vide (ex. planche liminaire sans vis-à-vis focusé) laissait les
+      // overlays de callouts ancrés sur des pages qui viennent d'être retirées.
+      onPaginated?.()
       return Promise.resolve()
     }
 

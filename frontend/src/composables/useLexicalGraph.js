@@ -131,20 +131,33 @@ export function provideLexicalGraph(lexical) {
   // on ne masque que des arêtes, sans jamais recalculer les positions.
   const threshold = ref(0)
 
-  const network = computed(() => {
+  // Signature du graphe : identité du contenu d'entrée, clé du cache de layout.
+  const graphSignature = computed(() => {
     const graph = lexical.value?.graph
     if (!graph?.nodes?.length) return null
-    const sig = signature(
+    return signature(
       graph.nodes.map((n) => `${n.lemma}:${n.count}`).join('|') +
         '#' +
         graph.edges.map((e) => `${e.source}-${e.target}:${e.npmi}`).join('|'),
     )
-    const cached = loadLayout('lexnet', route.params.id, sig)
-    if (cached) return cached
-    const out = buildNetwork(graph)
-    saveLayout('lexnet', route.params.id, sig, out)
-    return out
   })
+
+  // Dérivation PURE : relit le layout caché (par signature) ou le recalcule.
+  // L'écriture du cache est sortie du getter (cf. watch ci-dessous) — un computed
+  // ne doit pas porter d'effet de bord.
+  const network = computed(() => {
+    const graph = lexical.value?.graph
+    const sig = graphSignature.value
+    if (!graph?.nodes?.length || !sig) return null
+    return loadLayout('lexnet', route.params.id, sig) ?? buildNetwork(graph)
+  })
+
+  // Persiste le layout courant sous sa signature. Réécrire une valeur relue du
+  // cache est un no-op (mêmes clé + contenu) ; on ne persiste donc qu'une fois par
+  // signature (network est mémoïsé), sans jamais écrire depuis le getter.
+  watch([network, graphSignature], ([net, sig]) => {
+    if (net && sig) saveLayout('lexnet', route.params.id, sig, net)
+  }, { immediate: true })
 
   const npmiExtent = computed(() => {
     const edges = network.value?.edges ?? []

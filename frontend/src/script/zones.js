@@ -25,6 +25,12 @@ export function zoneKeyOfDepth(depth) {
   return 'depth-2+'
 }
 
+// Clé de zone de chapitrage → profondeur des règles (0/1/2). Seules les zones de
+// chapitrage en ont une ; liminaire, partie finale et « non situés » n'ont ni modèles
+// ni règles (ce ne sont pas des nœuds de l'arbre). Partagé par la table des styles
+// (depthKey d'une section) et les modèles de structure (seuil de niveau).
+export const DEPTH_BY_ZONE = { 'depth-0': 0, 'depth-1': 1, 'depth-2+': 2 }
+
 // Zones correspondant à un niveau de titre (celles qui ont des nœuds, donc une forme).
 export const STRUCTURE_ZONES = ZONES.filter((z) => z.key.startsWith('depth-'))
 
