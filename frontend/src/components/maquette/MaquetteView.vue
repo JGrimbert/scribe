@@ -97,8 +97,11 @@
                   class="maq-folio"
                   mode="spread"
                   :visible-pages="folioVisiblePages"
-                  :side-rails="1"
-                  :column-shift="pouring ? -1 : 0"
+                  :side-rails="pouring ? 0 : 1"
+                  :spread-align="pouring ? 'start' : 'center'"
+                  :pages-revealed="pagesRevealed"
+                  :transition-key="focused"
+                  :column-shift="0"
                   :body-cross="isFormat"
                   :bare-pages="pouring"
                   :clamp-entries="isLiminaire"
@@ -109,8 +112,8 @@
                   :depth="mainDepth"
                   :data="documentData"
                   :visuals="effectiveVisuals"
-                  :page="previewPage"
-                  :margins="pouring ? SEARCH_MARGINS : previewMargins"
+                  :page="mainPage"
+                  :margins="previewMargins"
                   :hyphenation="styleDefaults.hyphenation"
                   :running-titles="pouring ? null : previewRunningTitles"
                   :book-title="pouring ? '' : bookTitle"
@@ -312,10 +315,10 @@ const analyseCards = computed(() =>
 
 const {
   spreadGeometry, blockGeometry, styleGeometry,
-  geometryStale, searchLayout, annotationsLayout,
+  geometryStale, searchLayout, annotationsLayout, pagesRevealed,
   onSpreadGeometry, onPaginated,
   analyseLeft, analyseColumn,
-  previewPage, previewMargins, previewRunningTitles, previewRatio, SEARCH_MARGINS,
+  previewPage, previewMargins, previewRunningTitles, previewRatio, mainPage, pourPeriodRatio,
   mainSpreadPages, mainNodeId, mainDepth,
   chapSpreadStyles, hoveredStyle, setHoveredStyle,
 } = useMaquetteFolio({
@@ -328,7 +331,15 @@ const {
 // réglage de `visible-pages` (le faire varier par cran figeait l'échelle en recherche).
 const ZOOMS = [1, 2, 3, 4, 6]
 const zoom = ref(1)
-const folioVisiblePages = computed(() => 2 * zoom.value)
+// Empan réservé aux vues à vis-à-vis : 2 pages (2·zoom) + 2 rails (side-rails=1) =
+// 2·zoom + 2 périodes-livre. C'est lui qui fixe l'échelle (px/cm).
+const spreadSpanPeriods = computed(() => 2 * zoom.value + 2)
+// En pouring (lambeaux) : on réserve le MÊME empan, mais compté en périodes de la page
+// LARGE (side-rails=0, ferrage à gauche) → l'échelle reste CALIBRÉE sur celle de Format
+// au lieu de laisser la page grossir jusqu'à remplir la hauteur.
+const folioVisiblePages = computed(() =>
+  pouring.value ? spreadSpanPeriods.value / pourPeriodRatio.value : 2 * zoom.value,
+)
 
 useMaquetteRoute({ focused, crans, focusedCran, vocabIndex, limStart, limSpreads })
 

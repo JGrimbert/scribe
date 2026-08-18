@@ -35,9 +35,11 @@ export function useMaquetteSearch({ searching, focusedSourceKey, highlights }) {
   const activeTotal = computed(() => (searching.value ? searchTotal.value : shownPassages.value.length))
   const activeNeedle = computed(() => (searching.value ? searchQuery.value : ''))
 
-  // Résultats paginés en amont, une page de folio à la fois : couler des milliers de
-  // passages dans Paged.js figerait l'écran. Le compte annoncé reste le vrai total.
-  const RESULTS_PER_PAGE = 6
+  // Résultats paginés en amont, UN lambeau par page (page unique élargie des vues frag,
+  // cf. useMaquetteFolio / fragmentPages) : un large lambeau plein cadre à la fois.
+  // Couler des milliers de passages dans Paged.js figerait l'écran ; le compte annoncé
+  // reste le vrai total.
+  const RESULTS_PER_PAGE = 1
   const resultPage = ref(0)
   const resultPageCount = computed(() => Math.max(1, Math.ceil(activeTotal.value / RESULTS_PER_PAGE)))
   const resultOffset = computed(() => resultPage.value * RESULTS_PER_PAGE)

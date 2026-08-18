@@ -1,5 +1,9 @@
 <template>
-  <div ref="rootRef" class="folio-view" :class="`folio-view--${mode}`">
+  <div
+      ref="rootRef"
+      class="folio-view"
+      :class="[`folio-view--${mode}`, { 'folio-view--spread-start': mode === 'spread' && spreadAlign === 'start' }]"
+  >
     <!-- Édition : la rangée de pages défile horizontalement via la CustomScrollbar
          (le DS proscrit les barres natives). Le padding vit sur .folio-pad (wrapper
          shrink-wrap) pour que scrollWidth inclue la respiration des deux côtés. -->
@@ -18,8 +22,33 @@
         <!-- Double-page : trame de fond décorative DERRIÈRE l'iframe (transparente) →
              visible dans les gouttières. Géométrie calculée par useFolioSpreadGeometry,
              peinture dans le composant dédié. -->
-        <FolioSpreadBackground v-if="mode === 'spread'" :vars="bgVars" :scope="bgScope" />
-        <iframe ref="frameRef" class="folio-frame" :title="mode === 'edit' ? 'Pages du chapitre' : 'Double-page'" />
+        <!-- Filmstrip : couche SORTANTE (ancienne trame, glisse vers la gauche) présente
+             seulement pendant un glissement ; couche ENTRANTE (trame courante, arrive de
+             la droite) toujours là (shift 0 hors glissement). -->
+        <FolioSpreadBackground
+            v-if="mode === 'spread' && bgVarsOut"
+            :vars="bgVarsOut"
+            :scope="bgScope"
+            :shift="outShift"
+            :animated="slideAnimated"
+            :pages="bgPagesOut"
+            :fill-visible="!pagesRevealed"
+        />
+        <FolioSpreadBackground
+            v-if="mode === 'spread'"
+            :vars="bgVars"
+            :scope="bgScope"
+            :shift="inShift"
+            :animated="slideAnimated"
+            :pages="bgPages"
+            :fill-visible="!pagesRevealed"
+        />
+        <iframe
+            ref="frameRef"
+            class="folio-frame"
+            :style="{ opacity: pagesRevealed ? 1 : 0 }"
+            :title="mode === 'edit' ? 'Pages du chapitre' : 'Double-page'"
+        />
       </div>
     </CustomScrollbar>
     <!-- Aperçu : une seule page mise à l'échelle sur la largeur, aucun défilement. -->
@@ -82,7 +111,7 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import QuillBlock from './QuillBlock.vue'
 import FolioSpreadBackground from './FolioSpreadBackground.vue'
@@ -184,6 +213,19 @@ const props = defineProps({
   // chaque page. `false` restaure la gouttière centrale historique. Pris en
   // compte au MONTAGE de l'iframe (le layout des pages est posé dans le boot).
   contiguousSpread: { type: Boolean, default: true },
+  // Ferrage de la planche (mode spread) : 'center' (défaut) la centre avec ses rails ;
+  // 'start' la colle à GAUCHE, sans repli 16em — la 1re page vient au bord de la vue
+  // (cf. les vues frag, dont la page large se ferre contre l'aside de structure ; la
+  // scène en regard est un overlay posé à droite, pas une réserve de rail).
+  spreadAlign: { type: String, default: 'center' },
+  // Fondu des PAGES (l'iframe seule) : false les estompe le temps d'une bascule de vue
+  // (repagination sous couvert), la TRAME restant visible (elle glisse, cf. filmstrip).
+  // Piloté par la coquille depuis `geometryStale`. Défaut true : aucun effet hors maquette.
+  pagesRevealed: { type: Boolean, default: true },
+  // Clé de bascule de vue : quand elle change (cf. maquette `focused`), la PROCHAINE
+  // repagination posée fait GLISSER la trame (filmstrip) au lieu de la mettre à jour
+  // sèche. Inchangée sur un pager/une édition de style → pas de glissement.
+  transitionKey: { type: [String, Number], default: 0 },
 })
 
 // `step` : cran de pagination applicative demandé à la molette (±1), cf. wheelPaging.
@@ -253,7 +295,10 @@ const { scaleRef, scalePercent, animating, fitScale, animateScale } = useFolioSc
 // Géométrie de la planche (mode spread) : émet le contrat spread-/block-/style-geometry
 // et produit `bgVars` pour FolioSpreadBackground. `updateSpreadBg` est rappelé par
 // onScaled/onResized (ci-dessus), onPaginated et onFrameWheel.
-const { bgVars, updateSpreadBg } = useFolioSpreadGeometry(props, {
+const {
+  bgVars, bgVarsOut, bgPages, bgPagesOut,
+  inShift, outShift, slideAnimated, updateSpreadBg, runSlide,
+} = useFolioSpreadGeometry(props, {
   frameRef,
   frameDoc,
   padRef,
@@ -266,6 +311,11 @@ const caret = useFakeCaret(findFragEl, frameOffset)
 const toolbar = useFloatingToolbar()
 const { cursorRect, selectionRects } = caret
 const { registerToolbar } = toolbar
+
+// Bascule de vue en attente : armée quand `transitionKey` change, consommée à la
+// prochaine repagination posée (onPaginated) pour déclencher le glissement de trame.
+let slidePending = false
+watch(() => props.transitionKey, () => { slidePending = true })
 
 const { registry, fragments, buildFrame, refresh, teardown, applyHighlight } = useFolioFrame(props, {
   frameRef,
@@ -287,11 +337,26 @@ const { registry, fragments, buildFrame, refresh, teardown, applyHighlight } = u
   // la frame restait alors trop large d'une page, jusqu'à ce qu'une repagination
   // ultérieure la recale (c'était le rôle involontaire de la passe de style
   // débouncée). `applyScale` est idempotent : sans changement, c'est un no-op.
+  // La géométrie de la TRAME (`updateSpreadBg`) et le signal `paginated` (→ révélation
+  // des pages + composition des scènes) ne partent qu'à la SECONDE passe : sur la
+  // première, la trame se peindrait sur l'état transitoire (rangée trop large) puis se
+  // corrigerait — un clignotement (« grossit puis revient »). Émise une seule fois, sur
+  // l'état posé, la trame garde l'ancienne géométrie jusqu'à la bonne : une transition.
   onPaginated: () => {
-    emit('paginated')
     fitScale()
-    updateSpreadBg()
-    requestAnimationFrame(() => { fitScale(); updateSpreadBg() })
+    requestAnimationFrame(() => {
+      fitScale()
+      // Bascule de vue en attente (`transitionKey` a changé) : la trame GLISSE (filmstrip)
+      // et la révélation des pages (`paginated`) n'a lieu qu'à la fin. Sinon (pager,
+      // édition de style, resize) : mise à jour sèche puis révélation immédiate.
+      if (slidePending) {
+        slidePending = false
+        runSlide(() => emit('paginated'))
+      } else {
+        updateSpreadBg()
+        emit('paginated')
+      }
+    })
   },
   // Les listeners du doc iframe (édition), résolus au (dé)montage — cf. editListeners.
   getEditListeners: () => editListeners,
@@ -450,6 +515,14 @@ useFolioReactions(props, { frameRef, refresh, fitScale, animateScale, applyHighl
   margin-inline: auto;
 }
 
+/* Ferrage à GAUCHE (spreadAlign="start", vues frag) : pas de centrage ni de repli
+   16em — la page large vient au bord gauche de la vue (contre l'aside de structure),
+   la scène en regard s'ancrant à sa droite en overlay. */
+.folio-view--spread-start .folio-pad {
+  padding: 0;
+  margin-inline: 0;
+}
+
 /* Respiration généreuse autour de la rangée de pages (cf. EDIT_PAD, que fitScale
    retire de la place disponible). Portée par un wrapper shrink-wrap (width:max-content,
    pas inline-block : évite l'espace de baseline sous un inline-block, qui créerait un
@@ -468,10 +541,14 @@ useFolioReactions(props, { frameRef, refresh, fitScale, animateScale, applyHighl
 }
 
 /* Double-page : l'iframe passe AU-DESSUS du fond décoratif (elle est transparente
-   dans les gouttières, qui laissent voir le filet derrière). */
+   dans les gouttières, qui laissent voir le filet derrière). Fondu d'opacité pour la
+   bascule de vue (cf. pagesRevealed) : posé en CSS (et non inline) car applyScale
+   réécrit `frame.style.transition` — mais l'efface hors glissement d'échelle, donc
+   cette règle reprend la main pendant une bascule (où l'échelle ne glisse pas). */
 .folio-view--spread .folio-frame {
   position: relative;
   z-index: 1;
+  transition: opacity 160ms ease;
 }
 
 .folio-view--read .folio-frame {

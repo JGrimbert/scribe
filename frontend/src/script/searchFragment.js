@@ -69,6 +69,11 @@ const SHEET_SHADOW = 'filter:drop-shadow(0 1px 6px rgba(0,0,0,.15));'
 // Décalée vers le bas : la source chevauche le bas du lambeau (margin négative).
 const SOURCE_SHADOW = 'filter:drop-shadow(0 4px 5px rgba(0,0,0,.15));'
 
+// Corps du texte d'un lambeau : grossi pour rester lisible malgré le dézoom de la
+// planche (un lambeau plein cadre par page élargie, cf. fragmentPages — il a la place).
+// Réglage à l'œil : monter/descendre selon l'échelle du folio.
+const FRAG_FONT = 'font-size:1.3em;line-height:1.5;'
+
 // Une entrée d'imposition par lambeau. DEUX boîtes : le bloc porte l'ombre, la feuille
 // interne (.frag-sheet) le papier et sa découpe (un seul élément ferait tailler l'ombre
 // par le clip-path). Le `style` inline est la voie par laquelle le clip-path arrive
@@ -78,7 +83,7 @@ export function fragmentEntries(fragments, needle, offset = 0) {
     {
       type: 'paragraph',
       styleName: 'frag',
-      text: sheetHtml(tornPolygon(offset + i), fragmentHtml(f.phrase, needle)),
+      text: sheetHtml(tornPolygon(offset + i), fragmentHtml(f.phrase, needle), FRAG_FONT),
       // break-inside: avoid : un lambeau coupé entre deux pages verrait sa découpe
       // tranchée net.
       style: `${SHEET_SHADOW}margin:0 0 10px;text-align:justify;break-inside:avoid;`,
@@ -90,13 +95,13 @@ export function fragmentEntries(fragments, needle, offset = 0) {
       type: 'paragraph',
       styleName: 'frag-source',
       text: escapeHtml(f.path ? `${f.path} › ${f.titre}` : f.titre),
-      style: `${SOURCE_SHADOW}background:#fff;padding:0 12px 8px;margin:-10px 0 14px;font-size:.8em;color:#8a7f72;text-align:left;break-before:avoid;break-inside:avoid;`,
+      style: `${SOURCE_SHADOW}background:#fff;padding:0 12px 8px;margin:-10px 0 14px;font-size:.95em;color:#8a7f72;text-align:left;break-before:avoid;break-inside:avoid;`,
     },
   ])
 }
 
-function sheetHtml(clip, inner) {
-  return `<span class="frag-sheet" style="display:block;background:#fff;clip-path:${clip};padding:10px 12px 8px;">${inner}</span>`
+function sheetHtml(clip, inner, extra = '') {
+  return `<span class="frag-sheet" style="display:block;background:#fff;clip-path:${clip};padding:10px 12px 8px;${extra}">${inner}</span>`
 }
 
 // Hors de la plage des résultats (0..n-1) pour que la déchirure du statut ne recopie
@@ -128,12 +133,20 @@ export function statusEntry(status, stats) {
   }
 }
 
-// Une page de contenu : statut puis passages REÇUS (pagination faite en amont — couler
-// des milliers de passages dans Paged.js le ferait ramer). `offset` = rang du 1er
-// passage, pour que sa déchirure reste la sienne d'une page à l'autre.
+// UNE page de folio PAR passage reçu (un large lambeau plein cadre par page unique
+// élargie) : buildImpositionBlocks force alors un saut de page entre chaque slot.
+// Pagination faite en amont (couler des milliers de passages dans Paged.js le ferait
+// ramer). Le statut coiffe la PREMIÈRE page ; sans résultat, il occupe une page à lui
+// seul. `offset` = rang du 1er passage, pour que sa déchirure reste la sienne.
 export function fragmentPages(fragments, needle, { status, stats, offset = 0 } = {}) {
-  const entries = []
-  if (status != null) entries.push(statusEntry(status, stats))
-  entries.push(...fragmentEntries(fragments, needle, offset))
-  return [{ kind: 'content', entries }]
+  if (!fragments.length) {
+    return status != null ? [{ kind: 'content', entries: [statusEntry(status, stats)] }] : []
+  }
+  return fragments.map((f, i) => ({
+    kind: 'content',
+    entries: [
+      ...(i === 0 && status != null ? [statusEntry(status, stats)] : []),
+      ...fragmentEntries([f], needle, offset + i),
+    ],
+  }))
 }

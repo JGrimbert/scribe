@@ -30,12 +30,19 @@ export function useFolioReactions(props, { frameRef, refresh, fitScale, animateS
   // une repagination, d'où ce rappel explicite (le dézoom de la maquette ne change
   // que cette prop). GLISSÉ (et non `fitScale` sec) : c'est le seul changement
   // d'échelle demandé par l'utilisateur, il doit se voir se faire.
-  watch(() => props.visiblePages, animateScale)
+  // MAIS pas quand la vue change (`structuralTick`) : `visible-pages` bascule alors en
+  // même temps que la page (ex. entrée en recherche : A5 → page large). Glisser ici
+  // rescalerait sur l'ANCIENNE page encore rendue (double-buffer) → l'échelle grossit
+  // puis revient une fois la repagination faite. `onPaginated` recale au bon état, en
+  // une passe. L'échelle des vues frag étant calibrée sur celle du vis-à-vis, c'est
+  // alors sans à-coup.
+  watch(() => props.visiblePages, () => { if (!structuralTick) animateScale() })
 
   // La réserve latérale entre dans le calcul d'échelle sans rien repaginer : même
   // rappel explicite, mais sec — elle change quand la vue change de nature
-  // (recherche), pas sur un geste de zoom à faire voir.
-  watch(() => props.sideRails, fitScale)
+  // (recherche), pas sur un geste de zoom à faire voir. Même garde structurelle :
+  // `side-rails` bascule avec la vue, la repagination rescalera.
+  watch(() => props.sideRails, () => { if (!structuralTick) fitScale() })
 
   // Décalage de colonne : GLISSÉ comme le dézoom — c'est le mouvement qu'on vient
   // regarder (l'entrée dans la recherche). La boucle rAF d'`animateScale` rappelle

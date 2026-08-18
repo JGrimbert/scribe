@@ -94,19 +94,23 @@ describe('fragmentEntries', () => {
 describe('fragmentPages', () => {
   const frags = (n) => Array.from({ length: n }, (_, i) => ({ phrase: `Passage ${i}.`, titre: `T${i}`, path: '' }))
 
-  it('coule tout en UNE page de contenu, statut en tête', () => {
-    const [page] = fragmentPages(frags(3), '', { status: '3 résultats' })
-    expect(page.kind).toBe('content')
-    expect(page.entries[0].styleName).toBe('frag-status')
-    expect(page.entries[0].text).toContain('>3 résultats<')
-    // 1 statut + 3 lambeaux × (passage + source)
-    expect(page.entries).toHaveLength(1 + 3 * 2)
+  it('rend UNE page de folio par lambeau, statut en tête de la première', () => {
+    const pages = fragmentPages(frags(3), '', { status: '3 résultats' })
+    expect(pages).toHaveLength(3)
+    expect(pages.every((p) => p.kind === 'content')).toBe(true)
+    // Page 1 : statut + (passage + source) ; pages suivantes : (passage + source) seuls.
+    expect(pages[0].entries[0].styleName).toBe('frag-status')
+    expect(pages[0].entries[0].text).toContain('>3 résultats<')
+    expect(pages[0].entries).toHaveLength(1 + 2)
+    expect(pages[1].entries).toHaveLength(2)
+    expect(pages[2].entries).toHaveLength(2)
   })
 
-  it('rend le statut même sans résultat', () => {
-    const [page] = fragmentPages([], '', { status: 'Aucun résultat' })
-    expect(page.entries).toHaveLength(1)
-    expect(page.entries[0].text).toContain('>Aucun résultat<')
+  it('rend le statut sur une page à lui seul sans résultat', () => {
+    const pages = fragmentPages([], '', { status: 'Aucun résultat' })
+    expect(pages).toHaveLength(1)
+    expect(pages[0].entries).toHaveLength(1)
+    expect(pages[0].entries[0].text).toContain('>Aucun résultat<')
   })
 
   it('porte les chiffres du document en rangée de tête du lambeau de statut', () => {
@@ -127,10 +131,11 @@ describe('fragmentPages', () => {
   })
 
   it('ne coule QUE la tranche reçue : la pagination est faite en amont', () => {
-    const [page] = fragmentPages(frags(50).slice(6, 12), '', { status: 'Résultats : 50' })
-    expect(page.entries).toHaveLength(1 + 6 * 2)
+    const pages = fragmentPages(frags(50).slice(6, 12), '', { status: 'Résultats : 50' })
+    // Une page par passage de la tranche (6), pas les 50.
+    expect(pages).toHaveLength(6)
     // Le compte annoncé reste le total, pas celui de la tranche.
-    expect(page.entries[0].text).toContain('>Résultats : 50<')
+    expect(pages[0].entries[0].text).toContain('>Résultats : 50<')
   })
 
   it('décale les déchirures de la tranche par son offset', () => {

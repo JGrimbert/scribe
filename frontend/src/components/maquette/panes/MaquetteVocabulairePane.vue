@@ -22,14 +22,25 @@
   </div>
 
   <!-- Vue du calque d'analyse focusé, en regard des résultats. Fondu simple à
-       l'entrée (la scène n'existe qu'une fois la scène repaginée). -->
+       l'entrée (la scène n'existe qu'une fois la scène repaginée). Sur le
+       Vocabulaire, elle s'étend jusqu'au bord droit (plus de colonne de minis). -->
   <Transition name="maq-scene-fade">
     <div
         v-if="searchLayout"
         ref="cloudEl"
         class="maq-analyse"
-        :style="{ left: analyseLeft, right: analyseColumn }"
+        :style="{ left: analyseLeft, right: isCloudView ? 'var(--sp-4)' : analyseColumn }"
     >
+      <!-- Sélecteur du type porté par le grand nuage (remplace la navigation par
+           les mini-nuages) : rangée de chips posée sur la scène. -->
+      <div v-if="isCloudView" class="maq-cloud-cats">
+        <BaseChip
+            v-for="cat in CLOUD_CATEGORIES"
+            :key="cat.key"
+            :active="cat.key === mainCategory"
+            @click="mainCategory = cat.key"
+        >{{ cat.label }}</BaseChip>
+      </div>
       <VocabulaireCloud
           v-if="isCloudView"
           compact
@@ -45,35 +56,24 @@
     </div>
   </Transition>
 
-  <!-- Colonne 1/3 des blocs d'analyse : celle que la planche libère en glissant d'un
-       cran. Chaque card y téléporte son `#aside` ; sur le Vocabulaire elle empile les
-       mini-nuages des types que le grand nuage ne montre pas. -->
+  <!-- Colonne 1/3 des blocs d'analyse (hors Vocabulaire) : celle que la planche libère
+       en glissant d'un cran. Chaque card y téléporte son `#aside`. Le Vocabulaire n'en
+       a plus l'usage (le grand nuage occupe désormais toute la largeur). -->
   <div
-      v-if="searchLayout"
+      v-if="searchLayout && !isCloudView"
       class="maq-analyse-aside"
-      :class="{ 'maq-analyse-aside--minis': isCloudView }"
       :style="{ width: analyseColumn }"
   >
     <CustomScrollbar>
-      <div ref="analyseAsideEl" class="maq-analyse-aside__inner split-aside">
-        <div v-if="isCloudView" class="maq-minis">
-          <MiniCloud
-              v-for="mini in miniClouds"
-              :key="mini.key"
-              :category="mini.key"
-              :label="mini.label"
-              @activate="mainCategory = mini.key"
-          />
-        </div>
-      </div>
+      <div ref="analyseAsideEl" class="maq-analyse-aside__inner split-aside"></div>
     </CustomScrollbar>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, watch, provide, inject, onUnmounted } from 'vue'
+import { ref, watch, provide, inject, onUnmounted } from 'vue'
 import VocabulaireCloud from '../../analyse/lexical/VocabulaireCloud.vue'
-import MiniCloud from '../../analyse/lexical/MiniCloud.vue'
+import BaseChip from '../../ui/atoms/BaseChip.vue'
 import CustomScrollbar from '../../ui/atoms/CustomScrollbar.vue'
 
 const {
@@ -85,8 +85,8 @@ const {
 // double page A5), là où le dock lui donnait un bandeau plat.
 const CLOUD_DIMS = { width: 1040, height: 740, verticalRatio: 0.25, animateEntry: false }
 
-// Types de mots, dans l'ordre de la colonne : personnages et lieux d'abord (ce
-// qu'on cherche dans un roman), grammaire ensuite. Pas d'adverbes (trop peu porteurs).
+// Types de mots proposés par le sélecteur : personnages et lieux d'abord (ce qu'on
+// cherche dans un roman), grammaire ensuite. Pas d'adverbes (trop peu porteurs).
 const CLOUD_CATEGORIES = [
   { key: 'nom', label: 'Noms' },
   { key: 'personne', label: 'Personnages' },
@@ -94,10 +94,8 @@ const CLOUD_CATEGORIES = [
   { key: 'verbe', label: 'Verbes' },
   { key: 'adj', label: 'Adjectifs' },
 ]
-// Type porté par le GRAND nuage. Les autres restent en minis : promouvoir un mini le
-// retire de la liste, celui qu'il remplace y revient à sa place (l'ordre ne bouge pas).
+// Type porté par le GRAND nuage, choisi via la rangée de chips.
 const mainCategory = ref('nom')
-const miniClouds = computed(() => CLOUD_CATEGORIES.filter((c) => c.key !== mainCategory.value))
 
 // Mesure du nuage inline (ResizeObserver local à la scène).
 const cloudEl = ref(null)
@@ -150,9 +148,29 @@ provide('analyseFit', true)
   opacity: 0;
 }
 
+/* Rangée de chips du sélecteur de type, posée en tête de la scène du nuage (comme le
+   pager au pied) : racine inerte, seuls les chips reprennent le pointeur pour ne pas
+   masquer les mots du nuage dessous. */
+.maq-cloud-cats {
+  position: absolute;
+  top: var(--sp-2);
+  left: 0;
+  right: 0;
+  z-index: 4;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.4em;
+  pointer-events: none;
+}
+
+.maq-cloud-cats :deep(.base-chip) {
+  pointer-events: auto;
+}
+
 /* LA colonne que la planche libère en glissant d'un cran, ferrée au bord droit, large
    d'une période de trame (width posée en inline depuis la géométrie). Sans cadre ni
-   fond : elle se pose nue sur la trame, comme les mini-nuages qu'elle porte. */
+   fond : elle se pose nue sur la trame. */
 .maq-analyse-aside {
   position: fixed;
   right: 0;
@@ -160,34 +178,6 @@ provide('analyseFit', true)
   bottom: calc(var(--maq-dock-h) + var(--sp-4));
   max-width: 40%;
   z-index: 3;
-}
-
-/* Les trois mini-nuages en tête de colonne : un seul écart entre eux et le séparateur
-   de `.split-aside`. La respiration est celle des cards (`--split-pad-aside`). */
-.maq-minis {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-3);
-  padding: var(--split-pad-aside);
-}
-
-/* Vue Vocabulaire : les mini-nuages SEULS remplissent la colonne jusqu'en bas
-   (pas de scroll, aucune card en dessous). */
-.maq-analyse-aside--minis {
-  bottom: var(--sp-4);
-}
-
-.maq-analyse-aside--minis :deep(.custom-scrollbar__content) {
-  overflow: hidden;
-}
-
-.maq-analyse-aside--minis .maq-analyse-aside__inner {
-  height: 100%;
-}
-
-.maq-analyse-aside--minis .maq-minis {
-  height: 100%;
-  justify-content: space-evenly;
 }
 
 /* Boîte d'accueil du Teleport. Respiration et séparateurs viennent de `.split-aside`
