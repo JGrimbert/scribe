@@ -1,4 +1,4 @@
-import { ref, onBeforeUnmount } from 'vue'
+import { ref } from 'vue'
 
 // Gouttières horizontales de la trame, en multiples de la gouttière verticale V
 // (une seule unité pour toute la trame) : bande de TÊTE = V, bande de PIED = 2·V —
@@ -10,10 +10,6 @@ const TOP_GUTTER_RATIO = 1
 const BOTTOM_GUTTER_RATIO = 2
 const LISERET_RATIO = 6
 
-// Durée du glissement de trame (filmstrip). À garder synchro avec la transition CSS de
-// FolioSpreadBackground.
-const SLIDE_MS = 320
-
 // Géométrie de la planche (mode spread) : lit les rects des pages dans l'iframe,
 // ÉMET le contrat de FolioView (`spread-/block-/style-geometry`) et produit le sac de
 // variables de la trame de fond (peinte par FolioSpreadBackground). Sorti de FolioView
@@ -23,37 +19,22 @@ const SLIDE_MS = 320
 // `bgVars` : null quand aucune page (fond caché), sinon les cotes scalées de la trame
 // (période/gouttière/phase par axe). `updateSpreadBg` est rappelé à chaque onScaled /
 // onResized / onPaginated / défilement molette (cf. FolioView).
-//
-// FILMSTRIP (`runSlide`) : à une bascule de vue, la trame ne saute pas — l'ancienne
-// couche glisse vers la gauche pendant que la nouvelle entre par la droite. D'où DEUX
-// jeux de vars (`bgVars` entrante, `bgVarsOut` sortante) et deux décalages (`inShift`/
-// `outShift`) posés en transform sur chaque couche.
 export function useFolioSpreadGeometry(props, { frameRef, frameDoc, padRef, scaleRef, animating, emit }) {
   const bgVars = ref(null)
-  // Couche SORTANTE (snapshot de l'ancienne trame) + décalages des deux couches (px) et
-  // drapeau d'animation (transition CSS active seulement pendant le glissement).
-  const bgVarsOut = ref(null)
-  const inShift = ref(0)
-  const outShift = ref(0)
-  const slideAnimated = ref(false)
-  // Rects de PAGE (coords fenêtre) des deux couches : le volume « crème + croix » (le
-  // footprint des pages, révélé pendant le creux) s'y ancre et glisse avec la trame.
-  const bgPages = ref(null)
-  const bgPagesOut = ref(null)
 
-  // Lit la géométrie courante dans le DOM de l'iframe. Retourne :
-  //  · undefined — iframe pas prête (ne rien toucher) ;
-  //  · null — aucune page (trame vide) ;
-  //  · { spread, blocks, styles, bgVars } — les cotes à émettre / peindre.
-  // Ne MUTE rien : l'application (set bgVars + emits) est faite par `applyGeometry`,
-  // pour que `runSlide` puisse peindre la nouvelle trame sans émettre tout de suite.
-  function computeGeometry() {
+  function updateSpreadBg() {
+    if (props.mode !== 'spread') return
     const doc = frameDoc()
     const frame = frameRef.value
-    if (!doc || !frame) return undefined
+    if (!doc || !frame) return
     const pages = doc.querySelectorAll('.pagedjs_page')
-    if (!pages.length) return null
-
+    if (!pages.length) {
+      bgVars.value = null
+      emit('spread-geometry', null)
+      emit('block-geometry', [])
+      emit('style-geometry', {})
+      return
+    }
     const first = pages[0]
     const r0 = first.getBoundingClientRect()
     // Empreinte d'UNE page (colonne de trame) : page + ses marges, mise à l'échelle.
@@ -95,22 +76,23 @@ export function useFolioSpreadGeometry(props, { frameRef, frameDoc, padRef, scal
     // + MaquetteFormatCallouts). Les pages vivent DANS l'iframe → leur rect est
     // relatif au viewport de l'iframe ; on ajoute l'offset écran de la frame pour
     // le ramener en coordonnées fenêtre (même correction que la trame ci-dessous).
+    // `period` accompagne les rects : c'est la COLONNE de la trame, l'unité dans
+    // laquelle l'appelant range ce qu'il pose à côté de la planche (cf. la scène de
+    // recherche de la maquette, qui s'y réserve une colonne).
+    // Émis à chaque mesure — repagination, échelle (onScaled), molette (onFrameWheel).
+    // `animating` : la planche est en train de GLISSER (dézoom, décalage de colonne).
+    // Les rects sont justes mais transitoires — l'appelant qui compose une scène
+    // par-dessus (cf. la recherche de la maquette) attend qu'il retombe.
     const fr = frame.getBoundingClientRect()
-    const spread = {
+    emit('spread-geometry', {
       period: pagePeriod,
       gutter,
       animating: animating.value,
       pages: Array.from(pages).map((p) => {
         const r = p.getBoundingClientRect()
-        // Rect de l'EMPAGEMENT (zone de contenu, marges déduites) en coords fenêtre :
-        // la croix de transition s'y ancre (coins opposés des gouttières intérieures).
-        const c = p.querySelector('.pagedjs_page_content')?.getBoundingClientRect()
-        return {
-          left: r.left + fr.left, top: r.top + fr.top, width: r.width, height: r.height,
-          content: c ? { left: c.left + fr.left, top: c.top + fr.top, width: c.width, height: c.height } : null,
-        }
+        return { left: r.left + fr.left, top: r.top + fr.top, width: r.width, height: r.height }
       }),
-    }
+    })
     // Rects ÉCRAN des blocs d'imposition PORTEURS d'une clé d'entrée (`data-entry-key`,
     // stampée par buildImpositionBlocks pour le liminaire) : l'overlay liminaire y
     // ancre ses contrôles de découpage en marge. Une entrée coupée entre deux pages
@@ -125,20 +107,22 @@ export function useFolioSpreadGeometry(props, { frameRef, frameDoc, padRef, scal
       const r = el.getBoundingClientRect()
       blocks.push({ key, left: r.left + fr.left, top: r.top + fr.top, width: r.width, height: r.height })
     })
+    emit('block-geometry', blocks)
     // Rects ÉCRAN de la PREMIÈRE occurrence VISIBLE de chaque style (`data-style`) :
     // les callouts de styles (liminaire/chapitrage) y ancrent leur fuyante. On saute
     // les pages MASQUÉES (`.folio-hidden` du cap : leur contenu est hors scope) ;
     // l'ordre du DOM = ordre de lecture, donc la 1re occurrence rencontrée fait foi.
     const seenStyles = new Set()
-    const styles = {}
+    const styleRects = {}
     doc.querySelectorAll('.pagedjs_page:not(.folio-hidden) [data-style]').forEach((el) => {
       const name = el.getAttribute('data-style')
       if (seenStyles.has(name)) return
       const r = el.getBoundingClientRect()
       if (r.width === 0 && r.height === 0) return
       seenStyles.add(name)
-      styles[name] = { left: r.left + fr.left, top: r.top + fr.top, width: r.width, height: r.height }
+      styleRects[name] = { left: r.left + fr.left, top: r.top + fr.top, width: r.width, height: r.height }
     })
+    emit('style-geometry', styleRects)
     // Le rect des pages est intra-iframe : seule la phase traverse la frontière
     // iframe↔écran, d'où frameRect (qui porte aussi le SPREAD_PAD réservé dedans).
     const frameRect = frame.getBoundingClientRect()
@@ -147,14 +131,24 @@ export function useFolioSpreadGeometry(props, { frameRef, frameDoc, padRef, scal
     const padRect = props.bgScope === 'local' ? padRef.value?.getBoundingClientRect() : null
     const originX = padRect?.left ?? 0
     const originY = padRect?.top ?? 0
-    // Pavage horizontal de la trame (X). gutter/period/phaseRight calculés plus haut.
-    // Deux régimes : ACCOLÉ (planche = unité) / HISTORIQUE (page = unité). Gouttières Y
-    // (tête/pied) : même unité V que X, mais ASYMÉTRIQUES — tête = V, pied = 2·V,
-    // séparées entre rangs par un LISERET de 6·V.
+    // Pavage horizontal de la trame (X). gutter/period/phaseRight calculés plus haut
+    // (émis avec la géométrie). Deux régimes :
+    //  · ACCOLÉ (défaut) : l'unité pavée est la PLANCHE (2 pages qui se touchent).
+    //    La gouttière dessinée est celle ENTRE planches ; les filets tombent sur les
+    //    bords EXTÉRIEURS de chaque planche, et la reliure centrale n'en porte plus
+    //    — les deux pages se lisent comme une seule. Période = planche + gouttière,
+    //    phase = bord extérieur DROIT de la planche.
+    //  · HISTORIQUE : l'unité est la PAGE, la gouttière celle entre deux pages, la
+    //    phase le bord droit de la page — chaque page cernée, reliure comprise.
+    // Gouttières Y (tête/pied) : même unité V que X, mais ASYMÉTRIQUES — tête = V,
+    // pied = 2·V (cf. TOP/BOTTOM_GUTTER_RATIO), séparées entre rangs par un LISERET de
+    // 6·V. La période Y court d'un haut de page au suivant (page + pied + liseret + tête)
+    // et la phase se cale sur le HAUT de page : le gradient `::after` pose quatre filets,
+    // la planche unique montre V au-dessus et 2·V dessous.
     const topGutterY = gutter * TOP_GUTTER_RATIO
     const bottomGutterY = gutter * BOTTOM_GUTTER_RATIO
     const liseretY = gutter * LISERET_RATIO
-    const nextBgVars = {
+    bgVars.value = {
       gutter,
       period,
       phase: phaseRight + frameRect.left - originX,
@@ -165,70 +159,7 @@ export function useFolioSpreadGeometry(props, { frameRef, frameDoc, padRef, scal
       periodY: r0.height + topGutterY + bottomGutterY + liseretY,
       phaseY: r0.top + frameRect.top - originY,
     }
-    return { spread, blocks, styles, bgVars: nextBgVars }
   }
 
-  // Applique une géométrie calculée : peint la trame (entrante) et émet le contrat.
-  function applyGeometry(g) {
-    if (g === undefined) return
-    if (g === null) {
-      bgVars.value = null
-      bgPages.value = null
-      emit('spread-geometry', null)
-      emit('block-geometry', [])
-      emit('style-geometry', {})
-      return
-    }
-    bgVars.value = g.bgVars
-    bgPages.value = g.spread.pages
-    emit('spread-geometry', g.spread)
-    emit('block-geometry', g.blocks)
-    emit('style-geometry', g.styles)
-  }
-
-  function updateSpreadBg() {
-    if (props.mode !== 'spread') return
-    applyGeometry(computeGeometry())
-  }
-
-  // Glissement filmstrip : l'ancienne trame sort par la gauche, la nouvelle entre par la
-  // droite (un écran de large). `onDone` (→ `emit('paginated')`) n'est appelé qu'à la
-  // FIN — la coquille ne révèle les pages qu'une fois le glissement posé.
-  let slideTimer = null
-  function runSlide(onDone) {
-    const g = computeGeometry()
-    if (!g) { applyGeometry(g); onDone(); return }
-    // Snapshot de la trame + des pages courantes AVANT de les remplacer : couche sortante.
-    bgVarsOut.value = bgVars.value
-    bgPagesOut.value = bgPages.value
-    applyGeometry(g)                 // la couche entrante peint la nouvelle trame + émet
-    const W = window.innerWidth
-    // Placement initial SANS transition : entrante hors écran à droite, sortante en place.
-    slideAnimated.value = false
-    inShift.value = W
-    outShift.value = 0
-    // Deux frames pour que ce placement se peigne avant d'armer la transition, sinon le
-    // navigateur fusionne les deux styles et rien ne glisse.
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-      slideAnimated.value = true
-      inShift.value = 0                // entrante → en place
-      outShift.value = -W              // sortante → hors écran à gauche
-    }))
-    clearTimeout(slideTimer)
-    slideTimer = setTimeout(() => {
-      slideAnimated.value = false
-      bgVarsOut.value = null           // retire la couche sortante
-      bgPagesOut.value = null
-      inShift.value = 0
-      outShift.value = 0
-      onDone()
-    }, SLIDE_MS)
-  }
-
-  onBeforeUnmount(() => clearTimeout(slideTimer))
-
-  return {
-    bgVars, bgVarsOut, bgPages, bgPagesOut,
-    inShift, outShift, slideAnimated, updateSpreadBg, runSlide,
-  }
+  return { bgVars, updateSpreadBg }
 }

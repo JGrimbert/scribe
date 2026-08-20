@@ -133,8 +133,10 @@ onUnmounted(() => document.removeEventListener('keydown', onDocKeydown))
   color: var(--c-ink2);
   font-size: var(--fs-sm);
   /*border-bottom: 1px solid var(--c-border);*/
-  backdrop-filter: var(--c-backdrop-filter-blur);
-  background: floralwhite;
+
+  background: color-mix(in srgb, var(--c-floral-5) 78%, transparent);
+  backdrop-filter: blur(2px) saturate(110%);
+  -webkit-backdrop-filter: blur(2px) saturate(110%);
 
   /* La barre ne projette plus la grosse ombre uniforme (elle tombait identique sur
      nav et sur le fond → aucune différence lisible). Elle garde juste un fin

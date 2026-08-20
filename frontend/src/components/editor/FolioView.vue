@@ -22,33 +22,8 @@
         <!-- Double-page : trame de fond décorative DERRIÈRE l'iframe (transparente) →
              visible dans les gouttières. Géométrie calculée par useFolioSpreadGeometry,
              peinture dans le composant dédié. -->
-        <!-- Filmstrip : couche SORTANTE (ancienne trame, glisse vers la gauche) présente
-             seulement pendant un glissement ; couche ENTRANTE (trame courante, arrive de
-             la droite) toujours là (shift 0 hors glissement). -->
-        <FolioSpreadBackground
-            v-if="mode === 'spread' && bgVarsOut"
-            :vars="bgVarsOut"
-            :scope="bgScope"
-            :shift="outShift"
-            :animated="slideAnimated"
-            :pages="bgPagesOut"
-            :fill-visible="!pagesRevealed"
-        />
-        <FolioSpreadBackground
-            v-if="mode === 'spread'"
-            :vars="bgVars"
-            :scope="bgScope"
-            :shift="inShift"
-            :animated="slideAnimated"
-            :pages="bgPages"
-            :fill-visible="!pagesRevealed"
-        />
-        <iframe
-            ref="frameRef"
-            class="folio-frame"
-            :style="{ opacity: pagesRevealed ? 1 : 0 }"
-            :title="mode === 'edit' ? 'Pages du chapitre' : 'Double-page'"
-        />
+        <FolioSpreadBackground v-if="mode === 'spread'" :vars="bgVars" :scope="bgScope" />
+        <iframe ref="frameRef" class="folio-frame" :title="mode === 'edit' ? 'Pages du chapitre' : 'Double-page'" />
       </div>
     </CustomScrollbar>
     <!-- Aperçu : une seule page mise à l'échelle sur la largeur, aucun défilement. -->
@@ -203,8 +178,9 @@ const props = defineProps({
   // `fixed` sur toute la fenêtre — une seule planche à l'écran, elle passe sous la
   // doc-bar et descend jusqu'en bas. 'local' la borne à CETTE planche, seule
   // portée tenable si plusieurs FolioView coexistent à l'écran (en `fixed`,
-  // chacun peindrait sa grille sur la fenêtre entière). Aucun appelant
-  // aujourd'hui : la maquette ne monte qu'UNE planche à la fois.
+  // chacun peindrait sa grille sur la fenêtre entière) — c'est le cas du slide à deux
+  // planches de la maquette (cf. useMaquetteSlide), qui monte deux FolioView le temps
+  // de la transition et les fait glisser côte à côte.
   bgScope: { type: String, default: 'window' },
   // Vis-à-vis ACCOLÉ (défaut) : les deux pages qui se font face n'ont pas de
   // gouttière de reliure — elles se touchent, « comme une seule page ». La
@@ -218,14 +194,11 @@ const props = defineProps({
   // (cf. les vues frag, dont la page large se ferre contre l'aside de structure ; la
   // scène en regard est un overlay posé à droite, pas une réserve de rail).
   spreadAlign: { type: String, default: 'center' },
-  // Fondu des PAGES (l'iframe seule) : false les estompe le temps d'une bascule de vue
-  // (repagination sous couvert), la TRAME restant visible (elle glisse, cf. filmstrip).
-  // Piloté par la coquille depuis `geometryStale`. Défaut true : aucun effet hors maquette.
-  pagesRevealed: { type: Boolean, default: true },
-  // Clé de bascule de vue : quand elle change (cf. maquette `focused`), la PROCHAINE
-  // repagination posée fait GLISSER la trame (filmstrip) au lieu de la mettre à jour
-  // sèche. Inchangée sur un pager/une édition de style → pas de glissement.
-  transitionKey: { type: [String, Number], default: 0 },
+  // Jeton de RÉ-ÉMISSION de géométrie : quand il change, la planche ré-émet ses cotes
+  // (`spread-geometry` etc.) sans repaginer. Sert au slide à deux planches de la maquette :
+  // après le glissement, la planche entrante est en place mais sa géométrie avait été
+  // émise à sa position hors écran — on la fait ré-émettre au repos (cf. useMaquetteSlide).
+  emitToken: { type: Number, default: 0 },
 })
 
 // `step` : cran de pagination applicative demandé à la molette (±1), cf. wheelPaging.
@@ -295,10 +268,7 @@ const { scaleRef, scalePercent, animating, fitScale, animateScale } = useFolioSc
 // Géométrie de la planche (mode spread) : émet le contrat spread-/block-/style-geometry
 // et produit `bgVars` pour FolioSpreadBackground. `updateSpreadBg` est rappelé par
 // onScaled/onResized (ci-dessus), onPaginated et onFrameWheel.
-const {
-  bgVars, bgVarsOut, bgPages, bgPagesOut,
-  inShift, outShift, slideAnimated, updateSpreadBg, runSlide,
-} = useFolioSpreadGeometry(props, {
+const { bgVars, updateSpreadBg } = useFolioSpreadGeometry(props, {
   frameRef,
   frameDoc,
   padRef,
@@ -312,10 +282,9 @@ const toolbar = useFloatingToolbar()
 const { cursorRect, selectionRects } = caret
 const { registerToolbar } = toolbar
 
-// Bascule de vue en attente : armée quand `transitionKey` change, consommée à la
-// prochaine repagination posée (onPaginated) pour déclencher le glissement de trame.
-let slidePending = false
-watch(() => props.transitionKey, () => { slidePending = true })
+// Ré-émission de géométrie sur demande (sans repaginer) : la maquette la déclenche après
+// son slide, quand la planche entrante est retombée à sa place définitive.
+watch(() => props.emitToken, () => { updateSpreadBg() })
 
 const { registry, fragments, buildFrame, refresh, teardown, applyHighlight } = useFolioFrame(props, {
   frameRef,
@@ -337,25 +306,16 @@ const { registry, fragments, buildFrame, refresh, teardown, applyHighlight } = u
   // la frame restait alors trop large d'une page, jusqu'à ce qu'une repagination
   // ultérieure la recale (c'était le rôle involontaire de la passe de style
   // débouncée). `applyScale` est idempotent : sans changement, c'est un no-op.
-  // La géométrie de la TRAME (`updateSpreadBg`) et le signal `paginated` (→ révélation
-  // des pages + composition des scènes) ne partent qu'à la SECONDE passe : sur la
-  // première, la trame se peindrait sur l'état transitoire (rangée trop large) puis se
-  // corrigerait — un clignotement (« grossit puis revient »). Émise une seule fois, sur
-  // l'état posé, la trame garde l'ancienne géométrie jusqu'à la bonne : une transition.
+  // La géométrie de la TRAME (`updateSpreadBg`) et le signal `paginated` (→ composition
+  // des scènes/callouts) ne partent qu'à la SECONDE passe : sur la première, la trame se
+  // peindrait sur l'état transitoire (rangée trop large) puis se corrigerait — un
+  // clignotement (« grossit puis revient »). Émise une seule fois, sur l'état posé.
   onPaginated: () => {
     fitScale()
     requestAnimationFrame(() => {
       fitScale()
-      // Bascule de vue en attente (`transitionKey` a changé) : la trame GLISSE (filmstrip)
-      // et la révélation des pages (`paginated`) n'a lieu qu'à la fin. Sinon (pager,
-      // édition de style, resize) : mise à jour sèche puis révélation immédiate.
-      if (slidePending) {
-        slidePending = false
-        runSlide(() => emit('paginated'))
-      } else {
-        updateSpreadBg()
-        emit('paginated')
-      }
+      updateSpreadBg()
+      emit('paginated')
     })
   },
   // Les listeners du doc iframe (édition), résolus au (dé)montage — cf. editListeners.
@@ -541,14 +501,10 @@ useFolioReactions(props, { frameRef, refresh, fitScale, animateScale, applyHighl
 }
 
 /* Double-page : l'iframe passe AU-DESSUS du fond décoratif (elle est transparente
-   dans les gouttières, qui laissent voir le filet derrière). Fondu d'opacité pour la
-   bascule de vue (cf. pagesRevealed) : posé en CSS (et non inline) car applyScale
-   réécrit `frame.style.transition` — mais l'efface hors glissement d'échelle, donc
-   cette règle reprend la main pendant une bascule (où l'échelle ne glisse pas). */
+   dans les gouttières, qui laissent voir le filet derrière). */
 .folio-view--spread .folio-frame {
   position: relative;
   z-index: 1;
-  transition: opacity 160ms ease;
 }
 
 .folio-view--read .folio-frame {

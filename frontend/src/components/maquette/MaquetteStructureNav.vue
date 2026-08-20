@@ -228,7 +228,10 @@ const labelOf = (key) => LIMINAIRE_BY_KEY.get(key)?.label ?? key
   pointer-events: none;
 
   /*border: 1px solid var(--c-border);*/
-  background: var(--c-floral-5);
+  background: color-mix(in srgb, var(--c-floral-5) 78%, transparent);
+  backdrop-filter: blur(2px) saturate(110%);
+  -webkit-backdrop-filter: blur(2px) saturate(110%);
+
   /* Panneau vertical : son ombre propre part à DROITE (offset-x dominant) — bord
      droit franc, bord gauche nul. Modérée : la profondeur du fond est portée par
      .maquette::before, pas ici. */

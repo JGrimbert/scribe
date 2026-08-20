@@ -8,19 +8,7 @@
       :class="{ 'folio-pad-bg--local': scope === 'local' }"
       :style="styleVars"
       aria-hidden="true"
-  >
-    <!-- Volume « papier » de chaque page : fond crème léger + croix aux COINS DE LA PAGE
-         (à l'intersection des gouttières). Enfant de la couche → il glisse avec elle.
-         Révélé pendant le creux d'une bascule (fillVisible), quand les vraies pages sont
-         estompées. Coords fenêtre : la couche est fixed inset:0, l'enfant absolu s'y cale. -->
-    <div
-        v-for="(box, i) in pageBoxes"
-        :key="i"
-        class="folio-pad-fill"
-        :class="{ 'folio-pad-fill--on': fillVisible }"
-        :style="box"
-    />
-  </div>
+  />
 </template>
 
 <script setup>
@@ -35,42 +23,15 @@ const props = defineProps({
   // wrapper des pages, cf. FolioView bgScope) — les phases sont alors comptées depuis
   // le bord du wrapper en amont.
   scope: { type: String, default: 'window' },
-  // Décalage horizontal (px) de la couche, posé en transform — le glissement filmstrip
-  // (cf. useFolioSpreadGeometry.runSlide). Transform SUR l'élément fixed lui-même (et
-  // non un ancêtre) : il l'offset sans en changer le référentiel.
-  shift: { type: Number, default: 0 },
-  // Transition CSS du transform ACTIVE seulement pendant le glissement (sinon le
-  // placement initial hors écran s'animerait aussi).
-  animated: { type: Boolean, default: false },
-  // Rects de PAGE (coords fenêtre) de cette couche : le volume crème + croix s'y pose.
-  pages: { type: Array, default: null },
-  // Révèle le volume crème + croix (le footprint des pages), pendant le creux d'une
-  // bascule — les vraies pages étant estompées.
-  fillVisible: { type: Boolean, default: false },
 })
-
-const pageBoxes = computed(() =>
-  (props.pages ?? []).map((p) => ({
-    left: `${p.left}px`,
-    top: `${p.top}px`,
-    width: `${p.width}px`,
-    height: `${p.height}px`,
-  })),
-)
 
 // Variables CSS « posées par JS » (cf. le bloc du même nom dans le style) : révélées
 // dès que la géométrie est calée. Avant (vars null), opacity 0 et les --pad-* gardent
 // leur défaut 0px du CSS.
 const styleVars = computed(() => {
   const v = props.vars
-  // 320 ms : à garder synchro avec SLIDE_MS de useFolioSpreadGeometry.
-  const motion = {
-    transform: props.shift ? `translateX(${props.shift}px)` : 'none',
-    transition: props.animated ? 'transform 320ms ease' : 'none',
-  }
-  if (!v) return { ...motion, opacity: 0 }
+  if (!v) return { opacity: 0 }
   return {
-    ...motion,
     opacity: 1,
     '--pad-gutter': `${v.gutter}px`,
     '--pad-period': `${v.period}px`,
@@ -136,26 +97,6 @@ const styleVars = computed(() => {
    alors comptées depuis le bord du wrapper (cf. useFolioSpreadGeometry). */
 .folio-pad-bg--local {
   position: absolute;
-}
-
-/* Volume « papier » d'une page : fond crème léger (distinct du fond principal) + croix
-   coin à coin de la PAGE. Absolu dans la couche (fixed inset:0) → posé en coords fenêtre
-   et solidaire du transform de glissement. Révélé en fondu pendant le creux (--on). */
-.folio-pad-fill {
-  position: absolute;
-  z-index: -1; /* derrière les filets de la trame (pseudos), qui restent nets */
-  opacity: 0;
-  transition: opacity 160ms ease;
-  --fill-cream: color-mix(in srgb, var(--c-surface0) 60%, transparent);
-  --fill-line: color-mix(in srgb, var(--c-ink) 15%, transparent);
-  background-color: var(--fill-cream);
-  background-image:
-    linear-gradient(to top right, transparent calc(50% - 0.5px), var(--fill-line) calc(50% - 0.5px), var(--fill-line) calc(50% + 0.5px), transparent calc(50% + 0.5px)),
-    linear-gradient(to bottom right, transparent calc(50% - 0.5px), var(--fill-line) calc(50% - 0.5px), var(--fill-line) calc(50% + 0.5px), transparent calc(50% + 0.5px));
-}
-
-.folio-pad-fill--on {
-  opacity: 1;
 }
 
 /* Les deux axes partagent tout sauf leur direction : un tile d'EXACTEMENT une

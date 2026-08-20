@@ -93,37 +93,49 @@
               }"
           >
             <div class="folio-col">
-              <FolioView
-                  class="maq-folio"
-                  mode="spread"
-                  :visible-pages="folioVisiblePages"
-                  :side-rails="pouring ? 0 : 1"
-                  :spread-align="pouring ? 'start' : 'center'"
-                  :pages-revealed="pagesRevealed"
-                  :transition-key="focused"
-                  :column-shift="0"
-                  :body-cross="isFormat"
-                  :bare-pages="pouring"
-                  :clamp-entries="isLiminaire"
-                  :cap-pages="isChapitrage ? 2 : 0"
-                  :wheel-paging="pouring"
-                  :spread-pages="mainSpreadPages"
-                  :node-id="mainNodeId"
-                  :depth="mainDepth"
-                  :data="documentData"
-                  :visuals="effectiveVisuals"
-                  :page="mainPage"
-                  :margins="previewMargins"
-                  :hyphenation="styleDefaults.hyphenation"
-                  :running-titles="pouring ? null : previewRunningTitles"
-                  :book-title="pouring ? '' : bookTitle"
-                  :highlight-style="hoveredStyle"
-                  @step="stepResultPage"
-                  @paginated="onPaginated"
-                  @spread-geometry="onSpreadGeometry"
-                  @block-geometry="blockGeometry = $event"
-                  @style-geometry="styleGeometry = $event"
-              />
+              <!-- Slide à deux planches : deux slots A/B (ping-pong). Le slot vivant porte
+                   la vue courante ; l'autre, pendant une bascule, la vue sortante figée.
+                   Chaque FolioView a sa trame en `bg-scope="local"` (bornée à la planche,
+                   sinon deux trames `fixed` se peindraient sur toute la fenêtre). -->
+              <div class="folio-slider">
+                <div
+                    v-for="slot in ['a', 'b']"
+                    :key="slot"
+                    class="folio-slot"
+                    :style="shiftStyle(slot)"
+                >
+                  <FolioView
+                      v-if="bundleFor(slot)"
+                      class="maq-folio"
+                      mode="spread"
+                      bg-scope="local"
+                      v-bind="bundleFor(slot)"
+                      :data="documentData"
+                      :visuals="effectiveVisuals"
+                      :emit-token="emitToken"
+                      @step="(d) => onSlotStep(slot, d)"
+                      @paginated="onSlotPaginated(slot)"
+                      @spread-geometry="(g) => onSlotSpread(slot, g)"
+                      @block-geometry="(g) => onSlotBlock(slot, g)"
+                      @style-geometry="(g) => onSlotStyle(slot, g)"
+                  />
+                </div>
+              </div>
+              <!-- Scènes frag (nuage / validation) : dans la COQUILLE (pas les panes) pour
+                   survivre au routeur et glisser en entrée ET sortie. `fragScene` donne la
+                   scène à montrer (vivante, sinon sortante figée) + son transform. -->
+              <template v-if="fragScene">
+                <MaquetteAnalyseScene
+                    v-if="fragScene.scene.kind === 'analyse'"
+                    :slide-style="fragScene.style"
+                    :scene="fragScene.scene"
+                />
+                <MaquetteValidationScene
+                    v-else-if="fragScene.scene.kind === 'validation'"
+                    :slide-style="fragScene.style"
+                    :scene="fragScene.scene"
+                />
+              </template>
               <router-view />
             </div>
           </div>
@@ -157,6 +169,8 @@ import MaquetteStructureNav from './MaquetteStructureNav.vue'
 import MaquetteBar from './MaquetteBar.vue'
 import MaquetteRecalReport from './MaquetteRecalReport.vue'
 import FolioView from '../editor/FolioView.vue'
+import MaquetteAnalyseScene from './MaquetteAnalyseScene.vue'
+import MaquetteValidationScene from './MaquetteValidationScene.vue'
 import PageDiagram from '../config/PageDiagram.vue'
 import StyleEditorPanel from '../config/StyleEditorPanel.vue'
 import RecalibrationModal from '../config/RecalibrationModal.vue'
@@ -174,6 +188,7 @@ import { useMaquetteFilm } from '../../composables/useMaquetteFilm'
 import { useMaquetteSearch } from '../../composables/useMaquetteSearch'
 import { useChapitrageModel } from '../../composables/useChapitrageModel'
 import { useMaquetteFolio } from '../../composables/useMaquetteFolio'
+import { useMaquetteSlide } from '../../composables/useMaquetteSlide'
 import { useMaquetteRoute } from '../../composables/useMaquetteRoute'
 
 const route = useRoute()
@@ -315,7 +330,7 @@ const analyseCards = computed(() =>
 
 const {
   spreadGeometry, blockGeometry, styleGeometry,
-  geometryStale, searchLayout, annotationsLayout, pagesRevealed,
+  geometryStale, searchLayout, annotationsLayout,
   onSpreadGeometry, onPaginated,
   analyseLeft, analyseColumn,
   previewPage, previewMargins, previewRunningTitles, previewRatio, mainPage, pourPeriodRatio,
@@ -340,6 +355,52 @@ const spreadSpanPeriods = computed(() => 2 * zoom.value + 2)
 const folioVisiblePages = computed(() =>
   pouring.value ? spreadSpanPeriods.value / pourPeriodRatio.value : 2 * zoom.value,
 )
+
+// La vue COURANTE en un objet `{ bundle, scene }` — l'unité que le slide fige pour la
+// planche + scène SORTANTES (cf. useMaquetteSlide). `bundle` = props FolioView ; `scene` =
+// ce dont l'aside frag a besoin (kind + isCloudView), figé pour glisser dehors avec son
+// contenu. `data`/`visuals` (le document entier, identique d'une vue à l'autre) et
+// `emit-token` restent passés à part.
+const liveView = computed(() => ({
+  bundle: {
+    visiblePages: folioVisiblePages.value,
+    sideRails: pouring.value ? 0 : 1,
+    spreadAlign: pouring.value ? 'start' : 'center',
+    bodyCross: isFormat.value,
+    barePages: pouring.value,
+    clampEntries: isLiminaire.value,
+    capPages: isChapitrage.value ? 2 : 0,
+    wheelPaging: pouring.value,
+    spreadPages: mainSpreadPages.value,
+    nodeId: mainNodeId.value,
+    depth: mainDepth.value,
+    page: mainPage.value,
+    margins: previewMargins.value,
+    hyphenation: styleDefaults.hyphenation,
+    runningTitles: pouring.value ? null : previewRunningTitles.value,
+    bookTitle: pouring.value ? '' : bookTitle.value,
+    highlightStyle: hoveredStyle.value,
+  },
+  scene: {
+    kind: searching.value ? 'analyse' : (focusedSourceKey.value === 'validation' ? 'validation' : null),
+    isCloudView: isCloudView.value,
+    // Ancrage horizontal FIGÉ avec la vue : la scène sortante garde sa colonne pendant
+    // qu'elle glisse dehors (sinon elle prendrait l'analyseLeft de la vue entrante).
+    analyseLeft: analyseLeft.value,
+    analyseColumn: analyseColumn.value,
+  },
+}))
+
+const { liveSlot, bundleFor, onSlotPaginated, shiftStyle, emitToken, fragScene } = useMaquetteSlide({
+  focused, liveView, markSettled: onPaginated,
+})
+
+// Les événements de géométrie ne comptent que pour la planche VIVANTE (la figée sortante
+// est ignorée : sa géométrie est périmée / hors écran).
+const onSlotStep = (slot, d) => { if (slot === liveSlot.value) stepResultPage(d) }
+const onSlotSpread = (slot, g) => { if (slot === liveSlot.value) onSpreadGeometry(g) }
+const onSlotBlock = (slot, g) => { if (slot === liveSlot.value) blockGeometry.value = g }
+const onSlotStyle = (slot, g) => { if (slot === liveSlot.value) styleGeometry.value = g }
 
 useMaquetteRoute({ focused, crans, focusedCran, vocabIndex, limStart, limSpreads })
 
@@ -415,8 +476,8 @@ provide('maq', {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  padding-top: calc(2 * var(--bar-size) + 1em);
-  padding-left: var(--maq-gutter);
+  /*padding-top: calc(2 * var(--bar-size) + 1em);*/
+  /*padding-left: var(--maq-gutter);*/
   padding-bottom: 5em;
 }
 
@@ -434,6 +495,32 @@ provide('maq', {
   flex: 1 1 auto;
   min-height: 0;
   padding-top: 1em;
+}
+
+/* Slider du slide à deux planches : conteneur de référence des deux slots (absolus,
+   plein cadre). `overflow: hidden` borne les planches à la scène → la planche entrante
+   glisse depuis le bord au lieu de déborder. */
+.folio-slider {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Un slot = une planche, décalée par son propre transform (cf. shiftStyle). Colonne flex
+   pour donner sa hauteur à la FolioView (flex:1). `.maquette__left` a perdu ses
+   `padding-top`/`padding-left` (barres + sommaire passés en overlay opaque+blur) — on les
+   répercute ICI en réservant le haut (barres) et la gauche (sommaire) : l'échelle du folio
+   rétrécit d'autant et la planche garde sa position finale, sans passer sous les barres/le
+   sommaire. */
+.folio-slot {
+  position: absolute;
+  top: calc(2 * var(--bar-size) + 1em);
+  right: 0;
+  bottom: 0;
+  left: var(--maq-gutter);
+  display: flex;
+  flex-direction: column;
 }
 
 .maq-folio {

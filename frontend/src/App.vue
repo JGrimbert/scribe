@@ -177,7 +177,10 @@ onMounted(ensureLoaded)
   top: 0;
   display: flex;
   align-items: center;
-  z-index: 1;
+  /* Au-dessus des asides frag de la maquette (z 2/3), qui glissent SOUS le menu à la
+     sortie (cf. MaquetteAnalyseScene/ValidationScene). Reste sous les barres maquette
+     (doc-bar 99, maq-bar 170) et les modales — non chevauchantes de toute façon. */
+  z-index: 5;
   color: #fff;
   background: var(--c-bar-accent);
 /*  height: var(--bar-size);

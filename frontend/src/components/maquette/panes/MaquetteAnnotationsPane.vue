@@ -33,27 +33,18 @@
     </button>
   </div>
 
-  <!-- Panneau de validation, en regard des lambeaux (colonne libérée par la planche).
-       Fondu simple à l'entrée (la scène n'existe qu'une fois la planche repaginée). -->
-  <Transition name="maq-scene-fade">
-    <div
-        v-if="annotationsLayout"
-        class="maq-annot-scene"
-        :style="{ left: analyseLeft }"
-    >
-      <MaquetteAnnotations :rules="rules" :char-counts="annotationCharCounts" />
-    </div>
-  </Transition>
+  <!-- Le panneau de validation (en regard des lambeaux) vit désormais dans la COQUILLE
+       (`MaquetteValidationScene`, montée par MaquetteView) pour survivre au routeur et
+       glisser avec la planche. Ce pane ne garde que le menu de filtres et le pager. -->
 </template>
 
 <script setup>
 import { inject } from 'vue'
-import MaquetteAnnotations from '../MaquetteAnnotations.vue'
 import MaquetteAnnotationFilters from '../MaquetteAnnotationFilters.vue'
 
 const {
-  annotationsLayout, resultPage, resultPageCount, stepResultPage, analyseLeft,
-  inventory, highlights, mutedColors, toggleMutedColor, rules, annotationCharCounts,
+  annotationsLayout, resultPage, resultPageCount, stepResultPage,
+  inventory, highlights, mutedColors, toggleMutedColor,
 } = inject('maq')
 </script>
 
@@ -65,30 +56,6 @@ const {
   top: 0.4em;
   left: 0;
   z-index: 4;
-}
-
-/* Panneau « en regard » : la colonne que la planche libère en glissant. Fixed = calé
-   sur le viewport (la pile de barres est comptée), borné au-dessus du dock. Le bord
-   gauche suit la géométrie émise (bord droit de la page de lambeaux) ; le droit tient
-   une petite marge — pas de colonne de minis ici, contrairement au Vocabulaire. */
-.maq-annot-scene {
-  position: fixed;
-  right: 1em;
-  top: calc(4em + var(--bar-size));
-  bottom: calc(var(--maq-dock-h) + var(--sp-4));
-  z-index: 2;
-  min-width: 0;
-  min-height: 0;
-  overflow: hidden;
-}
-
-/* Fondu d'entrée (enter seulement : à la sortie la scène change de source). */
-.maq-scene-fade-enter-active {
-  transition: opacity 0.22s ease;
-}
-
-.maq-scene-fade-enter-from {
-  opacity: 0;
 }
 
 /* Pager des lambeaux : discret, au pied de la planche. POSÉ SUR elle (pas dans le

@@ -19,11 +19,6 @@ export function useMaquetteFolio({
   const contentFresh = ref(false)
   const lastAnimating = ref(false)
   const geometryStale = computed(() => !contentFresh.value || lastAnimating.value)
-  // Fondu des pages (Phase 2, brique 1) : l'iframe s'estompe tant que la planche n'est
-  // pas calée (repagination + glissement), et réapparaît une fois posée — la bascule de
-  // vue se fait donc pages cachées (le grossissement transitoire, déjà neutralisé, y est
-  // de toute façon invisible). La trame, elle, reste (elle glissera : filmstrip à venir).
-  const pagesRevealed = computed(() => !geometryStale.value)
   const searchLayout = computed(() => searching.value && !geometryStale.value)
   const annotationsLayout = computed(() => focusedSourceKey.value === 'validation' && !geometryStale.value)
 
@@ -132,7 +127,7 @@ export function useMaquetteFolio({
 
   return {
     spreadGeometry, blockGeometry, styleGeometry,
-    geometryStale, searchLayout, annotationsLayout, pagesRevealed,
+    geometryStale, searchLayout, annotationsLayout,
     onSpreadGeometry, onPaginated,
     analyseLeft, analyseColumn,
     previewPage, previewMargins, previewRunningTitles, previewRatio,
