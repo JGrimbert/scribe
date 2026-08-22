@@ -47,7 +47,7 @@
         type="button"
         class="maq-recal"
         :disabled="!recalibratable"
-        :title="recalibratable ? 'Relire le .odt d'origine et redéfinir les bornes' : NO_SOURCE_HINT"
+        :title="recalibratableTitle"
         @click="$emit('recalibrate')"
     >
       <i class="pi pi-refresh" aria-hidden="true"></i>
@@ -84,8 +84,11 @@ const emit = defineEmits([
   'update:presentation-mode',
 ])
 
-const NO_SOURCE_HINT =
-    "Recalibrage impossible : le .odt d'origine n'a pas été conservé (document importé avant cette fonctionnalité). Seul un réimport permet de refixer les bornes."
+const recalibratableTitle = computed(() =>
+  props.recalibratable
+    ? 'Relire le .odt d\'origine et redéfinir les bornes'
+    : 'Recalibrage impossible : le .odt d\'origine n\'a pas été conservé (document importé avant cette fonctionnalité). Seul un réimport permet de refixer les bornes.',
+)
 
 const pct = computed(() => {
   const r = props.tallyRow
