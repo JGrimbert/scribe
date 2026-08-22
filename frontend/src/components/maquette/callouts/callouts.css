@@ -96,3 +96,16 @@
 .fc-row__label input[type="checkbox"] {
   accent-color: var(--c-accent-alt);
 }
+
+
+/* Styles de présentation */
+.lc--dotted-borders .fc-row {
+  border-style: dashed !important;
+  border-color: color-mix(in srgb, var(--c-accent-alt-darker) 22%, transparent) !important;
+}
+
+.lc--font-hover .fc-row:hover {
+  color: var(--c-accent-alt) !important;
+  border-color: transparent !important;
+  background-color: transparent !important;
+}
