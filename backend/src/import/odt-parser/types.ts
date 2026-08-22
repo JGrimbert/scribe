@@ -61,6 +61,10 @@ export interface ParsedNode {
   citations: string[]
   pistes: string[]
   tableau: string[][] | null
+  // Style effectif par CELLULE, en miroir de `tableau` (même forme rows×cols) :
+  // sans lui, un style qui ne vit qu'en cellule (« Voir ») n'a aucune ancre dans
+  // le rendu et échappe aux callouts de styles. Absent = pas de tableau.
+  tableauStyles?: string[][] | null
   children: ParsedNode[]
   stats: Stats | null
   indexGlobal: number | null
@@ -102,7 +106,7 @@ export interface HarmonizedItem {
   styleName?: string | null
   outlineNumber?: string | null
   texte: TexteEntry[]
-  connexe: { tableau: string[][] | null; pistes: string[] } | null
+  connexe: { tableau: string[][] | null; tableauStyles?: string[][] | null; pistes: string[] } | null
   indexGlobal: number | null
   stats: Omit<Stats, 'status' | 'paragraphes'> | null
 }
@@ -172,6 +176,9 @@ export interface FlatNode {
   // (un axe qui porte aussi un fo:break-before "page" reste recto).
   pageStart: PageStart | null
   tableData?: string[][]
+  // Style effectif par cellule (même forme que `tableData`) : un style qui ne vit
+  // qu'en cellule (« Voir ») serait sinon sans ancre côté rendu. Cf. connexe.tableauStyles.
+  tableStyles?: string[][]
   // Styles effectifs des paragraphes que ce nœud APLATIT : les cellules d'un
   // tableau, les items d'une liste. Un par paragraphe, répétitions comprises
   // (c'est un relevé d'usages, pas un ensemble).

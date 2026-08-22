@@ -15,6 +15,7 @@ import {
   extractListItems,
   extractTocTexts,
   extractTable,
+  extractTableCellStyles,
   extractInnerStyles,
   readOutlineFormat,
 } from './xml'
@@ -280,6 +281,7 @@ export function buildFlatNodes(xmlContent: string, stylesXml?: string): {
         pageStart: null,
         ...flushBlanks(),
         tableData: extractTable(node, styleTable),
+        tableStyles: extractTableCellStyles(node, styleTable),
         innerStyles: extractInnerStyles(node, styleTable),
       })
     }

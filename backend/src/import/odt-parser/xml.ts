@@ -442,3 +442,19 @@ export function extractTable(tableNode: any, table?: StyleTable): string[][] {
     })
   })
 }
+
+// Style EFFECTIF de chaque cellule, en miroir de `extractTable` (même forme
+// rows×cols) : la cellule pouvant contenir plusieurs paragraphes, on retient le
+// style du PREMIER (une seule ancre suffit à poser sa fuyante). Sans table de
+// styles, on ne peut pas résoudre l'héritage → chaîne vide.
+export function extractTableCellStyles(tableNode: any, table?: StyleTable): string[][] {
+  const rows = select('.//table:table-row', tableNode) as any[]
+  return rows.map((row) => {
+    const cells = select('table:table-cell', row) as any[]
+    return cells.map((cell) => {
+      const p = (select('text:p', cell) as any[])[0]
+      if (!p || !table) return ''
+      return effectiveStyleName(p.getAttribute('text:style-name') || '', table)
+    })
+  })
+}

@@ -1,9 +1,10 @@
 <template>
-  <!-- Cote simple : intitulé + un champ. `measureRef` re-expose le DOM mesuré à
-       l'hôte (fuyantes SVG) ; le survol remonte la clé de zone (ou null). -->
-  <div class="fc-row" :ref="measureRef"
+  <!-- Cote simple : intitulé + un champ. `measureRef` posé sur le LABEL (pas la row
+       entière) → la fuyante vise le milieu de l'intitulé, comme FcBand. Le survol
+       remonte la clé de zone (ou null). -->
+  <div class="fc-row"
        @mouseenter="$emit('hover', hoverKey)" @mouseleave="$emit('hover', null)">
-    <span class="fc-row__label">{{ label }}</span>
+    <span class="fc-row__label" :ref="measureRef">{{ label }}</span>
     <NumInput :value="value" :step="step" :unit="unit" @input="$emit('input', $event)" />
   </div>
 </template>

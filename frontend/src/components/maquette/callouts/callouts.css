@@ -60,6 +60,9 @@
   /* Filet POINTILLÉ repris de la trame de fond (`--pad-color` de folio-pad-bg) :
      les blocs se cernent comme les gouttières, sans devenir des cartes. */
   border: 1px dashed color-mix(in srgb, var(--c-accent-alt-darker) 22%, transparent);
+  /* Ombre NETTE (flou nul) décalée vers le BAS : la plaque semble décoller du papier
+     (illusion de profondeur), sans halo diffus. */
+  box-shadow: 3px 5px 0 color-mix(in srgb, var(--c-ink) 8%, transparent);
   /* La row prend la largeur du groupe, borné au rail (cf. FcGroup.maxWidth) :
      `border-box` pour que padding+bordure tiennent DEDANS. `min-width` commun aux
      rows d'un même rail → largeur uniforme (air de liste), au lieu que chacune

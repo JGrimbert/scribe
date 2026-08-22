@@ -4,9 +4,11 @@
        la ligne de StyleRolesTable réduite aux 3 colonnes utiles à une planche
        liminaire. Brique NUE : les mutations (rôle / précède / édition) remontent par
        événement, l'hôte les câble sur la typologie. -->
-  <div class="fc-row fc-srow" :ref="measureRef"
+  <div class="fc-row fc-srow"
        @mouseenter="$emit('hover', item.name)" @mouseleave="$emit('hover', null)">
-    <span class="fc-row__label fc-srow__name">
+    <!-- `measureRef` sur le LABEL (nom du style), pas la row entière → la fuyante
+         vise le milieu de l'intitulé, comme FcBand/FcCote. -->
+    <span class="fc-row__label fc-srow__name" :ref="measureRef">
       <!-- Exiger un paragraphe de ce style au niveau (chapitrage) : case DANS le
            label, devant l'intitulé — même patron que les bandes du format. -->
       <input v-if="showRequire" type="checkbox" :checked="required"

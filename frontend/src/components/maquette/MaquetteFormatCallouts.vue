@@ -65,7 +65,7 @@
                 hover-key="blanc-tete" :measure-ref="(el) => setRow('blanc-tete', el)"
                 @hover="hovered = $event" @input="setMargin('topCm', $event)" />
       </FcGroup>
-      <FcGroup :x="geo.leftRailX" :y="geo.midY" side="left" anchor="mid" :max-width="geo.leftRailW">
+      <FcGroup :x="geo.leftRailX" :y="geo.midY" side="left" anchor="mid" :max-width="geo.leftRailW" :gap="8">
         <FcCote label="Grand fond" :value="toUnit(marginsView.outerCm, unit)" :step="step" :unit="unit"
                 hover-key="grand-fond" :measure-ref="(el) => setRow('grand-fond', el)"
                 @hover="hovered = $event" @input="setMargin('outerCm', $event)" />
@@ -409,8 +409,8 @@ function buildFormatLeaders({ o, rowCenterY }) {
 }
 
 .fc-zone--on {
-  background: color-mix(in srgb, var(--c-accent2) 16%, transparent);
-  outline: 1px dotted var(--c-accent);
+  background: color-mix(in srgb, var(--c-accent-alt) 16%, transparent);
+  outline: 1px dotted var(--c-accent-alt);
   outline-offset: -1px;
 }
 
@@ -441,23 +441,30 @@ function buildFormatLeaders({ o, rowCenterY }) {
   pointer-events: auto;
 }
 
+/* Fond teal léger (gris bleuté), franc sans radius ni bordure — le pavé gris de
+   l'iframe est retiré, ce select EST le repère du titre courant / folio. La
+   redécoupe champ-blanc/pastille de BareSelect ne vaut PAS ici : on remet le wrapper
+   à plat teal et on rend champ + chevron transparents pour le laisser transparaître. */
 .fc-band :deep(.bare-select) {
   height: 100%;
+  border: none;
+  border-radius: 0;
+  background: color-mix(in srgb, var(--c-accent-alt) 30%, var(--c-surface0));
 }
 
-/* Fond teal léger (gris bleuté), franc sans radius — le pavé gris de l'iframe est
-   retiré, ce select EST le repère du titre courant / folio. Hauteur et police
-   bornées à la bande : le select tient dedans, sans la déborder. */
 .fc-band :deep(.bare-select select) {
   height: 100%;
   padding-top: 0;
   padding-bottom: 0;
   line-height: 1;
-  border-radius: 0;
-  border-color: transparent;
-  background: color-mix(in srgb, var(--c-accent-alt) 30%, var(--c-surface0));
+  background: transparent;
   color: var(--c-accent-alt-darker);
   font-size: min(var(--fs-sm), calc(var(--fc-band-h, 1rem) - 4px));
+}
+
+.fc-band :deep(.bare-select__chevron) {
+  background: transparent;
+  color: var(--c-accent-alt-darker);
 }
 
 /* `.fc-grp`, `.fc-row` et `.fc-row__label` sont mutualisés avec les briques

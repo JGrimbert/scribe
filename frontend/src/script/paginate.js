@@ -66,6 +66,10 @@ function measure({ measureEl, blocks }) {
 
 export const TITLE_TAG_BY_DEPTH = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']
 
+// Échappe une valeur d'attribut (nom de style → data-style d'une cellule). Le
+// texte des cellules, lui, reste de l'HTML (liens/marks) inséré tel quel.
+const escapeAttr = (s) => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;')
+
 // Exporté : FolioView construit le même HTML de blocs pour le paginer dans son iframe.
 export function buildBlocks(sections) {
     const blocks = []
@@ -110,8 +114,16 @@ export function buildBlocks(sections) {
         }
 
         if (section.connexe?.tableau?.length) {
+            // `data-style` par cellule (styles portés par connexe.tableauStyles, même
+            // forme rows×cols) : sans lui, un style qui ne vit qu'en cellule (« Voir »)
+            // n'a aucune ancre → jamais collecté par style-geometry, jamais surligné.
+            // Absent (docs importés avant l'ajout) → `<td>` nu, comme avant.
+            const cellStyles = section.connexe.tableauStyles ?? []
             const rows = section.connexe.tableau
-                .map(row => `<tr>${row.map(cell => `<td>${cell}</td>`).join('')}</tr>`)
+                .map((row, r) => `<tr>${row.map((cell, c) => {
+                    const st = cellStyles[r]?.[c]
+                    return `<td${st ? ` data-style="${escapeAttr(st)}"` : ''}>${cell}</td>`
+                }).join('')}</tr>`)
                 .join('')
             blocks.push({
                 id: `${section.id}__tableau`,

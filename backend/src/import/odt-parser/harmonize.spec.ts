@@ -51,6 +51,13 @@ describe('harmonize', () => {
     expect(avecTableau.data[avecTableau.trame.axes[0].id].connexe).toEqual({ tableau: [['x']], pistes: [] })
   })
 
+  it('porte le style effectif par cellule quand `tableStyles` est présent', () => {
+    const avec = harmonizeFlat([H(1, 'A'), { index: 0, kind: 'table', tableData: [['x']], tableStyles: [['Voir']] }])
+    expect(avec.data[avec.trame.axes[0].id].connexe).toEqual({
+      tableau: [['x']], tableauStyles: [['Voir']], pistes: [],
+    })
+  })
+
   it('résout un lien interne vers l’id du nœud cible', () => {
     const { data, trame } = harmonizeFlat([H(1, 'Cible', { bookmarkNames: ['sig1'] }), P('voir <a data-bookmark="sig1">ici</a>')])
     const cibleId = trame.axes[0].id

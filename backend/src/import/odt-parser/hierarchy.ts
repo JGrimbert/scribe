@@ -164,7 +164,10 @@ export function buildParsedResult(
     if (node.kind === 'table') {
       zones.set(node.index, currentZone())
       const current = stack[stack.length - 1]
-      if (current) current.tableau = node.tableData ?? null
+      if (current) {
+        current.tableau = node.tableData ?? null
+        current.tableauStyles = node.tableStyles ?? null
+      }
       continue
     }
 

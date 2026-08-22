@@ -2,11 +2,19 @@ import { randomUUID } from 'crypto'
 import { DataMap, HarmonizedItem, ParsedNode, ParsedResult, Stats, Trame, TrameNode } from './types'
 
 // ─── Harmonisation (port de harmonize.js) ─────────────────────────────────
-function buildConnexe(tableau: string[][] | null, pistes: string[]): HarmonizedItem['connexe'] {
+function buildConnexe(
+  tableau: string[][] | null,
+  pistes: string[],
+  tableauStyles?: string[][] | null,
+): HarmonizedItem['connexe'] {
   const hasTableau = !!tableau
   const hasPistes = pistes.length > 0
   if (!hasTableau && !hasPistes) return null
-  return { tableau: tableau || null, pistes }
+  const connexe: NonNullable<HarmonizedItem['connexe']> = { tableau: tableau || null, pistes }
+  // Clé ajoutée SEULEMENT si des styles existent : les docs sans (et le test
+  // d'égalité stricte) gardent la forme `{ tableau, pistes }`.
+  if (tableauStyles && tableauStyles.length) connexe.tableauStyles = tableauStyles
+  return connexe
 }
 
 function cleanStats(stats: Stats | null): HarmonizedItem['stats'] {
@@ -70,7 +78,7 @@ export function harmonize(result: ParsedResult, bookmarks?: Map<string, ParsedNo
       styleName: node.styleName,
       outlineNumber: node.outlineNumber,
       texte: node.texte,
-      connexe: buildConnexe(node.tableau, node.pistes),
+      connexe: buildConnexe(node.tableau, node.pistes, node.tableauStyles),
       indexGlobal: node.indexGlobal,
       stats: cleanStats(node.stats),
     }

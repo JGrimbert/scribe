@@ -20,12 +20,16 @@ const props = defineProps({
   // pas le droit d'en sortir — au-delà elle passerait sous le sommaire ou hors du
   // champ. Les rows s'y comprimeront (nom de style en ellipse, selects rétrécis).
   maxWidth: { type: Number, default: null },
+  // Écart vertical entre rows (px). Défaut = 1px (cf. callouts.css) pour l'effet
+  // « liste continue » ; surchargé sur un groupe qui veut respirer (ex. grand/petit fond).
+  gap: { type: Number, default: null },
 })
 
 const style = computed(() => ({
   left: `${props.x}px`,
   top: `${props.y}px`,
   ...(props.maxWidth != null ? { maxWidth: `${Math.max(props.maxWidth, 0)}px` } : {}),
+  ...(props.gap != null ? { gap: `${Math.max(props.gap, 0)}px` } : {}),
 }))
 
 const classes = computed(() => ({

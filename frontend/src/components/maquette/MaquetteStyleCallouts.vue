@@ -13,7 +13,7 @@
          gauche si son texte tombe à gauche de la gouttière, rail droit sinon). -->
     <template v-for="col in columns" :key="col.side">
       <FcGroup v-if="col.list.length" :x="col.x" :y="col.top" :side="col.side" anchor="top"
-               :max-width="col.max">
+               :max-width="col.max" :gap="8">
         <FcStyleRow
             v-for="style in col.list" :key="style.name"
             :item="style"

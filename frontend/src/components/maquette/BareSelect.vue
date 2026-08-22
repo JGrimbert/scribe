@@ -20,37 +20,42 @@ defineEmits(['update:modelValue'])
 </script>
 
 <style scoped>
+/* Boîte bordée UNIQUE, calquée sur `NumInput` : champ BLANC à gauche, pastille
+   chevron (voile) accolée à droite — les deux champs d'une row se lisent pareil. */
 .bare-select {
-  position: relative;
   display: inline-flex;
-  align-items: center;
+  align-items: stretch;
   /* Dans une row bornée au rail, le select doit accepter de rétrécir. */
   min-width: 0;
   max-width: 100%;
+  border: 1px solid var(--c-accent2);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.bare-select:focus-within {
+  border-color: var(--c-accent-alt);
 }
 
 .bare-select select {
   appearance: none;
   -webkit-appearance: none;
-  border: 1px solid var(--c-accent2);
-  border-radius: var(--radius-sm);
-  /* Même voile que la pastille d'unité de `NumInput` : les deux champs d'une row
-     partagent une seule encre de fond, posée sur la plaque de la row. */
-  background: color-mix(in srgb, var(--c-accent-alt-ink) 24%, transparent);
+  border: none;
+  background: #fff;
   color: var(--c-ink);
   font: inherit;
   font-size: var(--fs-sm);
-  padding: var(--sp-1) 1.6em var(--sp-1) var(--sp-2);
+  padding: var(--sp-1) var(--sp-2);
   margin: 0;
   cursor: pointer;
+  min-width: 0;
   /* 11em au repos (un libellé long n'étire pas le champ), mais jamais plus que la
      place que la row lui laisse. */
   max-width: min(11em, 100%);
   text-overflow: ellipsis;
 }
 
-/* La liste déroulée hérite sinon du fond TRANSLUCIDE du champ : posée sur le
-   papier, elle devient illisible. Elle, c'est du blanc plein. */
+/* La liste déroulée hérite sinon du fond du champ : on la force en blanc plein. */
 .bare-select option {
   background: var(--c-surface0);
   color: var(--c-ink);
@@ -67,14 +72,17 @@ defineEmits(['update:modelValue'])
 
 .bare-select select:focus {
   outline: none;
-  border-color: var(--c-accent, var(--c-ink2));
 }
 
+/* Pastille chevron : même voile que l'unité de `NumInput`, l'élément « cliquable »
+   qui garde la teinte pendant que le champ passe en blanc. */
 .bare-select__chevron {
-  position: absolute;
-  right: var(--sp-2);
+  display: inline-flex;
+  align-items: center;
+  padding: 0 var(--sp-2);
   font-size: 0.7em;
   color: var(--c-ink2);
+  background: color-mix(in srgb, var(--c-accent-alt-ink) 24%, transparent);
   pointer-events: none;
 }
 </style>

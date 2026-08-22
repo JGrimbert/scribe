@@ -39,18 +39,19 @@ export function useMaquetteSlide({ focused, liveView, markSettled }) {
   let prevView = liveView.value
   watch(liveView, (n, o) => { prevView = o })
 
-  watch(focused, () => {
+  watch(focused, (n, o) => {
     if (pendingIncoming) finalize()          // un slide déjà en cours : le clore d'abord (throttlé)
     const outgoing = liveSlot.value
     const incoming = other(outgoing)
     const incomingFrag = isFrag(liveView.value)
     const outgoingFrag = isFrag(prevView)
+    const back = n < o                       // reculer dans la liste des jalons
 
-    // Axe + positions de départ/arrivée. HORIZONTAL par défaut. Si une vue frag est
-    // impliquée : VERTICAL, la frag au bord HAUT.
+    // Axe + positions de départ/arrivée. HORIZONTAL par défaut : en marche avant l'entrante
+    // vient de la DROITE et la sortante file à GAUCHE ; en marche arrière, sens inversé.
     let axis = 'x'
-    let inStart = 1                          // entrante : +1 écran (droite)
-    let outEnd = -1                          // sortante : -1 écran (gauche)
+    let inStart = back ? -1 : 1              // entrante : +1 (droite) avant, -1 (gauche) arrière
+    let outEnd = back ? 1 : -1              // sortante : -1 (gauche) avant, +1 (droite) arrière
     if (incomingFrag || outgoingFrag) {
       axis = 'y'
       if (incomingFrag) { inStart = -1; outEnd = 1 }  // frag descend du HAUT ; sortante file en BAS

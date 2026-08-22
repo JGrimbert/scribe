@@ -30,14 +30,18 @@ export function useCalloutRig({ geometry, buildLeaders, watchSources = [] }) {
   // centrale vaut ~0 en vis-à-vis accolé).
   const baseGeo = computed(() => {
     const g = geometry()?.pages
-    if (!g || g.length < 2) return null
+    if (!g || g.length < 1) return null
     const o = origin.value
     const loc = (r) => ({
       left: r.left - o.left, top: r.top - o.top,
       right: r.left - o.left + r.width, bottom: r.top - o.top + r.height,
     })
     const recto = loc(g[0]) // page affichée à GAUCHE
-    const verso = loc(g[1]) // page affichée à DROITE
+    // Planche à page UNIQUE (chapitrage court tenant sur une page) : pas de verso →
+    // on réutilise le recto. Sans ça, `g.length < 2` faisait tout bailler (geo null →
+    // aucune row de style). midX retombe alors au centre de la page (verso=recto), le
+    // rail droit se ferre à son bord droit : split gauche/droite et fuyantes OK.
+    const verso = g.length > 1 ? loc(g[1]) : recto // page affichée à DROITE
     const centerGutter = verso.left - recto.right
     const gut = centerGutter > 0 ? centerGutter : GAP
     // Retraits des cartouches dérivés de V (gouttière verticale émise), IDENTIQUES

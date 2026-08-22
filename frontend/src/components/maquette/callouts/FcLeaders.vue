@@ -31,14 +31,16 @@ const props = defineProps({
 // La flèche s'arrête AVANT son but : elle le désigne sans le toucher — une pointe
 // posée sur la balise mangerait le pixel qu'on est justement en train de régler.
 const END_GAP = 7
-const HEAD = 7 // longueur des branches du chevron
-const HEAD_SPREAD = 0.42 // demi-ouverture, en radians
+const HEAD = 8 // longueur du triangle (apex → base)
+const HEAD_HALF = 3.6 // demi-largeur de la base
 const DOT_R = 2
 
-// En mode flèche, la fuyante s'arrête à `END_GAP` et porte un chevron orienté dans
-// l'axe du DERNIER segment (le coude). Le survol ne change QUE la couleur (classe
-// `--on`) : ni prolongement jusqu'à la balise ni point terminal. Segment final trop
-// court pour loger le retrait : on pose un point plutôt qu'un moignon.
+// En mode flèche, la fuyante s'arrête à `END_GAP` et porte un TRIANGLE plein orienté
+// dans l'axe du DERNIER segment (le coude) : apex à la pointe, base PLATE
+// perpendiculaire. Le trait s'arrête au CENTRE de la base (pas à l'apex) — sinon la
+// pointe ronde du trait débordait le triangle et biseautait la pointe. Le survol ne
+// change QUE la couleur (classe `--on`). Segment final trop court pour loger le
+// retrait : on pose un point plutôt qu'un moignon.
 const shapes = computed(() =>
   props.leaders.map((l) => {
     const on = props.hovered != null && props.hovered === l.key
@@ -54,13 +56,18 @@ const shapes = computed(() =>
       return { ...l, on, body: bodyTo(l.x2, l.y2), head: null, dot: props.mode !== 'plain' }
     }
     const a = Math.atan2(dy, dx)
-    const x2 = l.x2 - Math.cos(a) * END_GAP
-    const y2 = l.y2 - Math.sin(a) * END_GAP
-    const branch = (da) => `${x2 - Math.cos(a + da) * HEAD},${y2 - Math.sin(a + da) * HEAD}`
+    const cos = Math.cos(a), sin = Math.sin(a)
+    const tipX = l.x2 - cos * END_GAP // apex, retiré de END_GAP du but
+    const tipY = l.y2 - sin * END_GAP
+    const baseX = tipX - cos * HEAD // centre de la base, en retrait de l'apex
+    const baseY = tipY - sin * HEAD
+    const nx = -sin, ny = cos // perpendiculaire unitaire → coins de la base
+    const c1 = `${baseX + nx * HEAD_HALF},${baseY + ny * HEAD_HALF}`
+    const c2 = `${baseX - nx * HEAD_HALF},${baseY - ny * HEAD_HALF}`
     return {
-      ...l, on, x2, y2, dot: false,
-      body: bodyTo(x2, y2),
-      head: `${branch(-HEAD_SPREAD)} ${x2},${y2} ${branch(HEAD_SPREAD)}`,
+      ...l, on, x2: tipX, y2: tipY, dot: false,
+      body: bodyTo(baseX, baseY), // le trait meurt sous la base, jamais à la pointe
+      head: `${c1} ${tipX},${tipY} ${c2}`,
     }
   }),
 )
@@ -79,18 +86,17 @@ const shapes = computed(() =>
 
 .fc-lead polyline {
   fill: none;
-  stroke: var(--c-ink2);
+  /* Encre CLAIRE (ink2 fortement dilué) : la fuyante guide l'œil sans peser. */
+  stroke: color-mix(in srgb, var(--c-ink2) 42%, transparent);
   stroke-width: 2;
   stroke-linecap: round;
   stroke-linejoin: round;
-  opacity: var(--op-muted);
 }
 
 /* Pointe = triangle PLEIN (polygon fermé) : même encre que le corps. */
 .fc-lead__head,
 .fc-lead circle {
-  fill: var(--c-ink2);
-  opacity: var(--op-muted);
+  fill: color-mix(in srgb, var(--c-ink2) 42%, transparent);
 }
 
 /* Fuyante de la row survolée : encre pleine, accent (corps + pointe). */
