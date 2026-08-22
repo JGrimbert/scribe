@@ -6,7 +6,7 @@
        trait en biais vers la balise exacte. -->
   <svg class="fc-leads" :width="box.w" :height="box.h" aria-hidden="true">
     <g v-for="l in shapes" :key="l.key" class="fc-lead" :class="{ 'fc-lead--on': l.on }">
-      <polyline :points="l.body" />
+      <polyline :points="l.body" :class="{ 'fc-lead--break': presentationConfig?.value?.breakFuyantesAtGutter }" />
       <polygon v-if="l.head" class="fc-lead__head" :points="l.head" />
       <circle v-if="l.dot" :cx="l.x2" :cy="l.y2" :r="DOT_R" />
     </g>
@@ -15,6 +15,8 @@
 
 <script setup>
 import { computed } from 'vue'
+const presentationConfig = inject('presentationConfig', null)
+
 
 const props = defineProps({
   // [{ key, x1, y1, xm, x2, y2 }] en coords LOCALES de l'hôte : (x1,y1) = point

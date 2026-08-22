@@ -171,6 +171,7 @@ import MaquetteRecalReport from './MaquetteRecalReport.vue'
 import FolioView from '../editor/FolioView.vue'
 import MaquetteAnalyseScene from './MaquetteAnalyseScene.vue'
 import MaquetteValidationScene from './MaquetteValidationScene.vue'
+import MaquetteTornPreview from './MaquetteTornPreview.vue'
 import PageDiagram from '../config/PageDiagram.vue'
 import StyleEditorPanel from '../config/StyleEditorPanel.vue'
 import RecalibrationModal from '../config/RecalibrationModal.vue'
@@ -190,6 +191,7 @@ import { useChapitrageModel } from '../../composables/useChapitrageModel'
 import { useMaquetteFolio } from '../../composables/useMaquetteFolio'
 import { useMaquetteSlide } from '../../composables/useMaquetteSlide'
 import { useMaquetteRoute } from '../../composables/useMaquetteRoute'
+import { usePresentationMode } from '../../composables/usePresentationMode'
 
 const route = useRoute()
 
@@ -280,6 +282,9 @@ const {
   parts, focusSeries, onAsideWheel, selectNode,
   limStart, limFocused, setLimFocused, limFocusedSpread,
 } = useMaquetteFilm({ layers, limSpreads, chapSections, bookTitle, trame })
+
+const { presentationMode, availableModes, showPresentationSelect, presentationConfig, setPresentationMode } = 
+  usePresentationMode({ focusedSourceKey })
 
 // Jalons du sommaire pour la nav : Format · Liminaire (dépliable → pages) · dossier
 // Chapitrage (dépliable → une page par niveau, « Chapitrage n°x ») · Annotations.
@@ -429,6 +434,7 @@ provide('maq', {
   searchLayout, resultPage, resultPageCount, stepResultPage,
   analyseLeft, analyseColumn, isCloudView, analyseCards, focusedLayer,
   geometryStale,
+  presentationMode, availableModes, showPresentationSelect, presentationConfig, setPresentationMode,
 })
 </script>
 

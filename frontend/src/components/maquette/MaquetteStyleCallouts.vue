@@ -6,7 +6,7 @@
        « exigé » (chapitrage). Les mutations passent par la typologie injectée
        (stylePrecedence / openStyleEditor / toggleRequireStyle) et le v-model de
        styleRoles ; l'aside garde sa table en parallèle. -->
-  <div ref="rootRef" class="lc">
+  <div ref="rootRef" class="lc" :class="calloutClasses">
     <FcLeaders :leaders="leaders" :box="box" :hovered="hovered" />
 
     <!-- Deux colonnes : chaque style se pose du côté de la balise qu'il vise (rail
@@ -42,6 +42,8 @@ import FcStyleRow from './callouts/FcStyleRow.vue'
 import FcLeaders from './callouts/FcLeaders.vue'
 import './callouts/callouts.css'
 import { useCalloutRig } from '../../composables/useCalloutRig'
+const presentationConfig = inject('presentationConfig', null)
+
 
 const props = defineProps({
   // { pages: [{left,top,width,height}] } (coords écran) émis par FolioView.
@@ -167,6 +169,14 @@ function buildStyleLeaders({ o, rowCenterY }) {
   }
   return next
 }
+
+
+// Classes dynamiques basées sur presentationConfig
+const calloutClasses = computed(() => ({
+  'lc--break-gutter': presentationConfig?.value?.breakFuyantesAtGutter,
+  'lc--dotted-borders': presentationConfig?.value?.dottedBorders,
+  'lc--font-hover': presentationConfig?.value?.hoverEffect === 'font-color-only',
+}))
 </script>
 
 <style scoped>

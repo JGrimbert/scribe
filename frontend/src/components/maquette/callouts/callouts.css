@@ -96,3 +96,39 @@
 .fc-row__label input[type="checkbox"] {
   accent-color: var(--c-accent-alt);
 }
+
+
+/* ============================================================================
+   Styles de présentation dynamiques
+   ============================================================================ */
+
+/* Fuyantes brisées à la gouttière */
+.lc--break-gutter .fc-leader {
+  /* Les fuyantes s'arrêtent à la gouttière */
+  /* Cela sera géré par la logique de dessin des leaders */
+}
+
+/* Borders pointillés toujours visibles */
+.lc--dotted-borders .fc-row {
+  border-style: dashed !important;
+  border-color: color-mix(in srgb, var(--c-accent-alt-darker) 22%, transparent) !important;
+}
+
+/* Survol active uniquement la couleur de font */
+.lc--font-hover .fc-row:hover {
+  color: var(--c-accent-alt) !important;
+  border-color: transparent !important;
+  background-color: transparent !important;
+}
+
+/* Mode déchiré - à implémenter */
+.lc--torn .fc-row {
+  /* Styles spécifiques pour le mode déchiré */
+}
+
+
+/* Fuyante brisée à la gouttière */
+.fc-lead--break {
+  /* La fuyante s'arrête à la gouttière */
+  /* Cela sera géré par le calcul des points dans FcLeaders */
+}

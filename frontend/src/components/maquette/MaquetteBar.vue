@@ -73,6 +73,10 @@ const props = defineProps({
   // entre et on en sort à la molette. La barre ne fait que viser ce cran
   // (`focus-search` au focus du champ, `exit-search` sur Échap).
   searching: { type: Boolean, default: false },
+  // Présentation
+  presentationMode: { type: String, default: 'default' },
+  availableModes: { type: Array, default: () => [] },
+  showPresentationSelect: { type: Boolean, default: false },
 })
 
 // `update:query` : la maquette en fait ses résultats (la planche qui remplace
@@ -80,6 +84,7 @@ const props = defineProps({
 // flux).
 const emit = defineEmits([
   'update:zoom', 'update:query', 'validate', 'recalibrate', 'focus-search', 'exit-search',
+  'update:presentationMode',
 ])
 
 const NO_SOURCE_HINT =
@@ -265,6 +270,13 @@ onUnmounted(() => document.removeEventListener('keydown', onDocKeydown))
 }
 
 .maq-bar__zoom {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.maq-bar__presentation {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
