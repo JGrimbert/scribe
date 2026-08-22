@@ -96,7 +96,41 @@
                 'folio-stage--viz': isChapitrage && presentationMode === 'visualization',
               }"
           >
-            <div class="folio-col">
+            <div v-if="isChapitrage && presentationMode === 'visualization'" class="folio-col folio-col--viz">
+              <MaquetteVisualizationOverlay
+                  :presentation-mode="presentationMode"
+                  :visible-styles="visibleStylesOnPage1"
+                  :chapitre-styles="allChapitreStyles"
+              >
+                <template #folio>
+                  <div class="folio-slider">
+                    <div
+                        v-for="slot in ['a', 'b']"
+                        :key="slot"
+                        class="folio-slot"
+                        :style="shiftStyle(slot)"
+                    >
+                      <FolioView
+                          v-if="bundleFor(slot)"
+                          class="maq-folio"
+                          mode="spread"
+                          bg-scope="local"
+                          v-bind="bundleFor(slot)"
+                          :data="documentData"
+                          :visuals="effectiveVisuals"
+                          :emit-token="emitToken"
+                          @step="(d) => onSlotStep(slot, d)"
+                          @paginated="onSlotPaginated(slot)"
+                          @spread-geometry="(g) => onSlotSpread(slot, g)"
+                          @block-geometry="(g) => onSlotBlock(slot, g)"
+                          @style-geometry="(g) => onSlotStyle(slot, g)"
+                      />
+                    </div>
+                  </div>
+                </template>
+              </MaquetteVisualizationOverlay>
+            </div>
+            <div v-else class="folio-col">
               <div class="folio-slider">
                 <div
                     v-for="slot in ['a', 'b']"
@@ -163,6 +197,7 @@ import MaquetteAnalyseCell from './MaquetteAnalyseCell.vue'
 import MaquetteStructureNav from './MaquetteStructureNav.vue'
 import MaquetteBar from './MaquetteBar.vue'
 import MaquetteRecalReport from './MaquetteRecalReport.vue'
+import MaquetteVisualizationOverlay from './MaquetteVisualizationOverlay.vue'
 import FolioView from '../editor/FolioView.vue'
 import MaquetteAnalyseScene from './MaquetteAnalyseScene.vue'
 import MaquetteValidationScene from './MaquetteValidationScene.vue'
@@ -331,6 +366,17 @@ const ZOOMS = [1, 2, 3, 4, 6]
 const zoom = ref(1)
 const presentationMode = ref('standard')
 
+// Styles du chapitre actif et visible sur page 1
+const allChapitreStyles = computed(() => {
+  const section = documentData?.[mainNodeId.value]
+  return section?.styles?.map((s) => s.key) ?? []
+})
+
+const visibleStylesOnPage1 = computed(() => {
+  const keys = Object.keys(styleGeometry.value || {})
+  return keys.filter((key) => styleGeometry.value[key] != null)
+})
+
 const spreadSpanPeriods = computed(() => 2 * zoom.value + 2)
 const folioVisiblePages = computed(() =>
   pouring.value ? spreadSpanPeriods.value / pourPeriodRatio.value : 2 * zoom.value,
@@ -494,6 +540,12 @@ provide('maq', {
   flex: 1 1 auto;
   min-width: 0;
   min-height: 0;
+}
+
+/* Mode visualisation : layout grille 2 colonnes -->
+.folio-col--viz {
+  overflow: auto;
+  padding: var(--sp-3);
 }
 
 .maq-format-cell {
