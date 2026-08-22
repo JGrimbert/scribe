@@ -7,12 +7,15 @@
         :validating="validating"
         :recalibratable="recalibratable"
         :searching="searching"
+        :is-chapitrage="isChapitrage"
+        :presentation-mode="presentationMode"
         @validate="toggleValidation"
         @recalibrate="startRecalibration"
         @update:zoom="zoom = $event"
         @focus-search="enterSearch"
         @exit-search="exitSearch"
         @update:query="onQuery"
+        @update:presentation-mode="presentationMode = $event"
     />
 
     <RecalibrationModal
@@ -90,13 +93,44 @@
               :class="{
                 'folio-stage--lim': isLiminaire,
                 'folio-stage--search': searchLayout,
+                'folio-stage--viz': isChapitrage && presentationMode === 'visualization',
               }"
           >
-            <div class="folio-col">
-              <!-- Slide à deux planches : deux slots A/B (ping-pong). Le slot vivant porte
-                   la vue courante ; l'autre, pendant une bascule, la vue sortante figée.
-                   Chaque FolioView a sa trame en `bg-scope="local"` (bornée à la planche,
-                   sinon deux trames `fixed` se peindraient sur toute la fenêtre). -->
+            <div v-if="isChapitrage && presentationMode === 'visualization'" class="folio-col folio-col--viz">
+              <MaquetteVisualizationOverlay
+                  :presentation-mode="presentationMode"
+                  :visible-styles="visibleStylesOnPage1"
+                  :chapitre-styles="allChapitreStyles"
+              >
+                <template #folio>
+                  <div class="folio-slider">
+                    <div
+                        v-for="slot in ['a', 'b']"
+                        :key="slot"
+                        class="folio-slot"
+                        :style="shiftStyle(slot)"
+                    >
+                      <FolioView
+                          v-if="bundleFor(slot)"
+                          class="maq-folio"
+                          mode="spread"
+                          bg-scope="local"
+                          v-bind="bundleFor(slot)"
+                          :data="documentData"
+                          :visuals="effectiveVisuals"
+                          :emit-token="emitToken"
+                          @step="(d) => onSlotStep(slot, d)"
+                          @paginated="onSlotPaginated(slot)"
+                          @spread-geometry="(g) => onSlotSpread(slot, g)"
+                          @block-geometry="(g) => onSlotBlock(slot, g)"
+                          @style-geometry="(g) => onSlotStyle(slot, g)"
+                      />
+                    </div>
+                  </div>
+                </template>
+              </MaquetteVisualizationOverlay>
+            </div>
+            <div v-else class="folio-col">
               <div class="folio-slider">
                 <div
                     v-for="slot in ['a', 'b']"
@@ -121,9 +155,6 @@
                   />
                 </div>
               </div>
-              <!-- Scènes frag (nuage / validation) : dans la COQUILLE (pas les panes) pour
-                   survivre au routeur et glisser en entrée ET sortie. `fragScene` donne la
-                   scène à montrer (vivante, sinon sortante figée) + son transform. -->
               <template v-if="fragScene">
                 <MaquetteAnalyseScene
                     v-if="fragScene.scene.kind === 'analyse'"
@@ -156,8 +187,6 @@
 </template>
 
 <script setup>
-// Coquille : injecte l'état document, instancie les composables et les câble au
-// template + au modèle partagé des panes (provide('maq')). Aucune logique métier ici.
 import { ref, computed, inject, provide, onMounted, onUnmounted, watchEffect } from 'vue'
 import { useRoute } from 'vue-router'
 import MaquetteAccordeon from './MaquetteAccordeon.vue'
@@ -168,6 +197,7 @@ import MaquetteAnalyseCell from './MaquetteAnalyseCell.vue'
 import MaquetteStructureNav from './MaquetteStructureNav.vue'
 import MaquetteBar from './MaquetteBar.vue'
 import MaquetteRecalReport from './MaquetteRecalReport.vue'
+import MaquetteVisualizationOverlay from './MaquetteVisualizationOverlay.vue'
 import FolioView from '../editor/FolioView.vue'
 import MaquetteAnalyseScene from './MaquetteAnalyseScene.vue'
 import MaquetteValidationScene from './MaquetteValidationScene.vue'
@@ -214,7 +244,6 @@ onMounted(() => { if (route.params.id) load(route.params.id) })
 const bookTitle = computed(() => documentTitle?.value ?? '')
 const fmtPage = computed(() => documentPageOdt?.value ?? null)
 
-// Injections attendues par StyleRolesTable / StyleEditorPanel (copiées de ConfigView).
 const editingStyle = ref(null)
 provide('openStyleEditor', (name) => { editingStyle.value = name })
 provide('styleOverrides', styleOverrides)
@@ -237,8 +266,6 @@ const {
   startRecalibration, closeRecal, finishCommit,
 } = useRecalibration({ docId, borderShift: limBorderShift })
 
-// hasSource absent (import avant DocumentSource) → recalibrage barré ; le 404 backend
-// reste le filet le temps que le registre charge.
 const currentDoc = computed(() => documents.value.find((d) => d.id === route.params.id) ?? null)
 const recalibratable = computed(() => currentDoc.value?.hasSource !== false)
 
@@ -249,14 +276,10 @@ async function onRecalCommitted(summary) {
   await load(route.params.id)
 }
 
-// Révélation DANS le setup (pas au montage) : la liste des calques en dépend et doit
-// être arrêtée avant qu'on ne pose le cran focusé.
 const { isRevealed, revealAll } = useAnalyse()
 revealAll()
 const layers = computed(() => analyseLayers(isRevealed))
 
-// Le focus liminaire vit dans useMaquetteFilm : les sorties focus-dépendantes de la
-// composition ne sont pas consommées ici, d'où le getter neutre.
 const {
   spreads: limSpreads, types: limTypes, suggestions: limSuggestions, onSetType: limSetType,
 } = useLiminaireComposition({
@@ -266,7 +289,6 @@ const {
   focused: () => 0,
 })
 
-// Calculé en amont du film (il en construit ses crans) et lu par useChapitrageModel.
 const chapSections = computed(() =>
   sections.value
     .filter((s) => s.depthKey !== null)
@@ -281,8 +303,6 @@ const {
   limStart, limFocused, setLimFocused, limFocusedSpread,
 } = useMaquetteFilm({ layers, limSpreads, chapSections, bookTitle, trame })
 
-// Jalons du sommaire pour la nav : Format · Liminaire (dépliable → pages) · dossier
-// Chapitrage (dépliable → une page par niveau, « Chapitrage n°x ») · Annotations.
 const navGroups = computed(() => {
   const out = []
   parts.value.forEach((p) => {
@@ -342,25 +362,26 @@ const {
   statItems, modelNodeId, focusedSection, limFocused, focused,
 })
 
-// Réglage permanent : ×1 = planche d'ouverture (2 pages), ×3 = 6 pages de large. Seul
-// réglage de `visible-pages` (le faire varier par cran figeait l'échelle en recherche).
 const ZOOMS = [1, 2, 3, 4, 6]
 const zoom = ref(1)
-// Empan réservé aux vues à vis-à-vis : 2 pages (2·zoom) + 2 rails (side-rails=1) =
-// 2·zoom + 2 périodes-livre. C'est lui qui fixe l'échelle (px/cm).
+const presentationMode = ref('standard')
+
+// Styles du chapitre actif et visible sur page 1
+const allChapitreStyles = computed(() => {
+  const section = documentData?.[mainNodeId.value]
+  return section?.styles?.map((s) => s.key) ?? []
+})
+
+const visibleStylesOnPage1 = computed(() => {
+  const keys = Object.keys(styleGeometry.value || {})
+  return keys.filter((key) => styleGeometry.value[key] != null)
+})
+
 const spreadSpanPeriods = computed(() => 2 * zoom.value + 2)
-// En pouring (lambeaux) : on réserve le MÊME empan, mais compté en périodes de la page
-// LARGE (side-rails=0, ferrage à gauche) → l'échelle reste CALIBRÉE sur celle de Format
-// au lieu de laisser la page grossir jusqu'à remplir la hauteur.
 const folioVisiblePages = computed(() =>
   pouring.value ? spreadSpanPeriods.value / pourPeriodRatio.value : 2 * zoom.value,
 )
 
-// La vue COURANTE en un objet `{ bundle, scene }` — l'unité que le slide fige pour la
-// planche + scène SORTANTES (cf. useMaquetteSlide). `bundle` = props FolioView ; `scene` =
-// ce dont l'aside frag a besoin (kind + isCloudView), figé pour glisser dehors avec son
-// contenu. `data`/`visuals` (le document entier, identique d'une vue à l'autre) et
-// `emit-token` restent passés à part.
 const liveView = computed(() => ({
   bundle: {
     visiblePages: folioVisiblePages.value,
@@ -380,12 +401,11 @@ const liveView = computed(() => ({
     runningTitles: pouring.value ? null : previewRunningTitles.value,
     bookTitle: pouring.value ? '' : bookTitle.value,
     highlightStyle: hoveredStyle.value,
+    presentationMode: isChapitrage.value ? presentationMode.value : 'standard',
   },
   scene: {
     kind: searching.value ? 'analyse' : (focusedSourceKey.value === 'validation' ? 'validation' : null),
     isCloudView: isCloudView.value,
-    // Ancrage horizontal FIGÉ avec la vue : la scène sortante garde sa colonne pendant
-    // qu'elle glisse dehors (sinon elle prendrait l'analyseLeft de la vue entrante).
     analyseLeft: analyseLeft.value,
     analyseColumn: analyseColumn.value,
   },
@@ -395,8 +415,6 @@ const { liveSlot, bundleFor, onSlotPaginated, shiftStyle, emitToken, fragScene }
   focused, liveView, markSettled: onPaginated,
 })
 
-// Les événements de géométrie ne comptent que pour la planche VIVANTE (la figée sortante
-// est ignorée : sa géométrie est périmée / hors écran).
 const onSlotStep = (slot, d) => { if (slot === liveSlot.value) stepResultPage(d) }
 const onSlotSpread = (slot, g) => { if (slot === liveSlot.value) onSpreadGeometry(g) }
 const onSlotBlock = (slot, g) => { if (slot === liveSlot.value) blockGeometry.value = g }
@@ -428,14 +446,11 @@ provide('maq', {
   annotationsLayout, annotationCharCounts, mutedColors, toggleMutedColor,
   searchLayout, resultPage, resultPageCount, stepResultPage,
   analyseLeft, analyseColumn, isCloudView, analyseCards, focusedLayer,
-  geometryStale,
+  geometryStale, presentationMode,
 })
 </script>
 
 <style scoped>
-/* Rangée : colonne gauche (aperçu + dock, sous la doc-bar) · sommaire flottant. La
-   page ne scrolle pas globalement. Les customs vars sont hissées ici pour être vues à
-   la fois par la colonne gauche et par le volet groupes ferré au viewport. */
 .maquette {
   --maq-gutter: 15em;
   --maq-dock-h: 11.8em;
@@ -448,10 +463,6 @@ provide('maq', {
   overflow: hidden;
 }
 
-/* Ombre PORTÉE sur le fond par la barre — récepteur « loin » : bande profonde,
-   sombre, sous la barre et À DROITE du sommaire (left: gouttière). Le sommaire
-   (z 160) la recouvre à gauche avec son propre liseré clair (.maq-nav::before) →
-   gauche = proche/clair, droite = loin/sombre. Sous la barre (z 170) et sous nav. */
 .maquette::before {
   content: '';
   position: absolute;
@@ -468,16 +479,12 @@ provide('maq', {
   );
 }
 
-/* Le dock flotte au bord gauche (pied du sommaire), pas ici : l'aperçu ne lui réserve
-   plus de bande, il prend toute la hauteur et se retire de la gouttière du sommaire. */
 .maquette__left {
   flex: 2 1 0;
   min-width: 0;
   display: flex;
   flex-direction: column;
   min-height: 0;
-  /*padding-top: calc(2 * var(--bar-size) + 1em);*/
-  /*padding-left: var(--maq-gutter);*/
   padding-bottom: 5em;
 }
 
@@ -497,9 +504,6 @@ provide('maq', {
   padding-top: 1em;
 }
 
-/* Slider du slide à deux planches : conteneur de référence des deux slots (absolus,
-   plein cadre). `overflow: hidden` borne les planches à la scène → la planche entrante
-   glisse depuis le bord au lieu de déborder. */
 .folio-slider {
   position: relative;
   flex: 1 1 auto;
@@ -507,12 +511,6 @@ provide('maq', {
   overflow: hidden;
 }
 
-/* Un slot = une planche, décalée par son propre transform (cf. shiftStyle). Colonne flex
-   pour donner sa hauteur à la FolioView (flex:1). `.maquette__left` a perdu ses
-   `padding-top`/`padding-left` (barres + sommaire passés en overlay opaque+blur) — on les
-   répercute ICI en réservant le haut (barres) et la gauche (sommaire) : l'échelle du folio
-   rétrécit d'autant et la planche garde sa position finale, sans passer sous les barres/le
-   sommaire. */
 .folio-slot {
   position: absolute;
   top: calc(2 * var(--bar-size) + 1em);
@@ -528,8 +526,6 @@ provide('maq', {
   min-height: 0;
 }
 
-/* Scène du FolioView unique : repère de l'overlay absolu des contrôles liminaire
-   (montés par le pane routé). Hauteur bornée iso pour toutes les sources → échelle iso. */
 .folio-stage {
   position: relative;
   display: flex;
@@ -546,7 +542,12 @@ provide('maq', {
   min-height: 0;
 }
 
-/* Aperçu de page dans la cellule d'accordéon : ajusté sur la hauteur du cran. */
+/* Mode visualisation : layout grille 2 colonnes -->
+.folio-col--viz {
+  overflow: auto;
+  padding: var(--sp-3);
+}
+
 .maq-format-cell {
   height: 100%;
   margin: 0;
@@ -557,5 +558,4 @@ provide('maq', {
   width: auto;
   max-width: none;
 }
-
 </style>
