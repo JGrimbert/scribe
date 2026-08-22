@@ -190,6 +190,7 @@ import { useChapitrageModel } from '../../composables/useChapitrageModel'
 import { useMaquetteFolio } from '../../composables/useMaquetteFolio'
 import { useMaquetteSlide } from '../../composables/useMaquetteSlide'
 import { useMaquetteRoute } from '../../composables/useMaquetteRoute'
+import { usePresentationMode } from '../../composables/usePresentationMode'
 
 const route = useRoute()
 
@@ -280,6 +281,9 @@ const {
   parts, focusSeries, onAsideWheel, selectNode,
   limStart, limFocused, setLimFocused, limFocusedSpread,
 } = useMaquetteFilm({ layers, limSpreads, chapSections, bookTitle, trame })
+
+const { presentationMode, availableModes, showPresentationSelect, presentationConfig, setPresentationMode } = 
+  usePresentationMode({ focusedSourceKey })
 
 // Jalons du sommaire pour la nav : Format · Liminaire (dépliable → pages) · dossier
 // Chapitrage (dépliable → une page par niveau, « Chapitrage n°x ») · Annotations.
@@ -417,7 +421,7 @@ watchEffect(() => {
 onUnmounted(() => { if (barAction) barAction.value = null })
 
 provide('maq', {
-  fmtPage, styleDefaults, spreadGeometry,
+  fmtPage, styleDefaults, spreadGeometry, presentationConfig,
   styleGeometry, blockGeometry, styles, limSpreadStyles, limFocusedSpread,
   limTypes, limSuggestions, liminaireConfig, limFocused, limSpreads,
   limSetType, setLimFocused, setHoveredStyle,
