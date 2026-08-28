@@ -192,6 +192,10 @@ export function renderTexteEntry(entry) {
             .join('')
         return `<${tag}>${items}</${tag}>`
     }
+    // Passe-plat HTML : une entrée d'imposition qui porte déjà son balisage (l'aperçu
+    // déchiré injecte une feuille multi-blocs, non emballable dans un <p>). Aucun autre
+    // chemin n'émet type:'html'.
+    if (entry.type === 'html') return entry.text
     return `<p>${entry.text}</p>`
 }
 

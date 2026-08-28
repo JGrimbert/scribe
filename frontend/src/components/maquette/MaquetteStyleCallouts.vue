@@ -110,15 +110,20 @@ const { rootRef, origin, box, baseGeo, leaders, setRow } = useCalloutRig({
   ],
 })
 
-// Repères de la planche dérivés du socle : ici on n'ajoute que la frontière `midX`.
+// Repères de la planche dérivés du socle : frontière `midX` + points de COUDE des
+// fuyantes (comme Format : brisées au milieu de la gouttière extérieure du côté visé).
 const geo = computed(() => {
   const b = baseGeo.value
   if (!b) return null
-  const { recto, verso, railPad, top, leftRailX, railX } = b
+  const { recto, verso, gut, railPad, top, leftRailX, railX } = b
   return {
     leftRailX, railX, top, railPad,
     // Frontière gouttière : arbitre le côté de chaque style (fuyante non traversante).
     midX: (recto.right + verso.left) / 2,
+    // Coude des fuyantes : milieu de la gouttière EXTÉRIEURE (entre bord de page et
+    // rail), fixe quel que soit le recul des piles — harmonisé avec MaquetteFormatCallouts.
+    gutMidLeft: recto.left - gut / 2,
+    gutMidRight: verso.right + gut / 2,
   }
 })
 
@@ -161,9 +166,10 @@ function buildStyleLeaders({ o, rowCenterY }) {
     if (!rect) continue
     const onLeft = (rect.left - o.left + rect.width / 2) < g.midX
     const x1 = onLeft ? g.leftRailX : g.railX
+    const xm = onLeft ? g.gutMidLeft : g.gutMidRight
     const x2 = onLeft ? (rect.left - o.left) : (rect.left - o.left + rect.width)
     const y2 = rect.top - o.top + rect.height / 2
-    next.push({ key: style.name, x1, y1: cy, x2, y2 })
+    next.push({ key: style.name, x1, y1: cy, xm, x2, y2 })
   }
   return next
 }

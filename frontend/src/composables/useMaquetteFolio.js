@@ -7,6 +7,7 @@ export function useMaquetteFolio({
   fmtPage, styleDefaults, searching, focusedSourceKey, isFormat, isLiminaire,
   limFocusedSpread, pouring, pageFragments, activeNeedle, pourTitle, resultOffset,
   statItems, modelNodeId, focusedSection, limFocused, focused,
+  tornActive, tornPages,
 }) {
   const spreadGeometry = ref(null)
   const blockGeometry = ref([])
@@ -57,7 +58,9 @@ export function useMaquetteFolio({
   const POUR_WIDTH_FACTOR = 4 / 3
   const mainPage = computed(() => {
     const p = previewPage.value
-    if (!pouring.value || !p?.widthCm) return p
+    // L'aperçu déchiré garde la LARGEUR livre (feuilles fidèles, échelle lisible) ; seuls
+    // les lambeaux de recherche/annotations élargissent la page.
+    if (!pouring.value || tornActive?.value || !p?.widthCm) return p
     return { ...p, widthCm: p.widthCm * POUR_WIDTH_FACTOR }
   })
   const previewMargins = computed(() => ({ ...effectiveMargins(fmtPage.value, styleDefaults.pageMargins) }))
@@ -90,6 +93,9 @@ export function useMaquetteFolio({
   })
 
   const mainSpreadPages = computed(() => {
+    // Aperçu déchiré : ses pages fidèles priment (elles n'ont pas de statut ni de
+    // pagination amont — un lambeau par page, molette pour défiler).
+    if (tornActive?.value) return tornPages.value
     if (pouring.value) {
       return fragmentPages(pageFragments.value, activeNeedle.value, {
         status: pourTitle.value,
@@ -110,7 +116,7 @@ export function useMaquetteFolio({
   // Périmer le rendu à toute nav qui change ce que rend la planche. PAS le zoom (glisse
   // sans changer le contenu), ni la pagination des résultats, ni les réglages de format.
   watch(
-    () => [focusedSourceKey.value, limFocused.value, mainNodeId.value, mainDepth.value],
+    () => [focusedSourceKey.value, limFocused.value, mainNodeId.value, mainDepth.value, tornActive?.value],
     () => { contentFresh.value = false },
   )
 

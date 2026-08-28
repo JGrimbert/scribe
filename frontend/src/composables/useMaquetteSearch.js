@@ -2,10 +2,17 @@ import { ref, computed, watch, onUnmounted } from 'vue'
 import { useDocSearch } from './useDocSearch'
 import { useAnnotations } from './useAnnotations'
 
-// Versage en lambeaux du folio persistant, pour deux sources : recherche (jalon de
-// tête) et annotations (dernier jalon). Seul le rendu folio est mutualisé (cf.
-// useMaquetteFolio) ; le contenu/pagination vit ici.
-export function useMaquetteSearch({ searching, focusedSourceKey, highlights }) {
+// Versage en lambeaux du folio persistant, pour trois sources : recherche (jalon de
+// tête), annotations (dernier jalon) et « aperçu déchiré » (présentation torn de
+// Liminaire/Chapitrage — un lambeau par style/genre du nœud, cf. tornFragments). Seul le
+// rendu folio est mutualisé (cf. useMaquetteFolio) ; le contenu/pagination vit ici.
+export function useMaquetteSearch({
+  searching, focusedSourceKey, highlights,
+  // « Aperçu déchiré » (Liminaire/Chapitrage) : coule aussi en lambeaux, mais son
+  // CONTENU (pages d'imposition fidèles) est construit à part (cf. tornFragments) et
+  // court-circuite mainSpreadPages ; ici on ne partage QUE l'état pouring.
+  tornActive = computed(() => false),
+}) {
   // Saisie débouncée : chaque changement repagine l'iframe (plusieurs dizaines de ms).
   const searchQuery = ref('')
   const QUERY_DEBOUNCE = 220
@@ -30,7 +37,7 @@ export function useMaquetteSearch({ searching, focusedSourceKey, highlights }) {
   }
   const shownPassages = computed(() => annotationPassages.value.filter((p) => !mutedColors.value.includes(p.color)))
 
-  const pouring = computed(() => searching.value || focusedSourceKey.value === 'validation')
+  const pouring = computed(() => searching.value || focusedSourceKey.value === 'validation' || tornActive.value)
   const activeFragments = computed(() => (searching.value ? searchFragments.value : shownPassages.value))
   const activeTotal = computed(() => (searching.value ? searchTotal.value : shownPassages.value.length))
   const activeNeedle = computed(() => (searching.value ? searchQuery.value : ''))

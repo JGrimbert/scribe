@@ -42,6 +42,16 @@
       <span>Redéfinir les bornes</span>
     </button>
 
+    <label v-if="showPresentationSelect" class="maq-bar__presentation">
+      <span>Présentation</span>
+      <BaseSelect
+          :model-value="presentationMode"
+          @update:model-value="$emit('update:presentationMode', $event)"
+      >
+        <option v-for="m in availableModes" :key="m.value" :value="m.value">{{ m.label }}</option>
+      </BaseSelect>
+    </label>
+
     <label class="maq-bar__zoom">
       <span>Dézoom</span>
 
@@ -73,13 +83,19 @@ const props = defineProps({
   // entre et on en sort à la molette. La barre ne fait que viser ce cran
   // (`focus-search` au focus du champ, `exit-search` sur Échap).
   searching: { type: Boolean, default: false },
+  // Présentation des callouts de styles (Liminaire/Chapitrage) — cf.
+  // usePresentationMode. Le sélecteur ne s'affiche que sur ces jalons.
+  presentationMode: { type: String, default: 'default' },
+  availableModes: { type: Array, default: () => [] },
+  showPresentationSelect: { type: Boolean, default: false },
 })
 
 // `update:query` : la maquette en fait ses résultats (la planche qui remplace
 // l'aperçu). `recalibrate` : ouvre la modale de recalibration (l'hôte détient le
 // flux).
 const emit = defineEmits([
-  'update:zoom', 'update:query', 'validate', 'recalibrate', 'focus-search', 'exit-search',
+  'update:zoom', 'update:query', 'update:presentationMode',
+  'validate', 'recalibrate', 'focus-search', 'exit-search',
 ])
 
 const NO_SOURCE_HINT =
@@ -264,7 +280,8 @@ onUnmounted(() => document.removeEventListener('keydown', onDocKeydown))
   cursor: default;
 }
 
-.maq-bar__zoom {
+.maq-bar__zoom,
+.maq-bar__presentation {
   flex: 0 0 auto;
   display: flex;
   align-items: center;

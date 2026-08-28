@@ -7,9 +7,13 @@
         :validating="validating"
         :recalibratable="recalibratable"
         :searching="searching"
+        :presentation-mode="presentationMode"
+        :available-modes="availableModes"
+        :show-presentation-select="showPresentationSelect"
         @validate="toggleValidation"
         @recalibrate="startRecalibration"
         @update:zoom="zoom = $event"
+        @update:presentation-mode="setPresentationMode"
         @focus-search="enterSearch"
         @exit-search="exitSearch"
         @update:query="onQuery"
@@ -190,6 +194,9 @@ import { useChapitrageModel } from '../../composables/useChapitrageModel'
 import { useMaquetteFolio } from '../../composables/useMaquetteFolio'
 import { useMaquetteSlide } from '../../composables/useMaquetteSlide'
 import { useMaquetteRoute } from '../../composables/useMaquetteRoute'
+import { usePresentationMode } from '../../composables/usePresentationMode'
+import { chapitrageTornPages, liminaireTornPages } from '../../script/tornFragments'
+import { effectiveMargins } from '../../script/pageFormats'
 
 const route = useRoute()
 
@@ -281,6 +288,9 @@ const {
   limStart, limFocused, setLimFocused, limFocusedSpread,
 } = useMaquetteFilm({ layers, limSpreads, chapSections, bookTitle, trame })
 
+const { presentationMode, availableModes, showPresentationSelect, setPresentationMode } =
+  usePresentationMode({ focusedSourceKey })
+
 // Jalons du sommaire pour la nav : Format · Liminaire (dépliable → pages) · dossier
 // Chapitrage (dépliable → une page par niveau, « Chapitrage n°x ») · Annotations.
 const navGroups = computed(() => {
@@ -314,11 +324,26 @@ const {
 
 const { statItems } = useDocStats()
 
+// « Aperçu déchiré » : pages d'imposition FIDÈLES (tête titre→1er paragraphe + lambeaux
+// des styles supplémentaires), coulées dans le MÊME FolioView que recherche/annotations.
+// Calculé sans dépendre de styleGeometry (qui, en pouring, ne reflète plus le nœud).
+const tornActive = computed(
+  () => presentationMode.value === 'torn' && (isChapitrage.value || isLiminaire.value),
+)
+// Marges du livre, calculées ici (indépendamment de useMaquetteFolio, appelé APRÈS et qui
+// consomme tornPages) : reportées dans le padding des feuilles déchirées.
+const tornMargins = computed(() => effectiveMargins(fmtPage.value, styleDefaults.pageMargins))
+const tornPages = computed(() => {
+  if (!tornActive.value) return []
+  if (isLiminaire.value) return liminaireTornPages(limSpreads.value, tornMargins.value)
+  return chapitrageTornPages(trame?.value?.axes, documentData?.value, focusedSection.value?.depthKey, tornMargins.value)
+})
+
 const {
   onQuery, pouring, activeNeedle,
   resultPage, resultPageCount, resultOffset, pageFragments, stepResultPage, pourTitle,
   mutedColors, toggleMutedColor, annotationCharCounts,
-} = useMaquetteSearch({ searching, focusedSourceKey, highlights })
+} = useMaquetteSearch({ searching, focusedSourceKey, highlights, tornActive })
 
 const focusedLayer = computed(() => layers.value.find((l) => l.key === focusedCran.value?.analyseKey) ?? null)
 const isCloudView = computed(() => focusedLayer.value?.key === 'vocabulaire')
@@ -340,12 +365,15 @@ const {
   fmtPage, styleDefaults, searching, focusedSourceKey, isFormat, isLiminaire,
   limFocusedSpread, pouring, pageFragments, activeNeedle, pourTitle, resultOffset,
   statItems, modelNodeId, focusedSection, limFocused, focused,
+  tornActive, tornPages,
 })
 
 // Réglage permanent : ×1 = planche d'ouverture (2 pages), ×3 = 6 pages de large. Seul
 // réglage de `visible-pages` (le faire varier par cran figeait l'échelle en recherche).
 const ZOOMS = [1, 2, 3, 4, 6]
 const zoom = ref(1)
+// Marges @page nulles pour l'aperçu déchiré (les feuilles portent les marges en padding).
+const TORN_NO_MARGINS = { topCm: 0, bottomCm: 0, innerCm: 0, outerCm: 0 }
 // Empan réservé aux vues à vis-à-vis : 2 pages (2·zoom) + 2 rails (side-rails=1) =
 // 2·zoom + 2 périodes-livre. C'est lui qui fixe l'échelle (px/cm).
 const spreadSpanPeriods = computed(() => 2 * zoom.value + 2)
@@ -353,7 +381,7 @@ const spreadSpanPeriods = computed(() => 2 * zoom.value + 2)
 // LARGE (side-rails=0, ferrage à gauche) → l'échelle reste CALIBRÉE sur celle de Format
 // au lieu de laisser la page grossir jusqu'à remplir la hauteur.
 const folioVisiblePages = computed(() =>
-  pouring.value ? spreadSpanPeriods.value / pourPeriodRatio.value : 2 * zoom.value,
+  pouring.value && !tornActive.value ? spreadSpanPeriods.value / pourPeriodRatio.value : 2 * zoom.value,
 )
 
 // La vue COURANTE en un objet `{ bundle, scene }` — l'unité que le slide fige pour la
@@ -361,21 +389,31 @@ const folioVisiblePages = computed(() =>
 // ce dont l'aside frag a besoin (kind + isCloudView), figé pour glisser dehors avec son
 // contenu. `data`/`visuals` (le document entier, identique d'une vue à l'autre) et
 // `emit-token` restent passés à part.
-const liveView = computed(() => ({
+const liveView = computed(() => {
+  // `bareLayout` : planche NUE ferrée à gauche et ÉLARGIE (recherche/annotations). Le
+  // torn en est exclu → il garde le VIS-À-VIS de la vue par défaut (page 1 centrée à la
+  // même position, largeur livre, rails). Mais il reste en pages TRANSPARENTES
+  // (`barePages`) : pas de papier blanc, la trame de fond se voit — le morceau déchiré s'y
+  // détache. Seul le contenu diffère (spreadPages = pages déchirées).
+  const bareLayout = pouring.value && !tornActive.value
+  return {
   bundle: {
     visiblePages: folioVisiblePages.value,
-    sideRails: pouring.value ? 0 : 1,
-    spreadAlign: pouring.value ? 'start' : 'center',
+    sideRails: bareLayout ? 0 : 1,
+    spreadAlign: bareLayout ? 'start' : 'center',
     bodyCross: isFormat.value,
     barePages: pouring.value,
-    clampEntries: isLiminaire.value,
-    capPages: isChapitrage.value ? 2 : 0,
+    clampEntries: isLiminaire.value && !pouring.value,
+    capPages: isChapitrage.value && !pouring.value ? 2 : 0,
     wheelPaging: pouring.value,
     spreadPages: mainSpreadPages.value,
     nodeId: mainNodeId.value,
     depth: mainDepth.value,
     page: mainPage.value,
-    margins: previewMargins.value,
+    // Torn : marges @page à 0 → le contenu remplit la page, et les feuilles déchirées
+    // portent elles-mêmes les marges du livre (padding, cf. tornFragments) → chaque
+    // lambeau est un vrai morceau de page, texte encné comme dans le livre.
+    margins: tornActive.value ? TORN_NO_MARGINS : previewMargins.value,
     hyphenation: styleDefaults.hyphenation,
     runningTitles: pouring.value ? null : previewRunningTitles.value,
     bookTitle: pouring.value ? '' : bookTitle.value,
@@ -389,7 +427,8 @@ const liveView = computed(() => ({
     analyseLeft: analyseLeft.value,
     analyseColumn: analyseColumn.value,
   },
-}))
+  }
+})
 
 const { liveSlot, bundleFor, onSlotPaginated, shiftStyle, emitToken, fragScene } = useMaquetteSlide({
   focused, liveView, markSettled: onPaginated,
@@ -417,7 +456,7 @@ watchEffect(() => {
 onUnmounted(() => { if (barAction) barAction.value = null })
 
 provide('maq', {
-  fmtPage, styleDefaults, spreadGeometry,
+  fmtPage, styleDefaults, spreadGeometry, presentationMode,
   styleGeometry, blockGeometry, styles, limSpreadStyles, limFocusedSpread,
   limTypes, limSuggestions, liminaireConfig, limFocused, limSpreads,
   limSetType, setLimFocused, setHoveredStyle,

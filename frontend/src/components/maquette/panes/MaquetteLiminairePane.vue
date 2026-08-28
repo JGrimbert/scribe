@@ -14,7 +14,7 @@
       @hover-style="setHoveredStyle"
   />
 
-  <div class="lim-hover__controls">
+  <div v-if="presentationMode !== 'torn'" class="lim-hover__controls">
     <LiminaireControls
         :geometry="spreadGeometry"
         :block-geometry="blockGeometry"
@@ -39,7 +39,7 @@ const {
   spreadGeometry, styleGeometry, blockGeometry, styles,
   limSpreadStyles, limFocusedSpread, limTypes, limSuggestions,
   liminaireConfig, limFocused, limSpreads,
-  limSetType, setLimFocused, setHoveredStyle, geometryStale,
+  limSetType, setLimFocused, setHoveredStyle, geometryStale, presentationMode,
 } = inject('maq')
 </script>
 
