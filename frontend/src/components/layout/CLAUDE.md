@@ -3,8 +3,8 @@
 `DocumentLayout.vue` : la coquille d'un document ouvert (asides + topbar
 `DocumentBar` + `<router-view>`). Charge `trame`/`data` (`GET /documents/:id`) et
 les distribue ; fournit le store d'analyse (`provideAnalyse`, cf.
-`../analyse/CLAUDE.md`) — monté ici et non dans `AnalyseView` pour que
-`DocumentBar`, présent hors dashboard, y accède.
+`../analyse/CLAUDE.md`) — monté ici, à la racine du document, pour que
+`DocumentBar` et la maquette (cards, CTA) y accèdent.
 
 ## Aside contextuelle — structure
 
@@ -72,8 +72,8 @@ Le vidage reste le défaut pour un vrai changement de document.
 - **Effet des liens (sidebar + fil d'Ariane) selon l'état**, arbitré par
   `select()` dans `DocumentLayout` :
   - **Édition** (route `editor`) : navigation vers l'article (`/noeud/:id`) ; le
-    lien « livre » ramène à la racine analyse.
-  - **Analyse** (route `document`) : pose le **scope** (`scopeNodeId`, fourni via
-    `provide('analyseScopeNodeId')`) sans naviguer. ⚠️ Câblage seul : le recalcul
-    NLP restreint au sous-arbre n'est **pas encore branché** (l'analyse reste
-    globale), chantier suivant.
+    lien « livre » ramène à la racine du document.
+  - **Hors édition** (maquette) : pose le **scope** (`scopeNodeId`, fourni via
+    `provide('analyseScopeNodeId')`) sans naviguer. ⚠️ Largement dormant depuis la
+    suppression du dashboard `AnalyseView` qui le consommait — et le recalcul NLP
+    restreint au sous-arbre n'avait de toute façon jamais été branché.

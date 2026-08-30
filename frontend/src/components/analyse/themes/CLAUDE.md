@@ -11,5 +11,6 @@ Cadre commun `AnalyseBlock` + store `useAnalyse` : cf. `../CLAUDE.md`.
   segments. Complémentaire de la carte UMAP (qui dit quels thèmes se ressemblent,
   jamais lequel ouvre le livre). Croisement pur dans `../../../script/topicFlow.js`
   (testé) — la projection porte un `nodeId`, la trame donne l'ordre.
-- **`EntitiesLeftoverCard`** — entités hors thèmes ; montée **directement par
-  `AnalyseView`** (pas sous `ThemesCard`). `ThemeList`/`ThemeDetail` complètent.
+- **`EntitiesLeftoverCard`** — entités hors thèmes ; card **de premier niveau**
+  (sa propre entrée dans `ANALYSE_CARDS`, pas sous `ThemesCard`).
+  `ThemeList`/`ThemeDetail` complètent.

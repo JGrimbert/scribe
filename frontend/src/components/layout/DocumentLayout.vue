@@ -95,8 +95,9 @@ import { provideAnalyse } from '../../composables/useAnalyse'
 const route = useRoute()
 const router = useRouter()
 
-// Store d'analyse fourni ici (et non dans AnalyseView) : DocumentBar, monté
-// au-dessus du <router-view>, doit pouvoir le consommer pour la checklist.
+// Store d'analyse fourni ici, à la racine du document : DocumentBar (monté
+// au-dessus du <router-view>) et la maquette le consomment pour la checklist et
+// les cards.
 provideAnalyse()
 
 const trame = ref(null)

@@ -59,8 +59,9 @@ consommateur) :
   **maquette** (ex-config). Voir `../components/config/CLAUDE.md`.
 - **`useStructureShapes.js`** — modèles de structure par niveau, traduits en
   rôles contre la typologie en cours d'édition. Voir `../components/config/`.
-- **`useAnalyse.js`** — store du dashboard (`provideAnalyse()` dans la vue,
-  `useAnalyse()` dans les cards). Voir `../components/analyse/CLAUDE.md`.
+- **`useAnalyse.js`** — store d'analyse (`provideAnalyse()` dans `DocumentLayout`,
+  `useAnalyse()` dans les cards et le CTA de `DocumentBar`). Voir
+  `../components/analyse/CLAUDE.md`.
 - **`useLexicalGraph.js`** / **`useCloudFilters.js`** / **`useWordCloud.js`** —
   état des visualisations lexicales (réseau, nuage). Voir `../components/analyse/`.
 - **`useCalloutRig.js`** — socle commun aux overlays de callouts posés SUR la

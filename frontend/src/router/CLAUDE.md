@@ -50,10 +50,13 @@ vues. Routes (`index.js`, `vue-router`) :
     - **Famille de routes** : `DocumentLayout`/`DocumentBar`/`App.vue` testent
       `route.name?.startsWith('maquette')` (aside gauche masquée, libellé « Maquette »,
       champ de recherche cédé au sommaire flottant).
-  - **`analyse` (`document`) — `AnalyseView.vue`** : dashboard d'analyse (grille
-    de cards). Voir `../components/analyse/CLAUDE.md`. Le name reste `document`
-    (scope d'analyse, labels…). **Plus aucune icône du menu n'y mène** — la route
-    subsiste mais on n'y accède qu'en tapant l'URL (choix délibéré).
+  - **`analyse` — SUPPRIMÉE** (2026-08-30). L'écran routé `AnalyseView.vue`
+    (dashboard, ex-name `document`) a été supprimé : ses sections avaient déjà
+    été absorbées par la maquette (crans de recherche, `MaquetteAnalyseScene`,
+    `MaquetteAnnotations`), l'écran n'était plus qu'un doublon détaché du menu. Le
+    dossier `../components/analyse/` **existe encore** (composants partagés + store
+    `useAnalyse`, consommés par la maquette et le CTA de `DocumentBar`), comme
+    `config/` — mais plus de page routée.
   - **`config` et `styles` — REDIRIGENT vers `maquette`.** L'écran de config
     (`ConfigView.vue`) a été **supprimé** (2026-08-05) : styles, règles,
     surlignages, recalibrage vivent désormais dans la maquette (aside + MaquetteBar).

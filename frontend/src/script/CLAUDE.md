@@ -100,11 +100,10 @@ coupure de page interne.
   contre la typologie en cours d'édition (le backend rend des styles, cf.
   `../../../backend/CLAUDE.md`). Le rôle `corps` ne porte jamais son `×N` (bruit
   attendu). Testé (`shapes.test.js`).
-- **`analyseSections.js`** — sections du dashboard d'analyse (clé + libellé +
-  `needs` + `layer`), vocabulaire FERMÉ partagé par `AnalyseView` (qui en rend ses
-  `<section class="analyse-section">`, une par section) et par l'accordéon de
-  recherche de la Maquette (un cran par CALQUE, `analyseLayers` groupant les
-  sections par `layer` et les empilant au scroll). Testé.
+- **`analyseSections.js`** — sections d'analyse (clé + libellé + `needs` + `layer`),
+  vocabulaire FERMÉ consommé par la zone de recherche de la Maquette (un cran par
+  CALQUE, `analyseLayers` groupant les sections par `layer` et les empilant au
+  scroll). Testé.
 - **`trame.js`** — parcours de l'arbre `trame.axes[]` (profondeur arbitraire) :
   `pathToInAxes` (fil d'Ariane), partagé par `DocumentBar` et `StructureView`.
 - **`liminaire-vocab.js`** / **`liminaire-pages.js`** /
@@ -117,7 +116,7 @@ coupure de page interne.
   (`*.test.js` colocalisé).
 - **`format.js`** — formatage d'affichage (tailles, dates, nombres).
 
-## Helpers d'analyse (dashboard)
+## Helpers d'analyse
 
 Consommés par `../components/analyse/` (voir son `CLAUDE.md`) :
 - **`theme.js`** — `cssVar()` : résout un token CSS en valeur calculée pour

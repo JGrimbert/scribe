@@ -5,7 +5,7 @@ import '../../assets/base.css'
 import '../../assets/analyse.css'
 
 // Bloc anomalies : avancement de la rédaction (echarts) + les deux tables qui
-// le détaillent. Store factice injecté (ANALYSE_KEY) plutôt qu'AnalyseView —
+// le détaillent. Store factice injecté (ANALYSE_KEY) plutôt qu'un document complet —
 // ni routeur, ni fetch. Les deux moitiés du bloc ont des dépendances
 // différentes (complétude = gratuite, doublons = NLP), d'où les états mixtes
 // ci-dessous.

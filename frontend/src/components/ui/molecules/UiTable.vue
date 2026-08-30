@@ -69,7 +69,7 @@ onBeforeUnmount(() => headRo?.disconnect())
 </script>
 
 <style scoped lang="scss">
-/* Cadre externe façon `stats-banner` (AnalyseView) : anneau floralwhite en
+/* Cadre externe façon bandeau de stats : anneau floralwhite en
    padding, cerné d'une bordure, ET la table intérieure porte SA propre bordure
    — double trait, comme les tuiles StatItem dans leur bandeau. Chrome StatItem
    pour le relief (radius, ombre, backdrop). overflow:hidden clippe les angles. */

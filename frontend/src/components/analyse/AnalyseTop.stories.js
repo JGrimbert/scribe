@@ -4,9 +4,9 @@ import BaseButton from '../ui/atoms/BaseButton.vue'
 import UiCard from '../ui/molecules/UiCard.vue'
 import BaseChip from '../ui/atoms/BaseChip.vue'
 
-// Story « en contexte » : elle ne monte pas AnalyseView (routeur + store + fetch
-// + d3), mais rejoue le haut du dashboard avec des composants ui réels + un faux
-// nuage. La checklist de progression vit désormais dans la topbar (DocumentBar),
+// Story « en contexte » : elle ne monte pas un document complet (routeur + store +
+// fetch + d3), mais rejoue le haut du bandeau d'analyse avec des composants ui réels +
+// un faux nuage. La checklist de progression vit désormais dans la topbar (DocumentBar),
 // à droite d'un fil d'Ariane simulé — plus en overlay flottant sur le nuage.
 
 export default {

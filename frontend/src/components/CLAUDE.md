@@ -19,9 +19,11 @@ chargé à la demande (ne toucher qu'une famille n'en charge que le doc). Carte 
   (typologie/styles/règles/recalibration : `StyleRolesTable`, `RecalibrationModal`,
   `RuleSetForm`, `HighlightsList`, `PageDiagram`, `StyleEditorPanel`…), consommés
   par la maquette. Voir `config/CLAUDE.md`.
-- **`analyse/`** — dashboard de `/documents/:id` (`AnalyseView` + `AnalyseBlock`,
-  echarts) ; cards rangées par famille `structure/`·`lexical/`·`semantic/`·`themes/`.
-  Voir `analyse/CLAUDE.md`.
+- **`analyse/`** — **plus d'écran routé** (`AnalyseView` supprimé le 2026-08-30,
+  ses sections absorbées par la maquette) : dossier de composants d'analyse PARTAGÉS
+  (`AnalyseBlock`, echarts, cards par famille `structure/`·`lexical/`·`semantic/`·
+  `themes/`) + store `useAnalyse`, consommés par la maquette et le CTA de
+  `DocumentBar`. Voir `analyse/CLAUDE.md`.
 - **`maquette/`** — écran Maquette : `MaquetteView` est une **coquille** (barres,
   sommaire, dock, **unique `FolioView` persistant**) qui route ses **jalons** dans
   `maquette/panes/` (`MaquetteVocabulairePane` = titredulivre par défaut, `…Format`,

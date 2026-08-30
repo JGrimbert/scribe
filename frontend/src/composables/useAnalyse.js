@@ -3,7 +3,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { cssVar } from '../script/theme'
 
 // Exportée pour que les stories puissent injecter un store factice sans monter
-// AnalyseView (routeur + fetch + d3).
+// une vue complète (routeur + fetch + d3).
 export const ANALYSE_KEY = Symbol('analyse-store')
 
 export async function readJsonOrThrow(res) {
@@ -58,10 +58,10 @@ const REVEAL_FALLBACK_MS = 1400
 const TOPIC_TOKENS = Array.from({ length: 8 }, (_, i) => `--c-cat-${i + 1}`)
 const COLOR_OUTLIER = '#cfc5b6'
 
-// État partagé du dashboard d'analyse : AnalyseView appelle provideAnalyse(),
-// chaque card consomme via useAnalyse(). `analysis` est l'objet complet renvoyé
-// par le backend — chaque étape le remplace entièrement, d'où l'affichage
-// progressif pendant la relance globale.
+// État partagé de l'analyse : `DocumentLayout` appelle provideAnalyse() pour tout
+// document ouvert, chaque card (et le CTA de DocumentBar) consomme via useAnalyse().
+// `analysis` est l'objet complet renvoyé par le backend — chaque étape le remplace
+// entièrement, d'où l'affichage progressif pendant la relance globale.
 export function provideAnalyse() {
   const route = useRoute()
   const router = useRouter()

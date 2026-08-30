@@ -24,8 +24,8 @@ migrer sous `ui/` —
 - **templates** : la coquille `../layout/DocumentLayout.vue` (asides + topbar +
   `<router-view>`).
 - **pages** : les vues montées par le routeur (`../home/HomeView`,
-  `../maquette/MaquetteView`, `../analyse/AnalyseView`, `../editor/EditorView`) —
-  le « niveau 1 » historique des dossiers, cf. `../../router/CLAUDE.md`. (L'import
+  `../maquette/MaquetteView`, `../editor/EditorView`) — le « niveau 1 » historique
+  des dossiers, cf. `../../router/CLAUDE.md`. (L'import
   n'a plus de page : c'est une modale, `../import/ImportCalibrationModal.vue` ;
   la config non plus — fondue dans la maquette.)
 

@@ -24,8 +24,9 @@ charge que quand on y travaille :
   - `src/components/home/CLAUDE.md` — accueil + registre (`HomeView`, `DocumentList`).
   - `src/components/config/CLAUDE.md` — écran de configuration (typologie,
     styles, modèles, règles, recalibration).
-  - `src/components/analyse/CLAUDE.md` — dashboard (`AnalyseView`, `AnalyseBlock`,
-    echarts) ; cards par famille `structure/`·`lexical/`·`semantic/`·`themes/`.
+  - `src/components/analyse/CLAUDE.md` — composants d'analyse PARTAGÉS (plus d'écran
+    routé) : `AnalyseBlock`, echarts, store `useAnalyse` ; cards par famille
+    `structure/`·`lexical/`·`semantic/`·`themes/`, montées par la maquette.
   - `src/components/ui/CLAUDE.md` — design system atomic (`atoms/`, `molecules/`,
     `organisms/`) + Storybook.
   - `src/components/liminaire/CLAUDE.md` — typage/composition des pages liminaires.

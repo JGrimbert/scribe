@@ -1,7 +1,10 @@
-# Dashboard d'analyse — `components/analyse/`
+# Analyse — composants partagés — `components/analyse/`
 
-Le tableau de bord de `/documents/:id` : `AnalyseView.vue` (la **page**) monte une
-grille de cards, rangées par famille (chacune son doc, chargé à la demande) :
+Les composants d'analyse d'un document, **sans écran routé** depuis la suppression
+d'`AnalyseView.vue` (l'ex-dashboard `/documents/:id/analyse`, le 2026-08-30 — cf.
+`../../router/CLAUDE.md`) : ils sont montés par la **maquette** (crans de recherche
+de la zone de tête, `MaquetteAnalyseScene`, `MaquetteAnnotations`). Cards rangées
+par famille (chacune son doc, chargé à la demande) :
 - **`structure/`** — cards sans NLP (complétude, conformité, anomalies, nœuds).
   **La section `anomalies` a quitté le dashboard** (retirée de `ANALYSE_SECTIONS`) :
   l'`AnomaliesCard`/`Table` + `CompletenessChart` vivent désormais dans le jalon
@@ -19,8 +22,9 @@ completeness/conformity/lexical/semantic/topics). Vocabulaires/helpers purs :
 ## État & cadre communs
 
 - **`../../composables/useAnalyse.js`** — store partagé : `provideAnalyse()` dans
-  `AnalyseView`, `useAnalyse()` dans les cards. `DocumentLayout` le fournit aussi
-  hors dashboard (config), d'où `AnalyseBlock` utilisable comme cadre autonome.
+  `DocumentLayout` (pour tout document ouvert), `useAnalyse()` dans les cards et
+  dans le CTA de `DocumentBar`. `AnalyseBlock` est donc utilisable comme cadre
+  autonome partout sous `DocumentLayout` (maquette).
 - **`AnalyseBlock.vue`** (racine `analyse/`, importé par toutes les familles via
   `../AnalyseBlock.vue` et, hors dashboard, par `../maquette/MaquetteView` — cran
   de recherche) —
@@ -28,13 +32,12 @@ completeness/conformity/lexical/semantic/topics). Vocabulaires/helpers purs :
   1/3 (`aside="right"`). Le primitif `.split` (`analyse.css`) est importé
   **globalement par `main.js`**. Prop `bare` → `.split--bare` : inverse
   fond/bordure pour un usage en card autonome (cf. `../config/CLAUDE.md`).
-- **`../../script/analyseSections.js`** — l'ORDRE et les libellés des sections de
-  la page. `AnalyseView` en rend ses `<section class="analyse-section">` (le
-  libellé est le `data-label` que lit son scroll-spy) et la pellicule de la
-  Maquette en fait les crans de sa zone de TÊTE (celle au nom du livre ;
-  l'accordéon d'analyse séparé, ferré à droite, a été supprimé — une pellicule de
-  trop pour un seul écran). Ajouter une card = une entrée ici + une entrée
-  dans `CARD_BY_KEY` ; deux listes divergeraient au premier ajout.
+- **`../../script/analyseSections.js`** — l'ORDRE et les libellés des sections.
+  Seule la pellicule de la Maquette les consomme désormais (`AnalyseView`, qui en
+  rendait des `<section class="analyse-section">`, a été supprimé) : elle en fait
+  les crans de sa zone de TÊTE (celle au nom du livre). Ajouter une card = une
+  entrée ici + une entrée dans `CARD_BY_KEY` ; deux listes divergeraient au premier
+  ajout.
 - **Piège — un `AnalyseBlock` hors dashboard ne rend RIEN par défaut.** La
   révélation est la chorégraphie d'entrée du dashboard : `fetchAnalysis` lance
   `startReveal`, les cards s'enchaînent sur signal (`settle`). Un hôte qui monte

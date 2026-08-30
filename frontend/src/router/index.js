@@ -1,7 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '../components/home/HomeView.vue'
 import DocumentLayout from '../components/layout/DocumentLayout.vue'
-import AnalyseView from '../components/analyse/AnalyseView.vue'
 import EditorView from '../components/editor/EditorView.vue'
 import MaquetteView from '../components/maquette/MaquetteView.vue'
 import MaquetteVocabulairePane from '../components/maquette/panes/MaquetteVocabulairePane.vue'
@@ -23,8 +22,6 @@ const routes = [
       // jalon de tête « titredulivre » (vocabulaire/recherche) est le défaut, hors
       // URL et hors fil d'Ariane. Le leaf par défaut garde le name `maquette` :
       // tous les `{name:'maquette'}` / `/documents/:id` existants y atterrissent.
-      // L'analyse garde son name `document` mais vit sur `/analyse` — plus aucune
-      // icône n'y mène, on n'y accède qu'en tapant l'URL (choix délibéré).
       {
         path: '',
         component: MaquetteView,
@@ -39,7 +36,6 @@ const routes = [
           { path: 'Annotations', name: 'maquette-annotations', component: MaquetteAnnotationsPane },
         ],
       },
-      { path: 'analyse', name: 'document', component: AnalyseView },
       // L'écran de config a fondu dans la maquette (styles, règles, recalibrage
       // y vivent désormais). Redirection plutôt que 404 : les liens posés
       // (dashboard, favoris, ancien /config, ancien /styles) visent encore ces URL.

@@ -5,9 +5,9 @@ import { ANALYSE_KEY } from '../../composables/useAnalyse'
 import '../../assets/base.css'
 import '../../assets/analyse.css'
 
-// Cadre commun d'un bloc du dashboard : révélation, spinner, états
+// Cadre commun d'un bloc d'analyse : révélation, spinner, états
 // vide/erreur/lancement, colonnes 2/3 · 1/3. La story injecte un store factice
-// (ANALYSE_KEY) plutôt que de monter AnalyseView — ni routeur, ni fetch, ni d3.
+// (ANALYSE_KEY) plutôt que de monter un document complet — ni routeur, ni fetch, ni d3.
 
 export default {
   title: 'Organisms/AnalyseBlock',

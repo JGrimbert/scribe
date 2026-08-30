@@ -1,7 +1,7 @@
-// Sections du dashboard d'analyse, dans l'ordre de la page. Vocabulaire FERMÉ et partagé :
-// AnalyseView en rend ses <section> (label = data-label du scroll-spy) et la Maquette les
-// groupe en CALQUES (`layer`) — un cran de tête par calque. `needs` : l'analyse dont la
-// section dépend. `layer` : le calque qui l'empile (libellé = celui de sa 1re section).
+// Sections d'analyse, dans l'ordre de lecture. Vocabulaire FERMÉ et partagé :
+// la Maquette les groupe en CALQUES (`layer`) — un cran de tête par calque. `needs` :
+// l'analyse dont la section dépend. `layer` : le calque qui l'empile (libellé = celui
+// de sa 1re section).
 export const ANALYSE_SECTIONS = [
   { key: 'vocabulaire', label: 'Vocabulaire', layer: 'vocabulaire' },
   { key: 'lexical', label: 'Champ lexical', layer: 'lexical' },

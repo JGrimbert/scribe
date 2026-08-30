@@ -6,9 +6,9 @@ au GET (jamais « indisponible » ni en attente du NLP). `CompletenessChart`,
 `AnalyseBlock` + store `useAnalyse` : cf. `../CLAUDE.md`. Graphes echarts via
 `../../ui/organisms/BaseChart` (sémantique couleur dans `../CLAUDE.md`).
 
-**Hors dashboard désormais** : `CompletenessChart` + `AnomaliesTable` ne sont plus
-montés par la grille `/analyse` (section `anomalies` retirée de `ANALYSE_SECTIONS`).
-Ils sont consommés par le jalon « Annotations » de la Maquette
+**`CompletenessChart` + `AnomaliesTable`** : la section `anomalies` a été retirée
+de `ANALYSE_SECTIONS` bien avant la suppression du dashboard `AnalyseView`. Ils sont
+consommés par le jalon « Annotations » de la Maquette
 (`../../maquette/MaquetteAnnotations.vue`), en regard des fragments annotés. Les
 composants restent ici (famille structure), rien n'a bougé de leur logique.
 
