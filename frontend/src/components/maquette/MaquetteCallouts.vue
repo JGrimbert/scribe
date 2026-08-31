@@ -24,6 +24,7 @@
           :style-geometry="geometry.style"
           :styles="view.limStyles"
           :style-roles="styles"
+          :disposition-by-style="limDispositionByStyle"
           @hover-style="onHoverStyle"
       />
       <div v-if="presentationMode !== 'torn'" class="mc__lim">
@@ -73,7 +74,7 @@ const props = defineProps({
 // injectées en direct plutôt que figées dans `view`.
 const {
   styles, fmtPage, styleDefaults, limTypes, limSuggestions,
-  rules, setHoveredStyle, limSetType, presentationMode,
+  rules, setHoveredStyle, limSetType, presentationMode, limDispositionByStyle,
 } = inject('maq')
 
 // Seule la vue live pilote le modèle ; la sortante figée ne fait que glisser dehors.

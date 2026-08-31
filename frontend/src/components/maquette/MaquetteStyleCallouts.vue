@@ -56,6 +56,10 @@ const props = defineProps({
   showRequire: { type: Boolean, default: false },
   depthKey: { type: Number, default: null },
   ruleSet: { type: Object, default: null },
+  // Disposition EFFECTIVE par style (liminaire) : { [styleName]: { key, disposition } }.
+  // Quand fourni, le select règle la DISPOSITION PAR ÉLÉMENT (`liminaireConfig[key]`) au
+  // lieu du `stylePrecedence` par style ; absent (chapitrage) → repli sur stylePrecedence.
+  dispositionByStyle: { type: Object, default: null },
 })
 
 const emit = defineEmits(['hover-style'])
@@ -65,9 +69,22 @@ const stylePrecedence = inject('stylePrecedence', null)
 const openStyleEditor = inject('openStyleEditor', null)
 const styleOverrides = inject('styleOverrides', null)
 const toggleRequireStyle = inject('toggleRequireStyle', null)
+const liminaireConfig = inject('liminaireConfig', null)
 
-const precedesOf = (name) => stylePrecedence?.[name] ?? 'none'
+// Liminaire : le select AFFICHE la disposition EFFECTIVE (fournie) et l'écrit PAR ÉLÉMENT
+// dans `liminaireConfig[clé].disposition`. Chapitrage (pas de map) : repli sur le
+// `stylePrecedence` par style (cosmétique, non lu par le rendu).
+const precedesOf = (name) =>
+  props.dispositionByStyle
+    ? (props.dispositionByStyle[name]?.disposition ?? 'none')
+    : (stylePrecedence?.[name] ?? 'none')
+
 function setPrecedes(name, kind) {
+  if (props.dispositionByStyle) {
+    const key = props.dispositionByStyle[name]?.key
+    if (key && liminaireConfig) liminaireConfig[key] = { ...(liminaireConfig[key] ?? {}), disposition: kind }
+    return
+  }
   if (!stylePrecedence) return
   if (kind === 'none') delete stylePrecedence[name]
   else stylePrecedence[name] = kind

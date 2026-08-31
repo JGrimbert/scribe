@@ -39,24 +39,33 @@ describe('groupLiminairePages', () => {
     expect(pages[1].isBlank).toBe(false)
   })
 
-  it('FUSION : break=joined rattache une page à la précédente', () => {
+  it('CONTINU (disposition none) recolle une page à la précédente', () => {
     const entries = [P('Jean Grimbert', 'page'), P('Titre', 'page'), P('Essai', 'page')]
     const keyed = withEntryKeys(entries)
-    // Sans override : 3 pages. Avec joined sur « Titre » et « Essai » : 1 page.
+    // Sans override : 3 pages (chaque pageStart ouvre). « continu » sur « Titre » et « Essai » : 1 page.
     expect(groupLiminairePages(entries)).toHaveLength(3)
-    const config = { [keyed[1].key]: { break: 'joined' }, [keyed[2].key]: { break: 'joined' } }
+    const config = { [keyed[1].key]: { disposition: 'none' }, [keyed[2].key]: { disposition: 'none' } }
     const merged = groupLiminairePages(entries, config)
     expect(merged).toHaveLength(1)
     expect(merged[0].entries).toHaveLength(3)
   })
 
-  it('SCISSION : break=start ouvre une page sans saut .odt', () => {
+  it('SAUT DE PAGE (disposition break) ouvre une page sans saut .odt', () => {
     const entries = [P('Mentions'), P('Pour Margot')] // aucun pageStart → 1 page
     const keyed = withEntryKeys(entries)
     expect(groupLiminairePages(entries)).toHaveLength(1)
-    const split = groupLiminairePages(entries, { [keyed[1].key]: { break: 'start' } })
+    const split = groupLiminairePages(entries, { [keyed[1].key]: { disposition: 'break' } })
     expect(split).toHaveLength(2)
     expect(split.map((p) => p.preview)).toEqual(['Mentions', 'Pour Margot'])
+    expect(split[1].precedes).toBe('none') // saut = pas de blanche
+  })
+
+  it('BELLE PAGE (disposition blank) ouvre une page + precedes blank', () => {
+    const entries = [P('Mentions'), P('Pour Margot')]
+    const keyed = withEntryKeys(entries)
+    const split = groupLiminairePages(entries, { [keyed[1].key]: { disposition: 'blank' } })
+    expect(split).toHaveLength(2)
+    expect(split[1].precedes).toBe('blank')
   })
 
   it('SCINDE sur un changement de type de style, sans saut .odt (mentions → dédicace)', () => {
@@ -85,36 +94,22 @@ describe('groupLiminairePages', () => {
     expect(groupLiminairePages(entries)).toHaveLength(1)
   })
 
-  it('la fusion manuelle (joined) désarme la scission par style', () => {
+  it('CONTINU (disposition none) désarme la scission par type de style', () => {
     const entries = [
       { type: 'paragraph', text: 'Tous droits réservés', styleName: 'mentions légales' },
       { type: 'paragraph', text: 'Pour Margot', styleName: 'Dédicace' },
     ]
     const keyed = withEntryKeys(entries)
-    const merged = groupLiminairePages(entries, { [keyed[1].key]: { break: 'joined' } })
+    const merged = groupLiminairePages(entries, { [keyed[1].key]: { disposition: 'none' } })
     expect(merged).toHaveLength(1)
   })
 
-  it('precedesOf ouvre une page sur un style réglé break/blank, sans saut .odt', () => {
-    const entries = [
-      { type: 'paragraph', text: 'Fin du chapitre', styleName: 'Corps' },
-      { type: 'paragraph', text: 'CHAPITRE II', styleName: 'Titre chapitre' },
-    ]
-    const precedesOf = (name) => (name === 'Titre chapitre' ? 'break' : 'none')
-    const pages = groupLiminairePages(entries, {}, precedesOf)
-    expect(pages).toHaveLength(2)
-    expect(pages.map((p) => p.precedes)).toEqual(['none', 'break'])
-    expect(pages[1].preview).toBe('CHAPITRE II')
-  })
-
-  it('la fusion manuelle (joined) désarme l’ouverture par style', () => {
-    const entries = [
-      { type: 'paragraph', text: 'Fin', styleName: 'Corps' },
-      { type: 'paragraph', text: 'Suite', styleName: 'Titre chapitre' },
-    ]
+  it('CONTINU (disposition none) recolle un élément que le .odt sépare (pageStart)', () => {
+    const entries = [P('Fin du chapitre'), P('CHAPITRE II', 'page')]
     const keyed = withEntryKeys(entries)
-    const precedesOf = (name) => (name === 'Titre chapitre' ? 'blank' : 'none')
-    const merged = groupLiminairePages(entries, { [keyed[1].key]: { break: 'joined' } }, precedesOf)
+    // Défaut : le pageStart ouvre → 2 pages. « continu » : recollé → 1 page.
+    expect(groupLiminairePages(entries)).toHaveLength(2)
+    const merged = groupLiminairePages(entries, { [keyed[1].key]: { disposition: 'none' } })
     expect(merged).toHaveLength(1)
   })
 

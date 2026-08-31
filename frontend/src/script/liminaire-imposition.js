@@ -19,10 +19,15 @@ export function computeImposition(pages) {
       n++
       continue
     }
-    // Belle page : blanche insérée avant la page (une fois le contenu commencé).
+    // Belle page : une blanche avant, ET le contenu tombe à DROITE (recto). On pose la
+    // blanche puis, si le contenu retombait au verso, une seconde pour l'amener au recto.
     if (started && page.precedes === 'blank') {
       slots.push({ number: n, parity: parity(n), blank: true, implicit: true })
       n++
+      if (parity(n) === 'verso') {
+        slots.push({ number: n, parity: parity(n), blank: true, implicit: true })
+        n++
+      }
     }
     started = true
     slots.push({ number: n, parity: parity(n), blank: false, page })

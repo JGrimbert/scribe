@@ -10,12 +10,9 @@ import { absorbableCount, extendedLiminaire, nextNodeTitle } from '../script/lim
 //
 // `trame`/`documentData` sont les injections de DocumentLayout (ref|null) ;
 // `liminaireConfig` est le reactive de useTypologyConfig, passé TEL QUEL à
-// groupLiminairePages (pas de `.value`) — fusionner/scinder une page recompose
-// le découpage dans le même tick.
-// `precedesOf(styleName)` : ce que le style de tête impose avant sa page ('none'
-// par défaut). Réactif chez l'appelant (lit la map de typologie) — appelé DANS le
-// computed, il track donc la map.
-export function useLiminaireBornes(trame, documentData, liminaireConfig, precedesOf = () => 'none') {
+// groupLiminairePages (pas de `.value`) — la DISPOSITION par élément
+// (`config[clé].disposition`) y recompose le découpage dans le même tick.
+export function useLiminaireBornes(trame, documentData, liminaireConfig) {
   const route = useRoute()
   const borderShift = ref(0)
 
@@ -35,7 +32,7 @@ export function useLiminaireBornes(trame, documentData, liminaireConfig, precede
     nextNodeTitle(trame?.value?.axes ?? [], documentData?.value ?? {}, borderShift.value),
   )
 
-  const liminairePages = computed(() => groupLiminairePages(extendedEntries.value, liminaireConfig, precedesOf))
+  const liminairePages = computed(() => groupLiminairePages(extendedEntries.value, liminaireConfig))
 
   return { borderShift, canExtend, nextTitle, liminairePages }
 }

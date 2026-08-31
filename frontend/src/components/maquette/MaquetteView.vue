@@ -189,6 +189,7 @@ import PageDiagram from '../config/PageDiagram.vue'
 import StyleEditorPanel from '../config/StyleEditorPanel.vue'
 import RecalibrationModal from '../config/RecalibrationModal.vue'
 import { spreadStyles } from '../../script/liminaire-styles'
+import { computeImposition } from '../../script/liminaire-imposition'
 import { analyseLayers } from '../../script/analyseSections'
 import { ANALYSE_CARDS } from '../analyse/analyseCards'
 import { useTypologyConfig } from '../../composables/useTypologyConfig'
@@ -224,8 +225,6 @@ const {
   load, save,
 } = useTypologyConfig()
 
-const precedesOf = (styleName) => stylePrecedence[styleName] ?? 'none'
-
 onMounted(() => { if (route.params.id) load(route.params.id) })
 
 const bookTitle = computed(() => documentTitle?.value ?? '')
@@ -242,7 +241,36 @@ provide('addDeclaredStyle', addDeclaredStyle)
 provide('removeDeclaredStyle', removeDeclaredStyle)
 
 const { liminairePages, borderShift: limBorderShift } =
-  useLiminaireBornes(trame, documentData, liminaireConfig, precedesOf)
+  useLiminaireBornes(trame, documentData, liminaireConfig)
+
+// Disposition EFFECTIVE par style (1re occurrence de chaque style dans le liminaire) :
+// l'élément d'ouverture d'une page vaut 'blank' (belle page) s'il est précédé d'une vraie
+// blanche, sinon 'break' (saut) ; un élément qui coule au milieu d'une page vaut 'none'
+// (continu). Reflète .odt ET overrides (liminairePages consomme déjà la config) → c'est
+// ce que le select AFFICHE ; le régler écrit `liminaireConfig[clé].disposition`.
+const limDispositionByStyle = computed(() => {
+  const slots = computeImposition(liminairePages.value)
+  const out = {}
+  const seen = new Set()
+  slots.forEach((s, i) => {
+    if (s.blank || !s.page) return
+    const prev = slots[i - 1]
+    const blankBefore = !!(prev && prev.blank && !prev.cover)
+    const entries = s.page.entries || []
+    const openerIdx = entries.findIndex((e) => !e.isBlank)
+    entries.forEach((e, ei) => {
+      if (e.isBlank || !e.styleName || seen.has(e.styleName)) return
+      seen.add(e.styleName)
+      out[e.styleName] = {
+        key: e.key,
+        disposition: ei === openerIdx
+          ? (blankBefore || s.page.precedes === 'blank' ? 'blank' : 'break')
+          : 'none',
+      }
+    })
+  })
+  return out
+})
 
 const { documents, ensureLoaded, fetchDocuments } = useRegistry()
 onMounted(ensureLoaded)
@@ -496,7 +524,7 @@ provide('maq', {
   fmtPage, styleDefaults, spreadGeometry, presentationMode,
   styleGeometry, blockGeometry, styles, limSpreadStyles, limFocusedSpread,
   limTypes, limSuggestions, liminaireConfig, limFocused, limSpreads,
-  limSetType, setLimFocused, setHoveredStyle,
+  limSetType, setLimFocused, setHoveredStyle, limDispositionByStyle,
   rules, focusedSection, chapSpreadStyles, mainDepth, effectiveVisuals, previewRatio,
   showGroupes, hoveredNode, hoveredGroup, deviationGroups, mergeSuggestion,
   corpsSuggestion, merging, styleRows, onHoverGroup, applyMerge,

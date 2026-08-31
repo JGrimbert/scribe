@@ -20,14 +20,24 @@ describe('computeImposition / toSpreads', () => {
     expect([content.number, content.parity]).toEqual([1, 'recto'])
   })
 
-  it('precedes=blank insère UNE blanche explicite avant la page (belle page)', () => {
-    // page 2 demande une belle page → blanche implicite en n°2, la page en n°3.
+  it('belle page : le contenu retombant au verso → 1 blanche, contenu au recto', () => {
+    // page 1 recto, page 2 demanderait le verso → 1 blanche en 2, contenu en 3 (recto).
     const slots = computeImposition([pg(), pg({ precedes: 'blank' })])
     expect(slots.map((s) => [s.number, s.blank, s.implicit || false])).toEqual([
       [1, false, false],
       [2, true, true],
       [3, false, false],
     ])
+  })
+
+  it('belle page : contenu DÉJÀ au recto → 2 blanches pour l’amener au recto suivant', () => {
+    // pages 1,2 pleines ; la 3e (belle page) tomberait au recto (3) → 2 blanches (3,4),
+    // contenu au recto 5.
+    const slots = computeImposition([pg(), pg(), pg({ precedes: 'blank' })])
+    expect(slots.map((s) => [s.number, s.blank])).toEqual([
+      [1, false], [2, false], [3, true], [4, true], [5, false],
+    ])
+    expect(slots[4].parity).toBe('recto')
   })
 
   it('precedes=break n’insère AUCUNE blanche (simple saut de page)', () => {

@@ -31,28 +31,31 @@ export function withEntryKeys(entries) {
   })
 }
 
-// Regroupe les entrées en PAGES. Une entrée ouvre une page si : c'est la première ; ou
-// la config force `break: 'start'` ; ou elle porte un `pageStart` du .odt (sauf
-// `'joined'`) ; ou son NOM DE STYLE désigne un type liminaire différent de celui qui
-// ancre la page en cours (les deux types non nuls — un style anonyme ne scinde rien) ;
-// ou son STYLE est réglé pour ouvrir une page (precedesOf ≠ 'none'). Une fusion manuelle
-// (`joined`) désarme les deux derniers déclencheurs.
-export function groupLiminairePages(entries, config = {}, precedesOf = () => 'none') {
+// Regroupe les entrées en PAGES. La DISPOSITION de chaque élément
+// (`config[clé].disposition`) prime, sinon le .odt décide :
+//  - 'none'  (continu)      : l'élément RECOLLE à la page en cours (désarme tout saut) ;
+//  - 'break' (saut de page) : l'élément OUVRE un nouveau folio ;
+//  - 'blank' (belle page)   : idem + une blanche avant (page.precedes = 'blank') ;
+//  - absent (défaut)        : l'élément suit le .odt — ouvre une page s'il porte un
+//    `pageStart`, ou si son NOM DE STYLE désigne un type liminaire différent de celui qui
+//    ancre la page en cours (un style anonyme ne scinde rien).
+export function groupLiminairePages(entries, config = {}) {
   const keyed = withEntryKeys(entries)
   const pages = []
   let anchorType = null
   keyed.forEach((entry, i) => {
-    const brk = config?.[entry.key]?.break
+    const disp = config?.[entry.key]?.disposition
+    const forceJoin = disp === 'none'
+    const forceOpen = disp === 'break' || disp === 'blank'
     const styleType = typeOfStyleName(entry.styleName)
-    const styleSplit = brk !== 'joined' && styleType != null && anchorType != null && styleType !== anchorType
-    const styleStarts = brk !== 'joined' && precedesOf(entry.styleName) !== 'none'
-    const starts = i === 0 || brk === 'start' || (brk !== 'joined' && entry.pageStart != null) || styleSplit || styleStarts
+    const styleSplit = !forceJoin && styleType != null && anchorType != null && styleType !== anchorType
+    const starts = i === 0 || forceOpen || (!forceJoin && entry.pageStart != null) || styleSplit
     if (starts || !pages.length) {
       pages.push({
         ordinal: pages.length,
         key: entry.key,
         sideFromOdt: sideOfPageStart(entry.pageStart),
-        precedes: precedesOf(entry.styleName),
+        precedes: disp === 'blank' ? 'blank' : 'none',
         entries: [],
       })
       anchorType = null

@@ -53,15 +53,17 @@ export function typeOfStyleName(styleName) {
 // 'auto' = pas de contrainte de côté. Distinct du pageStart brut du .odt.
 export const PAGE_SIDES = ['auto', 'recto', 'verso']
 
-// Ce qui précède une page, décidé PAR STYLE (miroir du backend, PRECEDES_KINDS) :
-// 'break' = ouvre une page ; 'blank' = idem + une page blanche avant (belle page, sans
-// parité) ; 'none' = rien d'imposé.
+// DISPOSITION d'un élément liminaire (miroir du backend, PRECEDES_KINDS) — comment il se
+// place vis-à-vis de l'élément précédent : 'none' = CONTINU (recolle à la page
+// précédente) ; 'break' = SAUT DE PAGE (nouveau folio) ; 'blank' = BELLE PAGE (nouveau
+// folio précédé d'une blanche → contenu à droite/recto). Réglé PAR ÉLÉMENT
+// (`liminaireConfig[clé].disposition`). Absent = défaut : l'élément suit le .odt.
 export const PRECEDES_KINDS = ['none', 'break', 'blank']
 
 export const PRECEDES_LABELS = {
-  none: 'aucun',
-  break: 'saut',
-  blank: 'page blanche',
+  none: 'continu',
+  break: 'saut de page',
+  blank: 'belle page',
 }
 
 // Côté imposé par un pageStart du .odt (recto/verso le portent, un simple saut n'impose
