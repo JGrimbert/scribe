@@ -57,3 +57,33 @@ export function pagesOfSpread(spread) {
     .filter((cell) => cell && !cell.cover && cell.page)
     .map((cell) => cell.page)
 }
+
+// Disposition EFFECTIVE par STYLE (1re occurrence de chaque style) : ce que le select
+// de Disposition AFFICHE, et la CLÉ d'élément sur laquelle il écrit. L'élément qui OUVRE
+// une page vaut 'blank' (belle page) s'il est précédé d'une vraie blanche (ni couverture,
+// ni contenu), sinon 'break' (saut) ; un élément qui coule au milieu d'une page vaut
+// 'none' (continu). Dérivé de l'imposition → reflète le .odt ET les overrides (les pages
+// reçues consomment déjà la config). Rend `{ [styleName]: { key, disposition } }`.
+export function dispositionByStyle(pages) {
+  const slots = computeImposition(pages)
+  const out = {}
+  const seen = new Set()
+  slots.forEach((s, i) => {
+    if (s.blank || !s.page) return
+    const prev = slots[i - 1]
+    const blankBefore = !!(prev && prev.blank && !prev.cover)
+    const entries = s.page.entries || []
+    const openerIdx = entries.findIndex((e) => !e.isBlank)
+    entries.forEach((e, ei) => {
+      if (e.isBlank || !e.styleName || seen.has(e.styleName)) return
+      seen.add(e.styleName)
+      out[e.styleName] = {
+        key: e.key,
+        disposition: ei === openerIdx
+          ? (blankBefore || s.page.precedes === 'blank' ? 'blank' : 'break')
+          : 'none',
+      }
+    })
+  })
+  return out
+}

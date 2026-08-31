@@ -15,35 +15,56 @@ porte `obligatoire`, `position` (avant/après le récit) et **`side`** : le côt
 ATTENDU par la convention (recto = impaire, verso = paire), ou `null` — encore
 lu par `deriveEligibility` (verdict), mais **plus par l'imposition**.
 
-**⚠️ Refonte 2026-08-05 — le côté CHOISI par l'utilisateur est SUPPRIMÉ.** La
-pastille recto/verso/auto par entrée (`config.side`, `effectiveSide`, blanches de
-parité) a été remplacée par une propriété **PAR STYLE** : `precedes` ∈
-`rien | saut de page | page blanche` (`PRECEDES_KINDS`/`PRECEDES_LABELS` dans
-`liminaire-vocab.js`), réglée dans la table des styles (`stylePrecedence`, persistée
-dans la typologie — backend `typology.ts`). Le premier style d'une page dit ce qui
-la précède ; l'imposition est **explicite, sans parité** (`blank` insère exactement une
-blanche). Libellés (2026-08-30) : `PRECEDES_LABELS` = `aucun / saut / page blanche`.
-La flèche de découpage par-paragraphe a été retirée : la scission se fait via ce select.
+## Modèle « DISPOSITION » — imposition explicite, réglage PAR ÉLÉMENT (2026-08-31)
 
-> ⚠️ **Tentatives ANNULÉES (2026-08-30/31), à ne pas réintroduire sans en parler.**
-> Deux pistes ont été essayées puis rebroussées après vérif utilisateur : (1) *absorber*
-> les blanches intérieures du .odt dans le `precedes` du style suivant (map
-> `effectivePrecedes`, `precedesOf` rendant `undefined`, `setPrecedes` stockant `'none'`)
-> → résultats antinomiques ; (2) *réintroduire la parité* (`computeImposition` respectant
-> `sideFromOdt`) → « tout foutu en l'air ». Le code est **revenu au modèle explicite
-> sans parité**. La reproduction fidèle du recto/verso .odt reste un problème OUVERT :
-> ne pas re-tenter parité/absorption sans cadrage précis avec l'utilisateur.
+État courant, **verrouillé par une batterie de tests** (`liminaire-disposition.test.js`,
+fixture fidèle au témoin Johanan). Ne pas dévier sans cadrage utilisateur — ce modèle est
+l'aboutissement d'un long va-et-vient (voir « Historique » plus bas).
+
+**Imposition EXPLICITE, sans parité** (`computeImposition`, `liminaire-imposition.js`) :
+les pages sont numérotées à la suite (recto = impair, verso = pair) ; une blanche
+n'apparaît que si le .odt en porte une (`isBlank`) ou pour une **belle page**. Le côté
+`sideFromOdt` est calculé mais **ne contraint rien** (la parité a été essayée puis
+abandonnée). Le défaut reproduit déjà l'imposition d'OpenOffice sur le témoin (les vides
+du .odt tombant aux bons folios) — cf. le 1er cas du cahier de tests.
+
+**DISPOSITION par ÉLÉMENT** (`liminaireConfig[clé].disposition` ∈ `none|break|blank`,
+libellés `continu / saut de page / belle page` dans `PRECEDES_LABELS`), lue par
+`groupLiminairePages(entries, config)` :
+- **continu** (`none`) : l'élément RECOLLE à la page en cours (désarme tout saut, y compris
+  celui du .odt) — absorbe une blanche qui le précédait ;
+- **saut de page** (`break`) : ouvre un nouveau folio, sans blanche ;
+- **belle page** (`blank`) : ouvre un folio + une blanche, et le contenu tombe à DROITE
+  (recto) — `computeImposition` pose 1 blanche, ou 2 si le contenu retombait au verso ;
+- **absent** (défaut) : l'élément suit le .odt (`pageStart`, ou changement de type de style).
+
+**Affichage du select = disposition EFFECTIVE** (`dispositionByStyle(pages)`, fonction PURE
+dans `liminaire-imposition.js`) : par style, sa 1re occurrence ; l'ouvreur d'une page vaut
+`blank` s'il est précédé d'une vraie blanche (ni couverture ni contenu), sinon `break` ; un
+élément interne vaut `none`. Reflète .odt ET overrides. `MaquetteView` en dérive
+`limDispositionByStyle` (fournie via `maq`) ; le select de `MaquetteStyleCallouts` l'affiche
+et écrit `liminaireConfig[clé].disposition` (⚠️ `liminaireConfig` est fourni en `provide`
+de premier niveau — sans lui l'écriture tombait dans le vide). La flèche de découpage
+par-paragraphe et le `stylePrecedence` PAR STYLE ont été retirés du liminaire (ce dernier
+subsiste, cosmétique, côté chapitrage).
+
+> **Historique (à NE PAS re-tenter sans cadrage)** : côté recto/verso PAR ENTRÉE puis
+> `precedes` PAR STYLE (2026-08-05) ; puis, sur retours utilisateur (2026-08-30/31),
+> **absorption** des blanches dans le style suivant → antinomique, ANNULÉE ; **parité**
+> (`computeImposition` respectant `sideFromOdt`) → « tout foutu en l'air », ANNULÉE.
+> Reproduire fidèlement le recto/verso .odt reste un problème OUVERT. Le modèle
+> ci-dessus (disposition par élément) est ce qui a été retenu.
 
 La logique liminaire est éclatée par thème (chacun testé, `*.test.js`
 colocalisé) : `liminaire-vocab.js` (vocabulaire + `typeOfStyleName` /
-`sideOfPageStart` / `PRECEDES_KINDS`), `liminaire-pages.js` (`entryPlainText` /
-`withEntryKeys` / `groupLiminairePages(entries, config, precedesOf)` — un style à
-`precedes` ≠ `none` ouvre une page), `liminaire-imposition.js` (`computeImposition`
-explicite / `toSpreads` / `pagesOfSpread` — `effectiveSide` et la parité SUPPRIMÉS),
+`sideOfPageStart` / `PRECEDES_KINDS` / `PRECEDES_LABELS`), `liminaire-pages.js`
+(`entryPlainText` / `withEntryKeys` / `groupLiminairePages(entries, config)` — DISPOSITION
+par élément), `liminaire-imposition.js` (`computeImposition` explicite / `toSpreads` /
+`pagesOfSpread` / **`dispositionByStyle`** — `effectiveSide` et la parité SUPPRIMÉS),
 `liminaire-eligibilite.js` (`deriveEligibility`), `liminaire-config.js` (accès à la
-config de tagging ; `sideOfPage`/`setPageSide`/`expectedSideOf`/`isConflicting`
-subsistent mais ne sont plus consommés par l'imposition), plus `liminaire-bornes.js`
-(absorption des bornes) et `liminaire-suggest.js` (suggestions de type).
+config de tagging ; `sideOfPage`/`setPageSide`/`breakOfKey`/`toggleBreak` subsistent mais
+ne sont plus consommés), plus `liminaire-bornes.js` (absorption des bornes) et
+`liminaire-suggest.js` (suggestions de type).
 
 ## Composants
 

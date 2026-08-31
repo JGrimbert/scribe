@@ -106,6 +106,7 @@
                     v-for="slot in ['a', 'b']"
                     :key="slot"
                     class="folio-slot"
+                    :class="{ 'folio-slot--frozen': slot !== liveSlot }"
                     :style="shiftStyle(slot)"
                 >
                   <FolioView
@@ -189,7 +190,7 @@ import PageDiagram from '../config/PageDiagram.vue'
 import StyleEditorPanel from '../config/StyleEditorPanel.vue'
 import RecalibrationModal from '../config/RecalibrationModal.vue'
 import { spreadStyles } from '../../script/liminaire-styles'
-import { computeImposition } from '../../script/liminaire-imposition'
+import { dispositionByStyle } from '../../script/liminaire-imposition'
 import { analyseLayers } from '../../script/analyseSections'
 import { ANALYSE_CARDS } from '../analyse/analyseCards'
 import { useTypologyConfig } from '../../composables/useTypologyConfig'
@@ -239,38 +240,15 @@ provide('toggleRequireStyle', toggleRequireStyle)
 provide('toggleAdjacency', toggleAdjacency)
 provide('addDeclaredStyle', addDeclaredStyle)
 provide('removeDeclaredStyle', removeDeclaredStyle)
+// Muté PAR ÉLÉMENT par le select de Disposition liminaire (MaquetteStyleCallouts).
+provide('liminaireConfig', liminaireConfig)
 
 const { liminairePages, borderShift: limBorderShift } =
   useLiminaireBornes(trame, documentData, liminaireConfig)
 
-// Disposition EFFECTIVE par style (1re occurrence de chaque style dans le liminaire) :
-// l'élément d'ouverture d'une page vaut 'blank' (belle page) s'il est précédé d'une vraie
-// blanche, sinon 'break' (saut) ; un élément qui coule au milieu d'une page vaut 'none'
-// (continu). Reflète .odt ET overrides (liminairePages consomme déjà la config) → c'est
-// ce que le select AFFICHE ; le régler écrit `liminaireConfig[clé].disposition`.
-const limDispositionByStyle = computed(() => {
-  const slots = computeImposition(liminairePages.value)
-  const out = {}
-  const seen = new Set()
-  slots.forEach((s, i) => {
-    if (s.blank || !s.page) return
-    const prev = slots[i - 1]
-    const blankBefore = !!(prev && prev.blank && !prev.cover)
-    const entries = s.page.entries || []
-    const openerIdx = entries.findIndex((e) => !e.isBlank)
-    entries.forEach((e, ei) => {
-      if (e.isBlank || !e.styleName || seen.has(e.styleName)) return
-      seen.add(e.styleName)
-      out[e.styleName] = {
-        key: e.key,
-        disposition: ei === openerIdx
-          ? (blankBefore || s.page.precedes === 'blank' ? 'blank' : 'break')
-          : 'none',
-      }
-    })
-  })
-  return out
-})
+// Disposition EFFECTIVE par style — ce que le select AFFICHE ; le régler écrit
+// `liminaireConfig[clé].disposition`. Logique pure (testée) : cf. liminaire-imposition.
+const limDispositionByStyle = computed(() => dispositionByStyle(liminairePages.value))
 
 const { documents, ensureLoaded, fetchDocuments } = useRegistry()
 onMounted(ensureLoaded)
@@ -625,6 +603,13 @@ provide('maq', {
   left: var(--maq-gutter);
   display: flex;
   flex-direction: column;
+}
+
+/* Slot SORTANT (figé, non vivant) : entièrement inerte au pointeur — sinon son IFRAME
+   de folio (que `.mc--inert` ne neutralise pas) recouvre les selects du slot vivant le
+   temps de la transition (ou indéfiniment si le slide reste coincé) et avale le clic. */
+.folio-slot--frozen {
+  pointer-events: none;
 }
 
 .maq-folio {
