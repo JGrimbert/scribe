@@ -21,8 +21,18 @@ parité) a été remplacée par une propriété **PAR STYLE** : `precedes` ∈
 `rien | saut de page | page blanche` (`PRECEDES_KINDS`/`PRECEDES_LABELS` dans
 `liminaire-vocab.js`), réglée dans la table des styles (`stylePrecedence`, persistée
 dans la typologie — backend `typology.ts`). Le premier style d'une page dit ce qui
-la précède ; l'imposition est désormais **explicite, sans parité** (`blank` insère
-exactement une blanche). Voir `../config/CLAUDE.md` (colonne `show-precedes`).
+la précède ; l'imposition est **explicite, sans parité** (`blank` insère exactement une
+blanche). Libellés (2026-08-30) : `PRECEDES_LABELS` = `aucun / saut / page blanche`.
+La flèche de découpage par-paragraphe a été retirée : la scission se fait via ce select.
+
+> ⚠️ **Tentatives ANNULÉES (2026-08-30/31), à ne pas réintroduire sans en parler.**
+> Deux pistes ont été essayées puis rebroussées après vérif utilisateur : (1) *absorber*
+> les blanches intérieures du .odt dans le `precedes` du style suivant (map
+> `effectivePrecedes`, `precedesOf` rendant `undefined`, `setPrecedes` stockant `'none'`)
+> → résultats antinomiques ; (2) *réintroduire la parité* (`computeImposition` respectant
+> `sideFromOdt`) → « tout foutu en l'air ». Le code est **revenu au modèle explicite
+> sans parité**. La reproduction fidèle du recto/verso .odt reste un problème OUVERT :
+> ne pas re-tenter parité/absorption sans cadrage précis avec l'utilisateur.
 
 La logique liminaire est éclatée par thème (chacun testé, `*.test.js`
 colocalisé) : `liminaire-vocab.js` (vocabulaire + `typeOfStyleName` /
@@ -47,23 +57,20 @@ l'accordéon des vis-à-vis liminaire est celui de `../maquette/`
 (`MaquetteAccordeon` + `MaquetteLiminaireCell`), pas un composant propre au liminaire.
 
 - **`LiminaireControls.vue`** — overlay des contrôles posé SUR la planche du
-  `FolioView` (écran Maquette), **visible en permanence** (conteneur
-  `.lim-hover__controls` de `MaquetteView` : `z-index:3` au-dessus de l'iframe,
-  racine inerte `pointer-events:none`, chaque contrôle rétablit son pointeur).
+  `FolioView` (écran Maquette), **visible en permanence**, monté par
+  `../maquette/MaquetteCallouts` DANS le slot du folio (conteneur `.mc__lim` :
+  `z-index:3` au-dessus de l'iframe, racine inerte `pointer-events:none`, chaque
+  contrôle rétablit son pointeur) → il glisse avec la planche pendant une bascule.
   Enfants positionnés ancrés sur la géométrie émise par FolioView, ramenée en
   coords locales via l'origine de l'overlay (même patron que
-  `../maquette/MaquetteFormatCallouts`). Trois familles :
-  - **select de type** par page taguable, centré SOUS la page (`@spread-geometry`
-    → rects des pages ; `pages[0]` = verso/left, `pages[1]` = recto/right) ;
-  - **chevrons** de navigation aux bords extérieurs de la planche, bornés ;
-  - **découpage** : chaque élément rendu (paragraphe) reçoit un **outline visible
-    par défaut** ; sa **flèche** renvoi (rattacher la page) / nouvelle page
-    (scinder) n'apparaît qu'au survol de SON outline (flèche = enfant → pas de
-    clignotement, `:hover` CSS seul), centrée verticalement au bord extérieur
-    (gauche du verso, droite du recto). Ancré au grain paragraphe via
-    `@block-geometry` (rect par `entry.key`, cf. `../../script/paginate.js` qui
-    stampe `data-entry-key` dans `buildImpositionBlocks`, lu et émis par `FolioView`).
-  Émet `set-type`/`update:focused` ; `toggleBreak` mute la config EN PLACE.
+  `../maquette/MaquetteFormatCallouts`). **Réduit au SELECT DE TYPE** (2026-08-30) : un
+  par page taguable, centré SOUS la page (`@spread-geometry` → rects des pages ;
+  `pages[0]` = verso/left, `pages[1]` = recto/right). Émet `set-type`. Les **chevrons**
+  de nav et la **flèche de découpage** par-paragraphe ont été retirés : la scission se
+  fait via le select « ce qui précède » des styles (cf. absorption ci-dessus). Les
+  **cadres de paragraphe** ne vivent plus ici — c'est `../maquette/BlockOutlines` (le
+  MÊME composant qu'en chapitrage), monté à côté par `MaquetteCallouts`, nourri par
+  `@block-geometry`.
 - **`LiminaireFolio.vue`** — UN folio physique, sans état ni contrôle : la page
   ne porte que son verdict (type/suggestion/aperçu). Monté par
   `../maquette/MaquetteLiminaireCell.vue` (cellule d'accordéon, pas l'aperçu

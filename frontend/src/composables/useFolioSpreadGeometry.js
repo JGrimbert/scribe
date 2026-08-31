@@ -93,20 +93,29 @@ export function useFolioSpreadGeometry(props, { frameRef, frameDoc, padRef, scal
         return { left: r.left + fr.left, top: r.top + fr.top, width: r.width, height: r.height }
       }),
     })
-    // Rects ÉCRAN des blocs d'imposition PORTEURS d'une clé d'entrée (`data-entry-key`,
-    // stampée par buildImpositionBlocks pour le liminaire) : l'overlay liminaire y
-    // ancre ses contrôles de découpage en marge. Une entrée coupée entre deux pages
-    // rend plusieurs fragments qui gardent la clé — on ne garde que le PREMIER (le
-    // début de l'entrée). Coords fenêtre, comme les pages.
+    // Rects ÉCRAN des blocs rendus, clés stables pour les overlays qui ancrent des
+    // contrôles/cadres au grain paragraphe. Deux sources, EXCLUSIVES :
+    //  · `data-entry-key` (imposition liminaire, stampée par buildImpositionBlocks) —
+    //    l'overlay liminaire y ancre son découpage ; prioritaire ;
+    //  · à défaut `data-block-id` (rendu de NŒUD, chapitrage) — l'overlay de chapitrage
+    //    y pose ses cadres de paragraphe.
+    // Une entrée coupée entre deux pages rend plusieurs fragments qui gardent la clé :
+    // on ne garde que le PREMIER. Pages MASQUÉES (cap chapitrage) écartées. Coords
+    // fenêtre, comme les pages.
     const seenKeys = new Set()
     const blocks = []
-    doc.querySelectorAll('.pagedjs_page [data-entry-key]').forEach((el) => {
-      const key = el.getAttribute('data-entry-key')
-      if (seenKeys.has(key)) return
-      seenKeys.add(key)
-      const r = el.getBoundingClientRect()
-      blocks.push({ key, left: r.left + fr.left, top: r.top + fr.top, width: r.width, height: r.height })
-    })
+    const collect = (attr) => {
+      doc.querySelectorAll(`.pagedjs_page:not(.folio-hidden) [${attr}]`).forEach((el) => {
+        const key = el.getAttribute(attr)
+        if (seenKeys.has(key)) return
+        const r = el.getBoundingClientRect()
+        if (r.width === 0 && r.height === 0) return
+        seenKeys.add(key)
+        blocks.push({ key, left: r.left + fr.left, top: r.top + fr.top, width: r.width, height: r.height })
+      })
+    }
+    collect('data-entry-key')
+    if (!blocks.length) collect('data-block-id')
     emit('block-geometry', blocks)
     // Rects ÉCRAN de la PREMIÈRE occurrence VISIBLE de chaque style (`data-style`) :
     // les callouts de styles (liminaire/chapitrage) y ancrent leur fuyante. On saute

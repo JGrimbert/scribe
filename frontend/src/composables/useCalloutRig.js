@@ -1,7 +1,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
-// Repli quand la gouttière n'est pas mesurable (planche incomplète ou géométrie pas
-// encore émise) : le retrait des cartouches retombe alors sur cet écart fixe.
+// Repli quand la gouttière émise n'est pas disponible (géométrie pas encore émise) :
+// le retrait des cartouches (V) retombe alors sur cet écart fixe.
 const GAP = 22
 
 // Socle commun aux overlays de callouts posés SUR la planche du FolioView
@@ -25,9 +25,12 @@ export function useCalloutRig({ geometry, buildLeaders, watchSources = [] }) {
   const leaders = ref([])
 
   // Repères de la planche en coordonnées LOCALES de l'overlay + retrait unifié des
-  // cartouches. `gut` = gouttière CENTRALE mesurée (repli GAP), gardée pour le coude des
-  // fuyantes ; V (retrait) vient de `geometry().gutter` (émis, fiable — la gouttière
-  // centrale vaut ~0 en vis-à-vis accolé).
+  // cartouches, tous dérivés de V (gouttière de reliure émise par FolioView : somme des
+  // marges extérieures × échelle, TOUJOURS proportionnelle même à une seule page ; repli
+  // GAP seulement si pas encore émise). V est exposé (`gutter`) : chaque hôte pose le
+  // coude des fuyantes à ½V du bord de page (milieu de la gouttière de reliure reflétée
+  // vers l'extérieur), qui scale en lockstep avec la largeur — d'où un point de brisure
+  // STABLE, au lieu de l'ancien écart en pixels fixes qui dérivait.
   const baseGeo = computed(() => {
     const g = geometry()?.pages
     if (!g || g.length < 1) return null
@@ -42,16 +45,13 @@ export function useCalloutRig({ geometry, buildLeaders, watchSources = [] }) {
     // aucune row de style). midX retombe alors au centre de la page (verso=recto), le
     // rail droit se ferre à son bord droit : split gauche/droite et fuyantes OK.
     const verso = g.length > 1 ? loc(g[1]) : recto // page affichée à DROITE
-    const centerGutter = verso.left - recto.right
-    const gut = centerGutter > 0 ? centerGutter : GAP
-    // Retraits des cartouches dérivés de V (gouttière verticale émise), IDENTIQUES
-    // entre tous les jalons. DEUX valeurs, une par axe : l'éloignement HORIZONTAL des
-    // piles (distance pile↔bord de page) est plus ample que le décrochement VERTICAL.
-    const V = geometry()?.gutter ?? gut
+    // DEUX valeurs, une par axe : l'éloignement HORIZONTAL des piles (distance
+    // pile↔bord de page) est plus ample que le décrochement VERTICAL.
+    const V = geometry()?.gutter ?? GAP
     const railPad = V / 2 // décrochement VERTICAL (sous le haut / au-dessus du pied)
     const railGap = V * 2 // éloignement HORIZONTAL (rail ferré à 2·V du bord de page)
     return {
-      recto, verso, gut, railPad,
+      recto, verso, railPad, gutter: V,
       top: recto.top,
       leftRailX: recto.left - railGap,
       railX: verso.right + railGap,

@@ -59,8 +59,8 @@ export const PAGE_SIDES = ['auto', 'recto', 'verso']
 export const PRECEDES_KINDS = ['none', 'break', 'blank']
 
 export const PRECEDES_LABELS = {
-  none: 'rien',
-  break: 'saut de page',
+  none: 'aucun',
+  break: 'saut',
   blank: 'page blanche',
 }
 

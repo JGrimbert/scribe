@@ -13,7 +13,8 @@ chargé à la demande (ne toucher qu'une famille n'en charge que le doc). Carte 
 - **`layout/`** — coquille d'un document ouvert : `DocumentLayout` (asides, cycle
   trame/data) + `DocumentBar` (2e topbar, fil d'Ariane, validation, scope). Voir
   `layout/CLAUDE.md`.
-- **`home/`** — accueil + registre : `HomeView`, `DocumentList`. Voir `home/CLAUDE.md`.
+- **`home/`** — accueil = écran de registre pleine largeur (`HomeView`, tableau
+  détaillé des manuscrits ; `DocumentList` supprimé). Voir `home/CLAUDE.md`.
 - **`config/`** — **plus d'écran routé** (`ConfigView` supprimé le 2026-08-05,
   fondu dans la maquette) : dossier de composants PARTAGÉS de configuration
   (typologie/styles/règles/recalibration : `StyleRolesTable`, `RecalibrationModal`,
@@ -25,15 +26,22 @@ chargé à la demande (ne toucher qu'une famille n'en charge que le doc). Carte 
   `themes/`) + store `useAnalyse`, consommés par la maquette et le CTA de
   `DocumentBar`. Voir `analyse/CLAUDE.md`.
 - **`maquette/`** — écran Maquette : `MaquetteView` est une **coquille** (barres,
-  sommaire, dock, **unique `FolioView` persistant**) qui route ses **jalons** dans
-  `maquette/panes/` (`MaquetteVocabulairePane` = titredulivre par défaut, `…Format`,
-  `…Liminaire`, `…Chapitrage`, `…AnnotationsPane` = fragments annotés en lambeaux +
-  panneau validation/anomalies). Le modèle partagé est fourni aux
-  panes via `provide('maq', …)`. Routing + synchro `focused`⇄route : `../router/CLAUDE.md`.
+  sommaire, dock, **deux slots A/B de `FolioView`** qui glissent en ping-pong, cf.
+  `useMaquetteSlide`) qui route ses **jalons** dans `maquette/panes/`
+  (`MaquetteVocabulairePane` = titredulivre par défaut, `…Format`, `…Liminaire`,
+  `…Chapitrage`, `…AnnotationsPane` = fragments annotés en lambeaux + panneau
+  validation/anomalies). Les **callouts ancrés au folio** (format, styles liminaire/
+  chapitrage, `LiminaireControls`, `BlockOutlines`) ne vivent PLUS dans les panes :
+  ils sont montés DANS chaque slot par `MaquetteCallouts` (aiguillé par la SOURCE de la
+  vue du slot, figée pour la sortante) → le transform du slot les fait **glisser avec
+  la planche** pendant une bascule (plus d'effacement). Les panes ne gardent que le
+  non-ancré (`MaquetteGroupes`, `MaquetteFragmentPreview`) ; `…Format`/`…Liminaire`
+  sont désormais vides (cibles de routage). Le modèle partagé est fourni via
+  `provide('maq', …)`. Routing + synchro `focused`⇄route : `../router/CLAUDE.md`.
 - **`liminaire/`** — typage/composition des pages liminaires (`LiminaireControls`
-  — overlay type/chevrons/découpage posé sur la planche — + `LiminaireFolio`,
-  montés par la maquette ; l'ancien `LiminaireComposer`/accordéon dédié a été
-  supprimé). Voir `liminaire/CLAUDE.md`.
+  — overlay type/découpage posé sur la planche, monté par `MaquetteCallouts` dans le
+  slot — + `LiminaireFolio`, montés par la maquette ; l'ancien `LiminaireComposer`/
+  accordéon dédié a été supprimé). Voir `liminaire/CLAUDE.md`.
 - **`ui/`** — design system en atomic design : `atoms/`, `molecules/`,
   `organisms/` (`BaseChart`) + Storybook. Voir `ui/CLAUDE.md`.
 

@@ -281,14 +281,14 @@ const manchetteLines = computed(() => anchors.value['manchette-lines'] ?? [])
 const geo = computed(() => {
   const b = baseGeo.value
   if (!b) return null
-  const { recto, verso, gut, railPad, top, leftRailX, railX } = b
+  const { recto, verso, railPad, gutter, top, leftRailX, railX } = b
   const bottom = Math.max(recto.bottom, verso.bottom)
   return {
     railX, leftRailX, top, bottom, railPad,
     midY: (top + bottom) / 2,
-    // Coude des fuyantes : MILIEU de la gouttière centrale (bord de page + ½ gut),
-    // FIXE quel que soit le recul des piles.
-    gutterMidRight: verso.right + gut / 2, gutterMidLeft: recto.left - gut / 2,
+    // Coude des fuyantes : à ½V du bord de page (milieu de la gouttière de reliure V).
+    // V est proportionnel → point de brisure stable quelle que soit la largeur de fenêtre.
+    gutterMidRight: verso.right + gutter / 2, gutterMidLeft: recto.left - gutter / 2,
     // Largeur du rail : du point de ferrage au bord de l'aperçu. Les piles y sont
     // bornées (cf. FcGroup.maxWidth) — au-delà elles sortiraient du champ.
     leftRailW: leftRailX,

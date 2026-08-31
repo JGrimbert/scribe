@@ -1,7 +1,8 @@
 <template>
-  <!-- Jalon Chapitrage : aperçu léger du nœud survolé (validation), styles du
-       vis-à-vis « exigé » posés sur la planche, et volet des familles de cas ferré
-       en bas de fenêtre quand la validation est ouverte. -->
+  <!-- Jalon Chapitrage : aperçu léger du nœud survolé (validation) et volet des familles
+       de cas ferré en bas de fenêtre quand la validation est ouverte. Les callouts ancrés
+       au folio (cadres de paragraphes + styles « exigés ») sont montés DANS le slot par la
+       coquille (MaquetteView → MaquetteCallouts), pour glisser avec la planche. -->
   <MaquetteFragmentPreview
       v-if="showGroupes && hoveredNode"
       :node="hoveredNode"
@@ -9,21 +10,6 @@
       :depth="mainDepth"
       :visuals="effectiveVisuals"
       :ratio="previewRatio"
-  />
-
-  <!-- Fuyantes tues tant que la géométrie est périmée (scroll rapide) : sinon elles
-       clignotent sur les rects du cran précédent le temps de la repagination. -->
-  <MaquetteStyleCallouts
-      v-if="!geometryStale"
-      :geometry="spreadGeometry"
-      :style-geometry="styleGeometry"
-      :styles="chapSpreadStyles"
-      :style-roles="styles"
-      show-require
-      :depth-key="focusedSection?.depthKey ?? null"
-      :zone-key="focusedSection?.zone.key ?? null"
-      :rule-set="focusedSection?.ruleSet ?? rules.default"
-      @hover-style="setHoveredStyle"
   />
 
   <MaquetteGroupes
@@ -47,16 +33,15 @@
 
 <script setup>
 import { inject } from 'vue'
-import MaquetteStyleCallouts from '../MaquetteStyleCallouts.vue'
 import MaquetteFragmentPreview from '../MaquetteFragmentPreview.vue'
 import MaquetteGroupes from '../MaquetteGroupes.vue'
 
 const {
-  spreadGeometry, styleGeometry, styles, rules, focusedSection,
-  chapSpreadStyles, mainDepth, effectiveVisuals, previewRatio,
+  styles, rules, focusedSection,
+  mainDepth, effectiveVisuals, previewRatio,
   showGroupes, hoveredNode, hoveredGroup,
   deviationGroups, mergeSuggestion, corpsSuggestion, merging, styleRows,
-  onHoverGroup, applyMerge, setHoveredStyle, geometryStale,
+  onHoverGroup, applyMerge, setHoveredStyle,
 } = inject('maq')
 </script>
 

@@ -32,6 +32,9 @@ export function useMaquetteSlide({ focused, liveView, markSettled }) {
   // rien → le slot ne se monte pas, cf. le `v-if` côté template).
   const viewFor = (slot) => (liveSlot.value === slot ? liveView.value : frozenView.value)
   const bundleFor = (slot) => viewFor(slot)?.bundle
+  // Descriptif de callouts du slot : figé pour la vue sortante, live pour l'entrante —
+  // l'overlay de callouts glisse ainsi avec la planche de SON slot.
+  const calloutsFor = (slot) => viewFor(slot)?.callouts
 
   // prevView : la valeur PRÉCÉDENTE de liveView — la vue à l'écran quand une bascule
   // survient. Ce watch est déclaré AVANT celui de `focused` : même flush, ordre de
@@ -114,5 +117,5 @@ export function useMaquetteSlide({ focused, liveView, markSettled }) {
     return null
   })
 
-  return { liveSlot, bundleFor, onSlotPaginated, shiftStyle, emitToken, fragScene }
+  return { liveSlot, bundleFor, calloutsFor, onSlotPaginated, shiftStyle, emitToken, fragScene }
 }

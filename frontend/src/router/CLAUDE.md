@@ -3,10 +3,11 @@
 `App.vue` est un shell (menu + `<router-view>`), plus de toggle manuel entre
 vues. Routes (`index.js`, `vue-router`) :
 
-- **`/` — `HomeView.vue`** : porte d'entrée, à **deux colonnes comme la config**
-  (aside registre `DocumentList` + import ; main = module utilisateur placeholder
-  puis présentation des espaces). **Pas de redirection** vers le dernier document :
-  `/` reste une destination réelle (icône « Accueil »).
+- **`/` — `HomeView.vue`** : porte d'entrée, **écran de registre pleine largeur**
+  (plus d'aside — barre de tête façon `doc-bar` + zone crème portant le tableau
+  détaillé des manuscrits, cf. `../components/home/CLAUDE.md`). **Pas de
+  redirection** vers le dernier document : `/` reste une destination réelle (icône
+  « Accueil »).
 - **Import : plus de route ni d'écran dédiés.** La calibration d'import passe par
   une **modale globale** (`../components/import/ImportCalibrationModal.vue`, montée
   une fois dans `App.vue`), pilotée par `pendingPreview` (`useRegistry`) —
@@ -15,8 +16,8 @@ vues. Routes (`index.js`, `vue-router`) :
   d'elle-même. Le commit navigue vers la **maquette** du document créé.
 - **`/documents/:id` — `DocumentLayout.vue`** : fetch unique de
   `GET /api/documents/:id`, fournit `trame`/`data` via `provide`/`inject` aux
-  routes enfants, monte `DocumentBar` + l'aside (registre XOR `StructureView`
-  selon `asideMode`). Détient l'état de validation et le scope d'analyse (cf.
+  routes enfants, monte `DocumentBar` + l'aside `StructureView` (sauf en maquette,
+  pleine largeur). Détient l'état de validation et le scope d'analyse (cf.
   `../components/CLAUDE.md`, « Menus »). Enfants :
   - **`''` — `MaquetteView.vue` (COQUILLE) + jalons routés en enfants** : la vue
     par défaut du document. `MaquetteView` garde barres, sommaire, dock et l'**unique

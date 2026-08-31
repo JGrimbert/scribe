@@ -14,7 +14,7 @@
     </template>
 
     <template v-else-if="cell.blank">
-      <span class="folio-blank-label">{{ cell.implicit ? 'blanche · parité' : 'Page blanche' }}</span>
+      <span class="folio-blank-label">Page blanche</span>
     </template>
 
     <template v-else>

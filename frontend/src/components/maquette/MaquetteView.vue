@@ -123,6 +123,15 @@
                       @block-geometry="(g) => onSlotBlock(slot, g)"
                       @style-geometry="(g) => onSlotStyle(slot, g)"
                   />
+                  <!-- Callouts ancrés au folio, DANS le slot : le transform du slot les
+                       fait glisser avec sa planche. Affichés dès que CE slot a paginé
+                       (géométrie fraîche) → pas d'ancrage sur des rects périmés. -->
+                  <MaquetteCallouts
+                      v-if="calloutsFor(slot) && slotGeo[slot].spread?.pages?.length"
+                      :view="calloutsFor(slot)"
+                      :geometry="slotGeo[slot]"
+                      :interactive="slot === liveSlot"
+                  />
                 </div>
               </div>
               <!-- Scènes frag (nuage / validation) : dans la COQUILLE (pas les panes) pour
@@ -162,9 +171,10 @@
 <script setup>
 // Coquille : injecte l'état document, instancie les composables et les câble au
 // template + au modèle partagé des panes (provide('maq')). Aucune logique métier ici.
-import { ref, computed, inject, provide, onMounted, onUnmounted, watchEffect } from 'vue'
+import { ref, reactive, computed, inject, provide, onMounted, onUnmounted, watchEffect } from 'vue'
 import { useRoute } from 'vue-router'
 import MaquetteAccordeon from './MaquetteAccordeon.vue'
+import MaquetteCallouts from './MaquetteCallouts.vue'
 import MaquetteSpreadCell from './MaquetteSpreadCell.vue'
 import MaquetteLiminaireCell from './MaquetteLiminaireCell.vue'
 import MaquetteChapitreCell from './MaquetteChapitreCell.vue'
@@ -427,19 +437,46 @@ const liveView = computed(() => {
     analyseLeft: analyseLeft.value,
     analyseColumn: analyseColumn.value,
   },
+  // Descriptif des callouts ancrés au folio, FIGÉ avec la vue : les données PAR-vis-à-vis
+  // (styles du spread, spread liminaire, section) changent d'un cran à l'autre, il faut
+  // les figer pour que la planche sortante garde SES callouts. Le reste (rôles, types,
+  // config…) est stable sur la durée d'un slide → injecté en direct par MaquetteCallouts.
+  callouts: calloutsDescriptor(),
   }
 })
 
-const { liveSlot, bundleFor, onSlotPaginated, shiftStyle, emitToken, fragScene } = useMaquetteSlide({
+// Snapshot des données par-vis-à-vis dont les callouts d'un slot ont besoin, selon la
+// source. Lu DANS liveView (donc figé avec elle par le slide). Les vues sans callouts
+// ancrés au folio (analyse/validation) ne portent qu'une source → overlay vide.
+function calloutsDescriptor() {
+  const source = focusedSourceKey.value
+  if (source === 'maquette') return { source }
+  if (source === 'liminaire') {
+    return { source, limStyles: limSpreadStyles.value, limSpread: limFocusedSpread.value }
+  }
+  if (source === 'chapitrage') {
+    return { source, chapStyles: chapSpreadStyles.value, section: focusedSection.value }
+  }
+  return { source }
+}
+
+const { liveSlot, bundleFor, calloutsFor, onSlotPaginated, shiftStyle, emitToken, fragScene } = useMaquetteSlide({
   focused, liveView, markSettled: onPaginated,
 })
 
-// Les événements de géométrie ne comptent que pour la planche VIVANTE (la figée sortante
-// est ignorée : sa géométrie est périmée / hors écran).
+// Géométrie émise PAR SLOT : chaque overlay de callouts est monté DANS son `.folio-slot`
+// et se recale sur la planche de CE slot — la sortante figée garde donc sa géométrie de
+// repos (émise avant la bascule) et glisse dehors avec, l'entrante emménage avec la sienne.
+// (Les refs partagées, elles, ne suivent que la planche VIVANTE : StyleEditorPanel / scènes
+// s'y ancrent, et la figée sortante y serait périmée / hors écran.)
+const slotGeo = reactive({
+  a: { spread: null, block: [], style: {} },
+  b: { spread: null, block: [], style: {} },
+})
 const onSlotStep = (slot, d) => { if (slot === liveSlot.value) stepResultPage(d) }
-const onSlotSpread = (slot, g) => { if (slot === liveSlot.value) onSpreadGeometry(g) }
-const onSlotBlock = (slot, g) => { if (slot === liveSlot.value) blockGeometry.value = g }
-const onSlotStyle = (slot, g) => { if (slot === liveSlot.value) styleGeometry.value = g }
+const onSlotSpread = (slot, g) => { slotGeo[slot].spread = g; if (slot === liveSlot.value) onSpreadGeometry(g) }
+const onSlotBlock = (slot, g) => { slotGeo[slot].block = g; if (slot === liveSlot.value) blockGeometry.value = g }
+const onSlotStyle = (slot, g) => { slotGeo[slot].style = g; if (slot === liveSlot.value) styleGeometry.value = g }
 
 useMaquetteRoute({ focused, crans, focusedCran, vocabIndex, limStart, limSpreads })
 

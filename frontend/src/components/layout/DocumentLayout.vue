@@ -14,7 +14,7 @@
           :current-node-id="currentNodeId"
           :sidebar-expanded="sidebarExpanded"
           :has-sidebar="!isMaquette"
-          :aside-label="asideMode === 'registry' ? 'le registre' : 'la structure'"
+          aside-label="la structure"
           :scoped="!isEditor"
           :validation-state="currentValidation"
           :validating="validating"
@@ -24,33 +24,25 @@
           @select="select"
           @toggle-validation="toggleValidation"
       />
+      <!-- Pendant le chargement du document la barre NE DISPARAÎT PAS (sinon
+           l'interface saute d'une barre entre l'accueil et le document) : un
+           bandeau vide, de même hauteur et même fond, tient la place. L'indicateur
+           de chargement lui-même est centré dans le contenu (cf. `.doc-loading`). -->
+      <div v-else class="doc-bar-loading"></div>
     </div>
 
     <div class="document-layout">
-      <!-- Aside CONTEXTUELLE : le registre là où l'arbre des nœuds ne sert à
-           rien (la config, qui peut le reconstruire), la structure partout où
-           on travaille dans le document. La maquette porte son PROPRE sommaire
+      <!-- Aside gauche : l'arbre des nœuds (StructureView), partout où on
+           travaille dans le document. La maquette porte son PROPRE sommaire
            flottant (MaquetteStructureNav) : pas d'aside gauche ici. -->
       <div
           v-if="!isMaquette"
           class="document-layout__sidebar"
-          :class="{
-            'document-layout__sidebar--rail': !sidebarExpanded,
-            'document-layout__sidebar--registry': asideMode === 'registry',
-          }"
+          :class="{ 'document-layout__sidebar--rail': !sidebarExpanded }"
       >
         <CustomScrollbar :top-offset="42">
-          <aside v-if="asideMode === 'registry'" class="registry-aside">
-            <DocumentList
-                v-if="sidebarExpanded"
-                :active-id="route.params.id"
-                @select="openDocument"
-                @deleted="onDocumentDeleted"
-            />
-          </aside>
-
           <StructureView
-              v-else-if="trame && data"
+              v-if="trame && data"
               :trame="trame"
               :data="data"
               :expanded="sidebarExpanded"
@@ -58,23 +50,16 @@
               @select="select"
           />
         </CustomScrollbar>
-
-        <!-- HORS de la zone de défilement : l'import doit rester sous la main
-             quelle que soit la longueur du registre. En rail, il se réduit à
-             son icône — 42 px ne portent pas un libellé. -->
-        <div v-if="asideMode === 'registry'" class="registry-foot">
-          <ImportButton
-              v-if="sidebarExpanded"
-              :label="'Importer un document'"
-          />
-        </div>
       </div>
 
       <!-- Contenu principal avec CustomScrollbar -->
       <div class="document-layout__content">
         <CustomScrollbar :top-offset="42">
           <router-view v-if="trame && data" />
-          <p v-else class="loading">Chargement du document…</p>
+          <div v-else class="doc-loading">
+            <i class="pi pi-spin pi-spinner doc-loading__icon" aria-hidden="true"></i>
+            <span>Chargement…</span>
+          </div>
         </CustomScrollbar>
       </div>
     </div>
@@ -87,9 +72,6 @@ import { useRoute, useRouter } from 'vue-router'
 import StructureView from '../structure/StructureView.vue'
 import DocumentBar from './DocumentBar.vue'
 import CustomScrollbar from '../ui/atoms/CustomScrollbar.vue'
-import DocumentList from '../home/DocumentList.vue'
-import ImportButton from '../import/ImportButton.vue'
-import BaseButton from '../ui/atoms/BaseButton.vue'
 import { provideAnalyse } from '../../composables/useAnalyse'
 
 const route = useRoute()
@@ -160,23 +142,6 @@ const isEditor = computed(() => route.name === 'editor')
 // maquette est une coquille à enfants routés (maquette / maquette-format /
 // -liminaire / -chapitrage / -annotations), tous préfixés `maquette`.
 const isMaquette = computed(() => route.name?.startsWith('maquette') ?? false)
-
-// L'aside gauche porte toujours la structure du document : l'ancien écran de
-// config (qui y montrait le registre) a fondu dans la maquette, laquelle reste
-// pleine largeur avec son propre sommaire flottant.
-const asideMode = computed(() => 'structure')
-
-// Changer de document depuis le registre garde l'écran ET le volet : on compare
-// des maquettes, on ne repart pas dans le dashboard à chaque clic.
-function openDocument(id) {
-  if (id !== route.params.id) router.push({ name: 'maquette', params: { id }, query: route.query })
-}
-
-// Supprimer un AUTRE document ne fait que raccourcir la liste ; supprimer celui
-// qu'on étudie laisse l'écran sur un document qui n'existe plus.
-function onDocumentDeleted(id) {
-  if (id === route.params.id) router.push('/')
-}
 
 // Nud « courant » : en dition c'est l'article ouvert (URL), en analyse c'est
 // le scope choisi. Sert au surlignage sidebar et au fil d'Ariane.
@@ -298,9 +263,22 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.loading {
-  padding: 1.5em;
-  opacity: 0.6;
+/* Indicateur de chargement du document : spinner + libellé, centrés dans toute la
+   zone de contenu (la barre reste, cf. `.doc-bar-loading`). */
+.doc-loading {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-3);
+  color: var(--c-ink2);
+  font-size: var(--fs-sm);
+}
+
+.doc-loading__icon {
+  font-size: 1.8rem;
+  color: var(--c-accent-alt);
 }
 
 .document-layout-wrapper {
@@ -321,6 +299,20 @@ onMounted(() => {
   z-index: 99;
 }
 
+/* Bandeau de chargement : mêmes hauteur, fond et filet que la doc-bar, pour que
+   la barre ne clignote pas hors de l'écran le temps du fetch du document. */
+.doc-bar-loading {
+  height: var(--bar-size-2);
+  display: flex;
+  align-items: center;
+  padding-left: 2em;
+  background: var(--c-ui-light);
+  border-bottom: var(--c-doc-bar-border);
+  color: var(--c-accent-alt-mid);
+  font-size: var(--fs-sm);
+  opacity: var(--op-soft);
+}
+
 .document-layout {
   display: flex;
   flex: 1;
@@ -332,43 +324,13 @@ onMounted(() => {
   flex: 0 0 auto;
   min-height: 0;
   border-right: 1px solid #eee;
-  /* Colonne en flex : le défilement prend ce qui reste, le pied garde sa
-     hauteur. Poser le fond ICI plutôt que sur `.registry-aside` (qui s'arrête
-     au contenu) est ce qui le fait descendre jusqu'en bas. */
   display: flex;
   flex-direction: column;
-}
-
-.document-layout__sidebar--registry {
-  background-color: var(--c-aside-bck);
 }
 
 /* Replié : le rail garde la largeur d'une barre, le contenu récupère le reste. */
 .document-layout__sidebar--rail {
   width: 0;
-}
-
-/* Même décrochement que `.structure-panel` : la barre est en absolu au-dessus
-   de la zone de défilement, l'aside démarre sous elle. */
-/* Sans padding : les lignes du registre occupent toute la largeur, leur survol
-   devient une bande pleine plutôt qu'une pastille flottante. */
-.registry-aside {
-  margin-top: 42px;
-  display: flex;
-  flex-direction: column;
-}
-
-.registry-foot {
-  flex: 0 0 auto;
-  padding: var(--sp-3);
-  display: flex;
-  justify-content: center;
-}
-
-/* Le rail est trop étroit pour une liste : il n'y reste que de quoi la
-   rouvrir. */
-.registry-aside__rail {
-  align-self: center;
 }
 
 .document-layout__content {

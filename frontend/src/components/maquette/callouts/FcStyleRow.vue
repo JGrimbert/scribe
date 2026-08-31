@@ -25,8 +25,7 @@
     </span>
     <span class="fc-srow__controls">
       <BareSelect
-          :model-value="precedesLocked ? 'blank' : precedes"
-          :disabled="precedesLocked"
+          :model-value="precedes"
           :options="PRECEDES_OPTIONS"
           @update:model-value="$emit('update:precedes', $event)" />
       <BareSelect
@@ -47,8 +46,6 @@ defineProps({
   item: { type: Object, required: true }, // { name, declared? }
   role: { type: String, default: null },
   precedes: { type: String, default: 'none' },
-  // 1re page du liminaire : suit toujours la garde (blanche, folio 0) → select figé.
-  precedesLocked: { type: Boolean, default: false },
   // Apparence surchargée (pastille sur le crayon) ; crayon présent si éditable.
   modified: { type: Boolean, default: false },
   canEdit: { type: Boolean, default: false },

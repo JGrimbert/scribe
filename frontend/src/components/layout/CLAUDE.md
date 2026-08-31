@@ -6,14 +6,23 @@ les distribue ; fournit le store d'analyse (`provideAnalyse`, cf.
 `../analyse/CLAUDE.md`) — monté ici, à la racine du document, pour que
 `DocumentBar` et la maquette (cards, CTA) y accèdent.
 
-## Aside contextuelle — structure
+## Aside gauche — structure
 
-L'aside porte `../structure/StructureView.vue` (arbre des nœuds). `asideMode`
-renvoie **toujours `'structure'`** depuis la suppression de l'écran de config
-(2026-08-05) — c'était le seul écran qui montrait le registre (`DocumentList`) à
-la place ; la maquette (ex-config) est pleine largeur avec son propre sommaire
-flottant. Le registre reste câblé (`openDocument`) mais n'est plus monté ici.
-`DocumentBar` reçoit `asideLabel` (« la structure »).
+L'aside porte **toujours** `../structure/StructureView.vue` (arbre des nœuds), sauf
+en maquette (pleine largeur, son propre sommaire flottant). Le mode registre
+(`DocumentList` dans l'aside) a été **entièrement retiré** le 2026-08-30, avec
+`DocumentList` lui-même : depuis la suppression de l'écran de config (2026-08-05)
+il n'était plus jamais rendu, et l'accueil porte désormais son propre tableau de
+registre (cf. `../home/CLAUDE.md`). `DocumentBar` reçoit `asideLabel` (« la
+structure »).
+
+## Bandeau de chargement — la barre ne saute pas
+
+`DocumentBar` attend `trame && data` (cf. « Cycle trame/data »), donc pendant le
+fetch d'un document elle n'est pas rendue. Un `.doc-bar-loading` (même hauteur,
+même fond `--c-ui-light`, même filet que la doc-bar) prend alors sa place : sans
+lui, la 2e barre DISPARAÎT entre l'accueil et le document, et l'interface saute
+d'une barre.
 
 ## Cycle trame/data — piège du démontage
 

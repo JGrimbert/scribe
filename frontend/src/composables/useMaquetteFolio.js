@@ -84,7 +84,7 @@ export function useMaquetteFolio({
   function limSlotFor(cell) {
     if (!cell) return { kind: 'cover', label: 'Page de garde' }
     if (cell.cover) return { kind: 'cover', label: 'Page de garde' }
-    if (cell.blank) return { kind: 'blank', label: cell.implicit ? 'blanche · parité' : 'Page blanche' }
+    if (cell.blank) return { kind: 'blank', label: 'Page blanche' }
     return { kind: 'content', entries: cell.page?.entries ?? [] }
   }
   const limSpreadPages = computed(() => {

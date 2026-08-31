@@ -19,7 +19,6 @@
             :item="style"
             :role="styleRoles[style.name]"
             :precedes="precedesOf(style.name)"
-            :precedes-locked="precedesLocked(style)"
             :modified="isModified(style.name)"
             :can-edit="!!openStyleEditor"
             :show-require="showRequire"
@@ -53,8 +52,6 @@ const props = defineProps({
   styles: { type: Array, default: () => [] },
   // Map réactive rôle-par-style, mutée en place (comme la table de l'aside).
   styleRoles: { type: Object, required: true },
-  // Zone (clé de zones.js) : verrouille le « précède » de la 1re ligne liminaire.
-  zoneKey: { type: String, default: null },
   // Colonne « exigé » (chapitrage) : requiert `depthKey` + `ruleSet`.
   showRequire: { type: Boolean, default: false },
   depthKey: { type: Number, default: null },
@@ -87,12 +84,6 @@ function isRequired(name) {
 function onToggleRequire(name) {
   if (toggleRequireStyle && props.depthKey != null) toggleRequireStyle(props.depthKey, name)
 }
-// 1re page du liminaire = « Page de garde » (folio 0) : le tout premier style suit
-// toujours une blanche → select figé sur « blank » (présentation seule, cf.
-// StyleRolesTable.precedesLocked). Ne vaut QUE pour la zone liminaire.
-function precedesLocked(style) {
-  return props.zoneKey === 'liminaire' && props.styles[0]?.name === style.name
-}
 
 function onHover(name) {
   hovered.value = name
@@ -115,15 +106,16 @@ const { rootRef, origin, box, baseGeo, leaders, setRow } = useCalloutRig({
 const geo = computed(() => {
   const b = baseGeo.value
   if (!b) return null
-  const { recto, verso, gut, railPad, top, leftRailX, railX } = b
+  const { recto, verso, railPad, gutter, top, leftRailX, railX } = b
   return {
     leftRailX, railX, top, railPad,
     // Frontière gouttière : arbitre le côté de chaque style (fuyante non traversante).
     midX: (recto.right + verso.left) / 2,
-    // Coude des fuyantes : milieu de la gouttière EXTÉRIEURE (entre bord de page et
-    // rail), fixe quel que soit le recul des piles — harmonisé avec MaquetteFormatCallouts.
-    gutMidLeft: recto.left - gut / 2,
-    gutMidRight: verso.right + gut / 2,
+    // Coude des fuyantes : à ½V du bord de page (milieu de la gouttière de reliure V).
+    // V est proportionnel → point de brisure stable quelle que soit la largeur de
+    // fenêtre — harmonisé avec MaquetteFormatCallouts.
+    gutMidLeft: recto.left - gutter / 2,
+    gutMidRight: verso.right + gutter / 2,
   }
 })
 
